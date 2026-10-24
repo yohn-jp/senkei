@@ -75,6 +75,9 @@ pub struct SimulatePayload {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSimulationResponse {
+    /// Restricted attacker-perspective projection; absent from public responses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_replay: Option<crate::PresentationReplay>,
     pub result: crate::MatchResult,
     pub replay: crate::PresentationReplay,
     /// `null` unless requested by the local-only simulator caller.

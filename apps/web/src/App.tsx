@@ -25,6 +25,7 @@ import type {
 } from "./contracts";
 import { BattleFeature } from "./features/battle/BattleFeature";
 import { EditorFeature } from "./features/editor";
+import { NextWorkspace } from "./features/next";
 import { PersistenceFeature } from "./features/persistence";
 import {
   compareDocumentRevisions,
@@ -42,10 +43,13 @@ import {
 import { createCoreClient } from "./worker";
 import { createBeginnerPreset, createCampaignScenarios } from "../../../scenarios/campaign/catalog";
 
-const navigation: readonly { id: WorkspaceView; label: string; number: string }[] = [
+type AppView = WorkspaceView | "next";
+
+const navigation: readonly { id: AppView; label: string; number: string }[] = [
   { id: "editor", label: "Tactics", number: "01" },
-  { id: "battle", label: "Battle lab", number: "02" },
-  { id: "persistence", label: "Library", number: "03" },
+  { id: "next", label: "Next", number: "02" },
+  { id: "battle", label: "Battle lab", number: "03" },
+  { id: "persistence", label: "Library", number: "04" },
 ];
 
 const EMPTY_WORKSPACE_DATA: LocalSenkeiWorkspaceData = Object.freeze({
@@ -177,9 +181,11 @@ function summarizeBenchmark(
 }
 
 function App() {
-  const [view, setView] = useState<WorkspaceView>("editor");
+  const [view, setView] = useState<AppView>("editor");
   const [core, setCore] = useState<CoreClient | null>(null);
   const [ruleset, setRuleset] = useState<RulePackage | null>(null);
+  const [nextRuleset, setNextRuleset] = useState<RulePackage | null>(null);
+  const [nextRulesetError, setNextRulesetError] = useState<string | null>(null);
   const rulesetRef = useRef<RulePackage | null>(null);
   const [coreError, setCoreError] = useState<string | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -212,6 +218,14 @@ function App() {
     const client = createCoreClient();
     let current = true;
     setCore(client);
+    void client.nextRuleset().then((packageValue) => {
+      if (!current) return;
+      setNextRuleset(packageValue);
+      setNextRulesetError(null);
+    }).catch((error: unknown) => {
+      if (!current) return;
+      setNextRulesetError(error instanceof Error ? error.message : "The local Next ruleset could not be loaded.");
+    });
     void client.initialRuleset().then((packageValue) => {
       if (!current) return;
       let campaign: readonly LocalPveScenario[] = [];
@@ -660,8 +674,17 @@ function App() {
             <div className="app-error" role="alert">{coreError ?? preparationError ?? catalogError}</div>
           )}
 
-          <div className="feature-grid">
-            <div className="feature-primary">
+          <div className="next-view-shell" hidden={view !== "next"}>
+            <NextWorkspace
+              active={view === "next"}
+              core={core}
+              ruleset={nextRuleset}
+              rulesetError={nextRulesetError}
+            />
+          </div>
+          {view !== "next" && (
+            <div className="feature-grid">
+              <div className="feature-primary">
               {view === "editor" && (
                 <EditorFeature
                   ruleset={ruleset}
@@ -700,20 +723,21 @@ function App() {
               )}
 
               {view === "persistence" && <PersistenceFeature {...persistenceHandlers} />}
-            </div>
+              </div>
 
-            <aside className="principle-card">
-              <div className="principle-icon" aria-hidden="true">◎</div>
-              <div className="feature-eyebrow">THE SENKEI LOOP</div>
-              <ol>
-                <li><span>01</span> Design your formation</li>
-                <li><span>02</span> Let your strategy fight</li>
-                <li><span>03</span> Study the replay</li>
-                <li><span>04</span> Improve and go again</li>
-              </ol>
-              <div className="principle-note">Every battle is deterministic and runs on your device.</div>
-            </aside>
-          </div>
+              <aside className="principle-card">
+                <div className="principle-icon" aria-hidden="true">◎</div>
+                <div className="feature-eyebrow">THE SENKEI LOOP</div>
+                <ol>
+                  <li><span>01</span> Design your formation</li>
+                  <li><span>02</span> Let your strategy fight</li>
+                  <li><span>03</span> Study the replay</li>
+                  <li><span>04</span> Improve and go again</li>
+                </ol>
+                <div className="principle-note">Every battle is deterministic and runs on your device.</div>
+              </aside>
+            </div>
+          )}
 
           <footer className="page-footer">
             <span>LOCAL FIRST BY DESIGN</span>

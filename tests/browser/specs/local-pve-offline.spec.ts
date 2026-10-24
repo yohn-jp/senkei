@@ -70,7 +70,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   const savedDocument = page.getByRole("button", { name: "Open Offline campaign journey" });
   await expect(savedDocument).toBeVisible();
   await page.getByRole("button", { name: "Save revision" }).click();
-  await expect(page.getByText("REV 2")).toBeVisible();
+  await expect(page.getByText("REV 2", { exact: true })).toBeVisible();
 
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
   await browserContext.setOffline(true);
@@ -111,7 +111,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await expect(acceptedDeployRow.locator("small")).toContainText("Attacker · tick 4");
   await navigation.getByRole("button", { name: /Library/ }).click();
   await page.getByRole("button", { name: "Save revision" }).click();
-  await expect(page.getByText("REV 3")).toBeVisible();
+  await expect(page.getByText("REV 3", { exact: true })).toBeVisible();
 
   // Reopen the latest saved revision while still offline. It must retain its
   // rematch result, and running again must produce a fresh result as well.

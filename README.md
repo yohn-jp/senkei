@@ -25,12 +25,20 @@ npm run preview
 
 プレビュー画面で一度アセットを読み込むと、サービスワーカーがアプリとWASMをローカルにキャッシュします。オフライン再戦の対象はこの本番プレビューです。`npm run dev` はUI開発用で、オフライン動作の検証対象ではありません。ブラウザ契約とキャッシュ境界は [WEB-API.md](docs/implementation/WEB-API.md)、WASMビルド手順は [scripts/wasm/README.md](scripts/wasm/README.md)を参照してください。
 
+## Next Senritsu を遊ぶ
+
+ワークスペースの **Next** を開き、12種類（前衛6・後衛6）から5体を選択します。Squad、初期位置、戦闘前のSkill Treeを設定し、既存のJinreiエディタでコンパイルして **Launch local battle** を実行します。3Dリプレイのシーク、HeroのXP・スキル・自分の診断、編成修正、再戦までローカルで完結します。**Save setup** は既存戦型と別の保存領域を使い、JSONの入出力とオフライン復元にも対応します。
+
+`senkei.next` 1.0.0は、Enbu 1.1.0の有限プリミティブを既存のシミュレーション経路で実行します。3レーン・ジャングル・Minion視界、Squadの分離／合流、通常戦闘・スキル・成長・Solo復活を含みます。`senkei.initial` の結果は既存の回帰ケースで維持しています。暫定値は [Nextパラメータ](docs/implementation/NEXT-PARAMETERS.md)、検証範囲は [Next検証記録](docs/implementation/NEXT-VERIFICATION.md) を参照してください。
+
 ## ヘッドレス実行
 
-同じ初期ルールセット、Jinreiコンパイラ、Enbuシミュレータを使うローカルCLIもあります。
+同じバージョン付きルール、Jinreiコンパイラ、Enbuシミュレータを使うローカルCLIもあります。
 
 ```sh
 cargo run --locked -p senkei-runner -- run examples/local-match.json
+cargo run --release --locked -p senkei-runner -- run examples/next-match.json --public-only > next-replay.json
+bash scripts/balance/run-next.sh
 ```
 
 公開結果とリプレイだけを出力するには `--public-only` を追加します。入力と検証の詳細は [CORE-VALIDATION.md](docs/implementation/CORE-VALIDATION.md)を参照してください。
@@ -60,7 +68,7 @@ cargo run --locked -p senkei-runner -- run examples/local-match.json
 - [将来の公式PvP・Cloudflare境界](docs/ONLINE.md)
 - [実装の順序・受入条件・未決事項](docs/DELIVERY.md)
 
-新しいHero／Squad／ジャングル／視界の設計文書は**次期Senritsuの仕様化対象**です。現行の `senkei.initial` とGraphics G1のサンプル画面で既に動く機能を示すものではありません。合意値と未決定パラメータは各文書で分離しています。
+新しいHero／Squad／ジャングル／視界の合意は `senkei.next` に実装しています。旧 `senkei.initial` と `/graphics/` の合成Fixtureは別に維持しています。合意値と今回選択した暫定パラメータは [NEXT-PARAMETERS.md](docs/implementation/NEXT-PARAMETERS.md) で区別します。
 
 ## ライセンス
 
@@ -85,4 +93,4 @@ npx playwright install --with-deps chromium
 npm run test:browser    # 実ブラウザ操作・4サイズの画面取得
 ```
 
-責務は`packages/replay-contract`（Schema・Decoder・Fixture）、`packages/replay-player`（表示状態とカーソル）、`packages/renderer`（Three.js / WebGL2）、`apps/web`（Desktop / Mobile UI）に分離しています。契約の詳細は[Replay v0.1](packages/replay-contract/README.md)、検証結果と画面証拠は[G1検証記録](docs/G1-VERIFICATION.md)を参照してください。G2以降は未実装です。
+責務は`packages/replay-contract`（Schema・Decoder・Fixture）、`packages/replay-player`（表示状態とカーソル）、`packages/renderer`（Three.js / WebGL2）、`apps/web`（Desktop / Mobile UI）に分離しています。契約の詳細は[Replay v0.1](packages/replay-contract/README.md)、検証結果と画面証拠は[G1検証記録](docs/G1-VERIFICATION.md)を参照してください。Nextワークベンチは実際のEnbu出力を同じRendererへ渡します。[Next画面証拠](docs/evidence/next/README.md) と [12モデルのFixture証拠](docs/evidence/w7/README.md) を参照してください。ハードウェアGPUや実機モバイル性能の検証とは区別しています。新しい [G2 Hero Atelier](docs/HERO-ATELIER.md) の専用展示画面・展示用LODは別の追加トラックで、今回のNextワークベンチだけで完成したとは扱いません。

@@ -1,0 +1,268 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "controlled-farm-snapshot",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "2475d6ead90584da820db6e23f6ac258c1a1f7f3",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "2475d6ead90584da820db6e23f6ac258c1a1f7f3",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": {
+    "name": "farm",
+    "injection": {
+      "name": "farm",
+      "originalMatchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+      "injectedMatchId": "battlefield-skill-observation-v1",
+      "target": "real-Core-Worker-simulate-snapshot"
+    },
+    "source": {
+      "path": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow/farm-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "ae707aa4bbad22fd9edfccd731c3fd5d759355fe56a0315940173d1535bd363f",
+      "bytes": 451
+    },
+    "expected": {
+      "matchId": "battlefield-skill-observation-v1",
+      "finalTick": 240,
+      "finalStateDigest": "3d592d8e653345426870d073a639b0df62d0e0ef171381794ed3c01f62196730",
+      "ownerPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+      "publicPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47"
+    },
+    "policy": "snapshot-injected-into-real-worker; result-produced-by-real-WASM; renderer-receives-presentation-replay-only"
+  },
+  "input": {
+    "matchId": "battlefield-skill-observation-v1",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962"
+  },
+  "replay": {
+    "matchId": "battlefield-skill-observation-v1",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+    "publicPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+    "sourceFrameCount": 241,
+    "timelineEventCount": 351,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.level_up",
+      "next.neutral_respawn",
+      "next.skill",
+      "next.skill_acquired",
+      "next.skill_damage"
+    ],
+    "sha256": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e",
+      "uncompressedBytes": 9463831,
+      "compressedBytes": 248575
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "be242af95230484ae778f7dacacf28fa6cb2762892dbc92538a517987e3ef835",
+      "uncompressedBytes": 2183609,
+      "compressedBytes": 35016
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962",
+      "uncompressedBytes": 95220,
+      "compressedBytes": 3614
+    },
+    "controlledSource": {
+      "path": "docs/evidence/battlefield/controlled-farm-2475d6e-d-role-follow/farm-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "ae707aa4bbad22fd9edfccd731c3fd5d759355fe56a0315940173d1535bd363f",
+      "bytes": 451
+    }
+  },
+  "result": {
+    "outcome": "draw",
+    "terminationReason": "time_limit",
+    "finalTick": 240,
+    "finalStateDigest": "3d592d8e653345426870d073a639b0df62d0e0ef171381794ed3c01f62196730"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 1,
+    "tower_destroy": null,
+    "base_destroy": null,
+    "hero_death": null,
+    "hero_respawn": null,
+    "monster_respawn": 109,
+    "skill": 211,
+    "end": 240
+  },
+  "baseSiteAssertions": null,
+  "heroRespawnProof": null,
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": false,
+    "baseDestroy": false,
+    "heroDeath": false,
+    "heroRespawn": false,
+    "neutralMonsterRespawn": true,
+    "activeSkill": true,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": false,
+    "explicitOverviewMode": false,
+    "followTarget": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-16",
+    "followAvailable": {
+      "initial": true
+    }
+  },
+  "mobileConsole": {},
+  "layoutByViewport": {},
+  "cameraPosesByCapture": {
+    "1440x900/monster-follow-t211.png": "23.600,29.965,48.200:1.000:-16.957,16.957,7.560,-7.560",
+    "1440x900/minion-follow-t211.png": "19.000,30.065,55.400:1.000:-16.957,16.957,7.560,-7.560"
+  },
+  "followTargetPosition": {
+    "id": "visible-9",
+    "x": 16.8,
+    "z": 6.2,
+    "sourceX": 420,
+    "sourceY": 155
+  },
+  "skillFollowCaptures": {},
+  "cameraTargetsByCapture": {
+    "1440x900/monster-follow-t211.png": {
+      "x": 23.6,
+      "y": -0.035,
+      "z": 16.2
+    },
+    "1440x900/minion-follow-t211.png": {
+      "x": 19,
+      "y": 0.065,
+      "z": 23.4
+    }
+  },
+  "roleFollowCaptures": {
+    "monster": {
+      "tick": 211,
+      "role": "monster",
+      "view": "attacker",
+      "entityId": "entity-152",
+      "selectedVisibleEntity": "Neutral · Monster Iron Warden · Monster · HP 292/340 · ID entity-152",
+      "sourceReplayEntityCandidates": [
+        {
+          "id": "visible-164",
+          "x": 590,
+          "y": 405
+        }
+      ],
+      "replayPosition": {
+        "id": "visible-164",
+        "x": 23.6,
+        "z": 16.2,
+        "sourceX": 590,
+        "sourceY": 405
+      },
+      "cameraTarget": {
+        "x": 23.6,
+        "y": -0.035,
+        "z": 16.2
+      },
+      "screenshot": "monster-follow-t211.png"
+    },
+    "minion": {
+      "tick": 211,
+      "role": "minion",
+      "view": "attacker",
+      "entityId": "entity-137",
+      "selectedVisibleEntity": "Azure · Minion Melee · Minion · HP 70/90 · ID entity-137",
+      "sourceReplayEntityCandidates": [
+        {
+          "id": "visible-147",
+          "x": 475,
+          "y": 585
+        }
+      ],
+      "replayPosition": {
+        "id": "visible-147",
+        "x": 19,
+        "z": 23.4,
+        "sourceX": 475,
+        "sourceY": 585
+      },
+      "cameraTarget": {
+        "x": 19,
+        "y": 0.065,
+        "z": 23.4
+      },
+      "screenshot": "minion-follow-t211.png"
+    }
+  },
+  "clusterInspection": null,
+  "semanticCueAssertions": {},
+  "viewports": [
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "screenshotNames": [
+    "monster-follow",
+    "minion-follow"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e",
+    "publicReplaySha256": "be242af95230484ae778f7dacacf28fa6cb2762892dbc92538a517987e3ef835",
+    "inputSnapshotSha256": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962",
+    "imageSha256": {
+      "1440x900/minion-follow-t211.png": "751c1d0845b6c31f7259794c616c93ee59b359db1e86757af84034df30d51032",
+      "1440x900/monster-follow-t211.png": "100ab15bb14d2174a3d4aebd9415faba158e2a1486954dfa5cf2dd100323b472"
+    }
+  }
+}

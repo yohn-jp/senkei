@@ -1,0 +1,120 @@
+{
+  "schema": "senkei-next-scenario-matrix/v1",
+  "oracle": "senritsu::next_package + next_engine_compatibility + validated Enbu simulate path",
+  "notes": [
+    "Cases are deterministic inputs and invariant checks, not repeated samples for a win-rate estimate.",
+    "The runner must record the ruleset version and package digest with every result.",
+    "Values left unresolved by the Next design docs are reported as observations, not pass thresholds.",
+    "Compare public native and WASM envelopes structurally, preserving ordered arrays; do not require adapter-specific JSON serialization bytes."
+  ],
+  "cases": [
+    {
+      "id": "catalog-roster",
+      "kind": "package-invariants",
+      "assertions": ["12 catalog entries", "6 front-placement and 6 rear-placement entries", "unique catalog IDs", "each skill path resolves to catalog skills"]
+    },
+    {
+      "id": "hero-roster-validation",
+      "kind": "input-rejection",
+      "assertions": ["exactly five hero records are required", "slot IDs are unique", "each catalog ID and skill path resolves"],
+      "unresolved": ["whether duplicate catalog IDs are permitted"]
+    },
+    {
+      "id": "partition-1-1-1-1-1",
+      "kind": "initial-composition",
+      "squad_sizes": [1, 1, 1, 1, 1]
+    },
+    {
+      "id": "partition-2-1-1-1",
+      "kind": "initial-composition",
+      "squad_sizes": [2, 1, 1, 1]
+    },
+    {
+      "id": "partition-2-2-1",
+      "kind": "initial-composition",
+      "squad_sizes": [2, 2, 1]
+    },
+    {
+      "id": "partition-3-1-1",
+      "kind": "initial-composition",
+      "squad_sizes": [3, 1, 1]
+    },
+    {
+      "id": "partition-3-2",
+      "kind": "initial-composition",
+      "squad_sizes": [3, 2]
+    },
+    {
+      "id": "partition-4-1",
+      "kind": "initial-composition",
+      "squad_sizes": [4, 1]
+    },
+    {
+      "id": "partition-5",
+      "kind": "initial-composition",
+      "squad_sizes": [5]
+    },
+    {
+      "id": "movement-factorial",
+      "kind": "differential-scenario-set",
+      "terrain": ["lane", "jungle"],
+      "minion_vision": [false, true],
+      "squad_sizes": [1, 2, 3, 4, 5],
+      "assertions": ["measured route progress depends on declared terrain, current friendly minion vision, and squad size", "overlapping friendly minion vision does not stack", "enemy minion vision does not grant friendly movement bonus"]
+    },
+    {
+      "id": "maturation-and-reformation",
+      "kind": "differential-scenario",
+      "arms": ["initially-assembled", "joined-during-match"],
+      "assertions": ["freshly joined squad does not start fully mature", "maturity progresses only as match ticks elapse", "split and merge resolve through accepted intents"]
+    },
+    {
+      "id": "vision-unknown-and-reveal",
+      "kind": "observation-boundary",
+      "assertions": ["an unseen enemy remains Unknown", "friendly minion vision is shared across lanes", "removing the sole relevant vision source removes current visibility", "reveal effects follow their duration"]
+    },
+    {
+      "id": "jungle-objective-and-respawn",
+      "kind": "differential-scenario",
+      "arms": ["lane-defense", "jungle-clear"],
+      "assertions": ["neutral camp combat is deterministic", "camp respawn follows its configured tick", "report lane and jungle outcomes and route timings"]
+    },
+    {
+      "id": "xp-solo-versus-shared",
+      "kind": "differential-scenario",
+      "arms": ["one-eligible-hero", "two-eligible-heroes", "five-eligible-heroes"],
+      "assertions": ["eligible heroes receive equal shares when the selected reward divides evenly", "report XP, level, and skill acquisition by hero and event"]
+    },
+    {
+      "id": "death-respawn-and-regroup",
+      "kind": "lifecycle-scenario",
+      "assertions": ["death immediately removes a hero from its living squad", "respawned hero is Solo at its own base", "respawn does not automatically rejoin the prior squad", "explicit accepted regroup intent can rejoin when legal"]
+    },
+    {
+      "id": "invalid-regroup-and-skill",
+      "kind": "intent-rejection",
+      "assertions": ["invalid regroup and unavailable skill do not mutate world state", "rejected intents remain visible in restricted diagnostics"]
+    },
+    {
+      "id": "unsupported-next-versions",
+      "kind": "input-rejection",
+      "assertions": ["unsupported mechanics version is rejected", "an engine older than Next's minimum engine version is rejected"]
+    },
+    {
+      "id": "public-replay-confidentiality",
+      "kind": "output-boundary",
+      "assertions": ["hidden enemy fields and current hidden positions are absent from public replay", "private tactics, memory, and restricted diagnostics are absent from public JSON"]
+    },
+    {
+      "id": "deterministic-native-and-wasm-parity",
+      "kind": "adapter-parity",
+      "assertions": ["distinct deterministic and negative scenarios are compared", "identical native repeats have structurally equal public responses", "native and real WASM public and rejection envelopes are structurally equivalent"]
+    },
+    {
+      "id": "orientation-and-simultaneous-resolution",
+      "kind": "differential-scenario",
+      "arms": ["attacker-first-orientation", "defender-first-orientation", "simultaneous-lethal-actions"],
+      "assertions": ["symmetric orientation has no undeclared first-mover advantage", "simultaneous lethal actions follow the declared resolution rule"]
+    }
+  ]
+}

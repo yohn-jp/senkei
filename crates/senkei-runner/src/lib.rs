@@ -108,7 +108,7 @@ pub fn run(input: LocalMatchInput) -> Result<LocalMatchOutput, RunnerError> {
         return Err(RunnerError::InputTooLarge);
     }
 
-    let package = senritsu::initial_package();
+    let package = if input.ruleset_ref.id.as_str()=="senkei.next" { senritsu::next_package() } else { senritsu::initial_package() };
     if input.ruleset_ref != package.ruleset {
         return Err(RunnerError::InvalidRuleset {
             actual: input.ruleset_ref,
@@ -116,7 +116,7 @@ pub fn run(input: LocalMatchInput) -> Result<LocalMatchOutput, RunnerError> {
         });
     }
     let ruleset_ref = package.ruleset.clone();
-    let rules = senritsu::validate(package, &senritsu::initial_engine_compatibility())
+    let rules = senritsu::validate(package, &senritsu::next_engine_compatibility())
         .map_err(RunnerError::InvalidRulePackage)?;
     let plan = rules.plan();
 

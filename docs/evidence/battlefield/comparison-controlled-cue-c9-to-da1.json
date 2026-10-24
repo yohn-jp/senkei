@@ -1,0 +1,87 @@
+{
+  "beforeCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "afterCommit": "da1c53ed66266c65954a58a4265c049e668fedd2",
+  "identity": {
+    "sameInputSha256": true,
+    "sameMatchId": true,
+    "sameOwnerReplayDigest": true,
+    "samePublicReplayDigest": true,
+    "sameFinalStateDigest": true,
+    "sameExactTicks": true,
+    "sameViewports": true
+  },
+  "exactTicks": {
+    "before": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 6,
+      "tower_destroy": 96,
+      "base_destroy": 228,
+      "hero_death": 74,
+      "hero_respawn": 94,
+      "neutral_monster_respawn": 103,
+      "skill": null,
+      "end": 228
+    },
+    "after": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 6,
+      "tower_destroy": 96,
+      "base_destroy": 228,
+      "hero_death": 74,
+      "hero_respawn": 94,
+      "neutral_monster_respawn": 103,
+      "skill": null,
+      "end": 228
+    }
+  },
+  "screenshots": {
+    "beforeCount": 22,
+    "afterCount": 24,
+    "commonCount": 22,
+    "exactPixelFiles": 0,
+    "differentPixelFiles": [
+      "1440x900/advance-t001.png",
+      "1440x900/base-destroy-t228.png",
+      "1440x900/clash-t006.png",
+      "1440x900/end-t228.png",
+      "1440x900/follow-t050.png",
+      "1440x900/hero-death-t074.png",
+      "1440x900/hero-respawn-t094.png",
+      "1440x900/monster-respawn-t103.png",
+      "1440x900/overview-t000.png",
+      "1440x900/tactical-t000.png",
+      "1440x900/tower-destroy-t096.png",
+      "390x844/advance-t001.png",
+      "390x844/base-destroy-t228.png",
+      "390x844/clash-t006.png",
+      "390x844/end-t228.png",
+      "390x844/follow-t050.png",
+      "390x844/hero-death-t074.png",
+      "390x844/hero-respawn-t094.png",
+      "390x844/monster-respawn-t103.png",
+      "390x844/overview-t000.png",
+      "390x844/tactical-t000.png",
+      "390x844/tower-destroy-t096.png"
+    ],
+    "onlyBefore": [],
+    "onlyAfter": [
+      "390x844/details-view-t006.png",
+      "390x844/timeline-view-t006.png"
+    ]
+  },
+  "layout": {
+    "metricsEqual": false,
+    "changedViewports": [
+      "1440x900",
+      "390x844"
+    ]
+  },
+  "captureIdentityMatches": true,
+  "allScreenshotsIdentical": false
+}

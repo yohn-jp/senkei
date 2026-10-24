@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-intercept-visible",
-  "request_sha256": "a3190930823badbe71f6f0787fe1d102b0a9039781829e0429dc98c066612432",
+  "request_sha256": "1a43f4a05101f78582f460557f7ce1713b093783b898da29e631ec1a73fe4e10",
   "response_sha256": "3bbfc0362c021b63674c6541d1b2c9748a238a812b991a8fe8d18069c917c05e",
   "summary": {
     "outcome": "defender_victory",

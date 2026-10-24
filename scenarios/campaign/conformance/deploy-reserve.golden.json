@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-deploy-reserve",
-  "request_sha256": "ca309b3aa7a5c60d420c30101e9cdf81a21e09711a926467dfd5bb89fb6678f5",
+  "request_sha256": "113225d0ad71cd69d9d1d949fb619f4610acdf8ba95c0a472448210baa6529b4",
   "response_sha256": "6d393e251b70731e47d023a3886d515d6928a274ba285f69a30e1323dec3f4e5",
   "summary": {
     "outcome": "defender_victory",

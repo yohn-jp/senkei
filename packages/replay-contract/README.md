@@ -7,3 +7,20 @@ Coordinates: bounded logical x-right/y-down plane; renderer maps y to world z an
 InitialView precedes tick 0 events. At tick T all events through T apply in the given strictly increasing lexicographic `(tick, order)` order; order may have gaps. No implicit sorting or repair. A move fixes the position at that tick. Attack is a visual cue; damage carries absolute confirmed HP. Destroy follows confirmed HP 0 and leaves a visual wreck; disappear removes visible data. IDs cannot be reused, even after disappearance. No references to inactive entities. Spawn adds a new entity. Exactly one final match-end must equal Result, with no subsequent events. Winner and reason are projected, never inferred from damage.
 
 Decoder validates bounds, IDs, lifetime, ordering, HP transitions, and result consistency in addition to Schema. Samples have null enbuVersion and do not claim simulation. Fixtures are authored synthetic data, not Senritsu balance. Checkpoints are omitted in G1; reconstruction always starts with InitialView. DisplayState is recursively frozen. All tick states, including effects cues, are derived from replay, independent of seek history.
+
+
+## Replay 0.2 and the Next adapter
+
+Version 0.1 fixtures remain accepted. Version 0.2 adds `vitals` for confirmed
+healing/max-HP growth, `skill` cues, local execution origin, attacker/defender
+view labels, optional catalog identifiers and camp presentation points.
+Unknown versions and 0.2 events declared as 0.1 are rejected.
+
+`presentationToGraphics(coreReplay, rulePackage, matchResult)` projects real
+Next Enbu frames without simulating gameplay. Public and restricted owner
+replays remain separate. It maps only approved scalar fields, allocates opaque
+incarnation identifiers, treats visibility loss as disappearance, and allocates
+a new identifier after respawn. World coordinates use the exported
+`NEXT_WORLD_UNITS_PER_RENDER_UNIT`; map geometry never controls combat.
+Empty initial views are valid under fog. Unit debris lasts for the death cue;
+destroyed structure ruins can remain for the match.

@@ -337,6 +337,7 @@ export interface ExecutionPhase {
 }
 
 export type TransitionPrimitiveKind =
+  | "battle_navigation" | "battle_vision" | "battle_squads" | "battle_combat"
   | "set_field"
   | "add_integer"
   | "add_fixed"
@@ -464,6 +465,7 @@ export type TacticalExecutionStatus = "completed" | "budget_exceeded";
 
 /** Full, validated Senritsu package JSON returned by the core adapter. */
 export interface RulePackage {
+  readonly next?: NextRules;
   readonly ruleset: import("./core").RulesetRef;
   readonly minimum_engine_version: import("./core").CoreVersion;
   readonly model_version: import("./core").CoreVersion;
@@ -595,6 +597,7 @@ export interface MatchResult {
 }
 
 export interface PresentationReplay {
+  readonly perspective?: CombatantSide;
   readonly schema_version: import("./core").CoreVersion;
   readonly match_id: MatchId;
   readonly result_digest: ContentDigest;
@@ -698,3 +701,38 @@ export interface RestrictedDiagnostics {
 export function isLogicalCu(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
+
+/** Senritsu-owned versioned content, matching senkei-model::NextRules. */
+export interface NextRules {
+  readonly mechanics_version: import("./core").CoreVersion;
+  readonly map: BattleMap;
+  readonly heroes: readonly HeroDefinition[];
+  readonly minions: readonly UnitDefinition[];
+  readonly monsters: readonly UnitDefinition[];
+  readonly camps: readonly CampDefinition[];
+  readonly parameters: Readonly<Record<string, number>>;
+}
+export interface BattleMap {
+  readonly id: string;
+  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string }>>;
+  readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean }[];
+  readonly lanes: Readonly<Record<string, readonly string[]>>;
+  readonly attacker_base:string;
+  readonly defender_base:string;
+  readonly towers: readonly { readonly id:string; readonly node:string; readonly side:string; readonly lane:string }[];
+}
+export interface UnitStats { readonly hp:number; readonly attack:number; readonly defense:number; readonly speed:number; readonly range:number; readonly attack_interval:number; readonly vision:number }
+export interface HeroDefinition {
+  readonly id:string; readonly name:string; readonly placement:string; readonly role:string; readonly trait_id:string;
+  readonly appearance_key:string; readonly stats:UnitStats; readonly growth:UnitStats;
+  readonly skills:readonly SkillDefinition[]; readonly skill_paths:Readonly<Record<string,readonly string[]>>;
+  readonly synergy:Readonly<Record<string,number>>;
+}
+export interface SkillDefinition {
+  readonly id:string; readonly name:string; readonly passive:boolean; readonly unlock_level:number;
+  readonly prerequisites:readonly string[]; readonly cooldown:number; readonly cost:number;
+  readonly range:number; readonly target:string; readonly effect:"area_damage"|"damage"|"heal"|"shield"|"haste"|"slow"|"reveal"|"empower"|"defense";
+  readonly power:number; readonly duration:number;
+}
+export interface UnitDefinition { readonly id:string; readonly stats:UnitStats; readonly xp:number }
+export interface CampDefinition { readonly id:string; readonly node:string; readonly monster:string; readonly respawn_ticks:number }

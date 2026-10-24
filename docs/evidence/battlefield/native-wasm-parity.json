@@ -1,0 +1,16 @@
+[
+  {
+    "scenario": "cue",
+    "nativeWasmParity": true,
+    "finalTick": 228,
+    "outcome": "defender_victory",
+    "finalStateDigest": "13fa2690d1934a7b6a3ebb9bc7418a1f201a8ddff45be2caac0284e5e707b0f5"
+  },
+  {
+    "scenario": "farm",
+    "nativeWasmParity": true,
+    "finalTick": 240,
+    "outcome": "draw",
+    "finalStateDigest": "3d592d8e653345426870d073a639b0df62d0e0ef171381794ed3c01f62196730"
+  }
+]

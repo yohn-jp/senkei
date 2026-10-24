@@ -1,0 +1,347 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "controlled-farm-snapshot",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": {
+    "name": "farm",
+    "injection": {
+      "name": "farm",
+      "originalMatchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+      "injectedMatchId": "battlefield-skill-observation-v1",
+      "target": "real-Core-Worker-simulate-snapshot"
+    },
+    "source": {
+      "path": "docs/evidence/battlefield/controlled-farm-43d2c35-d/farm-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "ae707aa4bbad22fd9edfccd731c3fd5d759355fe56a0315940173d1535bd363f",
+      "bytes": 451
+    },
+    "expected": {
+      "matchId": "battlefield-skill-observation-v1",
+      "finalTick": 240,
+      "finalStateDigest": "3d592d8e653345426870d073a639b0df62d0e0ef171381794ed3c01f62196730",
+      "ownerPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+      "publicPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47"
+    },
+    "policy": "snapshot-injected-into-real-worker; result-produced-by-real-WASM; renderer-receives-presentation-replay-only"
+  },
+  "input": {
+    "matchId": "battlefield-skill-observation-v1",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962"
+  },
+  "replay": {
+    "matchId": "battlefield-skill-observation-v1",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+    "publicPresentationDigest": "8fe974b4c7f01e2f7e9c353c39ba31299f8e90c54de015afbad82458a8641e47",
+    "sourceFrameCount": 241,
+    "timelineEventCount": 351,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.level_up",
+      "next.neutral_respawn",
+      "next.skill",
+      "next.skill_acquired",
+      "next.skill_damage"
+    ],
+    "sha256": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/controlled-farm-43d2c35-d",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-farm-43d2c35-d/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e",
+      "uncompressedBytes": 9463831,
+      "compressedBytes": 248575
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-farm-43d2c35-d/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "be242af95230484ae778f7dacacf28fa6cb2762892dbc92538a517987e3ef835",
+      "uncompressedBytes": 2183609,
+      "compressedBytes": 35016
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/controlled-farm-43d2c35-d/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962",
+      "uncompressedBytes": 95220,
+      "compressedBytes": 3614
+    },
+    "controlledSource": {
+      "path": "docs/evidence/battlefield/controlled-farm-43d2c35-d/farm-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "ae707aa4bbad22fd9edfccd731c3fd5d759355fe56a0315940173d1535bd363f",
+      "bytes": 451
+    }
+  },
+  "result": {
+    "outcome": "draw",
+    "terminationReason": "time_limit",
+    "finalTick": 240,
+    "finalStateDigest": "3d592d8e653345426870d073a639b0df62d0e0ef171381794ed3c01f62196730"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 1,
+    "tower_destroy": null,
+    "base_destroy": null,
+    "hero_death": null,
+    "hero_respawn": null,
+    "monster_respawn": 109,
+    "skill": 211,
+    "end": 240
+  },
+  "baseSiteAssertions": null,
+  "heroRespawnProof": null,
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": false,
+    "baseDestroy": false,
+    "heroDeath": false,
+    "heroRespawn": false,
+    "neutralMonsterRespawn": true,
+    "activeSkill": true,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": true,
+    "explicitOverviewMode": true,
+    "followTarget": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-16",
+    "followAvailable": {
+      "initial": true,
+      "1440x900": true,
+      "390x844": true
+    }
+  },
+  "mobileConsole": {
+    "390x844": {
+      "Timeline view": true,
+      "Details view": true
+    }
+  },
+  "layoutByViewport": {
+    "1440x900": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "width": 1440,
+        "height": 900,
+        "viewportWidth": 1440,
+        "viewportHeight": 900
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1366,
+        "height": 609.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 793,
+        "width": 1368,
+        "height": 81
+      },
+      "camera": {
+        "pose": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+        "mode": "tactical",
+        "tick": "240"
+      }
+    },
+    "390x844": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "width": 390,
+        "height": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 388,
+        "height": 491.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 645,
+        "width": 390,
+        "height": 123
+      },
+      "camera": {
+        "pose": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+        "mode": "tactical",
+        "tick": "240"
+      }
+    }
+  },
+  "cameraPosesByCapture": {
+    "1440x900/tactical-t000.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/overview-t000.png": "24.000,56.778,44.944:1.000:-63.544,63.544,28.330,-28.330",
+    "1440x900/follow-t050.png": "16.800,29.965,38.200:1.000:-16.957,16.957,7.560,-7.560",
+    "1440x900/advance-t001.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/clash-t001.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/monster-respawn-t109.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/skill-t211.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/end-t240.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "390x844/tactical-t000.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/overview-t000.png": "52.163,52.455,16.000:1.000:-28.506,28.506,37.837,-37.837",
+    "390x844/follow-t050.png": "48.800,33.965,6.200:1.000:-5.696,5.696,7.560,-7.560",
+    "390x844/advance-t001.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/clash-t001.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/monster-respawn-t109.png": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+    "390x844/skill-t211.png": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+    "390x844/end-t240.png": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188"
+  },
+  "followTargetPosition": {
+    "id": "visible-9",
+    "x": 16.8,
+    "z": 6.2,
+    "sourceX": 420,
+    "sourceY": 155
+  },
+  "skillFollowCaptures": {},
+  "cameraTargetsByCapture": {
+    "1440x900/follow-t050.png": {
+      "x": 16.8,
+      "y": -0.035,
+      "z": 6.2
+    },
+    "390x844/follow-t050.png": {
+      "x": 16.8,
+      "y": -0.035,
+      "z": 6.2
+    }
+  },
+  "roleFollowCaptures": {},
+  "clusterInspection": null,
+  "semanticCueAssertions": {
+    "1440x900/skill-t211": {
+      "type": "skill",
+      "fragments": [
+        "SKILL F03_A_ACTIVE",
+        "HERO · F03",
+        "→ MONSTER"
+      ],
+      "sourceEvent": "next.skill",
+      "tick": 211,
+      "texts": [
+        "SKILL f03_a_active · HERO · F03 Breach → MONSTER"
+      ]
+    },
+    "390x844/skill-t211": {
+      "type": "skill",
+      "fragments": [
+        "SKILL F03_A_ACTIVE",
+        "HERO · F03",
+        "→ MONSTER"
+      ],
+      "sourceEvent": "next.skill",
+      "tick": 211,
+      "texts": [
+        "SKILL f03_a_active · HERO · F03 Breach → MONSTER"
+      ]
+    }
+  },
+  "viewports": [
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "390x844",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "screenshotNames": [
+    "tactical",
+    "overview",
+    "follow",
+    "advance",
+    "clash",
+    "monster-respawn",
+    "skill",
+    "end"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "beb0b65a786cb3403e55776e02ee25f521f2bd91ab85410610cef392fd917a1e",
+    "publicReplaySha256": "be242af95230484ae778f7dacacf28fa6cb2762892dbc92538a517987e3ef835",
+    "inputSnapshotSha256": "83262bce59a6d7556011c749b5027428a801d3a55fb3cfdc37c7e53c32a7e962",
+    "imageSha256": {
+      "1440x900/advance-t001.png": "4ad1c0a942220f531c8fdd0f174dab724e62e865491226f3e19873e9bb88447e",
+      "1440x900/clash-t001.png": "4ad1c0a942220f531c8fdd0f174dab724e62e865491226f3e19873e9bb88447e",
+      "1440x900/end-t240.png": "5578ada85534c71e09a53222a8eadd485271ea15ddb368d120349807079e92be",
+      "1440x900/follow-t050.png": "159120c00cf30921d4b5beb2e1ff87e6c50e297591ab9400adc765061d7a4ff2",
+      "1440x900/monster-respawn-t109.png": "64f091be556dc5d15c91c81cf35e3de01b8214a9632cd5de9e29fa3463b107b3",
+      "1440x900/overview-t000.png": "97f3e3da235e8dfa0dbbe8f32ec8c84ad00dfa46b8066215a3a2cf7481731d70",
+      "1440x900/skill-t211.png": "fbabbd67c00239162c40f3f60a1505db394af4d2c4ba94b8f2cdf7c846a1c35b",
+      "1440x900/tactical-t000.png": "a262eae5e76caa52c851ff501b96467ede6832afcc471649b809cc750c891835",
+      "390x844/advance-t001.png": "e7a64104f37118c42a5f200e80477cab3b08ace93b812d5c7629359d85e18c37",
+      "390x844/clash-t001.png": "e7a64104f37118c42a5f200e80477cab3b08ace93b812d5c7629359d85e18c37",
+      "390x844/details-view-t001.png": "7f8ff1d70b47d35c199ad16d28993c8431fd24613f7e2543ada027308e55ffde",
+      "390x844/end-t240.png": "89a940beab21d58d7566b5d8dead2220c2ce2d09cbda7762fa950bd6b23f808b",
+      "390x844/follow-t050.png": "4609f749ca7fd9c388c7f756e6de07c8cf016f1e2a116964f8417ddeabf9b0c6",
+      "390x844/monster-respawn-t109.png": "c5cf32b728e393612bc2269712c38b6cd90cfc561d8373c2f8a04bf5a3edc904",
+      "390x844/overview-t000.png": "b2bf02bc8ba739aaa2dc28297117d5d0e2b92278f9caa26570d7a40a4665e027",
+      "390x844/skill-t211.png": "210a2b33dee1895632d0c095e8f64b718f5861e513b96fd58e537d308abb0877",
+      "390x844/tactical-t000.png": "27a9862f401057cef2782ffae45e91ee707cc7611f9ad4cbeeaf34f5aaf00a66",
+      "390x844/timeline-view-t001.png": "9cc431e3061bafeefc791c0de52f255d5c1010203da1aa79ad1e74cc3624f207"
+    }
+  }
+}

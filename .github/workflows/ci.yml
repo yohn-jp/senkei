@@ -40,6 +40,7 @@ jobs:
       - run: bash scripts/wasm/build.sh
       - run: node tests/conformance/generate-scenario-inputs.mjs --check
       - run: node tests/conformance/compare-adapters.mjs
+      - run: bash scripts/balance/run-next.sh
 
   web:
     name: Web application build
@@ -73,3 +74,15 @@ jobs:
       - run: npm run build
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - run: npm run test:e2e --prefix tests/browser
+        env:
+          BATTLEFIELD_EXPECT_BUILD_REVISION: "true"
+          BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE: "true"
+          BATTLEFIELD_EXPECT_BASE_SITES: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: next-local-browser-evidence
+          path: |
+            docs/evidence/next/
+            docs/evidence/battlefield/
+            tests/browser/test-results/

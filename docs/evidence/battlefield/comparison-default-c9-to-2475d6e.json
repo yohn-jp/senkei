@@ -1,0 +1,107 @@
+{
+  "beforeCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "afterCommit": "2475d6ead90584da820db6e23f6ac258c1a1f7f3",
+  "identity": {
+    "sameInputSha256": true,
+    "sameMatchId": true,
+    "sameOwnerReplayDigest": true,
+    "samePublicReplayDigest": true,
+    "sameFinalStateDigest": true,
+    "sameExactTicks": true,
+    "sameViewports": true
+  },
+  "exactTicks": {
+    "before": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 6,
+      "tower_destroy": null,
+      "base_destroy": 211,
+      "hero_death": null,
+      "hero_respawn": null,
+      "neutral_monster_respawn": null,
+      "skill": null,
+      "end": 211
+    },
+    "after": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 6,
+      "tower_destroy": null,
+      "base_destroy": 211,
+      "hero_death": null,
+      "hero_respawn": null,
+      "neutral_monster_respawn": null,
+      "skill": null,
+      "end": 211
+    }
+  },
+  "screenshots": {
+    "beforeCount": 35,
+    "afterCount": 41,
+    "commonCount": 35,
+    "exactPixelFiles": 0,
+    "differentPixelFiles": [
+      "1440x900/advance-t001.png",
+      "1440x900/base-destroy-t211.png",
+      "1440x900/clash-t006.png",
+      "1440x900/end-t211.png",
+      "1440x900/follow-t050.png",
+      "1440x900/overview-t000.png",
+      "1440x900/tactical-t000.png",
+      "1920x1080/advance-t001.png",
+      "1920x1080/base-destroy-t211.png",
+      "1920x1080/clash-t006.png",
+      "1920x1080/end-t211.png",
+      "1920x1080/follow-t050.png",
+      "1920x1080/overview-t000.png",
+      "1920x1080/tactical-t000.png",
+      "320x844/advance-t001.png",
+      "320x844/base-destroy-t211.png",
+      "320x844/clash-t006.png",
+      "320x844/end-t211.png",
+      "320x844/follow-t050.png",
+      "320x844/overview-t000.png",
+      "320x844/tactical-t000.png",
+      "390x844/advance-t001.png",
+      "390x844/base-destroy-t211.png",
+      "390x844/clash-t006.png",
+      "390x844/end-t211.png",
+      "390x844/follow-t050.png",
+      "390x844/overview-t000.png",
+      "390x844/tactical-t000.png",
+      "430x932/advance-t001.png",
+      "430x932/base-destroy-t211.png",
+      "430x932/clash-t006.png",
+      "430x932/end-t211.png",
+      "430x932/follow-t050.png",
+      "430x932/overview-t000.png",
+      "430x932/tactical-t000.png"
+    ],
+    "onlyBefore": [],
+    "onlyAfter": [
+      "320x844/details-view-t006.png",
+      "320x844/timeline-view-t006.png",
+      "390x844/details-view-t006.png",
+      "390x844/timeline-view-t006.png",
+      "430x932/details-view-t006.png",
+      "430x932/timeline-view-t006.png"
+    ]
+  },
+  "layout": {
+    "metricsEqual": false,
+    "changedViewports": [
+      "1920x1080",
+      "1440x900",
+      "430x932",
+      "390x844",
+      "320x844"
+    ]
+  },
+  "captureIdentityMatches": true,
+  "allScreenshotsIdentical": false
+}

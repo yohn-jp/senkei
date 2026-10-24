@@ -81,6 +81,7 @@ export class WasmRuntime {
 
   private async instantiate(): Promise<SenkeiWasmExports> {
     const wasmUrl = new URL("/wasm/senkei_wasm.wasm", globalThis.location.href);
+    wasmUrl.searchParams.set("rev", __SENKEI_WASM_REVISION__);
     const response = await fetch(wasmUrl);
     if (!response.ok) {
       throw new WasmRuntimeError(

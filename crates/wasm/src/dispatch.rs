@@ -159,6 +159,7 @@ fn decode_envelope(request: Value) -> Result<ApiRequestEnvelope<Value>, ApiError
 fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), ApiError> {
     match operation {
         "initial_ruleset" => initial_ruleset(payload),
+        "next_ruleset" => next_ruleset(payload),
         "new_match_context" => new_match_context(payload),
         "parse_text" => parse_text(payload),
         "format_ast" => format_ast(payload),
@@ -179,6 +180,13 @@ fn initial_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
     validate_package(&package)?;
     let max_output_bytes = package.limits.max_output_bytes;
     Ok((encode(&package, "result")?, max_output_bytes))
+}
+
+fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
+    require_empty_object(&payload,"payload")?;
+    let package=senritsu::next_package();
+    validate_package(&package)?;
+    Ok((encode(&package,"result")?,package.limits.max_output_bytes))
 }
 
 fn new_match_context(payload: Value) -> Result<(Value, u64), ApiError> {
@@ -241,17 +249,26 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
     )?;
     let public = artifact.public_response();
     let response = LocalSimulationResponse {
+        owner_replay: request.include_diagnostics.then(||artifact.owner_replay.clone()).flatten(),
         result: public.result,
         replay: public.replay,
         diagnostics: request
             .include_diagnostics
-            .then(|| artifact.diagnostics.clone()),
+            .then(|| {
+                let mut diagnostics=artifact.diagnostics.clone();
+                if rules.plan().next.is_some() {
+                    diagnostics.events.retain(|event| event.side == senkei_model::CombatantSide::Attacker);
+                    diagnostics.cu_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
+                    diagnostics.final_memory_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
+                }
+                diagnostics
+            }),
     };
     Ok((encode(&response, "result")?, max_output_bytes))
 }
 
 fn resolve_ruleset(expected: &RulesetRef) -> Result<VerifiedRulePlan, ApiError> {
-    let package = senritsu::initial_package();
+    let package = if expected.id.as_str() == "senkei.next" { senritsu::next_package() } else { senritsu::initial_package() };
     if &package.ruleset != expected {
         return Err(api_error(
             ApiErrorCode::InvalidRuleset,
@@ -263,7 +280,7 @@ fn resolve_ruleset(expected: &RulesetRef) -> Result<VerifiedRulePlan, ApiError> 
 }
 
 fn validate_package(package: &senkei_model::RulePackage) -> Result<VerifiedRulePlan, ApiError> {
-    senritsu::validate(package.clone(), &senritsu::initial_engine_compatibility()).map_err(
+    senritsu::validate(package.clone(), &senritsu::next_engine_compatibility()).map_err(
         |issues| {
             let serialized_issues =
                 serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_owned());

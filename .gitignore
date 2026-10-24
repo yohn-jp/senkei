@@ -5,3 +5,6 @@ dist/
 apps/web/public/wasm/
 test-results/
 playwright-report/
+
+# Generated local Battlefield verification output; curated evidence is tracked.
+/docs/evidence/battlefield/local-capture/

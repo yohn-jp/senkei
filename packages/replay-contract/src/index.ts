@@ -50,7 +50,7 @@ export function decodeReplay(input: unknown): Replay {
   };
   if (r.header.origin === "sample" && r.header.enbuVersion !== null)
     fail("Sample must not claim an Enbu execution");
-  if (r.header.origin === "official" && !r.header.enbuVersion)
+  if ((r.header.origin === "official" || r.header.origin === "local") && !r.header.enbuVersion)
     fail("Official replay requires an Enbu version");
   const { min, max } = r.scene.bounds;
   if (min.x >= max.x || min.y >= max.y) fail("Invalid scene bounds");
@@ -63,6 +63,18 @@ export function decodeReplay(input: unknown): Replay {
     if (lanes.has(lane.id)) fail("Duplicate lane ID");
     lanes.add(lane.id);
     lane.points.forEach(point);
+  }
+  const routeIds = new Set<string>();
+  for (const route of r.scene.routes ?? []) {
+    if (routeIds.has(route.id)) fail(`Duplicate route ID: ${route.id}`);
+    routeIds.add(route.id);
+    route.points.forEach(point);
+  }
+  const baseSiteIds = new Set<string>();
+  for (const site of r.scene.baseSites ?? []) {
+    if (baseSiteIds.has(site.id)) fail(`Duplicate base site ID: ${site.id}`);
+    baseSiteIds.add(site.id);
+    point(site.position);
   }
   const entities = new Map<string, Entity>();
   const seen = new Set<string>();
@@ -87,6 +99,7 @@ export function decodeReplay(input: unknown): Replay {
     if (e.tick > r.result.tick) fail("Event beyond result tick");
     previousTick = e.tick;
     previousOrder = e.order;
+    if ((e.type === "vitals" || e.type === "skill") && r.schemaVersion !== "0.2") fail("Event requires replay 0.2");
     if (e.type === "spawn") {
       add(e.entity);
       continue;
@@ -116,12 +129,16 @@ export function decodeReplay(input: unknown): Replay {
         point(e.position);
         current.position = e.position;
       }
+      if (e.type === "vitals") {
+        if (e.hp > e.maxHp) fail("HP exceeds maximum");
+        current.hp = e.hp; current.maxHp = e.maxHp;
+      }
       if (e.type === "damage") {
         if (e.hp > current.hp) fail("Damage cannot increase HP");
         current.hp = e.hp;
       }
       if (
-        e.type === "attack" &&
+        (e.type === "attack" || e.type === "skill") &&
         (!entities.has(e.targetId) || entities.get(e.targetId)!.hp === 0)
       )
         fail(`Invalid attack target: ${e.targetId}`);
@@ -130,3 +147,4 @@ export function decodeReplay(input: unknown): Replay {
   if (!ended) fail("Missing match-end");
   return freeze(r);
 }
+export { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT } from "./next-adapter";

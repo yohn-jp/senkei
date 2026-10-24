@@ -27,7 +27,8 @@ pub fn validate(
     validate_domain(&package, &mut issues);
     validate_world(&package, &mut issues);
     validate_world_initialization(&package, &mut issues);
-    validate_roster_identity_contract(&package, &mut issues);
+    if package.next.is_none() { validate_roster_identity_contract(&package, &mut issues); }
+    crate::next_validate::validate_next(&package, &mut issues);
     validate_phases_and_rules(&package, &mut issues);
     validate_arbitration(&package, &mut issues);
     validate_costs(&package, &mut issues);
@@ -225,8 +226,8 @@ fn validate_domain(package: &RulePackage, issues: &mut Vec<ValidationIssue>) {
                 issue(issues, "unknown_entity_type", format!("{path}.target_type"), "capability target type is not declared by the world schema");
             }
         }
-        let actor_type = validate_entity_binding(capability.actor_argument, capability, &format!("{path}.actor_argument"), issues);
-        let target_type = validate_entity_binding(capability.target_argument, capability, &format!("{path}.target_argument"), issues);
+        let actor_type = validate_entity_binding(capability.actor_argument, capability, &format!("{path}.actor_argument"), false, issues);
+        let target_type = validate_entity_binding(capability.target_argument, capability, &format!("{path}.target_argument"), package.next.is_some(), issues);
         if let Some(target_index) = capability.target_argument {
             if capability.actor_argument == Some(target_index) {
                 issue(issues, "invalid_capability_binding", &path, "actor and target arguments must be different");
@@ -744,12 +745,14 @@ fn validate_entity_binding<'a>(
     index: Option<u16>,
     capability: &'a CapabilitySchema,
     path: &str,
+    allow_generic: bool,
     issues: &mut Vec<ValidationIssue>,
 ) -> Option<&'a TypeId> {
     let Some(index) = index else { return None };
     match capability.arguments.get(index as usize).map(|parameter| &parameter.value_type) {
         Some(DomainType::Entity { entity_type: Some(entity_type) })
             if !capability.arguments[index as usize].optional => Some(entity_type),
+        Some(DomainType::Entity { entity_type: None }) if allow_generic && !capability.arguments[index as usize].optional => None,
         Some(DomainType::Entity { .. }) => {
             issue(issues, "invalid_capability_binding", path, "bound actor and target arguments must have a concrete, required entity type");
             None
@@ -961,6 +964,7 @@ fn validate_phases_and_rules(package: &RulePackage, issues: &mut Vec<ValidationI
         }
     }
     for primitive in &package.required_primitives {
+        if package.next.is_some() && matches!(primitive, TransitionPrimitiveKind::BattleNavigation|TransitionPrimitiveKind::BattleVision|TransitionPrimitiveKind::BattleSquads|TransitionPrimitiveKind::BattleCombat) { continue; }
         if !package
             .transitions
             .iter()
@@ -974,7 +978,7 @@ fn validate_phases_and_rules(package: &RulePackage, issues: &mut Vec<ValidationI
         if !package.arbitration.contains_key(capability_id) {
             issue(issues, "missing_arbitration", format!("arbitration.{capability_id}"), "every executable capability requires an explicit arbitration rule");
         }
-        if !package.transitions.iter().any(|rule| rule.capability.as_ref() == Some(capability_id)) {
+        if package.next.is_none() && !package.transitions.iter().any(|rule| rule.capability.as_ref() == Some(capability_id)) {
             issue(issues, "missing_transition", format!("domain.capabilities.{capability_id}"), "every capability must have at least one transition rule");
         }
         for phase in &capability.phases {
@@ -1268,7 +1272,7 @@ fn validate_presentation(package: &RulePackage, issues: &mut Vec<ValidationIssue
 }
 
 fn validate_termination(package: &RulePackage, issues: &mut Vec<ValidationIssue>) {
-    if package.termination.conditions.is_empty() {
+    if package.next.is_none() && package.termination.conditions.is_empty() {
         issue(issues, "missing_termination", "termination.conditions", "at least one ordered termination condition is required");
     }
     let mut orders = BTreeSet::new();

@@ -19,7 +19,7 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
     if (event.tick > tick) break;
     if (
       event.tick >= tick - 1 &&
-      ["attack", "damage", "destroy", "spawn"].includes(event.type)
+      ["attack", "skill", "damage", "vitals", "destroy", "spawn"].includes(event.type)
     )
       cues.push(event as Event);
     if (event.type === "spawn")
@@ -30,6 +30,8 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
       const current = entities[event.entityId];
       if (event.type === "move")
         entities[event.entityId] = { ...current, position: event.position };
+      if (event.type === "vitals")
+        entities[event.entityId] = { ...current, hp: event.hp, maxHp: event.maxHp };
       if (event.type === "damage")
         entities[event.entityId] = { ...current, hp: event.hp };
       if (event.type === "destroy")

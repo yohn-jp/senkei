@@ -6,7 +6,10 @@
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
-      "const": "0.1"
+      "enum": [
+        "0.1",
+        "0.2"
+      ]
     },
     "header": {
       "type": "object",
@@ -15,7 +18,8 @@
         "origin": {
           "enum": [
             "sample",
-            "official"
+            "official",
+            "local"
           ]
         },
         "title": {
@@ -50,7 +54,11 @@
           ]
         },
         "view": {
-          "const": "public"
+          "enum": [
+            "public",
+            "attacker",
+            "defender"
+          ]
         }
       },
       "required": [
@@ -112,6 +120,64 @@
           },
           "minItems": 1,
           "maxItems": 32
+        },
+        "camps": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "position": {
+                "$ref": "#/$defs/WorldPoint"
+              }
+            },
+            "required": [
+              "id",
+              "position"
+            ]
+          }
+        },
+        "routes": {
+          "type": "array",
+          "description": "Traversable map edges projected from the ruleset world graph.",
+          "items": {
+            "$ref": "#/$defs/Route"
+          }
+        },
+        "baseSites": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Immutable base locations from the public World map. This is not facility state or visibility.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "side": {
+                "enum": [
+                  "azure",
+                  "vermilion"
+                ]
+              },
+              "position": {
+                "$ref": "#/$defs/WorldPoint"
+              }
+            },
+            "required": [
+              "id",
+              "side",
+              "position"
+            ]
+          }
         }
       },
       "required": [
@@ -124,7 +190,7 @@
       "items": {
         "$ref": "#/$defs/Entity"
       },
-      "minItems": 1,
+      "minItems": 0,
       "maxItems": 2000
     },
     "timeline": {
@@ -133,7 +199,7 @@
         "$ref": "#/$defs/Event"
       },
       "minItems": 1,
-      "maxItems": 20000
+      "maxItems": 500000
     },
     "result": {
       "$ref": "#/$defs/Result"
@@ -213,6 +279,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1000000
+        },
+        "catalogId": {
+          "type": "string",
+          "maxLength": 64
         }
       },
       "required": [
@@ -286,6 +356,34 @@
         "label",
         "points",
         "elevation"
+      ]
+    },
+    "Route": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPoint"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "id",
+        "region",
+        "points"
       ]
     },
     "Event": {
@@ -504,6 +602,87 @@
             "tick",
             "order",
             "result"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "vitals"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "hp": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "maxHp": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "hp",
+            "maxHp"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "skill"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "targetId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "skillKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "targetId",
+            "skillKey"
           ]
         }
       ]

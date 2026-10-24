@@ -103,6 +103,8 @@ export interface SimulationOutcome {
 }
 
 export interface SimulationResponse {
+  /** Local attacker perspective, kept separate from the public replay. */
+  readonly owner_replay?: import("./core-model").PresentationReplay;
   readonly outcome: SimulationOutcome;
   /** Separate local-only channel; renderers receive SimulationOutcome instead. */
   readonly restricted_diagnostics?: RestrictedDiagnostics;
@@ -138,6 +140,7 @@ export interface WorkerFailure {
 
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
+  nextRuleset(): Promise<RulePackage>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
   formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;

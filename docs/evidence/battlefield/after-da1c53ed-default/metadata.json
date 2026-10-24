@@ -1,0 +1,453 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "default-ui-draft",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "da1c53ed66266c65954a58a4265c049e668fedd2",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "da1c53ed66266c65954a58a4265c049e668fedd2",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": null,
+  "input": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde"
+  },
+  "replay": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "publicPresentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "sourceFrameCount": 212,
+    "timelineEventCount": 713,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.objective_destroyed"
+    ],
+    "sha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+      "uncompressedBytes": 9659881,
+      "compressedBytes": 257319
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+      "uncompressedBytes": 4947035,
+      "compressedBytes": 107754
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+      "uncompressedBytes": 938643,
+      "compressedBytes": 16399
+    },
+    "controlledSource": null
+  },
+  "result": {
+    "outcome": "attacker_victory",
+    "terminationReason": "base_destroyed",
+    "finalTick": 211,
+    "finalStateDigest": "a1b81b6b1d44dba12d6540c81b62b943d064f1751b7eb2438622bafa838145e9"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 6,
+    "tower_destroy": null,
+    "base_destroy": 211,
+    "hero_death": null,
+    "hero_respawn": null,
+    "monster_respawn": null,
+    "skill": null,
+    "end": 211
+  },
+  "heroRespawnProof": null,
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": false,
+    "baseDestroy": true,
+    "heroDeath": false,
+    "heroRespawn": false,
+    "neutralMonsterRespawn": false,
+    "activeSkill": false,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": true,
+    "explicitOverviewMode": true,
+    "followTarget": "Azure · F03 · Hero · HP 220/220",
+    "followAvailable": {
+      "initial": true,
+      "1920x1080": true,
+      "1440x900": true,
+      "430x932": true,
+      "390x844": true,
+      "320x844": true
+    }
+  },
+  "mobileConsole": {
+    "430x932": {
+      "Timeline view": true,
+      "Details view": true
+    },
+    "390x844": {
+      "Timeline view": true,
+      "Details view": true
+    },
+    "320x844": {
+      "Timeline view": true,
+      "Details view": true
+    }
+  },
+  "layoutByViewport": {
+    "1920x1080": {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "document": {
+        "width": 1920,
+        "height": 1080,
+        "viewportWidth": 1920,
+        "viewportHeight": 1080
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1846,
+        "height": 789.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 973,
+        "width": 1848,
+        "height": 81
+      },
+      "camera": {
+        "pose": "21.029,55.000,46.872:1.000",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "1440x900": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "width": 1440,
+        "height": 900,
+        "viewportWidth": 1440,
+        "viewportHeight": 900
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1366,
+        "height": 609.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 793,
+        "width": 1368,
+        "height": 81
+      },
+      "camera": {
+        "pose": "21.029,55.000,46.872:1.000",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "430x932": {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "document": {
+        "width": 430,
+        "height": 932,
+        "viewportWidth": 430,
+        "viewportHeight": 932
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 428,
+        "height": 603.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 757,
+        "width": 430,
+        "height": 99
+      },
+      "camera": {
+        "pose": "53.029,50.000,14.427:1.000",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "390x844": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "width": 390,
+        "height": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 388,
+        "height": 491.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 645,
+        "width": 390,
+        "height": 123
+      },
+      "camera": {
+        "pose": "53.029,50.000,14.427:1.000",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "320x844": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "document": {
+        "width": 320,
+        "height": 844,
+        "viewportWidth": 320,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 146,
+        "width": 318,
+        "height": 497
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 647,
+        "width": 320,
+        "height": 121
+      },
+      "camera": {
+        "pose": "53.029,50.000,14.427:1.000",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    }
+  },
+  "cameraPosesByCapture": {
+    "1920x1080/tactical-t000.png": "0.896,55.000,33.536:1.000",
+    "1920x1080/overview-t000.png": "24.000,55.000,48.000:1.000",
+    "1920x1080/follow-t050.png": "48.000,30.065,64.320:1.000",
+    "1920x1080/advance-t001.png": "1.512,55.000,34.464:1.000",
+    "1920x1080/clash-t006.png": "7.090,55.000,38.936:1.000",
+    "1920x1080/base-destroy-t211.png": "21.029,55.000,46.872:1.000",
+    "1920x1080/end-t211.png": "21.029,55.000,46.872:1.000",
+    "1440x900/tactical-t000.png": "0.896,55.000,33.536:1.000",
+    "1440x900/overview-t000.png": "24.000,55.000,48.000:1.000",
+    "1440x900/follow-t050.png": "48.000,30.065,64.320:1.000",
+    "1440x900/advance-t001.png": "1.512,55.000,34.464:1.000",
+    "1440x900/clash-t006.png": "7.090,55.000,38.936:1.000",
+    "1440x900/base-destroy-t211.png": "21.029,55.000,46.872:1.000",
+    "1440x900/end-t211.png": "21.029,55.000,46.872:1.000",
+    "430x932/tactical-t000.png": "32.896,50.000,1.536:1.000",
+    "430x932/overview-t000.png": "56.000,50.000,16.000:1.000",
+    "430x932/follow-t050.png": "80.000,34.065,32.320:1.000",
+    "430x932/advance-t001.png": "33.512,50.000,2.464:1.000",
+    "430x932/clash-t006.png": "39.090,50.000,6.936:1.000",
+    "430x932/base-destroy-t211.png": "53.029,50.000,14.427:1.000",
+    "430x932/end-t211.png": "53.029,50.000,14.427:1.000",
+    "390x844/tactical-t000.png": "32.896,50.000,1.536:1.000",
+    "390x844/overview-t000.png": "56.000,50.000,16.000:1.000",
+    "390x844/follow-t050.png": "80.000,34.065,32.320:1.000",
+    "390x844/advance-t001.png": "33.512,50.000,2.464:1.000",
+    "390x844/clash-t006.png": "39.090,50.000,6.936:1.000",
+    "390x844/base-destroy-t211.png": "53.029,50.000,14.427:1.000",
+    "390x844/end-t211.png": "53.029,50.000,14.427:1.000",
+    "320x844/tactical-t000.png": "32.896,50.000,1.536:1.000",
+    "320x844/overview-t000.png": "56.000,50.000,16.000:1.000",
+    "320x844/follow-t050.png": "80.000,34.065,32.320:1.000",
+    "320x844/advance-t001.png": "33.512,50.000,2.464:1.000",
+    "320x844/clash-t006.png": "39.090,50.000,6.936:1.000",
+    "320x844/base-destroy-t211.png": "53.029,50.000,14.427:1.000",
+    "320x844/end-t211.png": "53.029,50.000,14.427:1.000"
+  },
+  "followTargetPosition": {
+    "id": "visible-8",
+    "x": 48,
+    "z": 32.32,
+    "sourceX": 1200,
+    "sourceY": 808
+  },
+  "cameraTargetsByCapture": {
+    "1920x1080/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "1440x900/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "430x932/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "390x844/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "320x844/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    }
+  },
+  "viewports": [
+    {
+      "name": "1920x1080",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "430x932",
+      "width": 430,
+      "height": 932
+    },
+    {
+      "name": "390x844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "name": "320x844",
+      "width": 320,
+      "height": 844
+    }
+  ],
+  "screenshotNames": [
+    "tactical",
+    "overview",
+    "follow",
+    "advance",
+    "clash",
+    "base-destroy",
+    "end"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+    "publicReplaySha256": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+    "inputSnapshotSha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+    "imageSha256": {
+      "1440x900/advance-t001.png": "99812d51d39c0e192ccff0dbd96f36a7d57d5e124c62ea23585d371e4d055218",
+      "1440x900/base-destroy-t211.png": "1fe69df1256d922cfedd75fde27b015404567656f3b4c3b7d93a38c3e790af60",
+      "1440x900/clash-t006.png": "036af0485e30f2f44db17a14d2d547ea22702bbef67aadf25c48a54ed81e3335",
+      "1440x900/end-t211.png": "1fe69df1256d922cfedd75fde27b015404567656f3b4c3b7d93a38c3e790af60",
+      "1440x900/follow-t050.png": "20deb38004b4ea1d83142f4a9c7d9f0ae42fc6befa43a40c125c3bfdf75d8055",
+      "1440x900/overview-t000.png": "312d82c97491b6b3d5fa228a53db61f63cc5ac5a7eadc2e10a3c32a4ff2487f0",
+      "1440x900/tactical-t000.png": "245554dbadb564c6fbae65327dfa0d91189144e4e07dc432688e6ea71b869e35",
+      "1920x1080/advance-t001.png": "d113c4d766a9db0a1325ae700a5f9f5ccb11cd84af432abb5cd12768e665001b",
+      "1920x1080/base-destroy-t211.png": "b47c562ed99d77c76c8844d0bdf502fce5b83fb7594288cda1b58a1d85fc7358",
+      "1920x1080/clash-t006.png": "b3c5fb8bda11cec4a4bb4bf3fe262e3ae1a58f5fb29a61b8a64b52d258092554",
+      "1920x1080/end-t211.png": "b47c562ed99d77c76c8844d0bdf502fce5b83fb7594288cda1b58a1d85fc7358",
+      "1920x1080/follow-t050.png": "72430d0e18c8f27f5f3b40d44b58681bbbbdf09d59e8b076173082318df682f3",
+      "1920x1080/overview-t000.png": "d5b5acf64d7bfcc4c12e94bd691a325f6a36ec80ca793ae6d05a2b39f60271b1",
+      "1920x1080/tactical-t000.png": "f84dca11c1b956adf879f38eaddde1607dea4e5c6a1bd2113d5d627ba4d504f5",
+      "320x844/advance-t001.png": "0caf761704e0f34b793c8412660b18321d40b20a93e80c7659a12868201663a4",
+      "320x844/base-destroy-t211.png": "955e771aa7a94a5a10626ba2417a6f6e3aacabedaf180e34495b9ff2387e0759",
+      "320x844/clash-t006.png": "d651b803f5c108124d10ef396b7fa12ff06960bc48c5ae7964084e1d34dcb9cc",
+      "320x844/details-view-t006.png": "e48efc95160b9a02c5707a8481dc432a8fa3a68e727d1d8c2006de3a4d58899c",
+      "320x844/end-t211.png": "955e771aa7a94a5a10626ba2417a6f6e3aacabedaf180e34495b9ff2387e0759",
+      "320x844/follow-t050.png": "7b3b36f72a00a28ce21fcd326088855ffdb9d0754ab65c117ec84dc1b483746c",
+      "320x844/overview-t000.png": "600f6397e0004d5f148c2ef7948fe22ae9ab34700e2a9f1d7a8a8292c83a670d",
+      "320x844/tactical-t000.png": "239dbfdeeecc482abaa9fe06452f648896201e47a61393f3a60c14412289284b",
+      "320x844/timeline-view-t006.png": "54ec3c236cad9fe362a9ccb5810555a787999542222fbe9c1a6c0452a7944bbe",
+      "390x844/advance-t001.png": "427863753f383e98d442775e470fc1a748ce573e0840147ae74a8a33fb3c210a",
+      "390x844/base-destroy-t211.png": "0d234d64dd3c947d6531401f4f07983dc53623f085bf0d007b76c4e0e29f688a",
+      "390x844/clash-t006.png": "799d6d525cc5c5c84b61856e2fbf45705ecd5a31ff280a2e3114912441a754b1",
+      "390x844/details-view-t006.png": "9d56a23ea881c191cac4116eb9b583385fac1277037ea3208a157b417a3ab701",
+      "390x844/end-t211.png": "0d234d64dd3c947d6531401f4f07983dc53623f085bf0d007b76c4e0e29f688a",
+      "390x844/follow-t050.png": "f06a188d0f36199cd8bfc06d0aae7caf8c80518bd52b3115f5fa7972dd7757ac",
+      "390x844/overview-t000.png": "916aebe398713f61733a76305117b14018fe5ffc0da6b0af3cfe3b2529ca44a1",
+      "390x844/tactical-t000.png": "8299e2c7bda6b83850ec7e7c7b5ef926e246fa119bb2e4b864c10894441cb613",
+      "390x844/timeline-view-t006.png": "de9f9f9111b1d349d57c3043f4b263b746670bdaf46491e12f909423e16c4a7f",
+      "430x932/advance-t001.png": "565eb3e30a560515ecb78f1a6098d67da1f1f408df8d20bdd56e257eabae3b92",
+      "430x932/base-destroy-t211.png": "d53326d85effcc416f448e4d2d4326dc9d7f1d64be1f93547842e8435f613f66",
+      "430x932/clash-t006.png": "d6054039930aa091e416cb195f9dc94bb288ec9091760dbec8acbabd07c2c977",
+      "430x932/details-view-t006.png": "7a96fb3d3bbfc5c19d076d33c1709ce0e2fa33457458e8b33d89dbeea21d7794",
+      "430x932/end-t211.png": "d53326d85effcc416f448e4d2d4326dc9d7f1d64be1f93547842e8435f613f66",
+      "430x932/follow-t050.png": "b9f555bd24f2a3fcf63617475ab1ff311ddc3cc45b5f1aaa47ba7b58f1a60274",
+      "430x932/overview-t000.png": "9e5c04f8fbc81df6cf01e5a2240f34f106c4144cde0da28bb3d16297fa69b832",
+      "430x932/tactical-t000.png": "d7b7485466cea4a9d7677e3b51dfe226296986ed1d06328ae5cf92ed4bacea2d",
+      "430x932/timeline-view-t006.png": "c4be8583ce1165978c0d2c42e80bc7a92c17afa18ade8863b2d5ad67264431ea"
+    }
+  }
+}

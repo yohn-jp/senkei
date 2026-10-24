@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+const port = process.env.SENKEI_BROWSER_PORT ?? "4173";
 export default defineConfig({
   testDir: "tests/visual",
   fullyParallel: false,
@@ -7,9 +8,10 @@ export default defineConfig({
   expect: { timeout: 10000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: `http://127.0.0.1:${port}`,
     trace: "retain-on-failure",
     launchOptions: {
+      executablePath: process.env.SENKEI_CHROMIUM_EXECUTABLE,
       args: [
         "--no-sandbox",
         "--use-angle=swiftshader",
@@ -18,8 +20,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
+    command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
+    url: `http://127.0.0.1:${port}`,
     reuseExistingServer: !process.env.CI,
   },
 });

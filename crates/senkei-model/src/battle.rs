@@ -140,6 +140,8 @@ pub struct MatchResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresentationReplay {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perspective: Option<CombatantSide>,
     pub schema_version: Version,
     pub match_id: crate::MatchId,
     pub result_digest: ContentDigest,
@@ -195,6 +197,7 @@ pub struct ReproductionContext {
 /// `diagnostics`; there is no blanket public serialization for this container.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimulationArtifact {
+    pub owner_replay: Option<PresentationReplay>,
     pub result: MatchResult,
     pub replay: PresentationReplay,
     pub diagnostics: crate::RestrictedDiagnostics,
@@ -211,6 +214,7 @@ impl SimulationArtifact {
 
     pub fn diagnostic_response(&self) -> crate::LocalSimulationResponse {
         crate::LocalSimulationResponse {
+            owner_replay: self.owner_replay.clone(),
             result: self.result.clone(),
             replay: self.replay.clone(),
             diagnostics: Some(self.diagnostics.clone()),

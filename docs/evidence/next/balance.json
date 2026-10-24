@@ -1,0 +1,2008 @@
+{
+  "adapter_fixture_dir": "target/next-balance/adapter",
+  "case_count": 56,
+  "cases": [
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-1-1-1-1-1",
+      "defender_cu": 0,
+      "final_state_digest": "a3a34c9b394e11e56f35627144d0103a49d480ced4e3287aa4953f275167fa71",
+      "final_tick": 1,
+      "match_id": "w9-partition-1-1-1-1-1",
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-2-1-1-1",
+      "defender_cu": 0,
+      "final_state_digest": "2547251a9339b38b8eb2944096deda51b89c321e309513819f4c76cb3dce330d",
+      "final_tick": 1,
+      "match_id": "w9-partition-2-1-1-1",
+      "outcome": "Draw",
+      "partition": [
+        2,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-2-2-1",
+      "defender_cu": 0,
+      "final_state_digest": "8730c68ff152126209acc4c28db004b4228eb6c7c3d466615533a399d95a26b5",
+      "final_tick": 1,
+      "match_id": "w9-partition-2-2-1",
+      "outcome": "Draw",
+      "partition": [
+        2,
+        2,
+        1
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-3-1-1",
+      "defender_cu": 0,
+      "final_state_digest": "2821ae1a4bb773d1a29b47e35c91fb8475888720e80e17ce1eff238461b3d2e5",
+      "final_tick": 1,
+      "match_id": "w9-partition-3-1-1",
+      "outcome": "Draw",
+      "partition": [
+        3,
+        1,
+        1
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-3-2",
+      "defender_cu": 0,
+      "final_state_digest": "78ca663668eb5a268861a5f9adeadb7e9269f4e1d773fc13d84f9fa4a2ef044a",
+      "final_tick": 1,
+      "match_id": "w9-partition-3-2",
+      "outcome": "Draw",
+      "partition": [
+        3,
+        2
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-4-1",
+      "defender_cu": 0,
+      "final_state_digest": "e713b311be0cb3bd3053663d88191c055641b9361826ac82bebd9ac6d3fab8d1",
+      "final_tick": 1,
+      "match_id": "w9-partition-4-1",
+      "outcome": "Draw",
+      "partition": [
+        4,
+        1
+      ]
+    },
+    {
+      "attacker_cu": 0,
+      "case_id": "partition-5",
+      "defender_cu": 0,
+      "final_state_digest": "185e75cc2a4cadfcf2e3de9b8ab43e3375bef738f88492ae87119b2246b16108",
+      "final_tick": 1,
+      "match_id": "w9-partition-5",
+      "outcome": "Draw",
+      "partition": [
+        5
+      ]
+    },
+    {
+      "case_id": "move-lane-vision-false-squad-1",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 48,
+      "squad_size": 1,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-false-squad-2",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 45,
+      "squad_size": 2,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-false-squad-3",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 43,
+      "squad_size": 3,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-false-squad-4",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 40,
+      "squad_size": 4,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-false-squad-5",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 38,
+      "squad_size": 5,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-true-squad-1",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 57,
+      "squad_size": 1,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-true-squad-2",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 54,
+      "squad_size": 2,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-true-squad-3",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 51,
+      "squad_size": 3,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-true-squad-4",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 48,
+      "squad_size": 4,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-lane-vision-true-squad-5",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 46,
+      "squad_size": 5,
+      "terrain": "lane"
+    },
+    {
+      "case_id": "move-jungle-vision-false-squad-1",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 38,
+      "squad_size": 1,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-false-squad-2",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 36,
+      "squad_size": 2,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-false-squad-3",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 34,
+      "squad_size": 3,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-false-squad-4",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 32,
+      "squad_size": 4,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-false-squad-5",
+      "catalog_id": "F01",
+      "friendly_minion_vision": false,
+      "speed_units_after_one_tick": 30,
+      "squad_size": 5,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-true-squad-1",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 46,
+      "squad_size": 1,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-true-squad-2",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 43,
+      "squad_size": 2,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-true-squad-3",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 41,
+      "squad_size": 3,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-true-squad-4",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 39,
+      "squad_size": 4,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-jungle-vision-true-squad-5",
+      "catalog_id": "F01",
+      "friendly_minion_vision": true,
+      "speed_units_after_one_tick": 36,
+      "squad_size": 5,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-vision-overlap-no-stack",
+      "enemy_minion_count": 0,
+      "friendly_minion_count": 2,
+      "speed_units_after_one_tick": 46,
+      "squad_size": 1,
+      "terrain": "jungle"
+    },
+    {
+      "case_id": "move-enemy-minion-no-bonus",
+      "enemy_minion_count": 1,
+      "friendly_minion_count": 0,
+      "speed_units_after_one_tick": 38,
+      "squad_size": 1,
+      "terrain": "jungle"
+    },
+    {
+      "accepted_distinct_actors": 5,
+      "attacker_cu": 130,
+      "case_id": "five-solo-nonidle-moves"
+    },
+    {
+      "attacker_lineup": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05"
+      ],
+      "case_id": "catalog-selection-F01",
+      "defender_lineup": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05"
+      ],
+      "final_state_digest": "a3a34c9b394e11e56f35627144d0103a49d480ced4e3287aa4953f275167fa71",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F01"
+    },
+    {
+      "attacker_lineup": [
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06"
+      ],
+      "case_id": "catalog-selection-F02",
+      "defender_lineup": [
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06"
+      ],
+      "final_state_digest": "7f2d276a1cf154228e8b89b632a4bb1baccb214217d066c2a6c963b0292f2f12",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F02"
+    },
+    {
+      "attacker_lineup": [
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "R01"
+      ],
+      "case_id": "catalog-selection-F03",
+      "defender_lineup": [
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "R01"
+      ],
+      "final_state_digest": "3cc1916ff2f3f78f4c7258555a23181d0cfacc547ecadbb45bb9b9f82685ae4b",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F03"
+    },
+    {
+      "attacker_lineup": [
+        "F04",
+        "F05",
+        "F06",
+        "R01",
+        "R02"
+      ],
+      "case_id": "catalog-selection-F04",
+      "defender_lineup": [
+        "F04",
+        "F05",
+        "F06",
+        "R01",
+        "R02"
+      ],
+      "final_state_digest": "faf48a2af05c7b01638ea6c60ac98cb25a64f603cc68a2f590131adefc21f3da",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F04"
+    },
+    {
+      "attacker_lineup": [
+        "F05",
+        "F06",
+        "R01",
+        "R02",
+        "R03"
+      ],
+      "case_id": "catalog-selection-F05",
+      "defender_lineup": [
+        "F05",
+        "F06",
+        "R01",
+        "R02",
+        "R03"
+      ],
+      "final_state_digest": "3dcd10e1e3c22869ddaa80f9b454640b37e0b89531860ca83a4ab6880c05b632",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F05"
+    },
+    {
+      "attacker_lineup": [
+        "F06",
+        "R01",
+        "R02",
+        "R03",
+        "R04"
+      ],
+      "case_id": "catalog-selection-F06",
+      "defender_lineup": [
+        "F06",
+        "R01",
+        "R02",
+        "R03",
+        "R04"
+      ],
+      "final_state_digest": "60c8e18494ce027278c6de0997d0037401a0b9142dd09057e6fbd875b3a3af0a",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "F06"
+    },
+    {
+      "attacker_lineup": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05"
+      ],
+      "case_id": "catalog-selection-R01",
+      "defender_lineup": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05"
+      ],
+      "final_state_digest": "aa119fde0c2652a69d1a83a2b7c19ae8cc93278c7ba2abc2e9fd23974c5e5bab",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R01"
+    },
+    {
+      "attacker_lineup": [
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06"
+      ],
+      "case_id": "catalog-selection-R02",
+      "defender_lineup": [
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06"
+      ],
+      "final_state_digest": "8488dca7dbddd0e13da47e4ab64d43ca30b36dfba82e76e6acbdf3dc7d67ccd2",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R02"
+    },
+    {
+      "attacker_lineup": [
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "F01"
+      ],
+      "case_id": "catalog-selection-R03",
+      "defender_lineup": [
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "F01"
+      ],
+      "final_state_digest": "761e97e8ffb0dc0118b1a9d245afa1b2f35ecf4d3f7e60a794943be96e6784fe",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R03"
+    },
+    {
+      "attacker_lineup": [
+        "R04",
+        "R05",
+        "R06",
+        "F01",
+        "F02"
+      ],
+      "case_id": "catalog-selection-R04",
+      "defender_lineup": [
+        "R04",
+        "R05",
+        "R06",
+        "F01",
+        "F02"
+      ],
+      "final_state_digest": "5ae207a3148129a01feed45f56fcd834d654abe79b49b8792ee92e584d61d587",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R04"
+    },
+    {
+      "attacker_lineup": [
+        "R05",
+        "R06",
+        "F01",
+        "F02",
+        "F03"
+      ],
+      "case_id": "catalog-selection-R05",
+      "defender_lineup": [
+        "R05",
+        "R06",
+        "F01",
+        "F02",
+        "F03"
+      ],
+      "final_state_digest": "7107c2087bc8392de573307b25536732950f2f5238f5d87b815dbb533ecfb387",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R05"
+    },
+    {
+      "attacker_lineup": [
+        "R06",
+        "F01",
+        "F02",
+        "F03",
+        "F04"
+      ],
+      "case_id": "catalog-selection-R06",
+      "defender_lineup": [
+        "R06",
+        "F01",
+        "F02",
+        "F03",
+        "F04"
+      ],
+      "final_state_digest": "7c5e3dba2386d85a6415a7423fb88290bdf513ff6ac521ceb77409f3f3b71c06",
+      "final_tick": 1,
+      "outcome": "Draw",
+      "partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "selected_catalog_hero": "R06"
+    },
+    {
+      "case_id": "squad-merge-split-regroup-maturation",
+      "fresh_merge_maturity": 1,
+      "fresh_regroup_maturity": 1,
+      "maturity_at_tick_45": 40,
+      "maturity_cap": 40,
+      "partition_by_tick": {
+        "0": [
+          3,
+          2
+        ],
+        "1": [
+          5
+        ],
+        "2": [
+          4,
+          1
+        ],
+        "3": [
+          5
+        ]
+      },
+      "prepared_quintet_maturity_at_start": 0,
+      "prepared_quintet_maturity_at_tick_40": 40,
+      "termination_tick": 45
+    },
+    {
+      "camp": "camp_nw",
+      "case_id": "xp-equal-share-1",
+      "eligible_heroes": 1,
+      "hero_xp_delta_scaled": [
+        226800,
+        0,
+        0,
+        0,
+        0
+      ],
+      "monster_catalog_id": "monster_grove_brute",
+      "reward_xp": 90,
+      "termination_tick": 1,
+      "xp_scale": 2520
+    },
+    {
+      "camp": "camp_nw",
+      "case_id": "xp-equal-share-2",
+      "eligible_heroes": 2,
+      "hero_xp_delta_scaled": [
+        113400,
+        113400,
+        0,
+        0,
+        0
+      ],
+      "monster_catalog_id": "monster_grove_brute",
+      "reward_xp": 90,
+      "termination_tick": 1,
+      "xp_scale": 2520
+    },
+    {
+      "camp": "camp_nw",
+      "case_id": "xp-equal-share-5",
+      "eligible_heroes": 5,
+      "hero_xp_delta_scaled": [
+        45360,
+        45360,
+        45360,
+        45360,
+        45360
+      ],
+      "monster_catalog_id": "monster_grove_brute",
+      "reward_xp": 90,
+      "termination_tick": 1,
+      "xp_scale": 2520
+    },
+    {
+      "camp": "camp_nw",
+      "camp_respawn_ticks": 90,
+      "case_id": "jungle-camp-respawn",
+      "kill_tick": 1,
+      "monster_catalog_id": "monster_grove_brute",
+      "restored_hp": 210,
+      "scheduled_respawn_tick": 91,
+      "termination_tick": 91
+    },
+    {
+      "case_id": "death-departure-solo-respawn",
+      "death_tick": 1,
+      "package_digest": "de03633bd068e5f107ccab5620c90517b49475b0d3d4922cc97be92773071f6a",
+      "respawn_node": "attacker_base",
+      "respawn_squad": "a:solo:cd0ba2062174a19c",
+      "respawn_tick": 21,
+      "ruleset_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 1
+      },
+      "termination_tick": 21
+    },
+    {
+      "attacker_catalog": [
+        "F01",
+        "R01",
+        "F02",
+        "R02",
+        "F03"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 326,
+          "level": 4,
+          "maturity": 0,
+          "node": "top_d",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 226800
+        },
+        {
+          "catalog_id": "R01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "a:solo:204879215864e43a",
+          "xp_scaled": 25200
+        },
+        {
+          "catalog_id": "F02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 285,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:e8fed99e80dfd412",
+          "xp_scaled": 0
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 178,
+          "level": 2,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:0dfa5e4c5d348228",
+          "xp_scaled": 37800
+        },
+        {
+          "catalog_id": "F03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 177,
+          "level": 4,
+          "maturity": 0,
+          "node": "top_d",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "attacker:squad-4",
+          "xp_scaled": 226800
+        }
+      ],
+      "attacker_opening_destinations": [
+        "top_d",
+        "mid_d",
+        "bot_d",
+        "jungle_center",
+        "top_d"
+      ],
+      "attacker_partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "case_id": "balanced-solos-vs-quintet",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F04",
+        "F05",
+        "F06",
+        "R03",
+        "R04"
+      ],
+      "defender_opening_destinations": [
+        "top_2",
+        "mid_1",
+        "bot_1",
+        "jungle_center",
+        "mid_2"
+      ],
+      "defender_partition": [
+        5
+      ],
+      "final_state_digest": "23005159f8c117b6910f5bca555e6c00e6c0a270da502a964ad322bec6defc71",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 829,
+        "next.death": 123,
+        "next.level_up": 16,
+        "next.neutral_respawn": 1,
+        "next.skill_acquired": 9
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_attacker_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 182
+          },
+          "id": "visible-19",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_attacker_bot"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-28",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1106
+          },
+          "id": "visible-656",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "R01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "a:solo:cba76a389aa31beb",
+          "xp_scaled": 22680
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 165,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "a:solo:d139b6a694bd0aec",
+          "xp_scaled": 10080
+        },
+        {
+          "catalog_id": "R03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 170,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:1d4b19ab65ed590a",
+          "xp_scaled": 47880
+        },
+        {
+          "catalog_id": "R04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 190,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:cd1a10e3136ab503",
+          "xp_scaled": 22680
+        },
+        {
+          "catalog_id": "R05",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:a5c4849adc94402f",
+          "xp_scaled": 47880
+        }
+      ],
+      "attacker_opening_destinations": [
+        "top_2",
+        "top_2",
+        "mid_2",
+        "mid_2",
+        "bot_2"
+      ],
+      "attacker_partition": [
+        2,
+        2,
+        1
+      ],
+      "case_id": "split-2-2-1-vs-3-2-role-mix",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F01",
+        "F03",
+        "R02",
+        "F05",
+        "R06"
+      ],
+      "defender_opening_destinations": [
+        "top_1",
+        "top_1",
+        "top_1",
+        "mid_1",
+        "mid_1"
+      ],
+      "defender_partition": [
+        3,
+        2
+      ],
+      "final_state_digest": "b3ad84007f5e1a41911d51a87ef87767cc0f568e229139a7d14d27af3d531595",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 583,
+        "next.death": 64
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 538
+          },
+          "id": "visible-698",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1140
+          },
+          "id": "visible-709",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "R01"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 370,
+          "level": 6,
+          "maturity": 40,
+          "node": "jungle_nw",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 133560
+        },
+        {
+          "catalog_id": "F02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 408,
+          "level": 6,
+          "maturity": 40,
+          "node": "jungle_nw",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 133560
+        },
+        {
+          "catalog_id": "F03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 245,
+          "level": 6,
+          "maturity": 40,
+          "node": "jungle_nw",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 32760
+        },
+        {
+          "catalog_id": "F04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 270,
+          "level": 6,
+          "maturity": 40,
+          "node": "jungle_nw",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 32760
+        },
+        {
+          "catalog_id": "R01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:0cf0b255d41cf648",
+          "xp_scaled": 45360
+        }
+      ],
+      "attacker_opening_destinations": [
+        "jungle_nw",
+        "jungle_center",
+        "jungle_se",
+        "mid_2",
+        "jungle_center"
+      ],
+      "attacker_partition": [
+        4,
+        1
+      ],
+      "case_id": "jungle-push-vs-lane-defense",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F05",
+        "R02",
+        "F06",
+        "R03",
+        "R04"
+      ],
+      "defender_opening_destinations": [
+        "top_d",
+        "top_2",
+        "mid_d",
+        "bot_d",
+        "bot_2"
+      ],
+      "defender_partition": [
+        2,
+        2,
+        1
+      ],
+      "final_state_digest": "4685ae4417fc0ddec2ee27112344851a92352ba171849365ccd876103c973e60",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 470,
+        "next.death": 74,
+        "next.level_up": 6,
+        "next.neutral_respawn": 2,
+        "next.skill_acquired": 2
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1141
+          },
+          "id": "visible-629",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1179
+          },
+          "id": "visible-640",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F05",
+        "R02",
+        "F06",
+        "R03",
+        "R04"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F05",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 282,
+          "level": 4,
+          "maturity": 40,
+          "node": "top_d",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 226800
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 188,
+          "level": 4,
+          "maturity": 40,
+          "node": "top_d",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 226800
+        },
+        {
+          "catalog_id": "F06",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 190,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:3ebbdbbd3b68b90b",
+          "xp_scaled": 50400
+        },
+        {
+          "catalog_id": "R03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 170,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:b00103ad7b01ccb4",
+          "xp_scaled": 50400
+        },
+        {
+          "catalog_id": "R04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 190,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:c36e2cd434276672",
+          "xp_scaled": 0
+        }
+      ],
+      "attacker_opening_destinations": [
+        "top_d",
+        "top_2",
+        "mid_d",
+        "bot_d",
+        "bot_2"
+      ],
+      "attacker_partition": [
+        2,
+        2,
+        1
+      ],
+      "case_id": "mirrored-lane-defense-vs-jungle-push",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "R01"
+      ],
+      "defender_opening_destinations": [
+        "jungle_nw",
+        "jungle_center",
+        "jungle_se",
+        "mid_2",
+        "jungle_center"
+      ],
+      "defender_partition": [
+        4,
+        1
+      ],
+      "final_state_digest": "f1b4ad9b56a72bae22d46b33522de8ff9f013012c893aa56bf4e62020f661e3e",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 568,
+        "next.death": 71,
+        "next.level_up": 7,
+        "next.skill_acquired": 5
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1045
+          },
+          "id": "visible-793",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-810",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F01",
+        "F03",
+        "F06",
+        "R02",
+        "R04"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 260,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "a:solo:90b0c4ed4a383214",
+          "xp_scaled": 12600
+        },
+        {
+          "catalog_id": "F03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 220,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "a:solo:8308dfd578036e88",
+          "xp_scaled": 12600
+        },
+        {
+          "catalog_id": "F06",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 206,
+          "level": 2,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:e346833b6e46fc1a",
+          "xp_scaled": 151200
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 178,
+          "level": 2,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:0cf0b355d41cf7fb",
+          "xp_scaled": 163800
+        },
+        {
+          "catalog_id": "R04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 190,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:242fde06ce9db920",
+          "xp_scaled": 214200
+        }
+      ],
+      "attacker_opening_destinations": [
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base"
+      ],
+      "attacker_partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "case_id": "base-assault-solos-vs-quintet",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F02",
+        "F04",
+        "R01",
+        "R03",
+        "R05"
+      ],
+      "defender_opening_destinations": [
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base"
+      ],
+      "defender_partition": [
+        5
+      ],
+      "final_state_digest": "de2d09d8b34e3fa8860ac2df3dccd988a1a1d69d2f48de8b31ce5d8ffaf83d5a",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 783,
+        "next.death": 67,
+        "next.level_up": 4,
+        "next.neutral_respawn": 1,
+        "next.skill_acquired": 4
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1142
+          },
+          "id": "visible-755",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1150
+          },
+          "id": "visible-766",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F02",
+        "F04",
+        "R01",
+        "R03",
+        "R05"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 285,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "a:solo:5b99188296beaf30",
+          "xp_scaled": 166320
+        },
+        {
+          "catalog_id": "F04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 195,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "a:solo:4083f1bff8be5eb8",
+          "xp_scaled": 115920
+        },
+        {
+          "catalog_id": "R01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 194,
+          "level": 2,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:d7d90beb20a37d96",
+          "xp_scaled": 82320
+        },
+        {
+          "catalog_id": "R03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 170,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:e3da6268de9bc145",
+          "xp_scaled": 233520
+        },
+        {
+          "catalog_id": "R05",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 195,
+          "level": 2,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:233f10bbb49707f3",
+          "xp_scaled": 82320
+        }
+      ],
+      "attacker_opening_destinations": [
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base"
+      ],
+      "attacker_partition": [
+        5
+      ],
+      "case_id": "base-assault-quintet-vs-solos-mirrored",
+      "cu_by_side": {
+        "attacker": 6120,
+        "defender": 6120
+      },
+      "defender_catalog": [
+        "F01",
+        "F03",
+        "F06",
+        "R02",
+        "R04"
+      ],
+      "defender_opening_destinations": [
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base"
+      ],
+      "defender_partition": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "final_state_digest": "dae8e7cfa662e2769844381510886bd532bbe09bfd6cf61108eae8166a5a12f1",
+      "final_tick": 600,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "Draw",
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 772,
+        "next.death": 68,
+        "next.level_up": 4,
+        "next.skill_acquired": 4
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1141
+          },
+          "id": "visible-755",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_mid"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1080
+          },
+          "id": "visible-766",
+          "kind": "tower"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F03",
+        "F04",
+        "R01",
+        "R02",
+        "R05"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F03",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 78,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 10080
+        },
+        {
+          "catalog_id": "F04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 161,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 10080
+        },
+        {
+          "catalog_id": "R01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "attacker:squad-1",
+          "xp_scaled": 148680
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 17,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "attacker:squad-1",
+          "xp_scaled": 148680
+        },
+        {
+          "catalog_id": "R05",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 180,
+          "level": 1,
+          "maturity": 0,
+          "node": "attacker_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "a:solo:a40882b8ce8010bb",
+          "xp_scaled": 10080
+        }
+      ],
+      "attacker_opening_destinations": [
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base"
+      ],
+      "attacker_partition": [
+        2,
+        2,
+        1
+      ],
+      "case_id": "base-assault-duos-vs-trio-duo",
+      "cu_by_side": {
+        "attacker": 1580,
+        "defender": 1580
+      },
+      "defender_catalog": [
+        "F01",
+        "F02",
+        "F05",
+        "R04",
+        "R06"
+      ],
+      "defender_opening_destinations": [
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base"
+      ],
+      "defender_partition": [
+        3,
+        2
+      ],
+      "final_state_digest": "cd2161d387d0919415ccbf8a7b9daf47baab6c425f9cbb0a500bd55280093bb0",
+      "final_tick": 146,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "AttackerVictory",
+      "termination_class": "victory",
+      "termination_reason": "base_destroyed",
+      "time_limited": false,
+      "visible_event_counts": {
+        "next.attack": 438,
+        "next.death": 16,
+        "next.objective_destroyed": 1
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1186
+          },
+          "id": "visible-245",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-29",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1909
+          },
+          "id": "visible-31",
+          "kind": "base"
+        }
+      ]
+    },
+    {
+      "attacker_catalog": [
+        "F01",
+        "F02",
+        "F05",
+        "R04",
+        "R06"
+      ],
+      "attacker_final_heroes": [
+        {
+          "catalog_id": "F01",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 248,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 1,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 0
+        },
+        {
+          "catalog_id": "F02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 285,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 2,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 0
+        },
+        {
+          "catalog_id": "F05",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 131,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "attacker:squad-0",
+          "xp_scaled": 0
+        },
+        {
+          "catalog_id": "R04",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 88,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "attacker:squad-1",
+          "xp_scaled": 0
+        },
+        {
+          "catalog_id": "R06",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 215,
+          "level": 1,
+          "maturity": 40,
+          "node": "defender_base",
+          "respawn_at": 0,
+          "slot": 5,
+          "squad": "attacker:squad-1",
+          "xp_scaled": 0
+        }
+      ],
+      "attacker_opening_destinations": [
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base",
+        "defender_base"
+      ],
+      "attacker_partition": [
+        3,
+        2
+      ],
+      "case_id": "base-assault-trio-duo-vs-duos-mirrored",
+      "cu_by_side": {
+        "attacker": 1550,
+        "defender": 1550
+      },
+      "defender_catalog": [
+        "F03",
+        "F04",
+        "R01",
+        "R02",
+        "R05"
+      ],
+      "defender_opening_destinations": [
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base",
+        "attacker_base"
+      ],
+      "defender_partition": [
+        2,
+        2,
+        1
+      ],
+      "final_state_digest": "68b12ad53508d688acbcb57eafb15fcee26c22feeff87e9b594b70852cc975a0",
+      "final_tick": 143,
+      "hero_actions_by_side": {
+        "attacker": 5,
+        "defender": 5
+      },
+      "max_ticks": 600,
+      "outcome": "DefenderVictory",
+      "termination_class": "victory",
+      "termination_reason": "base_destroyed",
+      "time_limited": false,
+      "visible_event_counts": {
+        "next.attack": 283,
+        "next.death": 13,
+        "next.objective_destroyed": 1
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_defender_top"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1188
+          },
+          "id": "visible-254",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-29",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1902
+          },
+          "id": "visible-30",
+          "kind": "base"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "The seven initial partition cases run for one tick; eight lineup and objective cases run to the 600-tick ruleset cap or base destruction with five opening move intents per side.",
+    "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
+    "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
+    "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
+    "The eight full-length strategic cases contain six 600-tick timeouts and two mirrored base-destruction victories; timeout draws remain time-limited observations."
+  ],
+  "mechanics_version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "package_digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+  "ruleset_id": "senkei.next",
+  "ruleset_version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "schema": "senkei-next-balance-report/v1"
+}

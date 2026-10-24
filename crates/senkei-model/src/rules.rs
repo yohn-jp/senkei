@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulePackage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<crate::NextRules>,
     pub ruleset: RulesetRef,
     pub minimum_engine_version: Version,
     pub model_version: Version,
@@ -88,6 +90,8 @@ impl VerifiedRulePlan {
 /// The validated, normalized plan that Enbu executes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulePlan {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<crate::NextRules>,
     pub minimum_engine_version: Version,
     pub model_version: Version,
     pub primitive_set_id: crate::PrimitiveSetId,
@@ -218,6 +222,10 @@ pub struct ExecutionPhase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransitionPrimitiveKind {
+    BattleNavigation,
+    BattleVision,
+    BattleSquads,
+    BattleCombat,
     SetField,
     AddInteger,
     AddFixed,
@@ -482,6 +490,7 @@ pub struct RuleLimits {
 impl From<&RulePackage> for RulePlan {
     fn from(package: &RulePackage) -> Self {
         Self {
+            next: package.next.clone(),
             minimum_engine_version: package.minimum_engine_version,
             model_version: package.model_version,
             primitive_set_id: package.primitive_set_id.clone(),

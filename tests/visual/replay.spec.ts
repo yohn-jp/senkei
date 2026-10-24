@@ -1,7 +1,24 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { OrthographicCamera, Vector3 } from "three";
-const evidence = "docs/evidence/g1";
+const evidence = process.env.SENKEI_GRAPHICS_EVIDENCE_DIR ?? "docs/evidence/g1";
+const g1 = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../packages/replay-contract/fixtures/basic-three-lane.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as {
+  scene: {
+    bounds: {
+      min: { x: number; y: number };
+      max: { x: number; y: number };
+    };
+  };
+  initialView: Array<{ id: string; position: { x: number; y: number } }>;
+};
 mkdirSync(evidence, { recursive: true });
 async function seek(page: Page, tick: number) {
   const slider = page.getByRole("slider", { name: "Tickシーク" });
@@ -55,31 +72,75 @@ for (const [width, height] of [
     };
     await shot("initial");
     const bounds = await page.locator("canvas").boundingBox();
-    const span = mobile
-        ? Math.max(18.5, (14 * bounds!.height) / bounds!.width)
-        : 13,
-      aspect = bounds!.width / bounds!.height;
-    const pickCamera = new OrthographicCamera(
-      -span * aspect,
-      span * aspect,
-      span * 1.15,
-      -span * 0.85,
-      0.1,
-      200,
+    const host = await page.locator(".scene-host").boundingBox();
+    const { min, max } = g1.scene.bounds;
+    const center = new Vector3(
+      (min.x + max.x) / 2,
+      0,
+      (min.y + max.y) / 2,
     );
-    pickCamera.position.copy(
-      mobile ? new Vector3(34, 34, 9) : new Vector3(14, 28, 32),
+    const pickCamera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+    const [cameraPosition, zoom] = (
+      (await page.locator("canvas").getAttribute("data-camera")) ?? ""
+    ).split(":");
+    pickCamera.position.fromArray(
+      cameraPosition.split(",").map(Number),
     );
-    pickCamera.lookAt(0, 0, 0);
+    pickCamera.zoom = Number(zoom);
+    pickCamera.lookAt(center);
     pickCamera.updateMatrixWorld();
-    const pick = new Vector3(-5.6, 0.96, 0).project(pickCamera),
-      px = bounds!.x + ((pick.x + 1) * bounds!.width) / 2,
-      py = bounds!.y + ((1 - pick.y) * bounds!.height) / 2;
+    const direction = center.clone().sub(pickCamera.position).normalize();
+    const right = new Vector3()
+      .crossVectors(direction, pickCamera.up)
+      .normalize();
+    const screenUp = new Vector3().crossVectors(right, direction).normalize();
+    let horizontal = 0,
+      vertical = 0;
+    for (const x of [min.x, max.x])
+      for (const z of [min.y, max.y])
+        for (const y of [-1, 5]) {
+          const corner = new Vector3(x, y, z).sub(center);
+          horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
+          vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
+        }
+    const aspect = host!.width / host!.height;
+    const halfHeight = Math.max(vertical, horizontal / aspect) * 1.18;
+    pickCamera.left = -halfHeight * aspect;
+    pickCamera.right = halfHeight * aspect;
+    pickCamera.top = halfHeight;
+    pickCamera.bottom = -halfHeight;
+    pickCamera.updateProjectionMatrix();
+    const heavy = g1.initialView.find(
+      (entity) => entity.id === "azure-top-heavy",
+    )!;
+    const pick = new Vector3(
+      heavy.position.x,
+      0.96,
+      heavy.position.y,
+    ).project(pickCamera);
+    const px = bounds!.x + ((pick.x + 1) * bounds!.width) / 2;
+    const py = bounds!.y + ((1 - pick.y) * bounds!.height) / 2;
     if (mobile) await page.touchscreen.tap(px, py);
     else await page.mouse.click(px, py);
     await expect(page.getByRole("region", { name: "選択情報" })).toContainText(
       "重装兵",
     );
+    const canvas = page.locator("canvas");
+    const trackSelection = page.getByRole("button", { name: "選択対象を追跡" });
+    await trackSelection.click();
+    await expect(trackSelection).toHaveAttribute("aria-pressed", "true");
+    // The selected Heavy has world X/Z from the authored fixture. In
+    // particular, camera target Z must use fixture Y; the model's 0.96 height
+    // belongs to world Y and must never be substituted for that map axis.
+    await expect.poll(async () => {
+      const target = await canvas.getAttribute("data-camera-target");
+      const coordinates = target?.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi)?.map(Number);
+      if (!coordinates || coordinates.length < 3) return Number.POSITIVE_INFINITY;
+      return Math.max(
+        Math.abs(coordinates[0] - heavy.position.x),
+        Math.abs(coordinates[2] - heavy.position.y),
+      );
+    }).toBeLessThan(0.01);
     await page.getByRole("button", { name: "詳細を閉じる" }).click();
     await page.getByRole("button", { name: "再生", exact: true }).click();
     await expect
@@ -108,8 +169,7 @@ for (const [width, height] of [
     await page.getByRole("button", { name: "先頭へ戻る" }).click();
     await expect(page.getByRole("slider")).toHaveValue("0");
     await expect(page.getByRole("status", { name: "終局結果" })).toHaveCount(0);
-    const canvas = page.locator("canvas"),
-      camera = await canvas.getAttribute("data-camera");
+    const camera = await canvas.getAttribute("data-camera");
     await page.getByRole("button", { name: "拡大", exact: true }).click();
     await expect
       .poll(() => canvas.getAttribute("data-camera"))
@@ -279,4 +339,32 @@ test("existing workspace links to the independent sample page", async ({
     .click();
   await expect(page).toHaveURL(/\/graphics\/$/);
   await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
+});
+
+test("390px: immediate keyboard seek survives repeated replay replacement", async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+  });
+  const page = await context.newPage();
+  // Slow rendering widens the passive-effect gap seen in Graphics G1 CI.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await page.goto("/graphics/");
+  await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
+  const slider = page.getByRole("slider", { name: "Tickシーク" });
+  for (let index = 0; index < 8; index++) {
+    await page.getByLabel("モバイルFixture選択", { exact: true }).selectOption(
+      index % 2 ? "clash-and-loss" : "basic-three-lane",
+    );
+    // Deliberately do not wait for the renderer or a Tick assertion after switching.
+    await slider.press("Home");
+    await slider.press("ArrowRight");
+    await slider.press("ArrowRight");
+    await expect(slider).toHaveValue("2");
+    await expect(page.getByLabel("現在Tick")).toContainText("02");
+    await expect(page.locator("canvas")).toHaveAttribute("data-tick", "2");
+    await slider.press("ArrowLeft");
+    await expect(page.getByLabel("現在Tick")).toContainText("01");
+  }
+  await context.close();
 });
