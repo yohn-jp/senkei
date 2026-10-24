@@ -1,9 +1,9 @@
 //! Deterministic combat, skill, growth, and neutral-objective transitions.
 //!
-//! `xp` is stored in sixtieths of one XP. Rewards are integer values from
-//! NextRules, and a team can have at most five eligible Heroes, so every
-//! possible equal share is exact. No recipient receives a remainder based on
-//! ordering.
+//! `xp` is stored in 1/2520 XP units. A kill is split equally among all
+//! phase-start living Heroes on a contributing side who are in range, across
+//! one or both teams. This exactly represents every possible denominator up
+//! to ten without an ordering-based remainder.
 //!
 //! A combat phase reads one frozen start-of-phase snapshot. All basic attacks
 //! and accepted skill activations from living units are selected from that
@@ -20,7 +20,7 @@ use senkei_model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-const XP_SCALE: i64 = 60;
+const XP_SCALE: i64 = 2520;
 
 #[derive(Clone)]
 struct Hit {
@@ -92,9 +92,10 @@ pub fn initialize_objectives(world: &mut WorldState, rules: &NextRules) {
 /// current tick's frozen observations; `resolve` also calls it defensively.
 pub fn objective_lifecycle(
     world: &mut WorldState,
-    _rules: &NextRules,
+    rules: &NextRules,
     tick: u32,
 ) -> Vec<PresentationEvent> {
+    reapply_movement_passives(world, rules, tick);
     let due: Vec<_> = world.entities.iter()
         .filter(|(_, entity)| entity.entity_type.as_str() == "monster")
         .filter(|(_, entity)| support::int(entity, "hp") <= 0)
@@ -509,27 +510,26 @@ fn distribute_rewards(
             .filter_map(|id| start.entities.get(id).and_then(|source| source.owner))
             .filter(|side| target.owner != Some(*side))
             .collect();
-        for side in recipient_sides {
-            let eligible: Vec<_> = start.entities.iter()
-                .filter(|(_, hero)| {
+        let eligible: Vec<_> = recipient_sides.into_iter().flat_map(|side| {
+            start.entities.iter()
+                .filter(move |(_, hero)| {
                     hero.entity_type.as_str() == "hero"
                         && hero.owner == Some(side)
                         && support::alive(hero)
                         && support::distance2(hero, target) <= i128::from(range) * i128::from(range)
                 })
                 .map(|(id, _)| id.clone())
-                .collect();
-            if eligible.is_empty() {
-                continue;
+        }).collect();
+        if eligible.is_empty() {
+            continue;
+        }
+        let share = exact_xp_share(reward, eligible.len());
+        for hero_id in eligible {
+            if let Some(hero) = world.entities.get_mut(&hero_id) {
+                let xp = support::int(hero, "xp").saturating_add(share);
+                support::set_int(hero, "xp", xp);
             }
-            let share = exact_xp_share(reward, eligible.len());
-            for hero_id in eligible {
-                if let Some(hero) = world.entities.get_mut(&hero_id) {
-                    let xp = support::int(hero, "xp").saturating_add(share);
-                    support::set_int(hero, "xp", xp);
-                }
-                progress_levels(world, rules, &hero_id, events);
-            }
+            progress_levels(world, rules, &hero_id, events);
         }
     }
 }
@@ -651,6 +651,47 @@ fn apply_passive(hero: &mut EntityState, skill: &SkillDefinition, rules: &NextRu
         }
         SkillEffect::Defense => {
             add_int(hero, "defense", power);
+        }
+    }
+}
+
+/// Reapply only timed movement modifiers from acquired passive skills. W3
+/// clears temporary effect fields on death/respawn while retaining skill IDs;
+/// scanning those IDs restores passive Haste/Slow before this tick's
+/// observation and movement phases without repeating permanent stat gains.
+fn reapply_movement_passives(world: &mut WorldState, rules: &NextRules, tick: u32) {
+    let permanent_until = support::param(rules, "max_match_ticks", i64::from(u32::MAX))
+        .max(0)
+        .saturating_add(1);
+    let hero_ids: Vec<_> = world.entities.iter()
+        .filter(|(_, hero)| hero.entity_type.as_str() == "hero" && support::alive(hero))
+        .map(|(id, _)| id.clone())
+        .collect();
+    for hero_id in hero_ids {
+        let Some(hero_state) = world.entities.get(&hero_id) else { continue };
+        let catalog_id = support::string(hero_state, "catalog_id");
+        let learned = skill_ids(hero_state);
+        let Some(definition) = rules.heroes.iter().find(|hero| hero.id == catalog_id) else { continue };
+        let mut haste = 0_i64;
+        let mut slow = 0_i64;
+        for skill in &definition.skills {
+            if !skill.passive || !learned.contains(&skill.id) {
+                continue;
+            }
+            match &skill.effect {
+                SkillEffect::Haste => haste = haste.max(skill.power.max(0)),
+                SkillEffect::Slow => slow = slow.max(skill.power.max(0)),
+                _ => {}
+            }
+        }
+        let Some(hero) = world.entities.get_mut(&hero_id) else { continue };
+        if haste > 0 && support::int(hero, "haste_until") <= i64::from(tick) {
+            support::set_int(hero, "haste", haste);
+            support::set_int(hero, "haste_until", permanent_until);
+        }
+        if slow > 0 && support::int(hero, "slow_until") <= i64::from(tick) {
+            support::set_int(hero, "slow", slow);
+            support::set_int(hero, "slow_until", permanent_until);
         }
     }
 }
@@ -832,6 +873,9 @@ fn effect_order(effect: &SkillEffect) -> u8 {
 
 fn skill_target_id(intent: &Intent, actor: &EntityId, target_kind: &str) -> Option<EntityId> {
     if target_kind == "self" {
+        if intent.target.as_ref().is_some_and(|target| target != actor) {
+            return None;
+        }
         return Some(actor.clone());
     }
     intent.target.clone()
@@ -1049,13 +1093,14 @@ mod tests {
     }
 
     #[test]
-    fn integer_rewards_split_exactly_for_one_through_five_heroes() {
-        for recipients in 1..=5 {
+    fn integer_rewards_split_exactly_for_one_through_ten_heroes() {
+        for recipients in 1..=10 {
             let share = exact_xp_share(100, recipients);
             assert_eq!(share * i64::try_from(recipients).unwrap(), 100 * XP_SCALE);
         }
-        assert_eq!(exact_xp_share(1, 3), 20);
-        assert_eq!(exact_xp_share(100, 3), 2000);
+        assert_eq!(exact_xp_share(1, 3), 840);
+        assert_eq!(exact_xp_share(100, 3), 84_000);
+        assert_eq!(exact_xp_share(1, 8), 315);
     }
 
     #[test]
@@ -1113,9 +1158,89 @@ mod tests {
         resolve(&mut world, &rules(), &[], 0);
 
         for id in ["hero.a", "hero.b", "hero.c"] {
-            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "xp"), 20);
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "xp"), 840);
         }
         assert_eq!(support::int(&world.entities[&EntityId::from("hero.enemy")], "xp"), 0);
+    }
+
+    #[test]
+    fn contested_neutral_reward_is_equal_across_one_vs_five_eligible_heroes() {
+        let mut world = WorldState::default();
+        let mut attacker = entity("hero", Some(CombatantSide::Attacker), 0, 50, 20, 5);
+        attacker.fields.insert("target".into(), DomainValue::Entity(EntityId::from("neutral")));
+        insert(&mut world, "hero.attacker", attacker);
+        let mut defender_source = entity("hero", Some(CombatantSide::Defender), 2, 50, 20, 5);
+        defender_source.fields.insert("target".into(), DomainValue::Entity(EntityId::from("neutral")));
+        insert(&mut world, "hero.defender.0", defender_source);
+        for index in 1..5 {
+            insert(
+                &mut world,
+                &format!("hero.defender.{index}"),
+                entity("hero", Some(CombatantSide::Defender), 2, 50, 0, 0),
+            );
+        }
+        let mut neutral = entity("monster", None, 1, 1, 0, 0);
+        support::set_int(&mut neutral, "xp_reward", 1);
+        insert(&mut world, "neutral", neutral);
+
+        resolve(&mut world, &rules(), &[], 0);
+
+        let all_heroes = [
+            "hero.attacker",
+            "hero.defender.0",
+            "hero.defender.1",
+            "hero.defender.2",
+            "hero.defender.3",
+            "hero.defender.4",
+        ];
+        for id in all_heroes {
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "xp"), 420);
+        }
+        let total: i64 = all_heroes.iter()
+            .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
+            .sum();
+        assert_eq!(total, XP_SCALE);
+    }
+
+    #[test]
+    fn learned_passive_haste_is_restored_before_observation_after_respawn() {
+        let mut rules = rules();
+        rules.heroes[0].skills.push(SkillDefinition {
+            id: "trail_runner".into(),
+            name: "Trail Runner".into(),
+            passive: true,
+            unlock_level: 2,
+            prerequisites: Vec::new(),
+            cooldown: 0,
+            cost: 0,
+            range: 0,
+            target: "self".into(),
+            effect: SkillEffect::Haste,
+            power: 100,
+            duration: 0,
+        });
+        let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 0);
+        support::set_string(&mut hero, "catalog_id", "test_hero");
+        support::set_int(&mut hero, "speed", 50);
+        support::set_int(&mut hero, "attack", 20);
+        support::set_int(&mut hero, "defense", 5);
+        support::set_int(&mut hero, "haste", 250);
+        support::set_int(&mut hero, "haste_until", 0); // W3 clears effect expiry on respawn.
+        hero.fields.insert("skills".into(), DomainValue::List(vec![DomainValue::String("trail_runner".into())]));
+        let mut world = WorldState::default();
+        insert(&mut world, "hero", hero);
+
+        assert!(objective_lifecycle(&mut world, &rules, 20).is_empty());
+        let hero = &world.entities[&EntityId::from("hero")];
+        assert_eq!(support::int(hero, "haste"), 100);
+        assert_eq!(support::int(hero, "haste_until"), 601);
+        assert_eq!(support::int(hero, "speed"), 50);
+        assert_eq!(support::int(hero, "attack"), 20);
+        assert_eq!(support::int(hero, "defense"), 5);
+
+        objective_lifecycle(&mut world, &rules, 21);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "haste"), 100);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "attack"), 20);
     }
 
     #[test]
@@ -1133,6 +1258,35 @@ mod tests {
         };
         rules.heroes[0].skills = vec![guard, barrier];
         rules.heroes[0].skill_paths.insert("path_a".into(), vec!["guard".into(), "barrier".into()]);
+
+        let mut wrong_world = WorldState::default();
+        let mut wrong_actor = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 5);
+        support::set_int(&mut wrong_actor, "level", 4);
+        support::set_int(&mut wrong_actor, "energy", 30);
+        support::set_string(&mut wrong_actor, "skill_path", "path_a");
+        let wrong_actor_id = EntityId::from("wrong_actor");
+        insert(&mut wrong_world, "wrong_actor", wrong_actor);
+        insert(&mut wrong_world, "other_ally", entity("hero", Some(CombatantSide::Attacker), 1, 50, 0, 5));
+        let wrong_intent = Intent {
+            action_id: "activate-wrong-target".into(),
+            capability: "senkei.next.activate".into(),
+            actor: Some(wrong_actor_id.clone()),
+            target: Some(EntityId::from("other_ally")),
+            arguments: vec![DomainValue::String("barrier".into())],
+            priority: None,
+        };
+        let wrong_events = resolve(
+            &mut wrong_world,
+            &rules,
+            &[(CombatantSide::Attacker, wrong_intent)],
+            3,
+        );
+        let wrong_actor = &wrong_world.entities[&wrong_actor_id];
+        assert_eq!(support::int(wrong_actor, "energy"), 31);
+        assert_eq!(support::int(wrong_actor, "shield"), 0);
+        assert_eq!(cooldown_ready(wrong_actor, "barrier"), 0);
+        assert!(!wrong_events.iter().any(|event| event.event.as_str() == "next.skill"));
+
         let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 5);
         support::set_int(&mut hero, "level", 4);
         support::set_int(&mut hero, "energy", 30);
