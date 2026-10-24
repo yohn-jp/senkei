@@ -491,6 +491,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const nextRules = packageValue?.next ?? null;
   const [tab, setTab] = useState<WorkspaceTab>("formation");
   const [atelierScreen, setAtelierScreen] = useState<AtelierScreen>("collection");
+  const [saveDetailsOpen, setSaveDetailsOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 761px)").matches);
   const [slots, setSlots] = useState<FormationSlot[]>([]);
   const [rivalSlots, setRivalSlots] = useState<FormationSlot[]>([]);
   const [formationShape, setFormationShape] = useState<FormationShape>("single");
@@ -540,6 +541,13 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     } finally {
       setSavedSetupLoaded(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 761px)");
+    const syncDisclosure = () => setSaveDetailsOpen(desktop.matches);
+    desktop.addEventListener("change", syncDisclosure);
+    return () => desktop.removeEventListener("change", syncDisclosure);
   }, []);
 
   useEffect(() => {
@@ -1023,6 +1031,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError}</span><button type="button" onClick={() => setRendererError(null)} aria-label="Dismiss renderer error">×</button></div>}
 
+      <details className="next-save-disclosure" open={saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
+      <summary><strong>Save and recovery</strong><small>{recoveryLoadError ? "Recovery needs attention" : savedSetup ? "Pinned setup available" : "No pinned setup"} · opens local setup controls</small></summary>
       <section aria-label="Next setup save and restore" className="next-save-bar">
         <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Saved setup and recovery copy</strong><small>Save setup pins a restore point; current edits are recovered separately after reload.</small></div>
         <div className="next-save-actions">
@@ -1051,6 +1061,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         {!savedSetup && !savedSetupError && saveMessage && <p className="next-save-message" role="status">{saveMessage}</p>}
         {!savedSetup && !savedSetupError && !saveMessage && <p className="next-save-message" role="status">{savedSetupLoaded ? "No Next setup is saved yet." : "Checking for a saved Next setup…"}</p>}
       </section>
+      </details>
 
       <div className="next-layout">
         <nav className="next-tabs" aria-label="Next workbench" role="tablist">

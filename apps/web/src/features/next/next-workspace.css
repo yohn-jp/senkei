@@ -33,6 +33,8 @@
 .next-error button { background: none; border: 0; color: inherit; cursor: pointer; font-size: 21px; line-height: 1; padding: 3px 5px; }
 .next-renderer-error { background: rgba(180,133,59,.12); border-color: rgba(219,179,105,.25); color: #e8d1a6; }
 .next-save-bar { align-items: center; background: rgba(17,27,34,.82); border: 1px solid var(--next-line); border-radius: 4px; display: grid; gap: 8px 14px; grid-template-columns: minmax(190px,1fr) auto; margin-bottom: 13px; padding: 10px 12px; }
+.next-save-disclosure { margin-bottom:13px; }
+.next-save-disclosure > summary { display:none; }
 .next-save-summary { display: grid; gap: 3px; }
 .next-save-summary strong { color: #dce5dc; font-family: Georgia,serif; font-size: 13px; font-weight: 500; }
 .next-save-summary small { color: #84928e; font-size: 9px; }
@@ -269,6 +271,14 @@
   .next-heading-status { align-items: flex-end; flex-direction: column-reverse; font-size: 0; gap: 7px; padding-top: 9px; }
   .next-heading-status .next-heading-mark { font-size: 38px; margin: 0; }
   .next-save-bar { align-items: stretch; grid-template-columns: 1fr; padding: 11px; }
+  .next-save-disclosure { margin-bottom:9px; }
+  .next-save-disclosure > summary { background:rgba(17,27,34,.94); border:1px solid var(--next-line); border-radius:4px; color:#dce5dc; cursor:pointer; min-height:46px; padding:8px 34px 8px 11px; position:relative; }
+  .next-save-disclosure > summary::-webkit-details-marker { display:none; }
+  .next-save-disclosure > summary::after { color:#bddf9e; content:"＋"; font-size:15px; position:absolute; right:12px; top:50%; transform:translateY(-50%); }
+  .next-save-disclosure[open] > summary::after { content:"−"; }
+  .next-save-disclosure > summary strong { display:block; font-size:10px; font-weight:600; }
+  .next-save-disclosure > summary small { color:#87958e; display:block; font-size:7px; margin-top:3px; }
+  .next-save-bar { margin-bottom:0; }
   .next-save-actions { justify-content: flex-start; }
   .next-save-actions > button { flex: 1 1 auto; min-height: 42px; }
   .next-layout { display: flex; flex-direction: column; gap: 9px; }
