@@ -9,6 +9,46 @@ use std::collections::BTreeMap;
 
 const HERO: &str = "hero";
 const MINION: &str = "minion";
+const PUBLIC_FIELDS: &[&str] = &[
+    "hp",
+    "max_hp",
+    "attack",
+    "defense",
+    "speed",
+    "range",
+    "attack_interval",
+    "vision",
+    "x",
+    "y",
+    "edge_to",
+    "edge_progress",
+    "node",
+    "lane",
+    "catalog_id",
+    "level",
+    "formation",
+    "maturity",
+    "energy",
+    "skills",
+    "shield",
+    "haste",
+    "haste_until",
+    "slow",
+    "slow_until",
+    "empower_until",
+    "defense_bonus",
+    "defense_until",
+    "camp",
+];
+const OWNER_ONLY_FIELDS: &[&str] = &[
+    "xp",
+    "cooldowns",
+    "squad",
+    "respawn_at",
+    "slot_id",
+    "skill_path",
+    "attack_ready",
+];
 
 /// Advances minion waves and prepares their lane waypoint goals before the
 /// same-tick observation snapshot.
@@ -131,38 +171,6 @@ pub fn observation(
 /// Projects the public replay view visible to both teams at once. Owner-only
 /// setup and tactical state such as XP and cooldowns is never projected.
 pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
-    const PUBLIC_FIELDS: &[&str] = &[
-        "hp",
-        "max_hp",
-        "attack",
-        "defense",
-        "speed",
-        "range",
-        "attack_interval",
-        "vision",
-        "x",
-        "y",
-        "edge_to",
-        "edge_progress",
-        "node",
-        "lane",
-        "catalog_id",
-        "level",
-        "formation",
-        "maturity",
-        "energy",
-        "skills",
-        "shield",
-        "haste",
-        "haste_until",
-        "slow",
-        "slow_until",
-        "empower_until",
-        "defense_bonus",
-        "defense_until",
-        "camp",
-    ];
-
     let entities = world
         .entities
         .iter()
@@ -170,17 +178,7 @@ pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
             (visible(world, rules, CombatantSide::Attacker, entity)
                 && visible(world, rules, CombatantSide::Defender, entity))
             .then(|| {
-                let fields = PUBLIC_FIELDS
-                    .iter()
-                    .filter_map(|name| {
-                        let field = FieldId::from(*name);
-                        entity
-                            .fields
-                            .get(&field)
-                            .cloned()
-                            .map(|value| (field, value))
-                    })
-                    .collect();
+                let fields = projected_fields(entity, false);
                 (
                     id.clone(),
                     EntityStateView {
@@ -197,6 +195,61 @@ pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
         entities,
         global_fields: BTreeMap::new(),
     }
+}
+
+/// Projects the current battlefield from one player's perspective. Owner-only
+/// fields are added only for that side's own entities; hidden enemies remain
+/// absent from the view.
+pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> WorldStateView {
+    let entities = world
+        .entities
+        .iter()
+        .filter_map(|(id, entity)| {
+            visible(world, rules, side, entity).then(|| {
+                let fields = projected_fields(entity, entity.owner == Some(side));
+                (
+                    id.clone(),
+                    EntityStateView {
+                        entity_type: entity.entity_type.clone(),
+                        owner: entity.owner,
+                        fields,
+                    },
+                )
+            })
+        })
+        .collect();
+    WorldStateView {
+        entities,
+        global_fields: BTreeMap::new(),
+    }
+}
+
+fn projected_fields(
+    entity: &EntityState,
+    include_owner_only: bool,
+) -> BTreeMap<FieldId, DomainValue> {
+    let mut fields: BTreeMap<_, _> = PUBLIC_FIELDS
+        .iter()
+        .filter_map(|name| {
+            let field = FieldId::from(*name);
+            entity
+                .fields
+                .get(&field)
+                .cloned()
+                .map(|value| (field, value))
+        })
+        .collect();
+    if include_owner_only {
+        fields.extend(OWNER_ONLY_FIELDS.iter().filter_map(|name| {
+            let field = FieldId::from(*name);
+            entity
+                .fields
+                .get(&field)
+                .cloned()
+                .map(|value| (field, value))
+        }));
+    }
+    fields
 }
 
 fn spawn_wave(world: &mut WorldState, rules: &NextRules, tick: u32) {
@@ -227,6 +280,7 @@ fn spawn_wave(world: &mut WorldState, rules: &NextRules, tick: u32) {
                         .copied()
                         .unwrap_or(definition.stats.vision),
                 );
+                support::set_int(&mut entity, "xp_reward", definition.xp);
                 support::set_string(&mut entity, "catalog_id", definition.id.clone());
                 support::set_string(&mut entity, "lane", lane.clone());
                 let goal = lane_waypoint(&rules.map, side, lane, start).unwrap_or_default();
@@ -732,7 +786,7 @@ mod tests {
                     attack_interval: 1,
                     vision: 4,
                 },
-                xp: 0,
+                xp: 7,
             }],
             monsters: vec![],
             camps: vec![],
@@ -753,6 +807,14 @@ mod tests {
             support::set_int(&mut entity, field, value);
         }
         support::set_string(&mut entity, "node", "a0");
+        support::set_string(&mut entity, "squad", "alpha");
+        support::set_string(&mut entity, "slot_id", "slot-1");
+        support::set_string(&mut entity, "skill_path", "vanguard");
+        support::set_int(&mut entity, "respawn_at", 12);
+        entity.fields.insert(
+            "cooldowns".into(),
+            DomainValue::Record(BTreeMap::from([("dash".into(), DomainValue::Integer(4))])),
+        );
         entity
     }
 
@@ -839,6 +901,7 @@ mod tests {
             .unwrap();
         assert_eq!(support::string(attacker, "node"), "a0");
         assert_eq!(support::string(attacker, "goal"), "a1");
+        assert_eq!(support::int(attacker, "xp_reward"), 7);
         let defender = world
             .entities
             .values()
@@ -1021,6 +1084,34 @@ mod tests {
         );
         assert!(!minion.fields.contains_key(&FieldId::from("xp")));
         assert!(!minion.fields.contains_key(&FieldId::from("goal")));
+    }
+
+    #[test]
+    fn team_view_keeps_owned_fields_and_hides_unseen_enemies() {
+        let rules = test_rules();
+        let mut world = WorldState::default();
+        world
+            .entities
+            .insert("ally-hero".into(), hero(CombatantSide::Attacker, 0, 10));
+        world
+            .entities
+            .insert("hidden-enemy".into(), hero(CombatantSide::Defender, 50, 10));
+
+        let local = team_view(&world, &rules, CombatantSide::Attacker);
+        assert!(local.entities.contains_key(&EntityId::from("ally-hero")));
+        assert!(!local.entities.contains_key(&EntityId::from("hidden-enemy")));
+        let own = &local.entities[&EntityId::from("ally-hero")].fields;
+        assert_eq!(own[&FieldId::from("xp")], DomainValue::Integer(77));
+        assert_eq!(
+            own[&FieldId::from("squad")],
+            DomainValue::String("alpha".into())
+        );
+        assert_eq!(own[&FieldId::from("respawn_at")], DomainValue::Integer(12));
+        assert!(own.contains_key(&FieldId::from("cooldowns")));
+
+        let public = public_view(&world, &rules);
+        assert!(public.entities.is_empty());
+        assert!(!public.entities.contains_key(&EntityId::from("ally-hero")));
     }
 
     #[test]
