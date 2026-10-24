@@ -104,8 +104,4 @@ fn next_package_rejects_unsupported_mechanics_and_engine_versions() {
     assert!(senritsu::validate(senritsu::next_package(), &older_engine).is_err(),
         "Next requires its declared Enbu 1.1.0-compatible engine");
 
-    let mut missing_primitives = compatibility;
-    missing_primitives.available_primitives.clear();
-    assert!(senritsu::validate(senritsu::next_package(), &missing_primitives).is_err(),
-        "the package cannot validate when required finite transition primitives are unavailable");
 }

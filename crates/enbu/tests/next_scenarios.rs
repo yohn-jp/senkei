@@ -15,6 +15,19 @@ fn rules() -> VerifiedRulePlan {
     .unwrap_or_else(|issues| panic!("published Next package must validate: {issues:?}"))
 }
 
+fn fragile_rules() -> VerifiedRulePlan {
+    let mut package = senritsu::next_package();
+    let next = package.next.as_mut().expect("published Next package contains finite mechanics");
+    let fragile = next.heroes.iter_mut().find(|hero| hero.id == "F01")
+        .expect("the test fixture selects the first frontline catalog entry");
+    fragile.stats.hp = 1;
+    package.ruleset.version = Version::new(1, 0, 1);
+    package.ruleset.digest = senritsu::canonical_digest(&package)
+        .expect("fragile test package has canonical content");
+    senritsu::validate(package, &senritsu::next_engine_compatibility())
+        .unwrap_or_else(|issues| panic!("derived test-only package validates: {issues:?}"))
+}
+
 fn configured_snapshot(
     rules: &VerifiedRulePlan,
     side: CombatantSide,
@@ -135,15 +148,770 @@ fn build_match(
     (attacker, defender, context)
 }
 
-fn owner_initial_state(artifact: &SimulationArtifact) -> &WorldStateView {
+fn movement_tactics(assignments: &[(String, String)]) -> String {
+    let actions = assignments
+        .iter()
+        .enumerate()
+        .map(|(index, (slot, destination))| {
+            let selector = format!(
+                "argmin hero in filter hero in allies.heroes {{ hero.slot_id == \"{slot}\", }} by hero.hp then hero.id"
+            );
+            format!(
+                "action move_slot_{} {{ when match.tick == 1, do move({selector}, \"{destination}\"), }}",
+                index + 1
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("senkei w9_movement {{ {actions} }}")
+}
+
+fn hero_selector(slot: &str) -> String {
+    format!(
+        "argmin hero in filter hero in allies.heroes {{ hero.slot_id == \"{slot}\", }} by hero.hp then hero.id"
+    )
+}
+
+fn squad_reform_tactics() -> String {
+    let first = hero_selector("slot-1");
+    let second = hero_selector("slot-2");
+    let fifth = hero_selector("slot-5");
+    format!(
+        "senkei w9_reform {{ action merge_groups {{ when match.tick == 1, do merge({first}, {fifth}), }}, action split_leader {{ when match.tick == 2, do split({first}), }}, action regroup_survivor {{ when match.tick == 3, do regroup({first}, {second}), }} }}"
+    )
+}
+
+fn test_minion(rules: &VerifiedRulePlan, side: CombatantSide, node: &str) -> EntityState {
+    let next = rules.plan().next.as_ref().unwrap();
+    let definition = &next.minions[0];
+    let position = &next.map.nodes[node];
+    EntityState {
+        entity_type: TypeId::new("minion"),
+        owner: Some(side),
+        fields: BTreeMap::from([
+            (FieldId::new("hp"), DomainValue::Integer(definition.stats.hp)),
+            (FieldId::new("max_hp"), DomainValue::Integer(definition.stats.hp)),
+            (FieldId::new("attack"), DomainValue::Integer(definition.stats.attack)),
+            (FieldId::new("defense"), DomainValue::Integer(definition.stats.defense)),
+            (FieldId::new("speed"), DomainValue::Integer(definition.stats.speed)),
+            (FieldId::new("range"), DomainValue::Integer(definition.stats.range)),
+            (FieldId::new("attack_interval"), DomainValue::Integer(definition.stats.attack_interval)),
+            (FieldId::new("vision"), DomainValue::Integer(definition.stats.vision)),
+            (FieldId::new("attack_ready"), DomainValue::Integer(0)),
+            (FieldId::new("x"), DomainValue::Integer(position.x)),
+            (FieldId::new("y"), DomainValue::Integer(position.y)),
+            (FieldId::new("edge_progress"), DomainValue::Integer(0)),
+            (FieldId::new("node"), DomainValue::String(node.to_owned())),
+            (FieldId::new("edge_to"), DomainValue::String(String::new())),
+            (FieldId::new("goal"), DomainValue::String(node.to_owned())),
+            (FieldId::new("lane"), DomainValue::String(String::new())),
+            (FieldId::new("catalog_id"), DomainValue::String(definition.id.clone())),
+        ]),
+    }
+}
+
+fn test_monster(rules: &VerifiedRulePlan, camp_id: &str) -> EntityState {
+    let next = rules.plan().next.as_ref().unwrap();
+    let camp = next.camps.iter().find(|camp| camp.id == camp_id).expect("selected camp exists");
+    let definition = next.monsters.iter().find(|monster| monster.id == camp.monster).expect("camp monster exists");
+    let position = &next.map.nodes[&camp.node];
+    EntityState {
+        entity_type: TypeId::new("monster"),
+        owner: None,
+        fields: BTreeMap::from([
+            (FieldId::new("hp"), DomainValue::Integer(1)),
+            (FieldId::new("max_hp"), DomainValue::Integer(definition.stats.hp)),
+            (FieldId::new("attack"), DomainValue::Integer(0)),
+            (FieldId::new("defense"), DomainValue::Integer(0)),
+            (FieldId::new("speed"), DomainValue::Integer(0)),
+            (FieldId::new("range"), DomainValue::Integer(0)),
+            (FieldId::new("attack_interval"), DomainValue::Integer(definition.stats.attack_interval)),
+            (FieldId::new("vision"), DomainValue::Integer(definition.stats.vision)),
+            (FieldId::new("attack_ready"), DomainValue::Integer(0)),
+            (FieldId::new("x"), DomainValue::Integer(position.x)),
+            (FieldId::new("y"), DomainValue::Integer(position.y)),
+            (FieldId::new("edge_progress"), DomainValue::Integer(0)),
+            (FieldId::new("node"), DomainValue::String(camp.node.clone())),
+            (FieldId::new("edge_to"), DomainValue::String(String::new())),
+            (FieldId::new("goal"), DomainValue::String(camp.node.clone())),
+            (FieldId::new("lane"), DomainValue::String(String::new())),
+            (FieldId::new("catalog_id"), DomainValue::String(definition.id.clone())),
+            (FieldId::new("camp"), DomainValue::String(camp.id.clone())),
+            (FieldId::new("respawn_at"), DomainValue::Integer(0)),
+            (FieldId::new("xp_reward"), DomainValue::Integer(definition.xp)),
+        ]),
+    }
+}
+
+fn run_movement_case(
+    rules: &VerifiedRulePlan,
+    partition: &[usize],
+    start_node: &str,
+    destination: &str,
+    friendly_minions: usize,
+    enemy_minions: usize,
+    slots: &[&str],
+    match_id: &str,
+) -> (SimulationArtifact, Vec<EntityId>) {
+    let assignments = slots
+        .iter()
+        .map(|slot| ((*slot).to_owned(), destination.to_owned()))
+        .collect::<Vec<_>>();
+    let compiled = compile(&movement_tactics(&assignments), rules)
+        .unwrap_or_else(|error| panic!("move fixture compiles against Next: {error:?}"));
+    let hero_nodes = vec![start_node.to_owned(); 5];
+    let (mut attacker, defender, mut context) = build_match(
+        rules,
+        partition,
+        match_id,
+        1,
+        Some(&hero_nodes),
+        None,
+    );
+    attacker.program = compiled.program;
+    for index in 0..friendly_minions {
+        context.initial_world.entities.insert(
+            EntityId::new(format!("w9-friendly-minion-{match_id}-{index}")),
+            test_minion(rules, CombatantSide::Attacker, start_node),
+        );
+    }
+    for index in 0..enemy_minions {
+        context.initial_world.entities.insert(
+            EntityId::new(format!("w9-enemy-minion-{match_id}-{index}")),
+            test_minion(rules, CombatantSide::Defender, start_node),
+        );
+    }
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("movement scenario {match_id} executes through Enbu: {error:?}"));
+    let actors = accepted_actors(&artifact, CombatantSide::Attacker, "move");
+    assert_eq!(actors.len(), slots.len(), "all scheduled move actions are accepted in {match_id}");
+    (artifact, actors)
+}
+
+fn accepted_actors(artifact: &SimulationArtifact, side: CombatantSide, capability: &str) -> Vec<EntityId> {
+    let mut actors = artifact
+        .diagnostics
+        .events
+        .iter()
+        .filter(|event| event.tick == 1 && event.side == side)
+        .filter_map(|event| match &event.record {
+            DiagnosticRecord::IntentAccepted { intent }
+                if intent.capability.as_str() == capability => intent.actor.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    actors.sort();
+    actors.dedup();
+    actors
+}
+
+fn owner_entity_at<'a>(artifact: &'a SimulationArtifact, tick: u32, id: &EntityId) -> &'a EntityStateView {
+    artifact
+        .owner_replay
+        .as_ref()
+        .expect("Next match has local owner replay")
+        .frames
+        .iter()
+        .find(|frame| frame.tick == tick)
+        .and_then(|frame| frame.visible_state.as_ref())
+        .and_then(|view| view.entities.get(id))
+        .unwrap_or_else(|| panic!("owner replay includes {id} at tick {tick}"))
+}
+
+fn entity_integer(entity: &EntityStateView, field: &str) -> i64 {
+    match entity.fields.get(&FieldId::new(field)) {
+        Some(DomainValue::Integer(value)) => *value,
+        _ => panic!("owner replay includes integer field {field}"),
+    }
+}
+
+fn entity_string(entity: &EntityStateView, field: &str) -> String {
+    match entity.fields.get(&FieldId::new(field)) {
+        Some(DomainValue::String(value)) => value.clone(),
+        _ => panic!("owner replay includes string field {field}"),
+    }
+}
+
+fn owner_hero_by_slot<'a>(state: &'a WorldStateView, slot: &str) -> &'a EntityStateView {
+    state
+        .entities
+        .values()
+        .find(|entity| {
+            entity.entity_type.as_str() == "hero"
+                && entity.owner == Some(CombatantSide::Attacker)
+                && entity.fields.get(&FieldId::new("slot_id"))
+                    == Some(&DomainValue::String(slot.to_owned()))
+        })
+        .unwrap_or_else(|| panic!("owner replay includes attacker Hero {slot}"))
+}
+
+fn squad_reform_case(rules: &VerifiedRulePlan) -> serde_json::Value {
+    let next = rules.plan().next.as_ref().unwrap();
+    let compiled = compile(&squad_reform_tactics(), rules)
+        .unwrap_or_else(|error| panic!("squad reformation tactics compile: {error:?}"));
+    let (mut attacker, defender, context) =
+        build_match(rules, &[3, 2], "squad-reform", 45, None, None);
+    attacker.program = compiled.program;
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("squad reformation scenario executes: {error:?}"));
+
+    let initial_sizes = squad_sizes(owner_state_at(&artifact, 0), CombatantSide::Attacker);
+    let merged_sizes = squad_sizes(owner_state_at(&artifact, 1), CombatantSide::Attacker);
+    let split_sizes = squad_sizes(owner_state_at(&artifact, 2), CombatantSide::Attacker);
+    let regrouped_sizes = squad_sizes(owner_state_at(&artifact, 3), CombatantSide::Attacker);
+    let cap = next.parameters["squad_maturation_ticks"];
+    let fresh_merge_maturity = entity_integer(owner_hero_by_slot(owner_state_at(&artifact, 1), "slot-1"), "maturity");
+    let fresh_regroup_maturity = entity_integer(owner_hero_by_slot(owner_state_at(&artifact, 3), "slot-1"), "maturity");
+    let matured_again = entity_integer(owner_hero_by_slot(owner_state_at(&artifact, 45), "slot-1"), "maturity");
+
+    assert_eq!(initial_sizes, vec![3, 2]);
+    assert_eq!(merged_sizes, vec![5], "accepted merge joins both initial squads");
+    assert_eq!(split_sizes, vec![4, 1], "accepted split creates one Solo and leaves four members");
+    assert_eq!(regrouped_sizes, vec![5], "accepted regroup rejoins the split Hero");
+    assert!(fresh_merge_maturity < cap, "a freshly merged Quintet is not instantly mature");
+    assert!(fresh_regroup_maturity < cap, "a freshly regrouped Quintet must mature again");
+    assert_eq!(matured_again, cap, "the reformed Quintet matures after the configured number of ticks");
+
+    serde_json::json!({
+        "case_id": "squad-merge-split-regroup-maturation",
+        "partition_by_tick": { "0": initial_sizes, "1": merged_sizes, "2": split_sizes, "3": regrouped_sizes },
+        "maturity_cap": cap,
+        "fresh_merge_maturity": fresh_merge_maturity,
+        "fresh_regroup_maturity": fresh_regroup_maturity,
+        "maturity_at_tick_45": matured_again,
+        "termination_tick": artifact.result.final_tick
+    })
+}
+
+fn xp_share_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
+    let next = rules.plan().next.as_ref().unwrap();
+    let camp = &next.camps[0];
+    let monster = next.monsters.iter().find(|monster| monster.id == camp.monster).unwrap();
+    let mut cases = Vec::new();
+    for eligible_count in [1_usize, 2, 5] {
+        let mut nodes = vec![next.map.attacker_base.clone(); 5];
+        nodes[..eligible_count].fill(camp.node.clone());
+        let (attacker, defender, mut context) = build_match(
+            rules,
+            &[1, 1, 1, 1, 1],
+            &format!("xp-eligible-{eligible_count}"),
+            1,
+            Some(&nodes),
+            None,
+        );
+        let monster_id = EntityId::new(format!("monster.{}", camp.id));
+        context.initial_world.entities.insert(monster_id.clone(), test_monster(rules, &camp.id));
+        let mut vm = Vm::new(rules);
+        let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+            .unwrap_or_else(|error| panic!("XP share case with {eligible_count} eligible Hero executes: {error:?}"));
+        let before = owner_state_at(&artifact, 0);
+        let after = owner_state_at(&artifact, 1);
+        let expected_share = i128::from(monster.xp) * 60 / eligible_count as i128;
+        let mut shares = Vec::new();
+        for slot in 1..=5 {
+            let hero = format!("slot-{slot}");
+            let delta = entity_integer(owner_hero_by_slot(after, &hero), "xp")
+                - entity_integer(owner_hero_by_slot(before, &hero), "xp");
+            if slot <= eligible_count {
+                assert_eq!(delta, expected_share as i64, "eligible Hero {hero} receives the same fixed-point share");
+            } else {
+                assert_eq!(delta, 0, "out-of-range Hero {hero} receives no share");
+            }
+            shares.push(delta);
+        }
+        assert_eq!(entity_integer(owner_entity_at(&artifact, 1, &monster_id), "hp"), 0,
+            "the controlled low-HP camp monster is killed in the combat phase");
+        cases.push(serde_json::json!({
+            "case_id": format!("xp-equal-share-{eligible_count}"),
+            "camp": camp.id,
+            "monster_catalog_id": monster.id,
+            "reward_xp": monster.xp,
+            "eligible_heroes": eligible_count,
+            "hero_xp_delta_scaled_by_60": shares,
+            "termination_tick": artifact.result.final_tick
+        }));
+    }
+    cases
+}
+
+fn jungle_respawn_case(rules: &VerifiedRulePlan) -> serde_json::Value {
+    let next = rules.plan().next.as_ref().unwrap();
+    let camp = &next.camps[0];
+    let monster = next.monsters.iter().find(|monster| monster.id == camp.monster).unwrap();
+    let respawn_tick = 1_u32 + camp.respawn_ticks as u32;
+    let nodes = vec![camp.node.clone(); 5];
+    let (mut attacker, defender, mut context) = build_match(
+        rules,
+        &[1, 1, 1, 1, 1],
+        "jungle-objective-respawn",
+        respawn_tick,
+        Some(&nodes),
+        None,
+    );
+    // Heroes stop at top_1: still close enough to observe the camp, but outside
+    // their configured basic-attack range once the full-HP monster returns.
+    let departures = (1..=5).map(|slot| (format!("slot-{slot}"), "top_1".to_owned())).collect::<Vec<_>>();
+    let leave_camp = movement_tactics(&departures)
+        .replace("match.tick == 1", "match.tick == 2");
+    attacker.program = compile(&leave_camp, rules)
+        .unwrap_or_else(|error| panic!("camp departure tactic compiles: {error:?}"))
+        .program;
+    let monster_id = EntityId::new(format!("monster.{}", camp.id));
+    context.initial_world.entities.insert(monster_id.clone(), test_monster(rules, &camp.id));
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("jungle objective lifecycle executes: {error:?}"));
+
+    let dead_hp = entity_integer(owner_entity_at(&artifact, 1, &monster_id), "hp");
+    let before_respawn_hp = entity_integer(owner_entity_at(&artifact, respawn_tick - 1, &monster_id), "hp");
+    let restored_hp = entity_integer(owner_entity_at(&artifact, respawn_tick, &monster_id), "hp");
+    assert_eq!(dead_hp, 0);
+    assert_eq!(before_respawn_hp, 0, "the camp remains defeated through the tick before respawn");
+    assert_eq!(restored_hp, monster.stats.hp, "camp monster returns at its catalog HP on the configured tick");
+    serde_json::json!({
+        "case_id": "jungle-camp-respawn",
+        "camp": camp.id,
+        "monster_catalog_id": monster.id,
+        "camp_respawn_ticks": camp.respawn_ticks,
+        "kill_tick": 1,
+        "scheduled_respawn_tick": respawn_tick,
+        "restored_hp": restored_hp,
+        "termination_tick": artifact.result.final_tick
+    })
+}
+
+fn set_catalog(snapshot: &mut SenkeiSnapshot, slot_index: usize, hero_id: &str, rules: &VerifiedRulePlan) {
+    let next = rules.plan().next.as_ref().unwrap();
+    let definition = next.heroes.iter().find(|hero| hero.id == hero_id).expect("selected catalog Hero exists");
+    let Some(DomainValue::List(heroes)) = snapshot.configuration.get_mut(&FieldId::new("heroes")) else {
+        panic!("snapshot fixture contains a hero list");
+    };
+    let Some(DomainValue::Record(fields)) = heroes.get_mut(slot_index) else {
+        panic!("snapshot contains configured Hero slot {slot_index}");
+    };
+    fields.insert(FieldId::new("catalog_id"), DomainValue::String(hero_id.to_owned()));
+    fields.insert(FieldId::new("skill_path"), DomainValue::String(
+        definition.skill_paths.keys().next().expect("Hero has a prepared skill path").clone(),
+    ));
+}
+
+fn death_respawn_case() -> serde_json::Value {
+    let rules = fragile_rules();
+    let next = rules.plan().next.as_ref().unwrap();
+    let at_lane = vec!["top_1".to_owned(); 5];
+    let compiled = compile(IDLE_TACTICS, &rules).unwrap();
+    let (mut attacker, mut defender, context) = build_match(
+        &rules,
+        &[2, 1, 1, 1],
+        "fragile-hero-death-respawn",
+        21,
+        Some(&at_lane),
+        Some(&at_lane),
+    );
+    attacker.program = compiled.program.clone();
+    defender.program = compiled.program;
+    for (slot, hero) in ["F02", "F03", "F04", "F05", "F06"].into_iter().enumerate() {
+        set_catalog(&mut defender, slot, hero, &rules);
+    }
+    let mut vm = Vm::new(&rules);
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("death and Solo respawn scenario executes: {error:?}"));
+
+    let death_state = owner_state_at(&artifact, 1);
+    let victim = owner_hero_by_slot(death_state, "slot-1");
+    let prior_squad = entity_string(owner_hero_by_slot(owner_state_at(&artifact, 0), "slot-1"), "squad");
+    assert_eq!(entity_integer(victim, "hp"), 0, "concentrated reciprocal combat kills the fragile Hero");
+    assert_eq!(entity_string(victim, "squad"), "", "death immediately removes the Hero from its prior squad");
+    assert_eq!(entity_integer(victim, "respawn_at"), 21);
+    assert_eq!(entity_string(owner_hero_by_slot(owner_state_at(&artifact, 1), "slot-2"), "squad"), prior_squad);
+
+    let respawn_state = owner_state_at(&artifact, 21);
+    let respawned = owner_hero_by_slot(respawn_state, "slot-1");
+    assert_eq!(entity_integer(respawned, "hp"), entity_integer(respawned, "max_hp"));
+    assert_eq!(entity_integer(respawned, "respawn_at"), 0);
+    assert_eq!(entity_string(respawned, "node"), next.map.attacker_base);
+    let respawn_squad = entity_string(respawned, "squad");
+    assert!(!respawn_squad.is_empty() && respawn_squad != prior_squad);
+    assert_ne!(respawn_squad, entity_string(owner_hero_by_slot(respawn_state, "slot-2"), "squad"),
+        "respawn creates a Solo and does not auto-rejoin the prior group");
+
+    serde_json::json!({
+        "case_id": "death-departure-solo-respawn",
+        "ruleset_version": rules.ruleset().version,
+        "package_digest": rules.package_digest().as_str(),
+        "death_tick": 1,
+        "respawn_tick": 21,
+        "respawn_node": next.map.attacker_base,
+        "respawn_squad": respawn_squad,
+        "termination_tick": artifact.result.final_tick
+    })
+}
+
+fn strategic_match_case(
+    rules: &VerifiedRulePlan,
+    case_id: &str,
+    attacker_partition: &[usize],
+    defender_partition: &[usize],
+    attacker_catalog: &[&str; 5],
+    defender_catalog: &[&str; 5],
+    attacker_destinations: &[&str; 5],
+    defender_destinations: &[&str; 5],
+) -> serde_json::Value {
+    let attacker_assignments = (1..=5)
+        .zip(attacker_destinations.iter())
+        .map(|(slot, destination)| (format!("slot-{slot}"), (*destination).to_owned()))
+        .collect::<Vec<_>>();
+    let defender_assignments = (1..=5)
+        .zip(defender_destinations.iter())
+        .map(|(slot, destination)| (format!("slot-{slot}"), (*destination).to_owned()))
+        .collect::<Vec<_>>();
+    let attacker_program = compile(&movement_tactics(&attacker_assignments), rules)
+        .unwrap_or_else(|error| panic!("{case_id} attacker policy compiles: {error:?}"));
+    let defender_program = compile(&movement_tactics(&defender_assignments), rules)
+        .unwrap_or_else(|error| panic!("{case_id} defender policy compiles: {error:?}"));
+    let mut attacker = configured_snapshot(rules, CombatantSide::Attacker, attacker_partition, attacker_program.program, None);
+    let mut defender = configured_snapshot(rules, CombatantSide::Defender, defender_partition, defender_program.program, None);
+    for (slot, hero) in attacker_catalog.iter().enumerate() {
+        set_catalog(&mut attacker, slot, hero, rules);
+    }
+    for (slot, hero) in defender_catalog.iter().enumerate() {
+        set_catalog(&mut defender, slot, hero, rules);
+    }
+    let mut context = new_match_context(rules, MatchId::new(format!("w9-{case_id}")));
+    context.max_ticks = 120;
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("120-tick scenario {case_id} executes through Enbu: {error:?}"));
+
+    for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+        let accepted = accepted_actors(&artifact, side, "move");
+        assert_eq!(accepted.len(), 5, "{case_id} has five distinct non-idle opening moves for {side:?}");
+    }
+    let event_counts = artifact.replay.frames.iter().flat_map(|frame| frame.events.iter())
+        .fold(BTreeMap::<String, usize>::new(), |mut counts, event| {
+            *counts.entry(event.event.to_string()).or_default() += 1;
+            counts
+        });
+    let attacker_final = owner_state_at(&artifact, artifact.result.final_tick);
+    let attacker_heroes = (1..=5).map(|slot| {
+        let hero = owner_hero_by_slot(attacker_final, &format!("slot-{slot}"));
+        serde_json::json!({
+            "slot": slot,
+            "catalog_id": entity_string(hero, "catalog_id"),
+            "hp": entity_integer(hero, "hp"),
+            "node": entity_string(hero, "node"),
+            "edge_to": entity_string(hero, "edge_to"),
+            "edge_progress": entity_integer(hero, "edge_progress"),
+            "xp_scaled": entity_integer(hero, "xp"),
+            "level": entity_integer(hero, "level"),
+            "squad": entity_string(hero, "squad"),
+            "maturity": entity_integer(hero, "maturity"),
+            "respawn_at": entity_integer(hero, "respawn_at")
+        })
+    }).collect::<Vec<_>>();
+    let public = artifact.public_response();
+    let public_final = public.replay.frames.last().and_then(|frame| frame.visible_state.as_ref());
+    let visible_structures = public_final.into_iter().flat_map(|view| view.entities.iter())
+        .filter(|(_, entity)| matches!(entity.entity_type.as_str(), "tower" | "base"))
+        .map(|(id, entity)| serde_json::json!({
+            "id": id.as_str(),
+            "kind": entity.entity_type.as_str(),
+            "catalog_id": entity.fields.get(&FieldId::new("catalog_id")),
+            "hp": entity.fields.get(&FieldId::new("hp"))
+        }))
+        .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "case_id": case_id,
+        "max_ticks": context.max_ticks,
+        "attacker_partition": attacker_partition,
+        "defender_partition": defender_partition,
+        "attacker_catalog": attacker_catalog,
+        "defender_catalog": defender_catalog,
+        "attacker_opening_destinations": attacker_destinations,
+        "defender_opening_destinations": defender_destinations,
+        "outcome": format!("{:?}", artifact.result.outcome),
+        "termination_reason": artifact.result.termination_reason.as_str(),
+        "final_tick": artifact.result.final_tick,
+        "time_limited": artifact.result.final_tick == context.max_ticks,
+        "final_state_digest": artifact.result.final_state_digest.as_str(),
+        "hero_actions_by_side": { "attacker": 5, "defender": 5 },
+        "attacker_final_heroes": attacker_heroes,
+        "visible_structure_state": visible_structures,
+        "visible_event_counts": event_counts,
+        "cu_by_side": {
+            "attacker": artifact.result.cu_spent[&CombatantSide::Attacker].0,
+            "defender": artifact.result.cu_spent[&CombatantSide::Defender].0
+        }
+    })
+}
+
+fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
+    vec![
+        strategic_match_case(
+            rules,
+            "balanced-solos-vs-quintet",
+            &[1, 1, 1, 1, 1],
+            &[5],
+            &["F01", "R01", "F02", "R02", "F03"],
+            &["F04", "F05", "F06", "R03", "R04"],
+            &["top_d", "mid_d", "bot_d", "jungle_center", "top_d"],
+            &["top_2", "mid_1", "bot_1", "jungle_center", "mid_2"],
+        ),
+        strategic_match_case(
+            rules,
+            "split-2-2-1-vs-3-2-role-mix",
+            &[2, 2, 1],
+            &[3, 2],
+            &["R01", "R02", "R03", "R04", "R05"],
+            &["F01", "F03", "R02", "F05", "R06"],
+            &["top_2", "top_2", "mid_2", "mid_2", "bot_2"],
+            &["top_1", "top_1", "top_1", "mid_1", "mid_1"],
+        ),
+        strategic_match_case(
+            rules,
+            "jungle-push-vs-lane-defense",
+            &[4, 1],
+            &[2, 2, 1],
+            &["F01", "F02", "F03", "F04", "R01"],
+            &["F05", "R02", "F06", "R03", "R04"],
+            &["jungle_nw", "jungle_center", "jungle_se", "mid_2", "jungle_center"],
+            &["top_d", "top_2", "mid_d", "bot_d", "bot_2"],
+        ),
+        strategic_match_case(
+            rules,
+            "mirrored-lane-defense-vs-jungle-push",
+            &[2, 2, 1],
+            &[4, 1],
+            &["F05", "R02", "F06", "R03", "R04"],
+            &["F01", "F02", "F03", "F04", "R01"],
+            &["top_d", "top_2", "mid_d", "bot_d", "bot_2"],
+            &["jungle_nw", "jungle_center", "jungle_se", "mid_2", "jungle_center"],
+        ),
+    ]
+}
+
+fn write_next_adapter_fixtures(rules: &VerifiedRulePlan) {
+    let Some(directory) = std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(PathBuf::from) else {
+        return;
+    };
+    fs::create_dir_all(&directory).unwrap_or_else(|error| panic!("create {}: {error}", directory.display()));
+    let attacker_destinations = ["top_d", "mid_d", "bot_d", "jungle_center", "top_d"];
+    let defender_destinations = ["top_2", "mid_1", "bot_1", "jungle_center", "mid_2"];
+    let assignments = |destinations: &[&str; 5]| (1..=5)
+        .zip(destinations.iter())
+        .map(|(slot, destination)| (format!("slot-{slot}"), (*destination).to_owned()))
+        .collect::<Vec<_>>();
+    let attacker_program = compile(&movement_tactics(&assignments(&attacker_destinations)), rules).unwrap();
+    let defender_program = compile(&movement_tactics(&assignments(&defender_destinations)), rules).unwrap();
+    let mut attacker = configured_snapshot(
+        rules,
+        CombatantSide::Attacker,
+        &[1, 1, 1, 1, 1],
+        attacker_program.program,
+        None,
+    );
+    let mut defender = configured_snapshot(
+        rules,
+        CombatantSide::Defender,
+        &[5],
+        defender_program.program,
+        None,
+    );
+    for (slot, hero) in ["F01", "R01", "F02", "R02", "F03"].iter().enumerate() {
+        set_catalog(&mut attacker, slot, hero, rules);
+    }
+    for (slot, hero) in ["F04", "F05", "F06", "R03", "R04"].iter().enumerate() {
+        set_catalog(&mut defender, slot, hero, rules);
+    }
+    let mut context = new_match_context(rules, MatchId::new("w9-public-native-wasm-parity"));
+    context.max_ticks = 120;
+    let base_request = serde_json::json!({
+        "api_version": Version::new(1, 0, 0),
+        "operation": "simulate",
+        "payload": {
+            "attacker": attacker,
+            "defender": defender,
+            "context": context,
+            "include_diagnostics": false
+        }
+    });
+    let cases = [
+        ("next-public-simulation.request.json", "next-public-simulation", base_request.clone()),
+        ("next-invalid-engine.request.json", "next-invalid-engine", {
+            let mut request = base_request.clone();
+            request["payload"]["context"]["versions"]["engine"] = serde_json::to_value(Version::new(1, 0, 0)).unwrap();
+            request
+        }),
+        ("next-invalid-roster.request.json", "next-invalid-roster", {
+            let mut request = base_request.clone();
+            request["payload"]["attacker"]["configuration"]["heroes"]["value"].as_array_mut().unwrap().pop();
+            request
+        }),
+        ("next-invalid-ruleset.request.json", "next-invalid-ruleset", {
+            let mut request = base_request.clone();
+            request["payload"]["context"]["ruleset"]["version"] = serde_json::to_value(Version::new(1, 1, 0)).unwrap();
+            request
+        }),
+    ];
+    for (file_name, request_id, mut request) in cases {
+        request["request_id"] = serde_json::Value::String(request_id.to_owned());
+        let bytes = serde_json::to_vec_pretty(&request).unwrap();
+        fs::write(directory.join(file_name), bytes)
+            .unwrap_or_else(|error| panic!("write adapter fixture {file_name}: {error}"));
+    }
+}
+
+fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
+    let next = rules.plan().next.as_ref().unwrap();
+    let mut report = Vec::new();
+    let axes = [
+        ("lane", "top_1", "top_2", 1_000_i64),
+        ("jungle", "jungle_center", "jungle_se", 800_i64),
+    ];
+    for (terrain, start, destination, terrain_factor) in axes {
+        for minion_vision in [false, true] {
+            for squad_size in 1..=5 {
+                let partition = std::iter::once(squad_size)
+                    .chain(std::iter::repeat(1).take(5 - squad_size))
+                    .collect::<Vec<_>>();
+                let friendly_minions = if minion_vision { 1 } else { 0 };
+                let moves = if terrain == "lane" && !minion_vision && squad_size == 1 {
+                    &["slot-1", "slot-2", "slot-3", "slot-4", "slot-5"][..]
+                } else {
+                    &["slot-1"][..]
+                };
+                let case_id = format!("move-{terrain}-vision-{minion_vision}-squad-{squad_size}");
+                let (artifact, actors) = run_movement_case(
+                    rules,
+                    &partition,
+                    start,
+                    destination,
+                    friendly_minions,
+                    0,
+                    moves,
+                    &case_id,
+                );
+                let actor = actors[0].clone();
+                assert_eq!(
+                    entity_string(owner_entity_at(&artifact, 1, &actor), "edge_to"),
+                    destination,
+                    "the movement intent traverses the expected {terrain} edge",
+                );
+                let actual = entity_integer(owner_entity_at(&artifact, 1, &actor), "edge_progress");
+                let hero_speed = entity_integer(owner_entity_at(&artifact, 0, &actor), "speed");
+                let squad_factor = next.parameters[&format!("squad_{squad_size}_speed_milli")];
+                let vision_factor = if minion_vision {
+                    next.parameters["minion_vision_speed_milli"]
+                } else {
+                    1_000
+                };
+                let expected = i128::from(hero_speed)
+                    * i128::from(terrain_factor)
+                    * i128::from(vision_factor)
+                    * i128::from(squad_factor)
+                    / 1_000_000_000;
+                assert_eq!(actual, expected as i64, "movement factor case {case_id}");
+                report.push(serde_json::json!({
+                    "case_id": case_id,
+                    "squad_size": squad_size,
+                    "terrain": terrain,
+                    "friendly_minion_vision": minion_vision,
+                    "speed_units_after_one_tick": actual
+                }));
+            }
+        }
+    }
+
+    let partition = [1, 1, 1, 1, 1];
+    for (case_id, friendly_minions, enemy_minions) in [
+        ("move-vision-overlap-no-stack", 2, 0),
+        ("move-enemy-minion-no-bonus", 0, 1),
+    ] {
+        let (artifact, actors) = run_movement_case(
+            rules,
+            &partition,
+            "jungle_center",
+            "jungle_se",
+            friendly_minions,
+            enemy_minions,
+            &["slot-1"],
+            case_id,
+        );
+        let actual = entity_integer(owner_entity_at(&artifact, 1, &actors[0]), "edge_progress");
+        let hero_speed = entity_integer(owner_entity_at(&artifact, 0, &actors[0]), "speed");
+        let applicable_vision_factor = if friendly_minions == 2 { 1_200 } else { 1_000 };
+        let expected = i128::from(hero_speed) * 800 * applicable_vision_factor * 1_000
+            / 1_000_000_000;
+        assert_eq!(actual, expected as i64, "movement vision boundary case {case_id}");
+        report.push(serde_json::json!({
+            "case_id": case_id,
+            "squad_size": 1,
+            "terrain": "jungle",
+            "friendly_minion_count": friendly_minions,
+            "enemy_minion_count": enemy_minions,
+            "speed_units_after_one_tick": actual
+        }));
+    }
+    report
+}
+
+fn five_solo_move_case(rules: &VerifiedRulePlan) -> serde_json::Value {
+    let assignments = [
+        ("slot-1".to_owned(), "top_2".to_owned()),
+        ("slot-2".to_owned(), "mid_2".to_owned()),
+        ("slot-3".to_owned(), "bot_2".to_owned()),
+        ("slot-4".to_owned(), "top_2".to_owned()),
+        ("slot-5".to_owned(), "bot_2".to_owned()),
+    ];
+    let compiled = compile(&movement_tactics(&assignments), rules)
+        .unwrap_or_else(|error| panic!("five-Solo move tactics compile: {error:?}"));
+    let (mut attacker, defender, context) = build_match(
+        rules,
+        &[1, 1, 1, 1, 1],
+        "five-solo-moves",
+        1,
+        Some(&vec!["top_1".to_owned(); 5]),
+        None,
+    );
+    attacker.program = compiled.program;
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("five Solo move scenario executes through Enbu: {error:?}"));
+    let actors = accepted_actors(&artifact, CombatantSide::Attacker, "move");
+    assert_eq!(actors.len(), 5, "five independent Solo move actions are accepted in one frozen tick");
+    for actor in &actors {
+        let before = owner_entity_at(&artifact, 0, actor);
+        let after = owner_entity_at(&artifact, 1, actor);
+        let moved = entity_integer(before, "x") != entity_integer(after, "x")
+            || entity_integer(before, "y") != entity_integer(after, "y")
+            || entity_string(before, "node") != entity_string(after, "node")
+            || entity_integer(before, "edge_progress") != entity_integer(after, "edge_progress");
+        assert!(moved, "each of the five Solo Heroes advances after its accepted move intent: {actor}");
+    }
+    serde_json::json!({
+        "case_id": "five-solo-nonidle-moves",
+        "accepted_distinct_actors": actors.len(),
+        "attacker_cu": artifact.result.cu_spent[&CombatantSide::Attacker].0
+    })
+}
+
+fn owner_state_at(artifact: &SimulationArtifact, tick: u32) -> &WorldStateView {
     artifact
         .owner_replay
         .as_ref()
         .expect("Next matches publish a restricted local owner replay")
         .frames
-        .first()
+        .iter()
+        .find(|frame| frame.tick == tick)
         .and_then(|frame| frame.visible_state.as_ref())
-        .expect("owner replay publishes the tick-zero state")
+        .unwrap_or_else(|| panic!("owner replay publishes the tick-{tick} state"))
+}
+
+fn owner_initial_state(artifact: &SimulationArtifact) -> &WorldStateView {
+    owner_state_at(artifact, 0)
 }
 
 fn squad_sizes(state: &WorldStateView, side: CombatantSide) -> Vec<usize> {
@@ -229,6 +997,15 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
         .expect("identical deterministic setup executes");
     assert_eq!(repeated.public_response(), baseline_repeat.expect("baseline was recorded"));
 
+    results.extend(run_movement_factor_grid(&rules));
+    results.push(five_solo_move_case(&rules));
+    results.push(squad_reform_case(&rules));
+    results.extend(xp_share_cases(&rules));
+    results.push(jungle_respawn_case(&rules));
+    results.push(death_respawn_case());
+    results.extend(strategic_case_set(&rules));
+    write_next_adapter_fixtures(&rules);
+
     if let Some(path) = report_path() {
         write_report(&path, &serde_json::json!({
             "schema": "senkei-next-balance-report/v1",
@@ -238,10 +1015,14 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
             "package_digest": package_digest,
             "case_count": results.len(),
             "cases": results,
+            "adapter_fixture_dir": std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR")
+                .map(|path| PathBuf::from(path).display().to_string()),
             "limits": [
-                "This report establishes initial configuration and replay behavior for seven squad partitions only.",
-                "It is not a win-rate or general balance estimate.",
-                "Movement, maturation, visibility, jungle, XP, combat death/respawn, regroup intents, invalid versions, and WASM parity require separate cases."
+                "The seven initial partition cases run for one tick; four lineup and objective cases run for at most 120 ticks with five opening move intents per side.",
+                "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
+                "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
+                "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
+                "Strategic results that end at the configured tick limit are time-limited observations, including any draw outcome."
             ]
         }));
     }

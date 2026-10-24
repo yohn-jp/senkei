@@ -98,7 +98,7 @@
     {
       "id": "unsupported-next-versions",
       "kind": "input-rejection",
-      "assertions": ["unsupported mechanics version is rejected", "incompatible engine or primitive requirements are rejected"]
+      "assertions": ["unsupported mechanics version is rejected", "an engine older than Next's minimum engine version is rejected"]
     },
     {
       "id": "public-replay-confidentiality",

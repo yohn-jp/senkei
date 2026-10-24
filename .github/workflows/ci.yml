@@ -40,6 +40,7 @@ jobs:
       - run: bash scripts/wasm/build.sh
       - run: node tests/conformance/generate-scenario-inputs.mjs --check
       - run: node tests/conformance/compare-adapters.mjs
+      - run: bash scripts/balance/run-next.sh
 
   web:
     name: Web application build
