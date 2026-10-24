@@ -209,6 +209,54 @@ fn reverify(ruleset: &RulesetRef, plan: RulePlan) -> VerifiedRulePlan {
     VerifiedRulePlan::from_validation(ruleset.clone(), ruleset.digest.clone(), plan)
 }
 
+fn damage_fixture(
+    max_ticks: u32,
+    initial_hp: i64,
+    max_hp: i64,
+    damage: i64,
+) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, MatchContext) {
+    let (attacker, defender, base_rules, mut context) = setup(max_ticks);
+    let mut plan = base_rules.plan().clone();
+    let core_type: TypeId = id("core");
+    let hp: FieldId = id("hp");
+    plan.world.entity_types.get_mut(&core_type).unwrap().fields.insert(
+        hp.clone(),
+        FieldSchema {
+            value_type: DomainType::Integer { min: Some(0), max: Some(max_hp) },
+            visibility: Visibility::Public,
+            writable: true,
+        },
+    );
+    for entity in context.initial_world.entities.values_mut() {
+        entity.fields.insert(hp.clone(), DomainValue::Integer(initial_hp));
+    }
+    plan.transitions[0].operations = vec![
+        TransitionPrimitive::AddInteger {
+            target: EntitySelector::IntentTarget,
+            field: hp.clone(),
+            amount: RuleExpression::Literal(DomainValue::Integer(-damage)),
+        },
+        TransitionPrimitive::EmitEvent {
+            event: id("core_attacked"),
+            payload: BTreeMap::from([(
+                id("damage"),
+                RuleExpression::Literal(DomainValue::Integer(damage)),
+            )]),
+        },
+    ];
+    plan.required_primitives.insert(TransitionPrimitiveKind::EmitEvent);
+    plan.presentation.visible_events.insert(
+        id("core_attacked"),
+        EventSchema {
+            payload: BTreeMap::from([(
+                id("damage"),
+                DomainType::Integer { min: Some(0), max: Some(20) },
+            )]),
+        },
+    );
+    (attacker, defender, reverify(&ruleset(), plan), context)
+}
+
 #[derive(Default)]
 struct AutoStrike { observations: Vec<ObservationSnapshot> }
 
@@ -235,7 +283,7 @@ impl TacticalExecutionPort for AutoStrike {
 
 #[test]
 fn reciprocal_attacks_resolve_from_the_same_pre_tick_and_are_reproducible() {
-    let (attacker, defender, plan, context) = setup(4);
+    let (attacker, defender, plan, context) = damage_fixture(4, 15, 15, 20);
     let mut first_port = AutoStrike::default();
     let first = simulate(&attacker, &defender, &plan, &context, &mut first_port).unwrap();
     let mut second_port = AutoStrike::default();
@@ -250,11 +298,109 @@ fn reciprocal_attacks_resolve_from_the_same_pre_tick_and_are_reproducible() {
     let visible = frame.visible_state.as_ref().unwrap();
     assert_eq!(visible.entities[&id("attacker-core")].fields[&id("hp")], DomainValue::Integer(0));
     assert_eq!(visible.entities[&id("defender-core")].fields[&id("hp")], DomainValue::Integer(0));
+    let damage_events = frame.events.iter().filter(|event| event.event == id("core_attacked")).collect::<Vec<_>>();
+    assert_eq!(damage_events.len(), 2);
+    assert!(damage_events.iter().all(|event| event.payload[&id("damage")] == DomainValue::Integer(20)));
     let public_json = serde_json::to_string(&first.public_response()).unwrap();
     assert!(!public_json.contains("bytecode"));
     assert!(!public_json.contains("deadbeef"));
     assert_eq!(first_port.observations.len(), 2);
     assert_eq!(first_port.observations[0].tick, first_port.observations[1].tick);
+}
+
+#[test]
+fn one_attack_changes_hp_by_exactly_its_public_damage_event() {
+    let (attacker, defender, plan, context) = damage_fixture(2, 100, 100, 20);
+    struct OneAttack;
+    impl TacticalExecutionPort for OneAttack {
+        fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            let intents = if request.side == CombatantSide::Attacker && request.tick == 1 {
+                vec![Intent {
+                    action_id: id("single-attack"),
+                    capability: id("strike"),
+                    actor: None,
+                    target: Some(id("defender-core")),
+                    arguments: Vec::new(),
+                    priority: None,
+                }]
+            } else {
+                Vec::new()
+            };
+            Ok(TacticalExecutionOutput {
+                status: TacticalExecutionStatus::Completed,
+                intents,
+                next_memory: request.memory.clone(),
+                charged_cu: LogicalCu::ZERO,
+                required_cu: LogicalCu::ZERO,
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
+    let mut port = OneAttack;
+    let artifact = simulate(&attacker, &defender, &plan, &context, &mut port).unwrap();
+    let frame = &artifact.replay.frames[1];
+    let event = frame.events.iter().find(|event| event.event == id("core_attacked")).unwrap();
+    let damage = match event.payload[&id("damage")] {
+        DomainValue::Integer(value) => value,
+        _ => panic!("damage event must carry an integer"),
+    };
+    let visible = frame.visible_state.as_ref().unwrap();
+    let before = 100_i64;
+    let after = match visible.entities[&id("defender-core")].fields[&id("hp")] {
+        DomainValue::Integer(value) => value,
+        _ => panic!("HP must be an integer"),
+    };
+    assert_eq!(before - after, damage);
+    assert_eq!(damage, 20);
+    assert_eq!(after, 80);
+}
+
+#[test]
+fn concurrent_attacks_against_one_target_sum_once_per_intent() {
+    let (attacker, defender, plan, context) = damage_fixture(2, 100, 100, 20);
+    struct TwoAttacks;
+    impl TacticalExecutionPort for TwoAttacks {
+        fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            let intents = if request.side == CombatantSide::Attacker && request.tick == 1 {
+                ["attack-1", "attack-2"].into_iter().map(|action_id| Intent {
+                    action_id: id(action_id),
+                    capability: id("strike"),
+                    actor: None,
+                    target: Some(id("defender-core")),
+                    arguments: Vec::new(),
+                    priority: None,
+                }).collect()
+            } else {
+                Vec::new()
+            };
+            Ok(TacticalExecutionOutput {
+                status: TacticalExecutionStatus::Completed,
+                intents,
+                next_memory: request.memory.clone(),
+                charged_cu: LogicalCu::ZERO,
+                required_cu: LogicalCu::ZERO,
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
+    let mut port = TwoAttacks;
+    let artifact = simulate(&attacker, &defender, &plan, &context, &mut port).unwrap();
+    let frame = &artifact.replay.frames[1];
+    let events = frame.events.iter().filter(|event| event.event == id("core_attacked")).collect::<Vec<_>>();
+    assert_eq!(events.len(), 2);
+    let total_reported_damage = events.iter().map(|event| match event.payload[&id("damage")] {
+        DomainValue::Integer(value) => value,
+        _ => panic!("damage event must carry an integer"),
+    }).sum::<i64>();
+    let visible = frame.visible_state.as_ref().unwrap();
+    let after = match visible.entities[&id("defender-core")].fields[&id("hp")] {
+        DomainValue::Integer(value) => value,
+        _ => panic!("HP must be an integer"),
+    };
+    assert_eq!(100 - after, total_reported_damage);
+    assert_eq!(after, 60);
 }
 
 #[test]

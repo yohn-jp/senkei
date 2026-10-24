@@ -745,15 +745,19 @@ fn add_delta(
     target: NumericWriteTarget,
     amount: NumericDelta,
 ) -> Result<(), ApiError> {
-    let delta = pending.entry(target).or_insert(amount);
-    match (delta, amount) {
-        (NumericDelta::Integer(current), NumericDelta::Integer(add)) => {
-            *current = current.checked_add(add).ok_or_else(|| arithmetic_error("integer delta aggregate overflowed"))?;
+    match pending.entry(target) {
+        std::collections::btree_map::Entry::Vacant(entry) => {
+            entry.insert(amount);
         }
-        (NumericDelta::Fixed { coefficient, scale }, NumericDelta::Fixed { coefficient: add, scale: add_scale }) if *scale == add_scale => {
-            *coefficient = coefficient.checked_add(add).ok_or_else(|| arithmetic_error("fixed delta aggregate overflowed"))?;
-        }
-        _ => return Err(conflict_error("incompatible additive writes target the same field in one transition phase")),
+        std::collections::btree_map::Entry::Occupied(mut entry) => match (entry.get_mut(), amount) {
+            (NumericDelta::Integer(current), NumericDelta::Integer(add)) => {
+                *current = current.checked_add(add).ok_or_else(|| arithmetic_error("integer delta aggregate overflowed"))?;
+            }
+            (NumericDelta::Fixed { coefficient, scale }, NumericDelta::Fixed { coefficient: add, scale: add_scale }) if *scale == add_scale => {
+                *coefficient = coefficient.checked_add(add).ok_or_else(|| arithmetic_error("fixed delta aggregate overflowed"))?;
+            }
+            _ => return Err(conflict_error("incompatible additive writes target the same field in one transition phase")),
+        },
     }
     Ok(())
 }
