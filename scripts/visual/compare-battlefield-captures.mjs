@@ -16,6 +16,22 @@ const after = JSON.parse(readFileSync(join(afterDirectory, "metadata.json"), "ut
 const equal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const beforeImages = before.hashes.imageSha256 ?? {};
 const afterImages = after.hashes.imageSha256 ?? {};
+const normalizeExactTicks = (ticks) => ({
+  tactical: ticks.tactical ?? null,
+  overview: ticks.overview ?? null,
+  follow: ticks.follow ?? null,
+  advance: ticks.advance ?? null,
+  clash: ticks.clash ?? null,
+  tower_destroy: ticks.tower_destroy ?? null,
+  base_destroy: ticks.base_destroy ?? null,
+  hero_death: ticks.hero_death ?? null,
+  hero_respawn: ticks.hero_respawn ?? ticks.respawn ?? null,
+  neutral_monster_respawn: ticks.neutral_monster_respawn ?? ticks.monster_respawn ?? null,
+  skill: ticks.skill ?? null,
+  end: ticks.end ?? null,
+});
+const beforeExactTicks = normalizeExactTicks(before.exactTicks ?? {});
+const afterExactTicks = normalizeExactTicks(after.exactTicks ?? {});
 const beforePaths = Object.keys(beforeImages).sort();
 const afterPaths = Object.keys(afterImages).sort();
 const commonPaths = beforePaths.filter((path) => Object.hasOwn(afterImages, path));
@@ -29,9 +45,10 @@ const report = {
     sameOwnerReplayDigest: before.replay.presentationDigest === after.replay.presentationDigest,
     samePublicReplayDigest: before.replay.publicPresentationDigest === after.replay.publicPresentationDigest,
     sameFinalStateDigest: before.result.finalStateDigest === after.result.finalStateDigest,
-    sameExactTicks: equal(before.exactTicks, after.exactTicks),
+    sameExactTicks: equal(beforeExactTicks, afterExactTicks),
     sameViewports: equal(before.viewports, after.viewports),
   },
+  exactTicks: { before: beforeExactTicks, after: afterExactTicks },
   screenshots: {
     beforeCount: beforePaths.length,
     afterCount: afterPaths.length,

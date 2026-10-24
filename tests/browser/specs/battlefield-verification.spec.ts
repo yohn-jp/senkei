@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
 test.use({ video: "on" });
@@ -16,8 +17,21 @@ const viewportCases = [
   { name: "390x844", width: 390, height: 844 },
   { name: "320x844", width: 320, height: 844 },
 ] as const;
+type ViewportCase = (typeof viewportCases)[number];
+
+function selectViewportCases(selection: string | undefined): ViewportCase[] {
+  if (!selection) return [...viewportCases];
+  const requested = selection.split(",").map((name) => name.trim()).filter(Boolean);
+  const chosen = requested.map((name) => viewportCases.find((viewport) => viewport.name === name));
+  if (!chosen.length || chosen.some((viewport) => !viewport)) {
+    throw new Error(`Unknown BATTLEFIELD_VIEWPORTS value: ${selection}`);
+  }
+  return chosen as ViewportCase[];
+}
 
 type JsonRecord = Record<string, any>;
+// Keep this tied to NEXT_WORLD_UNITS_PER_RENDER_UNIT from the replay adapter.
+const nextWorldUnitsPerRenderUnit = 25;
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -52,21 +66,70 @@ async function clickCameraMode(page: import("@playwright/test").Page, mode: "tac
   return false;
 }
 
-async function clickFollow(page: import("@playwright/test").Page): Promise<{ supported: boolean; target: string | null }> {
+type FollowTarget = { supported: boolean; target: string | null; id: string | null; catalogId: string | null };
+
+async function clickFollow(page: import("@playwright/test").Page): Promise<FollowTarget> {
   const selector = page.getByRole("combobox", { name: /Observe visible entity/i });
-  if (!(await selector.count())) return { supported: false, target: null };
+  if (!(await selector.count())) return { supported: false, target: null, id: null, catalogId: null };
   const value = await selector.locator("option").evaluateAll((options) => {
     const hero = options.find((option) => /\b[FR]0[1-6]\b/.test(option.textContent ?? ""));
     const firstTarget = options.find((option) => Boolean(option.getAttribute("value")));
     return hero?.getAttribute("value") ?? firstTarget?.getAttribute("value") ?? null;
   });
-  if (!value) return { supported: false, target: null };
+  if (!value) return { supported: false, target: null, id: null, catalogId: null };
   await selector.selectOption(value);
   const target = await selector.locator("option:checked").innerText();
+  const catalogId = target.match(/\b[FR]0[1-6]\b/)?.[0] ?? null;
   const followButton = page.getByRole("button", { name: /^(Follow selected unit|Follow|Follow view)$/i });
-  if (!(await followButton.count())) return { supported: false, target };
+  if (!(await followButton.count())) return { supported: false, target, id: value, catalogId };
   await followButton.first().click();
-  return { supported: true, target };
+  return { supported: true, target, id: value, catalogId };
+}
+
+function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarget): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
+  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  if (!entities) return null;
+  const readInteger = (entity: JsonRecord | undefined, key: "x" | "y"): number | null => {
+    const field = entity?.fields?.[key];
+    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+  };
+  const direct = target.id ? entities[target.id] : undefined;
+  const entity = direct?.entity_type === "hero" ? direct : Object.values(entities).find((candidate) =>
+    candidate.entity_type === "hero" && candidate.fields?.catalog_id?.value === target.catalogId,
+  );
+  if (!entity) return null;
+  const id = Object.entries(entities).find(([, candidate]) => candidate === entity)?.[0];
+  const x = readInteger(entity, "x");
+  const z = readInteger(entity, "y");
+  return id && x !== null && z !== null
+    ? { id, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }
+    : null;
+}
+
+function parseCameraTarget(value: string | null): { x: number; y: number; z: number } | null {
+  const coordinates = value?.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi)?.map(Number);
+  return coordinates && coordinates.length >= 3
+    ? { x: coordinates[0], y: coordinates[1], z: coordinates[2] }
+    : null;
+}
+
+async function waitForSettledCamera(page: import("@playwright/test").Page): Promise<void> {
+  // The renderer interpolates entity movement and death/attack cues for 300 ms.
+  // Let that transition finish before checking a rounded camera pose; three
+  // matching strings alone can occur while the tracked camera is still easing.
+  await page.waitForTimeout(350);
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".next-renderer-host canvas");
+    const pose = canvas?.getAttribute("data-camera");
+    if (!pose) return false;
+    const tracker = window as typeof window & { __battlefieldLastCameraPose?: string; __battlefieldStableCameraFrames?: number };
+    tracker.__battlefieldStableCameraFrames = tracker.__battlefieldLastCameraPose === pose
+      ? (tracker.__battlefieldStableCameraFrames ?? 0) + 1
+      : 0;
+    tracker.__battlefieldLastCameraPose = pose;
+    return (tracker.__battlefieldStableCameraFrames ?? 0) >= 12;
+  }, null, { timeout: 8_000 });
 }
 
 function frameEvents(replay: JsonRecord): { tick: number; event: string; entity: string | null; entityType: string | null }[] {
@@ -88,6 +151,49 @@ function firstTick(events: ReturnType<typeof frameEvents>, pattern: RegExp): num
 
 function firstDestroyTick(events: ReturnType<typeof frameEvents>, entityType: string): number | null {
   return events.find((event) => event.entityType === entityType && /destroy|death|collapse/i.test(event.event))?.tick ?? null;
+}
+
+function firstTypedTick(events: ReturnType<typeof frameEvents>, pattern: RegExp, entityType: string): number | null {
+  return events.find((event) => event.entityType === entityType && pattern.test(event.event))?.tick ?? null;
+}
+
+function firstOwnerHeroRespawn(replay: JsonRecord): JsonRecord | null {
+  const frames = replay.frames as JsonRecord[];
+  const fieldInteger = (entity: JsonRecord | undefined, name: string): number | null => {
+    const field = entity?.fields?.[name];
+    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+  };
+  const fieldString = (entity: JsonRecord | undefined, name: string): string | null => {
+    const field = entity?.fields?.[name];
+    return field?.kind === "string" && typeof field.value === "string" ? field.value : null;
+  };
+  for (let index = 1; index < frames.length; index += 1) {
+    const previous = Object.values(frames[index - 1]?.visible_state?.entities ?? {}) as JsonRecord[];
+    const current = Object.entries(frames[index]?.visible_state?.entities ?? {}) as [string, JsonRecord][];
+    for (const [respawnedId, respawned] of current) {
+      if (respawned.entity_type !== "hero" || fieldInteger(respawned, "hp") === 0) continue;
+      const slotId = fieldString(respawned, "slot_id");
+      if (!slotId || fieldInteger(respawned, "hp") === null) continue;
+      const dead = previous.find((entity) =>
+        entity.entity_type === "hero" &&
+        fieldString(entity, "slot_id") === slotId &&
+        fieldInteger(entity, "hp") === 0 &&
+        fieldInteger(entity, "respawn_at") === frames[index].tick,
+      );
+      if (!dead || fieldInteger(respawned, "respawn_at") !== 0) continue;
+      const deadId = Object.entries(frames[index - 1]?.visible_state?.entities ?? {})
+        .find(([, entity]) => entity === dead)?.[0] ?? null;
+      return {
+        tick: frames[index].tick,
+        slotId,
+        deadEntityId: deadId,
+        respawnedEntityId: respawnedId,
+        evidence: "owner-replay-same-slot-dead-to-alive-transition",
+        privacy: "local-owner-only",
+      };
+    }
+  }
+  return null;
 }
 
 function firstMovementTick(replay: JsonRecord): number | null {
@@ -120,6 +226,28 @@ function pngFiles(directory: string): string[] {
   });
 }
 
+function storeCanonicalJson(directory: string, name: string, json: string, privacy: string): JsonRecord {
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, name);
+  const compressed = gzipSync(Buffer.from(json), { level: 9 });
+  if (existsSync(path)) {
+    const existingJson = gunzipSync(readFileSync(path)).toString("utf8");
+    if (existingJson !== json) {
+      throw new Error(`Canonical replay artifact ${relative(repoRoot, path)} exists but differs from the captured real simulation.`);
+    }
+  } else {
+    writeFileSync(path, compressed);
+  }
+  return {
+    path: relative(repoRoot, path).replaceAll("\\", "/"),
+    storage: "deterministic-gzip-json",
+    privacy,
+    sha256UncompressedJson: sha256(json),
+    uncompressedBytes: Buffer.byteLength(json),
+    compressedBytes: statSync(path).size,
+  };
+}
+
 test("captures fixed-tick real Enbu replay and battlefield views", async ({ page, baseURL }) => {
   test.setTimeout(300_000);
   if (!baseURL) throw new Error("The browser runner must provide its local preview URL.");
@@ -127,6 +255,37 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const outputDirectory = resolve(process.env.BATTLEFIELD_OUTPUT_DIR ?? join(repoRoot, "docs/evidence/battlefield/local-capture"));
   rmSync(outputDirectory, { recursive: true, force: true });
   mkdirSync(outputDirectory, { recursive: true });
+  const controlledScenario = process.env.BATTLEFIELD_CONTROLLED_SCENARIO;
+  if (controlledScenario && controlledScenario !== "cue" && controlledScenario !== "farm") {
+    throw new Error(`Unsupported BATTLEFIELD_CONTROLLED_SCENARIO: ${controlledScenario}`);
+  }
+  const controlledSnapshotPath = process.env.BATTLEFIELD_CONTROLLED_SNAPSHOT_PATH;
+  const controlledSourcePath = process.env.BATTLEFIELD_CONTROLLED_SOURCE_PATH;
+  const controlledExpectedPath = process.env.BATTLEFIELD_CONTROLLED_EXPECTED_RESULT_PATH;
+  const controlledSnapshot = controlledScenario && controlledSnapshotPath
+    ? JSON.parse(readFileSync(resolve(controlledSnapshotPath), "utf8")) as JsonRecord
+    : null;
+  const controlledSource = controlledScenario && controlledSourcePath
+    ? readFileSync(resolve(controlledSourcePath), "utf8")
+    : null;
+  const expectedScenarioResult = controlledScenario && controlledExpectedPath
+    ? JSON.parse(readFileSync(resolve(controlledExpectedPath), "utf8")) as JsonRecord
+    : null;
+  if (controlledScenario && (!controlledSnapshot || !controlledSource || !expectedScenarioResult)) {
+    throw new Error("A controlled WASM scenario requires its real input snapshot, compiled Jinrei source, and canonical WASM result.");
+  }
+  if (!controlledScenario && (controlledSnapshotPath || controlledSourcePath || controlledExpectedPath)) {
+    throw new Error("Controlled scenario input, source, and expected result must be configured together.");
+  }
+  const tacticProfile = process.env.BATTLEFIELD_TACTIC_PROFILE ?? "default-ui-draft";
+  if (tacticProfile !== "default-ui-draft" && tacticProfile !== "pursue-visible-tower") {
+    throw new Error(`Unsupported BATTLEFIELD_TACTIC_PROFILE: ${tacticProfile}`);
+  }
+  if (controlledScenario && tacticProfile !== "default-ui-draft") {
+    throw new Error("Controlled scenarios use their compiled snapshot and cannot be combined with a UI tactic transformation.");
+  }
+  const captureProfile = controlledScenario ? `controlled-${controlledScenario}-snapshot` : tacticProfile;
+  const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
   const appSha = process.env.BATTLEFIELD_APP_SHA ?? execFileSync("git", ["-C", repoRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const wasmPath = join(repoRoot, "apps/web/public/wasm/senkei_wasm.wasm");
   const wasmSha = sha256(readFileSync(wasmPath));
@@ -137,18 +296,44 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     }
   });
 
-  // Capture the actual Next worker request and reply. The page still executes
-  // the production Next route, real worker, real WASM adapter and real renderer.
-  await page.addInitScript(() => {
+  // Capture the actual workbench worker request and reply. Controlled scenarios
+  // replace only its simulation snapshot; the real Core Worker and WASM create
+  // the result, and the renderer receives only the resulting presentation replay.
+  const workerScenario = controlledScenario && controlledSnapshot
+    ? { name: controlledScenario, snapshot: controlledSnapshot }
+    : null;
+  await page.addInitScript((injectedScenario: { name: string; snapshot: JsonRecord } | null) => {
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
-        if ((message as { operation?: unknown } | null)?.operation === "simulate") {
-          const target = window as typeof window & { __battlefieldSimRequest?: unknown };
-          target.__battlefieldSimRequest = structuredClone(message);
+        const request = message as { operation?: unknown; payload?: { snapshot?: unknown } } | null;
+        let outgoing = message;
+        if (request?.operation === "simulate") {
+          const target = window as typeof window & {
+            __battlefieldSimRequest?: unknown;
+            __battlefieldOriginalSimRequest?: unknown;
+            __battlefieldScenarioInjection?: unknown;
+          };
+          if (injectedScenario) {
+            const transferCount = Array.isArray(transfer) ? transfer.length : transfer?.transfer?.length ?? 0;
+            if (transferCount > 0) throw new Error("Controlled snapshot replacement does not support transferred simulation payloads.");
+            const original = structuredClone(message);
+            const modified = structuredClone(message) as { operation?: unknown; payload?: { snapshot?: unknown } };
+            if (!modified.payload) throw new Error("Simulation request has no payload to receive the controlled snapshot.");
+            modified.payload.snapshot = structuredClone(injectedScenario.snapshot);
+            outgoing = modified;
+            target.__battlefieldOriginalSimRequest = original;
+            target.__battlefieldScenarioInjection = {
+              name: injectedScenario.name,
+              originalMatchId: (request.payload?.snapshot as JsonRecord | undefined)?.context?.match_id ?? null,
+              injectedMatchId: injectedScenario.snapshot.context?.match_id ?? null,
+              target: "real-Core-Worker-simulate-snapshot",
+            };
+          }
+          target.__battlefieldSimRequest = structuredClone(outgoing);
         }
-        if (transfer === undefined) super.postMessage(message);
-        else super.postMessage(message, transfer as Transferable[]);
+        if (transfer === undefined) super.postMessage(outgoing);
+        else super.postMessage(outgoing, transfer as Transferable[]);
       }
 
       addEventListener<K extends keyof WorkerEventMap>(
@@ -171,28 +356,65 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       }
     }
     Object.defineProperty(window, "Worker", { configurable: true, value: CapturingWorker });
-  });
+  }, workerScenario);
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(baseURL, { waitUntil: "networkidle" });
+  const revisionMeta = page.locator('meta[name="senkei-build-revision"]');
+  const uiRevision = await revisionMeta.count() ? await revisionMeta.getAttribute("content") : null;
+  if (process.env.BATTLEFIELD_EXPECT_BUILD_REVISION === "true") {
+    expect(uiRevision).toBe(appSha);
+  }
   await page.getByTestId("nav-next").click();
-  await expect(page.getByRole("heading", { name: /Battle workbench/ })).toBeVisible();
-  await expect(page.getByText("REAL LOCAL SIMULATION")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console/ })).toBeVisible();
+  await expect(page.getByText(/REAL LOCAL SIMULATION|LOCAL ENBU REPLAY/i).first()).toBeVisible();
 
   await page.locator("#next-tab-jinrei").click();
+  const source = page.getByRole("textbox", { name: "Jinrei source" });
+  const defaultSource = await source.inputValue();
+  let selectedTacticSource = defaultSource;
+  if (tacticProfile === "pursue-visible-tower") {
+    selectedTacticSource = defaultSource.replace(
+      /do move\((argmin hero in filter hero in [a-z0-9_.]+ \{ hero\.[a-z0-9_]+ == "slot-\d+", \} by hero\.[a-z0-9_]+ then hero\.[a-z0-9_]+), "[^"]+"\),/g,
+      "do pursue($1, argmin tower in enemies.visible_towers by tower.hp then tower.id),",
+    );
+    if (selectedTacticSource === defaultSource || (defaultSource.match(/do move\(/g) ?? []).length !== 5) {
+      throw new Error("Could not construct the visible-tower pursuit profile from the real Next Jinrei draft.");
+    }
+    await source.fill(selectedTacticSource);
+  }
   const compile = page.getByRole("button", { name: "Compile tactics" });
   await compile.click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await page.locator("#next-tab-battle").click();
-  await page.getByRole("button", { name: "Launch local battle" }).click();
+  if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true") {
+    await expect(page.getByRole("heading", { name: "Battlefield console" })).toBeVisible();
+  }
+  // The new console decorates the accessible name with the play glyph, so
+  // match the stable action wording without anchoring the complete name.
+  await page.getByRole("button", { name: /Launch local battle|New local battle/i }).click();
   await expect(page.getByText(/AUTHORITATIVE ENBU RESULT|Confirmed result/i).first()).toBeVisible({ timeout: 120_000 });
+  const uiSignature = await page.getByRole("heading", { name: /Battlefield console|Observe the battlefield/ }).innerText();
+  if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true") {
+    expect(uiSignature).toBe("Battlefield console");
+  }
   const canvas = page.locator(".next-renderer-host canvas");
   await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 30_000 });
   await expect(canvas).toHaveAttribute("data-tick", "0");
 
   const captured = await page.evaluate(() => {
-    const current = window as typeof window & { __battlefieldSimRequest?: JsonRecord; __battlefieldSimResponse?: JsonRecord };
-    return { request: current.__battlefieldSimRequest ?? null, response: current.__battlefieldSimResponse ?? null };
+    const current = window as typeof window & {
+      __battlefieldSimRequest?: JsonRecord;
+      __battlefieldSimResponse?: JsonRecord;
+      __battlefieldOriginalSimRequest?: JsonRecord;
+      __battlefieldScenarioInjection?: JsonRecord;
+    };
+    return {
+      request: current.__battlefieldSimRequest ?? null,
+      response: current.__battlefieldSimResponse ?? null,
+      originalRequest: current.__battlefieldOriginalSimRequest ?? null,
+      scenarioInjection: current.__battlefieldScenarioInjection ?? null,
+    };
   });
   expect(captured.request, "the UI must have submitted an actual local simulation request").not.toBeNull();
   expect(captured.response, "the real worker must have returned the local simulation result").not.toBeNull();
@@ -201,6 +423,15 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   expect(captured.response!.ok).toBe(true);
   expect(captured.response!.request_id).toBe(captured.request!.request_id);
   expect(captured.request!.payload.snapshot.context.match_id).toBeTruthy();
+  if (controlledScenario) {
+    expect(captured.scenarioInjection?.name).toBe(controlledScenario);
+    expect(captured.scenarioInjection?.target).toBe("real-Core-Worker-simulate-snapshot");
+    expect(captured.scenarioInjection?.originalMatchId).toBeTruthy();
+    expect(captured.scenarioInjection?.injectedMatchId).toBe(captured.request!.payload.snapshot.context.match_id);
+    expect(captured.originalRequest?.payload.snapshot.context.match_id).toBe(captured.scenarioInjection?.originalMatchId);
+  } else {
+    expect(captured.scenarioInjection).toBeNull();
+  }
   expect(wasmResponses.length, "the browser must fetch the real WASM module").toBeGreaterThan(0);
   expect(wasmResponses.some((response) => response.status === 200)).toBe(true);
 
@@ -215,15 +446,26 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   expect(publicReplay.match_id).toBe(result.match_id);
   expect(sourceReplay.frames.length).toBeGreaterThan(0);
   expect(sourceReplay.perspective ?? "public").toMatch(/^(attacker|defender|public)$/);
+  if (controlledScenario && expectedScenarioResult) {
+    expect(requestSnapshot.context.ruleset.digest).toBe("19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75");
+    expect(result.final_tick).toBe(expectedScenarioResult.result.final_tick);
+    expect(result.final_state_digest).toBe(expectedScenarioResult.result.final_state_digest);
+    expect(sourceReplay.result_digest).toBe(expectedScenarioResult.owner_replay.result_digest);
+    expect(publicReplay.result_digest).toBe(expectedScenarioResult.replay.result_digest);
+  }
 
   const events = frameEvents(sourceReplay);
   const movementTick = firstMovementTick(sourceReplay);
   const clashTick = firstTick(events, /attack|damage|skill|hit/i);
-  const skillTick = firstTick(events, /skill|ability|activate/i);
+  const skillTick = firstTypedTick(events, /^next\.skill$/i, "hero");
   const towerDestroyTick = firstDestroyTick(events, "tower");
   const baseDestroyTick = firstDestroyTick(events, "base");
   const heroDeathTick = firstDestroyTick(events, "hero");
-  const respawnTick = firstTick(events, /respawn|revive/i);
+  const heroRespawnProof = simulation.owner_replay
+    ? firstOwnerHeroRespawn(simulation.owner_replay as JsonRecord)
+    : null;
+  const respawnTick = typeof heroRespawnProof?.tick === "number" ? heroRespawnProof.tick : null;
+  const neutralRespawnTick = firstTypedTick(events, /respawn/i, "monster");
   const finalTick = result.final_tick as number;
   const followTick = Math.min(50, finalTick);
   const stateTicks = {
@@ -235,7 +477,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     tower_destroy: towerDestroyTick,
     base_destroy: baseDestroyTick,
     hero_death: heroDeathTick,
-    respawn: respawnTick,
+    hero_respawn: respawnTick,
+    monster_respawn: neutralRespawnTick,
     skill: skillTick,
     end: finalTick,
   };
@@ -243,18 +486,54 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const replayJson = `${JSON.stringify(sourceReplay, null, 2)}\n`;
   const publicReplayJson = `${JSON.stringify(publicReplay, null, 2)}\n`;
   const inputJson = `${JSON.stringify(captured.request!.payload.snapshot, null, 2)}\n`;
-  writeFileSync(join(outputDirectory, "actual-owner-presentation-replay.json"), replayJson);
-  writeFileSync(join(outputDirectory, "actual-public-presentation-replay.json"), publicReplayJson);
-  writeFileSync(join(outputDirectory, "actual-simulation-input.json"), inputJson);
+  const replayBundleDirectory = resolve(process.env.BATTLEFIELD_REPLAY_BUNDLE_DIR ?? outputDirectory);
+  const ownerReplayArtifact = storeCanonicalJson(
+    replayBundleDirectory,
+    "actual-owner-presentation-replay.json.gz",
+    replayJson,
+    "local-owner-only",
+  );
+  const publicReplayArtifact = storeCanonicalJson(
+    replayBundleDirectory,
+    "actual-public-presentation-replay.json.gz",
+    publicReplayJson,
+    "public-presentation",
+  );
+  const inputArtifact = storeCanonicalJson(
+    replayBundleDirectory,
+    "actual-simulation-input.json.gz",
+    inputJson,
+    "controlled-local-simulation-input",
+  );
+  let controlledSourceArtifact: JsonRecord | null = null;
+  if (controlledScenario && controlledSource) {
+    const path = join(replayBundleDirectory, `${controlledScenario}-compiled-source.jinrei`);
+    if (existsSync(path) && readFileSync(path, "utf8") !== controlledSource) {
+      throw new Error(`Controlled source ${relative(repoRoot, path)} differs from the supplied compiled scenario.`);
+    }
+    if (!existsSync(path)) writeFileSync(path, controlledSource);
+    controlledSourceArtifact = {
+      path: relative(repoRoot, path).replaceAll("\\", "/"),
+      privacy: "reproducible-local-tactic-source",
+      sha256: sha256(controlledSource),
+      bytes: Buffer.byteLength(controlledSource),
+    };
+  }
 
   const modeSupport: Record<string, boolean> = {};
   const followSupport: Record<string, boolean> = {};
   const mobileConsoleSupport: Record<string, Record<string, boolean>> = {};
   const layoutByViewport: Record<string, JsonRecord> = {};
+  const cameraPosesByCapture: Record<string, string | null> = {};
+  const cameraTargetsByCapture: Record<string, { x: number; y: number; z: number } | null> = {};
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
+  const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
+  if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true" && followTarget.supported) {
+    expect(expectedFollowPosition, "the followed Hero must exist at the exact replay tick").not.toBeNull();
+  }
 
-  for (const viewport of viewportCases) {
+  for (const viewport of captureViewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
     await expect(canvas).toHaveAttribute("data-rendered", "true");
@@ -263,19 +542,50 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
 
     await seekToTick(page, stateTicks.tactical ?? 0);
     modeSupport.tactical = await clickCameraMode(page, "tactical");
+    await waitForSettledCamera(page);
+    cameraPosesByCapture[`${viewport.name}/tactical-t000.png`] = await canvas.getAttribute("data-camera");
     await page.screenshot({ path: join(directory, "tactical-t000.png"), animations: "disabled" });
 
     await seekToTick(page, stateTicks.overview ?? 0);
     modeSupport.overview = await clickCameraMode(page, "overview");
+    await waitForSettledCamera(page);
+    cameraPosesByCapture[`${viewport.name}/overview-t000.png`] = await canvas.getAttribute("data-camera");
     await page.screenshot({ path: join(directory, "overview-t000.png"), animations: "disabled" });
 
     await seekToTick(page, followTick);
-    const followControl = page.getByRole("button", { name: /^(Follow selected unit|Follow)$/i });
-    if (followTarget.target && await followControl.count()) {
-      await followControl.first().click();
-      followSupport[viewport.name] = true;
+    if (followTarget.target && viewport.width <= 700) {
+      const followView = page.getByRole("button", { name: "Follow view" });
+      if (await followView.count()) {
+        await followView.first().click();
+        const followRow = page.getByRole("button").filter({ hasText: followTarget.catalogId ?? followTarget.target });
+        if (await followRow.count()) {
+          await followRow.first().click();
+          followSupport[viewport.name] = true;
+        } else {
+          followSupport[viewport.name] = false;
+        }
+      } else {
+        followSupport[viewport.name] = false;
+      }
+    } else if (followTarget.target) {
+      const followControl = page.getByRole("button", { name: /^(Follow selected unit|Follow)$/i });
+      if (await followControl.count()) {
+        await followControl.first().click();
+        followSupport[viewport.name] = true;
+      } else {
+        followSupport[viewport.name] = false;
+      }
     } else {
       followSupport[viewport.name] = false;
+    }
+    await waitForSettledCamera(page);
+    cameraPosesByCapture[`${viewport.name}/follow-t${String(followTick).padStart(3, "0")}.png`] = await canvas.getAttribute("data-camera");
+    const followCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+    cameraTargetsByCapture[`${viewport.name}/follow-t${String(followTick).padStart(3, "0")}.png`] = followCameraTarget;
+    if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true" && followSupport[viewport.name]) {
+      expect(followCameraTarget, "Follow must expose its actual target location on the canvas").not.toBeNull();
+      expect(Math.abs(followCameraTarget!.x - expectedFollowPosition!.x)).toBeLessThan(0.01);
+      expect(Math.abs(followCameraTarget!.z - expectedFollowPosition!.z)).toBeLessThan(0.01);
     }
     await page.screenshot({ path: join(directory, `follow-t${String(followTick).padStart(3, "0")}.png`), animations: "disabled" });
 
@@ -285,14 +595,18 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       ["tower-destroy", towerDestroyTick],
       ["base-destroy", baseDestroyTick],
       ["hero-death", heroDeathTick],
-      ["respawn", respawnTick],
+      ["hero-respawn", respawnTick],
+      ["monster-respawn", neutralRespawnTick],
       ["skill", skillTick],
       ["end", finalTick],
     ] as const) {
       if (tick === null) continue;
       await seekToTick(page, tick);
       await clickCameraMode(page, "tactical");
-      await page.screenshot({ path: join(directory, `${name}-t${String(tick).padStart(3, "0")}.png`), animations: "disabled" });
+      await waitForSettledCamera(page);
+      const fileName = `${name}-t${String(tick).padStart(3, "0")}.png`;
+      cameraPosesByCapture[`${viewport.name}/${fileName}`] = await canvas.getAttribute("data-camera");
+      await page.screenshot({ path: join(directory, fileName), animations: "disabled" });
     }
 
     if (viewport.width <= 700) {
@@ -338,6 +652,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   ]));
   const metadata = {
     captureType: "actual-real-wasm-enbu-presentation-replay",
+    tacticProfile: captureProfile,
+    uiSignature,
+    uiRevision,
     baselineCommit: baselineSha,
     appCommit: appSha,
     wasmSha256: wasmSha,
@@ -347,6 +664,19 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       responseOk: captured.response!.ok,
       wasmResponses,
     },
+    controlledScenario: controlledScenario ? {
+      name: controlledScenario,
+      injection: captured.scenarioInjection,
+      source: controlledSourceArtifact,
+      expected: {
+        matchId: expectedScenarioResult?.result.match_id,
+        finalTick: expectedScenarioResult?.result.final_tick,
+        finalStateDigest: expectedScenarioResult?.result.final_state_digest,
+        ownerPresentationDigest: expectedScenarioResult?.owner_replay.result_digest,
+        publicPresentationDigest: expectedScenarioResult?.replay.result_digest,
+      },
+      policy: "snapshot-injected-into-real-worker; result-produced-by-real-WASM; renderer-receives-presentation-replay-only",
+    } : null,
     input: {
       matchId: requestSnapshot.context.match_id,
       ruleset: requestSnapshot.context.ruleset,
@@ -364,6 +694,13 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       eventKinds: [...new Set(events.map((event) => event.event))].sort(),
       sha256: sha256(replayJson),
     },
+    artifactBundle: {
+      directory: relative(repoRoot, replayBundleDirectory).replaceAll("\\", "/"),
+      ownerPresentationReplay: ownerReplayArtifact,
+      publicPresentationReplay: publicReplayArtifact,
+      simulationInput: inputArtifact,
+      controlledSource: controlledSourceArtifact,
+    },
     result: {
       outcome: result.outcome,
       terminationReason: result.termination_reason,
@@ -371,13 +708,15 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       finalStateDigest: result.final_state_digest,
     },
     exactTicks: stateTicks,
+    heroRespawnProof,
     availableCues: {
       advance: movementTick !== null,
       clash: clashTick !== null,
       towerDestroy: towerDestroyTick !== null,
       baseDestroy: baseDestroyTick !== null,
       heroDeath: heroDeathTick !== null,
-      respawn: respawnTick !== null,
+      heroRespawn: respawnTick !== null,
+      neutralMonsterRespawn: neutralRespawnTick !== null,
       activeSkill: skillTick !== null,
       end: true,
     },
@@ -389,13 +728,15 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     },
     mobileConsole: mobileConsoleSupport,
     layoutByViewport,
-    viewports: viewportCases,
+    cameraPosesByCapture,
+    followTargetPosition: expectedFollowPosition,
+    cameraTargetsByCapture,
+    viewports: captureViewports,
     screenshotNames: [
       "tactical", "overview", "follow", "advance", "clash", "tower-destroy", "base-destroy",
-      "hero-death", "respawn", "skill", "end",
+      "hero-death", "hero-respawn", "monster-respawn", "skill", "end",
     ].filter((name) => stateTicks[name.replaceAll("-", "_") as keyof typeof stateTicks] !== null),
     hashes: {
-      simulationResponseSha256: sha256(JSON.stringify(simulation)),
       ownerReplaySha256: sha256(replayJson),
       publicReplaySha256: sha256(publicReplayJson),
       inputSnapshotSha256: sha256(inputJson),

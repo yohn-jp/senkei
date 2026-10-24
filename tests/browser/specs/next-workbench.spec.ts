@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 test.use({ video: "on" });
@@ -6,6 +7,8 @@ test.use({ video: "on" });
 test("real WASM Next workbench supports editing, replay, rematch, mobile and offline restore", async ({ page, baseURL }) => {
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
+  const evidenceDirectory = resolve(process.env.NEXT_WORKBENCH_OUTPUT_DIR ?? "test-results/next-workbench");
+  mkdirSync(evidenceDirectory, { recursive: true });
 
   const pageErrors: string[] = [];
   const wasmResponses: { readonly status: number; readonly fromServiceWorker: boolean; readonly url: string }[] = [];
@@ -26,8 +29,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   });
   await page.goto(baseURL, { waitUntil: "networkidle" });
   await page.getByTestId("nav-next").click();
-  await expect(page.getByRole("heading", { name: /Battle workbench/ })).toBeVisible();
-  await expect(page.getByText("REAL LOCAL SIMULATION")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console/ })).toBeVisible();
+  await expect(page.getByText(/REAL LOCAL SIMULATION|LOCAL ENBU REPLAY/i).first()).toBeVisible();
 
   const atelier = page.getByRole("tablist", {name:"Hero Atelier"});
   await atelier.getByRole("tab", {name:"Squad Assembly"}).click();
@@ -47,21 +50,21 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await source.fill(editedSource);
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await page.locator("#next-tab-formation").click();
   await page.getByRole("button", { name: "Save setup" }).click();
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
 
   await page.locator("#next-tab-battle").click();
-  const diagnostics = page.getByRole("checkbox", { name: /Include my local replay and diagnostics/ });
-  await expect(diagnostics).toBeChecked();
-  const launch = page.getByRole("button", { name: "Launch local battle" });
+  await expect(page.getByText(/Replay access.*owner diagnostics on/i)).toBeVisible();
+  const launch = page.getByRole("button", { name: /Launch local battle|New local battle/i });
   await expect(launch).toBeEnabled();
   await launch.click();
-  await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator(".next-result-strip")).toContainText(/Attacker Victory|Defender Victory|Draw/);
+  const confirmedResult = page.getByText(/Confirmed result/i);
+  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 90_000 });
   await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
-  await page.getByRole("button", {name:/^Analyze/}).click();
+  await page.locator("#next-tab-analysis").click();
   await expect(page.getByRole("heading", {name:"Read the result"})).toBeVisible();
-  await page.screenshot({path:"../../docs/evidence/next/analysis-1440.png"});
+  await page.screenshot({path:resolve(evidenceDirectory,"analysis-1440.png")});
   const analysisEvent = page.locator(".next-timeline li button").nth(8);
   await expect(analysisEvent).toBeVisible();
   const analysisTick = (await analysisEvent.locator(".next-timeline-tick").innerText()).replace(/\D/g, "");
@@ -90,9 +93,16 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(page.locator(".next-tick-readout")).toContainText("50");
   const canvas = page.locator(".next-renderer-host canvas");
   await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
-  await page.screenshot({path:"../../docs/evidence/next/real-replay-overview-1440.png"});
-  const initialCamera = await canvas.getAttribute("data-camera");
-  const follow = page.getByRole("button", {name:"Follow", exact:true});
+  const tactical = page.getByRole("button", {name:/^(Tactical view|Tactical|Battle view)$/i});
+  if (await tactical.count()) await tactical.first().click();
+  const tacticalCamera = await canvas.getAttribute("data-camera");
+  const overview = page.getByRole("button", {name:/^(Overview view|Overview)$/i});
+  await overview.first().click();
+  await expect.poll(() => canvas.getAttribute("data-camera-mode")).toBe("overview");
+  await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(tacticalCamera);
+  const overviewCamera = await canvas.getAttribute("data-camera");
+  await page.screenshot({path:resolve(evidenceDirectory,"real-replay-overview-1440.png")});
+  const follow = page.getByRole("button", {name:/^(Follow selected unit|Follow)$/i});
   const entitySelector = page.getByRole("combobox", {name:"Observe visible entity"});
   await expect(entitySelector).toBeEnabled();
   const visibleHeroValue = await entitySelector.locator("option").evaluateAll((options) =>
@@ -110,13 +120,15 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   });
   await expect(follow).toBeEnabled();
   await follow.click();
-  await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(initialCamera);
+  await expect.poll(() => canvas.getAttribute("data-camera-mode")).toBe("follow");
+  await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(overviewCamera);
   const followedCamera = await canvas.getAttribute("data-camera");
   for (let zoom = 0; zoom < 3; zoom += 1) await page.getByRole("button", {name:"Zoom in"}).click();
   await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(followedCamera);
-  await page.screenshot({path:"../../docs/evidence/next/real-replay-follow-1440.png"});
-  await page.getByRole("button", {name:"Overview", exact:true}).click();
-  await expect.poll(() => canvas.getAttribute("data-camera")).toBe(initialCamera);
+  await page.screenshot({path:resolve(evidenceDirectory,"real-replay-follow-1440.png")});
+  await overview.first().click();
+  await expect.poll(() => canvas.getAttribute("data-camera-mode")).toBe("overview");
+  await expect.poll(() => canvas.getAttribute("data-camera")).toBe(overviewCamera);
 
   const tickBeforeContextLoss = await slider.inputValue();
   await canvas.evaluate((element) => {
@@ -132,7 +144,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(page.getByRole("alert")).toContainText(/WebGL.*失われました/);
   await expect(slider).toHaveValue(tickBeforeContextLoss);
   await expect(page.getByRole("button", {name:"Play replay", exact:true})).toBeVisible();
-  await page.screenshot({path:"../../docs/evidence/next/webgl-context-lost-1440.png"});
+  await page.screenshot({path:resolve(evidenceDirectory,"webgl-context-lost-1440.png")});
   await retryRenderer.click();
   await expect.poll(() => page.locator(".next-renderer-host canvas").getAttribute("data-rendered")).toBe("true");
   await expect.poll(() => page.locator(".next-renderer-host canvas").getAttribute("data-tick")).toBe(tickBeforeContextLoss);
@@ -147,19 +159,18 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(pixelToggle).toHaveAttribute("aria-pressed","true");
   await pixelToggle.click();
   await expect(pixelToggle).toHaveAttribute("aria-pressed","false");
-  await page.screenshot({path:"../../docs/evidence/next/real-replay-smooth-1440.png"});
+  await page.screenshot({path:resolve(evidenceDirectory,"real-replay-smooth-1440.png")});
   await pixelToggle.click();
   await expect(pixelToggle).toHaveAttribute("aria-pressed","true");
-  mkdirSync("../../docs/evidence/next", { recursive:true });
   await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
-  await page.screenshot({path:"../../docs/evidence/next/desktop-battle.png"});
+  await page.screenshot({path:resolve(evidenceDirectory,"desktop-battle.png")});
   const desktopStage = await page.locator(".next-renderer-host").boundingBox();
   expect(desktopStage!.width).toBeGreaterThanOrEqual(1440 * 0.7);
   expect(desktopStage!.height).toBeGreaterThanOrEqual(900 * 0.55);
   await page.setViewportSize({ width: 1920, height: 1080 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1920);
   await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
-  await page.screenshot({path:"../../docs/evidence/next/desktop-battle-1920.png"});
+  await page.screenshot({path:resolve(evidenceDirectory,"desktop-battle-1920.png")});
   const wideStage = await page.locator(".next-renderer-host").boundingBox();
   expect(wideStage!.width).toBeGreaterThanOrEqual(1920 * 0.7);
   expect(wideStage!.height).toBeGreaterThanOrEqual(1080 * 0.55);
@@ -175,9 +186,11 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(revisedRun).toBeEnabled();
   await revisedRun.click();
   await expect(launch).toBeEnabled({timeout:90_000});
-  await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({ timeout: 90_000 });
+  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 90_000 });
+  await page.locator("#next-tab-formation").click();
   await page.getByRole("button", { name: "Save setup" }).click();
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
+  await page.locator("#next-tab-battle").click();
 
   // Keep the F02 / Path A / editedSource setup as the pinned restore point.
   // The later F05 / Path B / recoverySource edits are deliberately unsaved.
@@ -198,7 +211,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
     await expect(page.locator(".next-replay-controls")).toBeInViewport();
     await expect(page.getByRole("slider", {name:"Seek replay tick"})).toBeInViewport();
-    await page.screenshot({path:`../../docs/evidence/next/${path}`});
+    await page.screenshot({path:resolve(evidenceDirectory,path)});
   }
 
   // Make all three post-save changes after the pinned baseline and viewport
@@ -247,8 +260,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await page.getByRole("button", {name:"Compile tactics"}).click();
     await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
     await page.locator("#next-tab-battle").click();
-    await page.getByRole("button", {name:"Launch local battle"}).click();
-    await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({timeout:90_000});
+    await page.getByRole("button", {name:/Launch local battle|New local battle/i}).click();
+    await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, {timeout:90_000});
     await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   } finally {
     await page.context().setOffline(false);

@@ -125,6 +125,22 @@ for (const [width, height] of [
     await expect(page.getByRole("region", { name: "選択情報" })).toContainText(
       "重装兵",
     );
+    const canvas = page.locator("canvas");
+    const trackSelection = page.getByRole("button", { name: "選択対象を追跡" });
+    await trackSelection.click();
+    await expect(trackSelection).toHaveAttribute("aria-pressed", "true");
+    // The selected Heavy has world X/Z from the authored fixture. In
+    // particular, camera target Z must use fixture Y; the model's 0.96 height
+    // belongs to world Y and must never be substituted for that map axis.
+    await expect.poll(async () => {
+      const target = await canvas.getAttribute("data-camera-target");
+      const coordinates = target?.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi)?.map(Number);
+      if (!coordinates || coordinates.length < 3) return Number.POSITIVE_INFINITY;
+      return Math.max(
+        Math.abs(coordinates[0] - heavy.position.x),
+        Math.abs(coordinates[2] - heavy.position.y),
+      );
+    }).toBeLessThan(0.01);
     await page.getByRole("button", { name: "詳細を閉じる" }).click();
     await page.getByRole("button", { name: "再生", exact: true }).click();
     await expect
@@ -153,8 +169,7 @@ for (const [width, height] of [
     await page.getByRole("button", { name: "先頭へ戻る" }).click();
     await expect(page.getByRole("slider")).toHaveValue("0");
     await expect(page.getByRole("status", { name: "終局結果" })).toHaveCount(0);
-    const canvas = page.locator("canvas"),
-      camera = await canvas.getAttribute("data-camera");
+    const camera = await canvas.getAttribute("data-camera");
     await page.getByRole("button", { name: "拡大", exact: true }).click();
     await expect
       .poll(() => canvas.getAttribute("data-camera"))

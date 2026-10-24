@@ -23,7 +23,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
+  webServer: process.env.SENKEI_BROWSER_EXTERNAL_PREVIEW ? undefined : {
     command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
     cwd: repositoryRoot,
     url: baseURL,
