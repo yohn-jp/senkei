@@ -1,0 +1,31 @@
+name: Graphics G1
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  graphics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run contract:types && git diff --exit-code -- packages/replay-contract/src/generated.ts
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graphics-g1-browser-evidence
+          path: |
+            docs/evidence/g1/*.png
+            docs/evidence/g1/*.webm
+            playwright-report/
+            test-results/

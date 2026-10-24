@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "0.1",
+  "header": {
+    "origin": "sample",
+    "title": "三路の進軍",
+    "enbuVersion": null,
+    "senritsu": {
+      "id": "graphics-fixture-only",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "view": "public"
+  },
+  "presentation": {
+    "coordinates": "x-right-y-down",
+    "assetCatalogVersion": "procedural-g1",
+    "tickDurationMs": 400
+  },
+  "scene": {
+    "bounds": {
+      "min": {
+        "x": -15,
+        "y": -8
+      },
+      "max": {
+        "x": 15,
+        "y": 8
+      }
+    },
+    "lanes": [
+      {
+        "id": "top",
+        "label": "TOP",
+        "points": [
+          {
+            "x": -11,
+            "y": -5
+          },
+          {
+            "x": 0,
+            "y": -5
+          },
+          {
+            "x": 11,
+            "y": -5
+          }
+        ],
+        "elevation": 0.65
+      },
+      {
+        "id": "mid",
+        "label": "MID",
+        "points": [
+          {
+            "x": -11,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 11,
+            "y": 0
+          }
+        ],
+        "elevation": 0.15
+      },
+      {
+        "id": "bot",
+        "label": "BOT",
+        "points": [
+          {
+            "x": -11,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 11,
+            "y": 5
+          }
+        ],
+        "elevation": 0.4
+      }
+    ]
+  },
+  "initialView": [
+    {
+      "id": "azure-base",
+      "side": "azure",
+      "kind": "base",
+      "archetype": "citadel",
+      "appearanceKey": "citadel",
+      "position": {
+        "x": -13,
+        "y": 0
+      },
+      "hp": 500,
+      "maxHp": 500
+    }
+  ],
+  "timeline": [
+    {
+      "type": "move",
+      "tick": 1,
+      "order": 0,
+      "entityId": "azure-base",
+      "position": {
+        "x": -12,
+        "y": 0
+      }
+    },
+    {
+      "type": "move",
+      "tick": 1,
+      "order": 0,
+      "entityId": "azure-base",
+      "position": {
+        "x": -11,
+        "y": 0
+      }
+    },
+    {
+      "type": "match-end",
+      "tick": 2,
+      "order": 0,
+      "result": {
+        "winner": "draw",
+        "reason": "検証用サンプル",
+        "tick": 2
+      }
+    }
+  ],
+  "result": {
+    "winner": "draw",
+    "reason": "検証用サンプル",
+    "tick": 2
+  }
+}

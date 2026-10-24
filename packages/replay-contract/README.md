@@ -1,0 +1,9 @@
+# PresentationReplay v0.1
+
+`replay.schema.json` (JSON Schema 2020-12) is the language independent wire authority. `npm run contract:types` generates `src/generated.ts`; CI checks regeneration. Every object rejects extra properties, including diagnostics/source/IR. IDs are opaque public presentation IDs; arbitrary text still requires a trusted allowlist producer, and validation does not confer official provenance.
+
+Coordinates: bounded logical x-right/y-down plane; renderer maps y to world z and derives visual height from scene paths. Lane count is scene data. All fields are required. Unknown/unobserved entities are omitted or removed by `disappear`; unknown is never encoded as zero HP. Appearance keys are data identifiers with a generic renderer fallback, never URLs or code.
+
+InitialView precedes tick 0 events. At tick T all events through T apply in the given strictly increasing lexicographic `(tick, order)` order; order may have gaps. No implicit sorting or repair. A move fixes the position at that tick. Attack is a visual cue; damage carries absolute confirmed HP. Destroy follows confirmed HP 0 and leaves a visual wreck; disappear removes visible data. IDs cannot be reused, even after disappearance. No references to inactive entities. Spawn adds a new entity. Exactly one final match-end must equal Result, with no subsequent events. Winner and reason are projected, never inferred from damage.
+
+Decoder validates bounds, IDs, lifetime, ordering, HP transitions, and result consistency in addition to Schema. Samples have null enbuVersion and do not claim simulation. Fixtures are authored synthetic data, not Senritsu balance. Checkpoints are omitted in G1; reconstruction always starts with InitialView. DisplayState is recursively frozen. All tick states, including effects cues, are derived from replay, independent of seek history.

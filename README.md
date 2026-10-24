@@ -59,3 +59,24 @@ cargo run --locked -p senkei-runner -- run examples/local-match.json
 ## ライセンス
 
 コードとこのリポジトリ内の文書は [Apache License 2.0](LICENSE) を基本とします。将来追加する画像・音楽・商標・第三者素材には個別の権利条件を適用する場合があります。Apache-2.0は名称やロゴの商標使用許諾を意味しません。
+
+## Graphics G1 — サンプル演武
+
+Node.js 24とnpmで起動できます。
+
+```sh
+npm ci
+npm run dev
+```
+
+`http://localhost:5173/graphics/`で固定Replay Fixtureを再生します。サーバーAPI、Enbu、Jinreiは実行しません。WebGL2が必要です。地形・施設・兵士はすべてコードで生成しています。
+
+```sh
+npm run contract:types  # JSON Schemaから型を再生成
+npm test                # Contract / Player
+npm run build           # 型検査 + production build
+npx playwright install --with-deps chromium
+npm run test:browser    # 実ブラウザ操作・4サイズの画面取得
+```
+
+責務は`packages/replay-contract`（Schema・Decoder・Fixture）、`packages/replay-player`（表示状態とカーソル）、`packages/renderer`（Three.js / WebGL2）、`apps/web`（Desktop / Mobile UI）に分離しています。契約の詳細は[Replay v0.1](packages/replay-contract/README.md)、検証結果と画面証拠は[G1検証記録](docs/G1-VERIFICATION.md)を参照してください。G2以降は未実装です。
