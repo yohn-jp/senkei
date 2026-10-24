@@ -59,6 +59,8 @@ export type ApiErrorCode =
   | "unsupported_primitive"
   | "budget_exceeded"
   | "resource_limit"
+  | "transition_conflict"
+  | "arithmetic_overflow"
   | "internal_error";
 
 export const WEB_WORKER_PROTOCOL_VERSION = 1 as const;
