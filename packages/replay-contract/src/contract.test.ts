@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Ajv2020 from "ajv/dist/2020.js";
 import { decodeReplay } from "./index";
+import type { Event, PresentationReplay } from "./generated";
 import schema from "../replay.schema.json";
 import basic from "../fixtures/basic-three-lane.json";
 import clash from "../fixtures/clash-and-loss.json";
@@ -30,8 +31,8 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
       expect(() => decodeReplay(r)).toThrow();
     },
   );
-  function invalid(mutate: (r: typeof tower) => void, message?: string) {
-    const r = structuredClone(tower);
+  function invalid(mutate: (r: PresentationReplay) => void, message?: string) {
+    const r = structuredClone(tower) as PresentationReplay;
     mutate(r);
     expect(() => decodeReplay(r)).toThrow(message);
   }
@@ -90,7 +91,11 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
       r.timeline.find((e) => e.type === "damage")!.hp = 101;
     }, "increase HP");
     invalid((r) => {
-      r.timeline.find((e) => e.type === "damage" && e.hp === 0)!.hp = 1;
+      const zeroDamage = r.timeline.find(
+        (event): event is Extract<Event, { type: "damage" }> =>
+          event.type === "damage" && event.hp === 0,
+      )!;
+      zeroDamage.hp = 1;
     }, "zero HP");
     invalid((r) => {
       r.result.winner = "draw";
@@ -133,6 +138,25 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
     r.timeline[0].tick = 0;
     for (const event of r.timeline) event.order *= 2;
     expect(decodeReplay(r).scene.lanes).toHaveLength(1);
+  });
+  it("accepts optional graph routes and validates their bounds and identities", () => {
+    const r = structuredClone(basic) as PresentationReplay;
+    expect(decodeReplay(r).scene.routes).toBeUndefined();
+    r.scene.routes = [
+      { id: "map-edge-0", region: "jungle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
+    ];
+    expect(decodeReplay(r).scene.routes?.[0].points).toHaveLength(2);
+    invalid((value) => {
+      value.scene.routes = [
+        { id: "map-edge-0", region: "jungle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
+        { id: "map-edge-0", region: "jungle", points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] },
+      ];
+    }, "Duplicate route ID");
+    invalid((value) => {
+      value.scene.routes = [
+        { id: "map-edge-0", region: "jungle", points: [{ x: 0, y: 0 }, { x: 100, y: 100 }] },
+      ];
+    }, "outside scene");
   });
   it("clones and freezes input", () => {
     const r = structuredClone(basic),

@@ -141,6 +141,14 @@
               "position"
             ]
           }
+        },
+        "routes": {
+          "type": "array",
+          "maxItems": 512,
+          "description": "Traversable map edges projected from the ruleset world graph.",
+          "items": {
+            "$ref": "#/$defs/Route"
+          }
         }
       },
       "required": [
@@ -319,6 +327,34 @@
         "label",
         "points",
         "elevation"
+      ]
+    },
+    "Route": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPoint"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "id",
+        "region",
+        "points"
       ]
     },
     "Event": {

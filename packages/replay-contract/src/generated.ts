@@ -97,6 +97,12 @@ export interface PresentationReplay {
       id: string;
       position: WorldPoint;
     }[];
+    /**
+     * Traversable map edges projected from the ruleset world graph.
+     *
+     * @maxItems 512
+     */
+    routes?: Route[];
   };
   /**
    * @minItems 0
@@ -123,6 +129,15 @@ export interface Lane {
    */
   points: [WorldPoint, WorldPoint, ...WorldPoint[]];
   elevation: number;
+}
+export interface Route {
+  id: string;
+  region: string;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  points: [WorldPoint, WorldPoint];
 }
 export interface Entity {
   id: string;

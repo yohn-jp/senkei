@@ -64,6 +64,12 @@ export function decodeReplay(input: unknown): Replay {
     lanes.add(lane.id);
     lane.points.forEach(point);
   }
+  const routeIds = new Set<string>();
+  for (const route of r.scene.routes ?? []) {
+    if (routeIds.has(route.id)) fail(`Duplicate route ID: ${route.id}`);
+    routeIds.add(route.id);
+    route.points.forEach(point);
+  }
   const entities = new Map<string, Entity>();
   const seen = new Set<string>();
   const add = (e: Entity) => {

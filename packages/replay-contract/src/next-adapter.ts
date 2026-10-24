@@ -19,6 +19,11 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   const scale = NEXT_WORLD_UNITS_PER_RENDER_UNIT;
   const nodes = Object.values(next.map.nodes);
   const point = (e: EntityStateView) => ({ x: num(e, "x") / scale, y: num(e, "y") / scale });
+  const nodePoint = (nodeId: string) => {
+    const node = next.map.nodes[nodeId];
+    if (!node) throw new ReplayError(`Missing public map node: ${nodeId}`);
+    return { x: node.x / scale, y: node.y / scale };
+  };
   let serial = 0;
   const active = new Map<string, Entity>();
   const initialView: Entity[] = [];
@@ -88,6 +93,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   return decodeReplay({ schemaVersion:"0.2", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:"1.1.0",senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-next-1",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
     scene:{ bounds:{min:{x:Math.min(...nodes.map(n=>n.x))/scale-3,y:Math.min(...nodes.map(n=>n.y))/scale-3},max:{x:Math.max(...nodes.map(n=>n.x))/scale+3,y:Math.max(...nodes.map(n=>n.y))/scale+3}},
-      lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(n=>({x:next.map.nodes[n].x/scale,y:next.map.nodes[n].y/scale}))})),
-      camps:next.camps.map(c=>({id:c.id,position:{x:next.map.nodes[c.node].x/scale,y:next.map.nodes[c.node].y/scale}})) },initialView,timeline,result });
+      lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(nodePoint)})),
+      camps:next.camps.map(c=>({id:c.id,position:nodePoint(c.node)})),
+      routes:next.map.edges.flatMap((edge,index)=>edge.blocked?[]:[{id:`map-edge-${index}`,region:edge.region,points:[nodePoint(edge.from),nodePoint(edge.to)]}]) },initialView,timeline,result });
 }
