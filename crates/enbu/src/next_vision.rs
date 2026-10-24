@@ -40,6 +40,7 @@ const PUBLIC_FIELDS: &[&str] = &[
     "defense_until",
     "camp",
 ];
+const MINION_PUBLIC_FIELDS: &[&str] = &["hp", "max_hp", "x", "y", "catalog_id", "lane"];
 const OWNER_ONLY_FIELDS: &[&str] = &[
     "xp",
     "cooldowns",
@@ -54,6 +55,7 @@ const OWNER_ONLY_FIELDS: &[&str] = &[
 /// same-tick observation snapshot.
 pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
     expire_reveals(world, tick);
+    remove_dead_minions(world, tick);
 
     let interval = support::param(rules, "minion_spawn_interval", 30).max(1) as u32;
     if tick % interval == 0 {
@@ -178,7 +180,7 @@ pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
             (visible(world, rules, CombatantSide::Attacker, entity)
                 && visible(world, rules, CombatantSide::Defender, entity))
             .then(|| {
-                let fields = projected_fields(entity, false);
+                let fields = projected_fields(entity, false, rules);
                 (
                     id.clone(),
                     EntityStateView {
@@ -206,7 +208,7 @@ pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> 
         .iter()
         .filter_map(|(id, entity)| {
             visible(world, rules, side, entity).then(|| {
-                let fields = projected_fields(entity, entity.owner == Some(side));
+                let fields = projected_fields(entity, entity.owner == Some(side), rules);
                 (
                     id.clone(),
                     EntityStateView {
@@ -227,8 +229,14 @@ pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> 
 fn projected_fields(
     entity: &EntityState,
     include_owner_only: bool,
+    rules: &NextRules,
 ) -> BTreeMap<FieldId, DomainValue> {
-    let mut fields: BTreeMap<_, _> = PUBLIC_FIELDS
+    let public_fields = if entity.entity_type == TypeId::from(MINION) {
+        MINION_PUBLIC_FIELDS
+    } else {
+        PUBLIC_FIELDS
+    };
+    let mut fields: BTreeMap<_, _> = public_fields
         .iter()
         .filter_map(|name| {
             let field = FieldId::from(*name);
@@ -239,17 +247,69 @@ fn projected_fields(
                 .map(|value| (field, value))
         })
         .collect();
-    if include_owner_only {
+    if include_owner_only && entity.entity_type == TypeId::from(HERO) {
         fields.extend(OWNER_ONLY_FIELDS.iter().filter_map(|name| {
             let field = FieldId::from(*name);
-            entity
-                .fields
-                .get(&field)
-                .cloned()
-                .map(|value| (field, value))
+            let value = if *name == "cooldowns" {
+                project_cooldowns(entity, rules)
+            } else {
+                entity.fields.get(&field).cloned()
+            };
+            value.map(|value| (field, value))
         }));
     }
     fields
+}
+
+fn project_cooldowns(entity: &EntityState, rules: &NextRules) -> Option<DomainValue> {
+    let catalog_id = support::string(entity, "catalog_id");
+    let hero = rules.heroes.iter().find(|hero| hero.id == catalog_id)?;
+    let DomainValue::Record(cooldowns) = entity.fields.get(&FieldId::from("cooldowns"))? else {
+        return None;
+    };
+    let projected = hero
+        .skills
+        .iter()
+        .take(4)
+        .filter_map(|skill| {
+            let id = FieldId::from(skill.id.as_str());
+            cooldowns
+                .get(&id)
+                .cloned()
+                .map(|ready_tick| (id, ready_tick))
+        })
+        .collect();
+    Some(DomainValue::Record(projected))
+}
+
+fn remove_dead_minions(world: &mut WorldState, tick: u32) {
+    let removed: std::collections::BTreeSet<_> = world
+        .entities
+        .iter()
+        .filter_map(|(id, entity)| {
+            let death_tick = match entity.fields.get(&FieldId::from("death_tick")) {
+                Some(DomainValue::Integer(death_tick)) => *death_tick,
+                _ => return None,
+            };
+            (entity.entity_type == TypeId::from(MINION)
+                && support::int(entity, "hp") <= 0
+                && death_tick < i64::from(tick))
+            .then(|| id.clone())
+        })
+        .collect();
+    if removed.is_empty() {
+        return;
+    }
+
+    world.entities.retain(|id, _| !removed.contains(id));
+    let target_field = FieldId::from("target");
+    for entity in world.entities.values_mut() {
+        if let Some(value) = entity.fields.get_mut(&target_field) {
+            if matches!(value, DomainValue::Entity(target) if removed.contains(target)) {
+                *value = DomainValue::Null;
+            }
+        }
+    }
 }
 
 fn spawn_wave(world: &mut WorldState, rules: &NextRules, tick: u32) {
@@ -818,6 +878,46 @@ mod tests {
         entity
     }
 
+    fn hero_definition() -> HeroDefinition {
+        let stats = UnitStats {
+            hp: 10,
+            attack: 2,
+            defense: 0,
+            speed: 1,
+            range: 1,
+            attack_interval: 1,
+            vision: 4,
+        };
+        HeroDefinition {
+            id: "test-catalog".into(),
+            name: "Test Hero".into(),
+            placement: "any".into(),
+            role: "fighter".into(),
+            trait_id: "test".into(),
+            appearance_key: "test".into(),
+            stats: stats.clone(),
+            growth: stats,
+            skills: (0..4)
+                .map(|index| SkillDefinition {
+                    id: format!("test_skill_{index}"),
+                    name: format!("Test Skill {index}"),
+                    passive: false,
+                    unlock_level: 1,
+                    prerequisites: vec![],
+                    cooldown: 1,
+                    cost: 0,
+                    range: 1,
+                    target: "enemy".into(),
+                    effect: SkillEffect::Damage,
+                    power: 1,
+                    duration: 0,
+                })
+                .collect(),
+            skill_paths: BTreeMap::new(),
+            synergy: BTreeMap::new(),
+        }
+    }
+
     fn empty_plan() -> RulePlan {
         RulePlan {
             next: Some(test_rules()),
@@ -1064,6 +1164,8 @@ mod tests {
         support::set_int(&mut minion, "xp", 99);
         support::set_string(&mut minion, "goal", "d0");
         support::set_string(&mut minion, "edge_to", "a1");
+        support::set_string(&mut minion, "catalog_id", "footman");
+        support::set_string(&mut minion, "lane", "top");
         minion.fields.insert(
             "skills".into(),
             DomainValue::List(vec![DomainValue::String("dash".into())]),
@@ -1074,25 +1176,44 @@ mod tests {
         assert!(!view.entities.contains_key(&EntityId::from("enemy-hero")));
         let minion = &view.entities[&EntityId::from("seen-by-both")];
         assert_eq!(minion.fields[&FieldId::from("x")], DomainValue::Integer(0));
+        assert_eq!(minion.fields.len(), MINION_PUBLIC_FIELDS.len());
         assert_eq!(
-            minion.fields[&FieldId::from("edge_to")],
-            DomainValue::String("a1".into())
+            minion.fields[&FieldId::from("catalog_id")],
+            DomainValue::String("footman".into())
         );
         assert_eq!(
-            minion.fields[&FieldId::from("skills")],
-            DomainValue::List(vec![DomainValue::String("dash".into())])
+            minion.fields[&FieldId::from("lane")],
+            DomainValue::String("top".into())
         );
         assert!(!minion.fields.contains_key(&FieldId::from("xp")));
         assert!(!minion.fields.contains_key(&FieldId::from("goal")));
+        assert!(!minion.fields.contains_key(&FieldId::from("edge_to")));
+        assert!(!minion.fields.contains_key(&FieldId::from("skills")));
     }
 
     #[test]
     fn team_view_keeps_owned_fields_and_hides_unseen_enemies() {
-        let rules = test_rules();
+        let mut rules = test_rules();
+        let definition = hero_definition();
+        let cooldowns = definition
+            .skills
+            .iter()
+            .enumerate()
+            .map(|(index, skill)| {
+                (
+                    FieldId::from(skill.id.as_str()),
+                    DomainValue::Integer(index as i64 + 1),
+                )
+            })
+            .chain([("foreign_skill".into(), DomainValue::Integer(99))])
+            .collect();
+        rules.heroes.push(definition);
         let mut world = WorldState::default();
-        world
-            .entities
-            .insert("ally-hero".into(), hero(CombatantSide::Attacker, 0, 10));
+        let mut ally = hero(CombatantSide::Attacker, 0, 10);
+        support::set_string(&mut ally, "catalog_id", "test-catalog");
+        ally.fields
+            .insert("cooldowns".into(), DomainValue::Record(cooldowns));
+        world.entities.insert("ally-hero".into(), ally);
         world
             .entities
             .insert("hidden-enemy".into(), hero(CombatantSide::Defender, 50, 10));
@@ -1107,11 +1228,61 @@ mod tests {
             DomainValue::String("alpha".into())
         );
         assert_eq!(own[&FieldId::from("respawn_at")], DomainValue::Integer(12));
-        assert!(own.contains_key(&FieldId::from("cooldowns")));
+        let DomainValue::Record(own_cooldowns) = &own[&FieldId::from("cooldowns")] else {
+            panic!("projected owner cooldowns should remain a record");
+        };
+        assert_eq!(own_cooldowns.len(), 4);
+        assert!(!own_cooldowns.contains_key(&FieldId::from("foreign_skill")));
 
         let public = public_view(&world, &rules);
         assert!(public.entities.is_empty());
         assert!(!public.entities.contains_key(&EntityId::from("ally-hero")));
+    }
+
+    #[test]
+    fn lifecycle_keeps_current_tick_deaths_then_clears_removed_targets() {
+        let mut rules = test_rules();
+        rules.parameters.insert("minion_spawn_interval".into(), 100);
+        let dead_id = EntityId::from("fallen-minion");
+        let mut dead = support::unit(
+            MINION,
+            Some(CombatantSide::Attacker),
+            &rules.minions[0].stats,
+            "a0",
+            &rules,
+        );
+        support::set_int(&mut dead, "hp", 0);
+        support::set_int(&mut dead, "death_tick", 2);
+        let mut ally = hero(CombatantSide::Attacker, 0, 10);
+        ally.fields
+            .insert("target".into(), DomainValue::Entity(dead_id.clone()));
+        let mut dead_hero = hero(CombatantSide::Attacker, 1, 0);
+        support::set_int(&mut dead_hero, "death_tick", 1);
+
+        let mut world = WorldState::default();
+        world.entities.insert(dead_id.clone(), dead);
+        world.entities.insert("ally".into(), ally);
+        world.entities.insert("dead-hero".into(), dead_hero);
+
+        lifecycle(&mut world, &rules, 2);
+        assert!(world.entities.contains_key(&dead_id));
+        assert_eq!(
+            team_view(&world, &rules, CombatantSide::Attacker).entities[&dead_id].fields
+                [&FieldId::from("hp")],
+            DomainValue::Integer(0)
+        );
+        assert_eq!(
+            world.entities[&EntityId::from("ally")].fields[&FieldId::from("target")],
+            DomainValue::Entity(dead_id.clone())
+        );
+
+        lifecycle(&mut world, &rules, 3);
+        assert!(!world.entities.contains_key(&dead_id));
+        assert_eq!(
+            world.entities[&EntityId::from("ally")].fields[&FieldId::from("target")],
+            DomainValue::Null
+        );
+        assert!(world.entities.contains_key(&EntityId::from("dead-hero")));
     }
 
     #[test]
