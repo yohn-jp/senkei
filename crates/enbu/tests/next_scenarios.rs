@@ -20,6 +20,7 @@ fn configured_snapshot(
     side: CombatantSide,
     partition: &[usize],
     tactic_program: TacticalProgram,
+    hero_nodes: Option<&[String]>,
 ) -> SenkeiSnapshot {
     let next = rules.plan().next.as_ref().expect("validated plan contains NextRules");
     let mut configuration = BTreeMap::new();
@@ -42,11 +43,14 @@ fn configured_snapshot(
         for _ in 0..squad_size {
             let hero = &next.heroes[heroes.len() % next.heroes.len()];
             let skill_path = hero.skill_paths.keys().next().expect("each catalog Hero has a prepared path");
+            let hero_node = hero_nodes
+                .and_then(|nodes| nodes.get(heroes.len()))
+                .map_or(base_node, String::as_str);
             heroes.push(DomainValue::Record(BTreeMap::from([
                 (FieldId::new("slot_id"), DomainValue::String(format!("slot-{}", heroes.len() + 1))),
                 (FieldId::new("catalog_id"), DomainValue::String(hero.id.clone())),
                 (FieldId::new("squad"), DomainValue::String(format!("squad-{squad_number}"))),
-                (FieldId::new("node"), DomainValue::String(base_node.to_owned())),
+                (FieldId::new("node"), DomainValue::String(hero_node.to_owned())),
                 (FieldId::new("skill_path"), DomainValue::String(skill_path.clone())),
             ])));
             squad_index += 1;
@@ -97,20 +101,49 @@ fn run_partition(
     partition: &[usize],
     match_id: &str,
 ) -> Result<SimulationArtifact, ApiError> {
-    let compiled = compile(IDLE_TACTICS, rules)
-        .unwrap_or_else(|error| panic!("fixture tactics must compile against Next: {error:?}"));
-    let attacker = configured_snapshot(rules, CombatantSide::Attacker, partition, compiled.program.clone());
-    let defender = configured_snapshot(rules, CombatantSide::Defender, partition, compiled.program);
-    let mut context = new_match_context(rules, MatchId::new(match_id));
-    context.max_ticks = 1;
+    let (attacker, defender, context) = build_match(rules, partition, match_id, 1, None, None);
     let mut vm = Vm::new(rules);
     simulate(&attacker, &defender, rules, &context, &mut vm)
 }
 
-fn initial_state(artifact: &SimulationArtifact) -> &WorldStateView {
-    artifact.replay.frames.first()
+fn build_match(
+    rules: &VerifiedRulePlan,
+    partition: &[usize],
+    match_id: &str,
+    max_ticks: u32,
+    attacker_nodes: Option<&[String]>,
+    defender_nodes: Option<&[String]>,
+) -> (SenkeiSnapshot, SenkeiSnapshot, MatchContext) {
+    let compiled = compile(IDLE_TACTICS, rules)
+        .unwrap_or_else(|error| panic!("fixture tactics must compile against Next: {error:?}"));
+    let attacker = configured_snapshot(
+        rules,
+        CombatantSide::Attacker,
+        partition,
+        compiled.program.clone(),
+        attacker_nodes,
+    );
+    let defender = configured_snapshot(
+        rules,
+        CombatantSide::Defender,
+        partition,
+        compiled.program,
+        defender_nodes,
+    );
+    let mut context = new_match_context(rules, MatchId::new(match_id));
+    context.max_ticks = max_ticks;
+    (attacker, defender, context)
+}
+
+fn owner_initial_state(artifact: &SimulationArtifact) -> &WorldStateView {
+    artifact
+        .owner_replay
+        .as_ref()
+        .expect("Next matches publish a restricted local owner replay")
+        .frames
+        .first()
         .and_then(|frame| frame.visible_state.as_ref())
-        .expect("simulation publishes the tick-zero state")
+        .expect("owner replay publishes the tick-zero state")
 }
 
 fn squad_sizes(state: &WorldStateView, side: CombatantSide) -> Vec<usize> {
@@ -158,15 +191,13 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
         let match_id = format!("w9-{case_id}");
         let artifact = run_partition(&rules, partition, &match_id)
             .unwrap_or_else(|error| panic!("{case_id} must execute through Enbu: {error:?}"));
-        let state = initial_state(&artifact);
+        let state = owner_initial_state(&artifact);
         let attacker_sizes = squad_sizes(state, CombatantSide::Attacker);
-        let defender_sizes = squad_sizes(state, CombatantSide::Defender);
         assert_eq!(attacker_sizes, partition, "attacker initial squad partition for {case_id}");
-        assert_eq!(defender_sizes, partition, "defender initial squad partition for {case_id}");
         assert_eq!(
-            state.entities.values().filter(|entity| entity.entity_type.as_str() == "hero").count(),
-            10,
-            "all five configured Heroes on each side participate in {case_id}",
+            state.entities.values().filter(|entity| entity.entity_type.as_str() == "hero" && entity.owner == Some(CombatantSide::Attacker)).count(),
+            5,
+            "all five attacker Heroes participate in {case_id}",
         );
 
         let public = artifact.public_response();
@@ -174,6 +205,10 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
             let serialized = serde_json::to_string(&public).expect("public response is serializable");
             assert!(!serialized.contains("internal_secret_marker"), "public output excludes tactic source details");
             assert!(!serialized.contains("restricted_diagnostics"), "public output excludes restricted diagnostics");
+            assert!(public.replay.frames[0].visible_state.as_ref().map_or(true, |view| {
+                !view.entities.values().any(|entity| entity.owner == Some(CombatantSide::Defender))
+            }), "the initial public fog projection does not reveal the distant opposing Heroes");
+            assert_eq!(artifact.owner_replay.as_ref().unwrap().perspective, Some(CombatantSide::Attacker));
             baseline_repeat = Some(public.clone());
         }
 
@@ -209,5 +244,90 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
                 "Movement, maturation, visibility, jungle, XP, combat death/respawn, regroup intents, invalid versions, and WASM parity require separate cases."
             ]
         }));
+    }
+}
+
+#[test]
+fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
+    let rules = rules();
+    let (attacker, defender, mut context) =
+        build_match(&rules, &[1, 1, 1, 1, 1], "w9-invalid-roster", 1, None, None);
+    let mut vm = Vm::new(&rules);
+
+    let mut four_heroes = attacker.clone();
+    let DomainValue::List(heroes) = four_heroes
+        .configuration
+        .get_mut(&FieldId::new("heroes"))
+        .expect("fixture has hero configuration")
+    else {
+        panic!("hero configuration is a list");
+    };
+    heroes.pop();
+    assert!(simulate(&four_heroes, &defender, &rules, &context, &mut vm).is_err(),
+        "a roster with fewer than five Heroes is invalid");
+
+    let mut duplicate_slot = attacker.clone();
+    let DomainValue::List(heroes) = duplicate_slot
+        .configuration
+        .get_mut(&FieldId::new("heroes"))
+        .expect("fixture has hero configuration")
+    else {
+        panic!("hero configuration is a list");
+    };
+    let first_slot = match &heroes[0] {
+        DomainValue::Record(fields) => fields[&FieldId::new("slot_id")].clone(),
+        _ => panic!("hero record expected"),
+    };
+    if let DomainValue::Record(fields) = &mut heroes[1] {
+        fields.insert(FieldId::new("slot_id"), first_slot);
+    }
+    assert!(simulate(&duplicate_slot, &defender, &rules, &context, &mut vm).is_err(),
+        "duplicate Hero slot IDs are invalid");
+
+    let mut unknown_path = attacker.clone();
+    let DomainValue::List(heroes) = unknown_path
+        .configuration
+        .get_mut(&FieldId::new("heroes"))
+        .expect("fixture has hero configuration")
+    else {
+        panic!("hero configuration is a list");
+    };
+    if let DomainValue::Record(fields) = &mut heroes[0] {
+        fields.insert(FieldId::new("skill_path"), DomainValue::String("w9_unknown_path".into()));
+    }
+    assert!(simulate(&unknown_path, &defender, &rules, &context, &mut vm).is_err(),
+        "a skill path outside the selected catalog Hero is invalid");
+
+    context.versions.engine = Version::new(1, 0, 0);
+    assert!(simulate(&attacker, &defender, &rules, &context, &mut vm).is_err(),
+        "a context using Enbu 1.0.0 cannot run the Next 1.0.0 ruleset");
+}
+
+#[test]
+fn every_catalog_hero_can_be_selected_and_simulated() {
+    let rules = rules();
+    let next = rules.plan().next.as_ref().unwrap();
+    for (hero_index, selected_hero) in next.heroes.iter().enumerate() {
+        let (mut attacker, mut defender, context) =
+            build_match(&rules, &[1, 1, 1, 1, 1], &format!("w9-catalog-{}", selected_hero.id), 1, None, None);
+        for snapshot in [&mut attacker, &mut defender] {
+            let DomainValue::List(heroes) = snapshot
+                .configuration
+                .get_mut(&FieldId::new("heroes"))
+                .expect("fixture has hero configuration")
+            else {
+                panic!("hero configuration is a list");
+            };
+            for (slot, record) in heroes.iter_mut().enumerate() {
+                let definition = &next.heroes[(hero_index + slot) % next.heroes.len()];
+                let DomainValue::Record(fields) = record else { panic!("hero record expected") };
+                fields.insert(FieldId::new("catalog_id"), DomainValue::String(definition.id.clone()));
+                let path = definition.skill_paths.keys().next().expect("catalog Hero has a skill path");
+                fields.insert(FieldId::new("skill_path"), DomainValue::String(path.clone()));
+            }
+        }
+        let mut vm = Vm::new(&rules);
+        simulate(&attacker, &defender, &rules, &context, &mut vm)
+            .unwrap_or_else(|error| panic!("catalog Hero {} must participate in a valid five-Hero match: {error:?}", selected_hero.id));
     }
 }
