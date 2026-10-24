@@ -2,11 +2,12 @@
 
 ## Current status
 
-The W9 scenario matrix and headless runner are scaffolding only at baseline
-`7c1485a`. That checkout does not yet publish
-`senritsu::next_package()` or `next_engine_compatibility()`, and it has no
-Next-aware simulation path. No Next battle has been run, so this file makes no
-claim about balance, conformance, determinism, or adapter parity.
+The W9 package checks and headless partition scenarios have been authored on
+baseline `7c1485a`, but that checkout does not yet publish
+`senritsu::next_package()` or `next_engine_compatibility()`, or provide a
+Next-aware simulation path. The tests have not been compiled or run. No Next
+battle has been run, so this file makes no claim about balance, conformance,
+determinism, or adapter parity.
 
 After the producer and runtime APIs are published, run:
 
@@ -24,12 +25,16 @@ deterministic input checks reproducibility; it does not add a win-rate sample.
 
 The executable suite is tracked by
 [`tests/conformance/next-scenario-matrix.json`](../../tests/conformance/next-scenario-matrix.json).
-Coverage includes catalog and five-Hero validation; all seven initial squad
+The matrix covers catalog and five-Hero validation; all seven initial squad
 partitions; the lane/jungle, minion-vision, and squad-size movement grid;
 maturation and explicit regroup; hidden information; jungle and XP scenarios;
 death and Solo respawn; rejected inputs and intents; public replay
 confidentiality; and deterministic native/WASM parity once the real WASM
-adapter supports this ruleset.
+adapter supports this ruleset. The current test code covers package/catalog
+invariants, the agreed movement-factor arithmetic, version compatibility,
+all seven partition initializations through Enbu, repeat determinism, and
+public-output confidentiality. Remaining matrix cases are pending runtime
+integration and adapter support.
 
 ## Limits on conclusions
 
