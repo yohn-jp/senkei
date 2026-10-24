@@ -32,8 +32,10 @@ const DATABASE_VERSION = 1;
 const DOCUMENT_STORE = "documents";
 const REVISION_STORE = "revisions";
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
+const MAX_JSON_NODES = 750_000;
+const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
+const MAX_EXPORT_NODES = 4_000_000;
 const MAX_JSON_DEPTH = 100;
-const MAX_JSON_NODES = 250_000;
 const MAX_NAME_BYTES = 256;
 const MAX_DIFF_ENTRIES = 2_000;
 
@@ -215,12 +217,16 @@ function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
-function assertJsonValue(value: unknown, label: string): asserts value is CoreJsonValue {
+function assertJsonValue(
+  value: unknown,
+  label: string,
+  nodeLimit = MAX_JSON_NODES,
+): asserts value is CoreJsonValue {
   let nodes = 0;
   const visit = (node: unknown, depth: number, path: string): void => {
     nodes += 1;
-    if (nodes > MAX_JSON_NODES) {
-      throw new PersistenceError("too_large", `${label} has too many JSON values.`);
+    if (nodes > nodeLimit) {
+      throw new PersistenceError("too_large", `${label} has too many JSON values (limit ${nodeLimit.toLocaleString()}).`);
     }
     if (depth > MAX_JSON_DEPTH) {
       throw new PersistenceError("too_large", `${label} is nested too deeply.`);
@@ -278,11 +284,16 @@ function assertJsonValue(value: unknown, label: string): asserts value is CoreJs
   visit(value, 0, "");
 }
 
-function cloneJson<T>(value: T, label: string): T {
-  assertJsonValue(value, label);
+function cloneJson<T>(
+  value: T,
+  label: string,
+  maxBytes = MAX_JSON_BYTES,
+  maxNodes = MAX_JSON_NODES,
+): T {
+  assertJsonValue(value, label, maxNodes);
   const serialized = JSON.stringify(value);
-  if (serialized === undefined || utf8ByteLength(serialized) > MAX_JSON_BYTES) {
-    throw new PersistenceError("too_large", `${label} exceeds the 8 MiB local document limit.`);
+  if (serialized === undefined || utf8ByteLength(serialized) > maxBytes) {
+    throw new PersistenceError("too_large", `${label} exceeds the ${Math.round(maxBytes / (1024 * 1024))} MiB limit.`);
   }
   return JSON.parse(serialized) as T;
 }
@@ -1145,9 +1156,6 @@ function assertExportBundle(value: unknown): asserts value is LocalSenkeiExportB
   if (!Array.isArray(value.history) || value.history.length === 0) {
     throw new PersistenceError("invalid_data", "Export must contain at least one saved revision.");
   }
-  if (value.history.length > 10_000) {
-    throw new PersistenceError("too_large", "Export contains too many document revisions.");
-  }
   if (
     typeof value.active_document_id !== "string" ||
     typeof value.active_revision !== "number" ||
@@ -1169,10 +1177,7 @@ function assertExportBundle(value: unknown): asserts value is LocalSenkeiExportB
   if (documentId !== value.active_document_id || finalRevision.document.revision !== value.active_revision) {
     throw new PersistenceError("invalid_data", "Export active document metadata does not match its history.");
   }
-  if (finalRevision.document.revision !== Math.max(...value.history.map((item) => (item as LocalSenkeiHistoryRevision).document.revision))) {
-    throw new PersistenceError("invalid_data", "Export history does not end with its latest revision.");
-  }
-  cloneJson(value, "Local export bundle");
+  cloneJson(value, "Local export bundle", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
 }
 
 export async function exportDocumentJson(documentId: string): Promise<string> {
@@ -1189,8 +1194,8 @@ export async function exportDocumentJson(documentId: string): Promise<string> {
     history,
   };
   const json = JSON.stringify(bundle, null, 2);
-  if (utf8ByteLength(json) > MAX_JSON_BYTES) {
-    throw new PersistenceError("too_large", "This document history exceeds the 8 MiB export limit.");
+  if (utf8ByteLength(json) > MAX_EXPORT_BYTES) {
+    throw new PersistenceError("too_large", "This document history exceeds the 64 MiB JSON export limit.");
   }
   return json;
 }
@@ -1221,8 +1226,8 @@ async function loadAllHistory(documentId: string): Promise<readonly LocalSenkeiH
 }
 
 export async function importDocumentJson(json: string): Promise<LocalSenkeiDocument> {
-  if (utf8ByteLength(json) > MAX_JSON_BYTES) {
-    throw new PersistenceError("too_large", "The selected file exceeds the 8 MiB import limit.");
+  if (utf8ByteLength(json) > MAX_EXPORT_BYTES) {
+    throw new PersistenceError("too_large", "The selected file exceeds the 64 MiB JSON import limit.");
   }
   let parsed: unknown;
   try {
@@ -1264,8 +1269,8 @@ export async function importDocumentJson(json: string): Promise<LocalSenkeiDocum
 }
 
 export async function importDocumentFile(file: File): Promise<LocalSenkeiDocument> {
-  if (file.size > MAX_JSON_BYTES) {
-    throw new PersistenceError("too_large", "The selected file exceeds the 8 MiB import limit.");
+  if (file.size > MAX_EXPORT_BYTES) {
+    throw new PersistenceError("too_large", "The selected file exceeds the 64 MiB JSON import limit.");
   }
   try {
     return await importDocumentJson(await file.text());
