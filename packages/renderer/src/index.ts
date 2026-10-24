@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -252,6 +253,8 @@ function distanceToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint) {
   );
   return Math.hypot(p.x - a.x - f * dx, p.y - a.y - f * dy);
 }
+export type BattlefieldCameraMode = "tactical" | "overview";
+
 export class Battlefield {
   private gl: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -499,6 +502,20 @@ export class Battlefield {
     this.controls.update();
     this.controls.enableDamping = true;
   }
+  setCameraMode(_mode: BattlefieldCameraMode) {
+    this.resetCamera();
+  }
+  focusPoint(point: WorldPoint) {
+    this.tracked = null;
+    const destination = new THREE.Vector3(point.x, 0, point.y);
+    const delta = destination.clone().sub(this.controls.target);
+    this.controls.target.copy(destination);
+    this.camera.position.add(delta);
+    this.controls.update();
+  }
+  setTrackingGroup(ids: readonly string[]) {
+    this.setTracking(ids[0] ?? null);
+  }
   setTracking(id: string | null) {
     this.tracked = id;
     if (!id) this.resetCamera();
@@ -535,6 +552,10 @@ export class Battlefield {
     return height + 0.11;
   }
   private terrain() {
+    if (this.replay.scene.routes?.length) {
+      buildWorldPresentation(this.scene, this.replay);
+      return;
+    }
     const { min, max } = this.replay.scene.bounds;
     const w = max.x - min.x + 2,
       d = max.y - min.y + 2,
@@ -748,6 +769,10 @@ export class Battlefield {
           );
   }
   private buildCamp(position: WorldPoint, campId: string) {
+    if (this.replay.scene.routes?.length) {
+      buildWorldCamp(this.camps, position, campId, this.replay);
+      return;
+    }
     const scale = this.replay.scene.routes?.length ? 1.22 : 1;
     const campAccent = campId.includes("center")
       ? 0x8eb9a6
