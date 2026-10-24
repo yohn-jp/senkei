@@ -565,8 +565,10 @@ export class Battlefield {
     if (laneCenters.length) center.multiplyScalar(1 / laneCenters.length);
     return center;
   }
-  private authoredFrameHalfHeight(center: THREE.Vector3) {
-    const { min, max } = this.replay.scene.bounds;
+  private projectedFrameHalfHeight(
+    center: THREE.Vector3,
+    points: readonly THREE.Vector3[],
+  ) {
     const offset = this.authoredCameraOffset();
     const position = center.clone().add(offset);
     const direction = center.clone().sub(position).normalize();
@@ -578,35 +580,176 @@ export class Battlefield {
       .normalize();
     let horizontal = 0;
     let vertical = 0;
-    for (const x of [min.x, max.x])
-      for (const z of [min.y, max.y])
-        for (const y of [-1, 5]) {
-          const corner = new THREE.Vector3(x, y, z).sub(center);
-          horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
-          vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
-        }
+    for (const point of points)
+      for (const height of [-1, 5]) {
+        const corner = new THREE.Vector3(point.x, height, point.z).sub(center);
+        horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
+        vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
+      }
     const aspect = Math.max(
       0.25,
       this.host.clientWidth / Math.max(1, this.host.clientHeight),
     );
-    return Math.max(vertical, horizontal / aspect) * 1.08;
+    return Math.max(6.5, Math.max(vertical, horizontal / aspect) * 1.16 + 0.8);
+  }
+  private authoredOverviewHalfHeight(center: THREE.Vector3) {
+    const { min, max } = this.replay.scene.bounds;
+    const corners = [min.x, max.x].flatMap((x) =>
+      [min.y, max.y].map((z) => new THREE.Vector3(x, 0, z)),
+    );
+    return this.projectedFrameHalfHeight(center, corners) * 1.04;
+  }
+  private visibleCameraEntities(): DisplayEntity[] {
+    if (this.state) return Object.values(this.state.entities);
+    return this.replay.initialView.map((entity) => ({ ...entity, destroyed: false }));
+  }
+  private unitClusters(entities: readonly DisplayEntity[], radius: number) {
+    const remaining = new Set(entities);
+    const clusters: DisplayEntity[][] = [];
+    while (remaining.size) {
+      const first = remaining.values().next().value as DisplayEntity;
+      remaining.delete(first);
+      const queue = [first];
+      for (let index = 0; index < queue.length; index++) {
+        const current = queue[index];
+        for (const candidate of [...remaining]) {
+          if (
+            Math.hypot(
+              candidate.position.x - current.position.x,
+              candidate.position.y - current.position.y,
+            ) <= radius
+          ) {
+            remaining.delete(candidate);
+            queue.push(candidate);
+          }
+        }
+      }
+      clusters.push(queue);
+    }
+    return clusters;
+  }
+  private tacticalCameraFrame() {
+    const visible = this.visibleCameraEntities();
+    const liveUnits = visible.filter(
+      (entity) => entity.kind === "unit" && !entity.destroyed,
+    );
+    const chooseCluster = (clusters: DisplayEntity[][], prioritizeContact: boolean) =>
+      clusters.sort((left, right) => {
+        const score = (cluster: DisplayEntity[]) => {
+          const sides = new Set(cluster.map((entity) => entity.side));
+          return cluster.length +
+            (prioritizeContact && sides.has("azure") && sides.has("vermilion") ? 100 : 0);
+        };
+        return score(right) - score(left);
+      })[0] ?? [];
+    const currentCues = this.state?.cues.filter((cue) => cue.tick === this.state?.tick) ?? [];
+    const cueIds = new Set<string>();
+    for (const cue of currentCues) {
+      if (cue.type === "attack" || cue.type === "skill") {
+        cueIds.add(cue.entityId);
+        cueIds.add(cue.targetId);
+      } else if (
+        cue.type === "damage" ||
+        cue.type === "vitals" ||
+        cue.type === "destroy"
+      ) {
+        cueIds.add(cue.entityId);
+      }
+    }
+    const cueEntities = visible.filter((entity) => cueIds.has(entity.id));
+    const cueCluster = chooseCluster(
+      this.unitClusters(cueEntities, this.mobile ? 8 : 10),
+      true,
+    );
+    const cueContext = cueCluster.length > 0;
+    const heroUnits = liveUnits.filter((entity) => this.isHero(entity));
+    const heroCluster = chooseCluster(
+      this.unitClusters(heroUnits, this.mobile ? 10 : 12),
+      false,
+    );
+    const mobileCluster = chooseCluster(this.unitClusters(liveUnits, 9), true);
+    const anchors = cueCluster.length
+      ? cueCluster
+      : heroCluster.length
+        ? heroCluster
+        : mobileCluster;
+    if (!anchors.length) {
+      const center = this.authoredBattleCenter();
+      return {
+        center,
+        halfHeight: this.authoredOverviewHalfHeight(center) * 0.54,
+      };
+    }
+    const anchorPoints = anchors.map(
+      (entity) => new THREE.Vector3(entity.position.x, 0, entity.position.y),
+    );
+    const center = anchorPoints.reduce((sum, point) => sum.add(point), new THREE.Vector3())
+      .multiplyScalar(1 / anchorPoints.length);
+    const withinContext = (point: THREE.Vector3, radius: number) =>
+      anchorPoints.some((anchor) =>
+        Math.hypot(point.x - anchor.x, point.z - anchor.z) <= radius,
+      );
+    const framePoints = new Map<string, THREE.Vector3>();
+    const include = (point: THREE.Vector3) => {
+      framePoints.set(`${point.x.toFixed(3)}:${point.z.toFixed(3)}`, point);
+    };
+    for (const entity of visible) {
+      const point = new THREE.Vector3(entity.position.x, 0, entity.position.y);
+      if (
+        ((entity.kind === "unit" && !entity.destroyed) ||
+          (cueIds.has(entity.id) && entity.kind === "unit")) &&
+          withinContext(point, this.mobile ? 11 : 13) ||
+        (entity.kind !== "unit" && withinContext(point, this.mobile ? 11 : 13))
+      )
+        include(point);
+    }
+    for (const lane of this.replay.scene.lanes)
+      for (const point of lane.points) {
+        const projected = new THREE.Vector3(point.x, 0, point.y);
+        if (withinContext(projected, this.mobile ? 11 : 13)) include(projected);
+      }
+    for (const camp of this.replay.scene.camps ?? []) {
+      const point = new THREE.Vector3(camp.position.x, 0, camp.position.y);
+      if (withinContext(point, 10)) include(point);
+    }
+    if (!framePoints.size) anchorPoints.forEach(include);
+    const points = [...framePoints.values()];
+    const minX = Math.min(...points.map((point) => point.x));
+    const maxX = Math.max(...points.map((point) => point.x));
+    const minZ = Math.min(...points.map((point) => point.z));
+    const maxZ = Math.max(...points.map((point) => point.z));
+    const contextCenter = new THREE.Vector3(
+      (minX + maxX) / 2,
+      0,
+      (minZ + maxZ) / 2,
+    );
+    // At a base the army is on the map edge. Bias the local observation a
+    // little toward its nearby lane ingress so the group and its route context
+    // share the frame instead of leaving half the view over empty terrain.
+    const target = center.clone().lerp(contextCenter, cueContext ? 0.22 : 0.4);
+    return {
+      center: target,
+      halfHeight: this.projectedFrameHalfHeight(target, points),
+    };
+  }
+  private authoredCloseHalfHeight() {
+    const { min, max } = this.replay.scene.bounds;
+    return Math.max(
+      6.5,
+      Math.max(max.x - min.x, max.y - min.y) * 0.14,
+    );
   }
   private fitAuthoredCamera(mode: BattlefieldCameraMode) {
-    const target = mode === "overview"
-      ? new THREE.Vector3(
+    const tactical = mode === "tactical" ? this.tacticalCameraFrame() : null;
+    const target = tactical?.center ?? new THREE.Vector3(
           (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
           0,
           (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
         )
-      : this.authoredBattleCenter();
-    const overviewHeight = this.authoredFrameHalfHeight(target);
-    // Tactical is intentionally a local observation of midfield. The Replay
-    // UI's map context keeps the two bases and all lane directions at hand.
-    // Overview is the explicit whole-map inspection framing.
-    const tacticalScale = this.mobile ? 0.58 : 0.54;
-    const halfHeight = mode === "overview"
-      ? overviewHeight
-      : overviewHeight * tacticalScale;
+    const boundsHalfHeight = this.authoredOverviewHalfHeight(target);
+    // Tactical frames only public current entities and their nearby map
+    // context. Overview is the explicit whole-map inspection framing.
+    const halfHeight = tactical?.halfHeight ?? boundsHalfHeight;
     this.controls.enableDamping = false;
     this.controls.update();
     this.controls.target.copy(target);
@@ -637,9 +780,7 @@ export class Battlefield {
     if (shouldFrameTactical) this.fitAuthoredCamera("tactical");
     this.cameraMode = "tactical";
     if (this.replay.scene.routes?.length) {
-      const halfHeight = this.authoredFrameHalfHeight(this.authoredBattleCenter()) *
-        (this.mobile ? 0.4 : 0.36);
-      this.updateFrustum(halfHeight);
+      this.updateFrustum(this.authoredCloseHalfHeight());
       this.camera.zoom = 1;
     }
     const destination = new THREE.Vector3(point.x, 0, point.y);
@@ -702,15 +843,13 @@ export class Battlefield {
       },
       new THREE.Vector3(),
     ).multiplyScalar(1 / entities.length);
-    const baseHalfHeight = this.authoredFrameHalfHeight(this.authoredBattleCenter()) *
-      (this.mobile ? 0.4 : 0.36);
-    const radius = Math.max(
-      0,
-      ...entities.map((entity) =>
-        Math.hypot(entity.position.x - center.x, entity.position.y - center.z),
-      ),
+    const groupPoints = entities.map(
+      (entity) => new THREE.Vector3(entity.position.x, 0, entity.position.y),
     );
-    const groupHalfHeight = Math.max(baseHalfHeight, radius * 1.45);
+    const groupHalfHeight = Math.max(
+      this.authoredCloseHalfHeight(),
+      this.projectedFrameHalfHeight(center, groupPoints),
+    );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
     this.controls.target.copy(center);
@@ -1055,7 +1194,7 @@ export class Battlefield {
       const type = appearance.replace("minion-", "").toUpperCase();
       return `MINION · ${type}`;
     }
-    if (e.archetype === "hero" || appearance.startsWith("hero-")) {
+    if (this.isHero(e)) {
       const catalogId = e.catalogId?.toUpperCase();
       const catalogName = catalogId
         ? HERO_CATALOG_BY_ID[catalogId as keyof typeof HERO_CATALOG_BY_ID]?.name
@@ -1063,6 +1202,11 @@ export class Battlefield {
       return catalogName ? `HERO · ${catalogId} ${catalogName}` : "HERO";
     }
     return appearance.toUpperCase();
+  }
+  private isHero(e: DisplayEntity) {
+    const appearance = this.canonicalAppearance(e);
+    return e.kind === "unit" &&
+      (e.archetype === "hero" || appearance.startsWith("hero-"));
   }
   private heroModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const appearance = this.canonicalAppearance(e);
@@ -1708,15 +1852,50 @@ export class Battlefield {
       for (const [id, element] of this.entityLabels) {
         const entity = this.state?.entities[id];
         const group = this.units.get(id);
+        const heroStack = entity && this.isHero(entity)
+          ? Object.values(this.state?.entities ?? {})
+              .filter((other) => {
+                if (!this.isHero(other) || other.destroyed) return false;
+                return Math.hypot(
+                  other.position.x - entity.position.x,
+                  other.position.y - entity.position.y,
+                ) < 0.65;
+              })
+              .sort((a, b) => a.id.localeCompare(b.id))
+          : [];
+        const focused = Boolean(
+          entity &&
+            (this.selected === id ||
+              (this.trackedIds.length === 1 && this.trackedIds[0] === id)),
+        );
+        const groupedHeroes = Boolean(
+          entity &&
+            this.cameraMode === "tactical" &&
+            heroStack.length > 1 &&
+            heroStack[0].id === id,
+        );
+        const individualHero = Boolean(
+          entity &&
+            this.cameraMode === "tactical" &&
+            !entity.destroyed &&
+            heroStack.length === 1 &&
+            heroStack[0].id === id,
+        );
         const visible = Boolean(
-          entity && group && (this.selected === id || this.trackedIds.includes(id)),
+          entity &&
+            group &&
+            (focused || groupedHeroes || individualHero),
         );
         element.hidden = !visible;
         if (!visible || !group) continue;
+        element.textContent = groupedHeroes
+          ? `${heroStack.length} visible Heroes`
+          : `${focused ? "◆ " : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
         const height = entity?.kind === "base" ? 4.6 : entity?.kind === "tower" ? 4 : 2.8;
         const p = group.position.clone().add(new THREE.Vector3(0, height, 0)).project(this.camera);
         element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
+        element.style.transform = "translate(-50%, -120%)";
         element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
       }
       this.canvas.dataset.camera =
