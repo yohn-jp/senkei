@@ -176,6 +176,8 @@
 .next-camera-controls { display: flex; gap: 4px; }
 .next-camera-controls button { font-size: 8px; padding: 0 8px; }
 .next-camera-controls button:disabled { cursor: default; opacity: .4; }
+.next-camera-target select { appearance:none; background:#202c32; border:1px solid rgba(214,225,218,.1); border-radius:3px; color:#c9d5ca; cursor:pointer; font-size:8px; height:29px; max-width:min(220px,30vw); min-width:120px; padding:0 22px 0 8px; }
+.next-camera-target select:disabled { cursor:default; opacity:.55; }
 .next-tick-readout { color: #85948c; font-family: "DM Mono",monospace; font-size: 7px; letter-spacing: .09em; margin-left: auto; white-space: nowrap; }
 .next-tick-readout strong { color: var(--next-accent); font-size: 11px; }
 .next-tick-readout small { color: #73817e; }
@@ -329,6 +331,7 @@
   .next-replay-toolbar { bottom: env(safe-area-inset-bottom); flex-wrap: wrap; gap: 8px; padding: 7px; position: sticky; z-index: 6; }
   .next-play-controls { flex: 1; }
   .next-play-controls button, .next-camera-controls button { height: 40px; min-width: 42px; }
+  .next-camera-target select { font-size:9px; height:40px; max-width:34vw; min-width:112px; }
   .next-play-controls .next-play-button { flex: 1; }
   .next-speed { min-height: 40px; }
   .next-speed select { min-height: 38px; }

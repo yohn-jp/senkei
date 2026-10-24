@@ -631,6 +631,13 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const activeSlotValue = slots[activeSlot] ?? null;
   const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
   const heroes = nextRules?.heroes ?? [];
+  const visibleCameraTargets = useMemo(() => Object.values(displayState?.entities ?? {})
+    .filter((entity) => !entity.destroyed && entity.hp > 0)
+    .sort((left, right) => left.side.localeCompare(right.side) || left.kind.localeCompare(right.kind) || left.id.localeCompare(right.id))
+    .map((entity) => ({
+      id: entity.id,
+      label: `${formatId(entity.side)} · ${entity.catalogId ? `${entity.catalogId} · ` : ""}${formatId(entity.archetype)} · HP ${entity.hp}/${entity.maxHp}`,
+    })), [displayState]);
   const visibleHeroes = useMemo(() => heroes.filter((hero) =>
     (filters.placement === "all" || hero.placement === filters.placement) &&
     (filters.role === "all" || hero.role === filters.role) &&
@@ -891,6 +898,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     renderer.current?.update(displayState ?? { tick: 0, entities: {}, cues: [], result: null }, isPlaying);
     renderer.current?.select(selectedEntityId);
   }, [displayState, isPlaying, selectedEntityId]);
+
+  useEffect(() => {
+    if (selectedEntityId && !visibleCameraTargets.some((entity) => entity.id === selectedEntityId)) {
+      setSelectedEntityId(null);
+    }
+  }, [selectedEntityId, visibleCameraTargets]);
 
   useEffect(() => { renderer.current?.setPixel(pixel); }, [pixel]);
 
@@ -1182,7 +1195,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   <div className="next-replay-toolbar">
                     <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
                     <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-                    <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button><button type="button" aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)}>{pixel ? "Pixel 3D" : "Smooth 3D"}</button></div>
+                    <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><label className="next-camera-target"><select aria-label="Observe visible entity" disabled={visibleCameraTargets.length === 0} onChange={(event) => setSelectedEntityId(event.target.value || null)} value={selectedEntityId && visibleCameraTargets.some((entity) => entity.id === selectedEntityId) ? selectedEntityId : ""}><option value="">{visibleCameraTargets.length ? "Select visible unit" : "No living visible units"}</option>{visibleCameraTargets.map((entity) => <option key={entity.id} value={entity.id}>{entity.label}</option>)}</select></label><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button><button type="button" aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)}>{pixel ? "Pixel 3D" : "Smooth 3D"}</button></div>
                     <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
                   </div>
                   <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
