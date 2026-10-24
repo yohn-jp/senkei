@@ -597,10 +597,10 @@ fn strategic_match_case(
         set_catalog(&mut defender, slot, hero, rules);
     }
     let mut context = new_match_context(rules, MatchId::new(format!("w9-{case_id}")));
-    context.max_ticks = 120;
+    context.max_ticks = rules.plan().termination.max_ticks;
     let mut vm = Vm::new(rules);
     let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
-        .unwrap_or_else(|error| panic!("120-tick scenario {case_id} executes through Enbu: {error:?}"));
+        .unwrap_or_else(|error| panic!("full-length scenario {case_id} executes through Enbu: {error:?}"));
 
     for side in [CombatantSide::Attacker, CombatantSide::Defender] {
         let accepted = accepted_actors(&artifact, side, "move");
@@ -652,7 +652,8 @@ fn strategic_match_case(
         "outcome": format!("{:?}", artifact.result.outcome),
         "termination_reason": artifact.result.termination_reason.as_str(),
         "final_tick": artifact.result.final_tick,
-        "time_limited": artifact.result.final_tick == context.max_ticks,
+        "time_limited": artifact.result.termination_reason == rules.plan().termination.on_timeout_reason,
+        "termination_class": if artifact.result.termination_reason == rules.plan().termination.on_timeout_reason { "timeout" } else if artifact.result.outcome == MatchOutcome::Draw { "draw" } else { "victory" },
         "final_state_digest": artifact.result.final_state_digest.as_str(),
         "hero_actions_by_side": { "attacker": 5, "defender": 5 },
         "attacker_final_heroes": attacker_heroes,
@@ -707,6 +708,18 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &["top_d", "top_2", "mid_d", "bot_d", "bot_2"],
             &["jungle_nw", "jungle_center", "jungle_se", "mid_2", "jungle_center"],
         ),
+        strategic_match_case(rules, "base-assault-solos-vs-quintet", &[1,1,1,1,1], &[5],
+            &["F01","F03","F06","R02","R04"], &["F02","F04","R01","R03","R05"],
+            &["defender_base";5], &["attacker_base";5]),
+        strategic_match_case(rules, "base-assault-quintet-vs-solos-mirrored", &[5], &[1,1,1,1,1],
+            &["F02","F04","R01","R03","R05"], &["F01","F03","F06","R02","R04"],
+            &["defender_base";5], &["attacker_base";5]),
+        strategic_match_case(rules, "base-assault-duos-vs-trio-duo", &[2,2,1], &[3,2],
+            &["F03","F04","R01","R02","R05"], &["F01","F02","F05","R04","R06"],
+            &["defender_base";5], &["attacker_base";5]),
+        strategic_match_case(rules, "base-assault-trio-duo-vs-duos-mirrored", &[3,2], &[2,2,1],
+            &["F01","F02","F05","R04","R06"], &["F03","F04","R01","R02","R05"],
+            &["defender_base";5], &["attacker_base";5]),
     ]
 }
 
@@ -1080,7 +1093,7 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
             "adapter_fixture_dir": std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR")
                 .map(|path| PathBuf::from(path).display().to_string()),
             "limits": [
-                "The seven initial partition cases run for one tick; four lineup and objective cases run for at most 120 ticks with five opening move intents per side.",
+                "The seven initial partition cases run for one tick; eight lineup and objective cases run to the ruleset tick cap or base destruction with five opening move intents per side.",
                 "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
                 "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
                 "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
