@@ -131,6 +131,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .next-save-disclosure > summary { color: #c3d0c5; cursor: pointer; font-size: 12px; min-height: 44px; padding: 12px; border: 1px solid rgba(214,225,218,.11); border-radius: 4px; }
 .next-save-disclosure[open] > summary { margin-bottom: 6px; }
 @media (max-width: 760px) {
+  .page-content[data-view="next"] .next-save-disclosure > summary { display: block; }
   .page-content[data-view="next"] .next-heading { margin-bottom: 10px; }
   .page-content[data-view="next"] .next-heading h2 { font-size: 25px; margin: 4px 0; }
   .page-content[data-view="next"] .next-heading p { display: none; }
