@@ -1,52 +1,48 @@
 # PR #3 Battlefield redesign Wave
 
-Authority: [Issue #5](https://github.com/yohn-jp/senkei/issues/5) and [blocking request](https://github.com/yohn-jp/senkei/pull/3#issuecomment-6385227700). Baseline: `c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb`. This report covers Battlefield only; it does not accept the entire Goal or reopen Atelier, balance, or frozen PR #4.
+Authority: [Issue #5](https://github.com/yohn-jp/senkei/issues/5) and [blocking request](https://github.com/yohn-jp/senkei/pull/3#issuecomment-6385227700). Baseline: `c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb`. Production runtime: `2475d6ead90584da820db6e23f6ac258c1a1f7f3`. Later evidence/report commits do not change the runtime. This Wave covers Battlefield; Hero Atelier, balance and frozen PR #4 retain their existing status.
 
-## Cause and change
+## Cause and resulting architecture
 
-The real-map renderer reused the sample-scene terrain and whole-fixture camera assumptions. A bounded rectangular ground mesh, road ribbons, isolated props, a solid base enclosing spawned units, and an undersized page region made the authored World read as a display model. Enlarging the ground and adding camp labels retained that composition. The replay topology was not the reason to keep the display surface.
+The actual-match renderer reused G1 sample-scene assumptions: rectangular stacked ground boxes, oversized lane ribbons, a whole-fixture camera and a small page region. Its terrain coloring also painted approximately ten-render-unit-wide tan bands around routes and camps. Even after narrowing the road meshes, that coloring consumed the inter-lane jungle. Scattered perimeter props could not establish tactical regions inside the authored lane network. Solid base geometry concealed units, nearby Hero models visually overlapped, and indiscriminate cue text overwhelmed mobile combat.
 
-Real matches now enter a dedicated `world-presentation.ts` / `battlefield-terrain.ts` path when authored routes are present. Continuous low-poly ground, off-route relief and groves surround exact authored lane and jungle edge polylines; irregular camp glades replace circular display rings. These meshes do not define movement, collision, vision, or tactical effects. Legacy G1 fixtures retain their original rendering path.
+Actual maps now use `world-presentation.ts` / `battlefield-terrain.ts`. Continuous terrain extends beyond the play graph without a display slab or cut face. Polygons bounded by the actual TOP–MID and MID–BOT polylines define coherent forest-floor and grove regions. Narrower presentation road bands, genuine route clearances and irregular camp glades make the authored jungle connections readable. Terrain is presentation only; it never supplies collision, navigation, vision or combat effects. Legacy G1 fixtures keep their original scenery and camera behavior.
 
-The existing actual Senritsu → Enbu WASM Worker → authorized PresentationReplay → contract adapter → Replay Player → Renderer path remains the source of state. Bases have open courtyards, entity feet use their actual terrain height, and labels distinguish sides and selected identity without moving co-located units. Cues use confirmed replay ticks. Hidden enemy facilities or units are not reconstructed from later events.
+The source of game state remains Senritsu → actual Enbu WASM Worker → authorized PresentationReplay → contract adapter → Replay Player → Renderer. Domain results, rules and Jinrei are unchanged. Optional `scene.baseSites` projects immutable public World locations only (id, side, coordinates), with schema rejection of live/private fields. Its map annotation says **State unknown** until an observed base is available; confirmed destruction comes from Replay. It does not draw an intact unseen enemy facility. The current-frame state and confidentiality checks cover this distinction.
 
-Desktop gives the battlefield the main workspace. Mobile has explicit Battle / Overview / Follow / Timeline / Details console states and reserved playback controls, including 320px support. Camera intent, Tick, target selection and draft survive console transitions. Own-Squad tracking requires an authorized owner replay and unambiguous current visible members; public replay does not infer private Squad membership.
+Standard observation frames the authored lane/camp network; Overview includes full World bounds; Follow uses current visible positions. Open base courtyards preserve actual anchors without hiding units. Known map locations and transient observed entities remain separate. Own-Squad Follow requires authorized owner data and unambiguous matches to current visible graphics entities; public replay does not infer private membership.
 
-## Fixed ownership and integration
+Desktop gives the scene the main workspace. Mobile has Battle / Overview / Follow / Timeline / Details states with replay transport outside the scene and 44px actions. Returning to Battle/Overview closes the roster while preserving Tick, selection and draft. Nearby visible-unit inspection exposes actual identities, roles, HP and native Senritsu coordinates without displacing models or calling a visual group a Squad. The five overlapping Heroes at T50 occupy distinct nearby coordinates; the UI does not falsely describe them as co-located.
 
-| Owner | Delivered scope | Integrated source commits |
+Current-Tick cue labels identify actual attack source/target, HP, skill key and defeat/destruction type. Hero deaths and facility destruction outrank routine attacks; selected/tracked events have priority. Mobile shows up to three text cues, desktop up to eight, with a truthful count of remaining in-view events; actual 3D cue geometry remains. An adapter visibility-entry event is **APPEARED**, not an invented public respawn. Paused exact-Tick visibility and adjacent-Tick stale-label checks use real controlled Enbu cases.
+
+## Ownership and integration
+
+Every Luna used a dedicated worktree and branch. [Fixed ownership](BATTLEFIELD-WAVE-OWNERSHIP.md) prevented terrain/UI/test edits from colliding; Sol integrated the shared interfaces and necessary conflict resolution.
+
+| Owner | Delivered scope | Main source commits on Luna branches |
 | --- | --- | --- |
-| Luna A | Continuous authored-world terrain, road bands, off-route relief, groves and camp glades | `7d7f03a`, `9d11a5c` |
-| Luna B | Strategic/local cameras, tracking coordinates, open facilities, unit identity and replay cues | `f8f3d11`, `0ccc3e0`, `8a63fb2`, `3f794a5`, `7437088`, `bec42d4`, `71b5d6f`, `8ce90f6` |
-| Luna C | Scene-first desktop and independent mobile observation console | `1a846ad`, `eb453fc`, `0e4f2fe` |
-| Luna D | Real-WASM fixed-Tick capture, canonical replay comparison, controlled event verification and independent visual assessment | `15615d8`, `6ce0723`; final evidence commits recorded in Git |
-| Sol | Module boundaries, public interfaces, page geometry, camera persistence, mobile selected labels, provenance checks, integration and CI | PR branch history |
+| Luna A | Continuous World terrain; exact authored routes; forest-floor regions; camp/glade hierarchy | `7d7f03a`, `9d11a5c`, `55c4b13`, `5ce720f` |
+| Luna B | Strategic/Overview/Follow cameras; open bases; role/cue labels; mobile cue hierarchy | `bec42d4`, `71b5d6f`, `8ce90f6`, `056d101`, `ebb6efc` and earlier camera fixes |
+| Luna C | Desktop/Mobile console and truthful nearby visible-unit inspector | `1a846ad`, `eb453fc`, `0e4f2fe`, `88f6aba`, `351e18d` |
+| Luna D | Independent actual-WASM browser harness, same-input comparisons, base privacy, exact cue/role/cluster checks and visual report | Baseline/capture and focused-verification commits in PR history |
+| Sol | Module/API boundaries; public base-site contract; native coordinate labels; Hero-death priority; page integration; current-frame privacy; final verification/push | Target PR branch history |
 
-Each Luna used its assigned worktree/branch. The writable boundaries are in [BATTLEFIELD-WAVE-OWNERSHIP.md](BATTLEFIELD-WAVE-OWNERSHIP.md). No PR #4 assets or gameplay/balance changes are included.
+No frozen PR #4 assets or new Blender production were used. No gameplay/balance tuning, invented routes or new game architecture is included.
 
-## Verification and acceptance
+## Verification and scoped acceptance
 
-[Evidence index](../evidence/battlefield/README.md) records the source build revision, actual WASM hash, exact input/replay/result digests, Tick, viewport, screenshots and browser recordings. The c9 baseline and redesign use the same real default match. Controlled cue/farm cases are explicitly separate test inputs executed by the canonical Enbu core, not ordinary UI-created matches or fabricated replays. Hero respawn is proven by authorized owner-state transition, not a neutral-respawn event or public private-slot correlation.
+The [evidence index](../evidence/battlefield/README.md) links the exact baseline/current images and browser recordings. Metadata pins the HTML build revision, actual WASM hash, simulation input, owner/public replay and result digests, Tick and viewport. The same actual default match is compared at 1920×1080, 1440×900, 430×932, 390×844 and 320×844. Separate cue/farm inputs run through the canonical core and are explicitly controlled verification setups, not ordinary UI-created matches or balance evidence. Owner-only Hero respawn proof is never presented as a public event.
 
-Local checks completed during integration: Rust workspace build/test (103 tests), real WASM build and initial native/WASM goldens, Next adapter parity, Replay Contract/Player unit tests (34), TypeScript typecheck and production build. The full Graphics Playwright suite passed 10/10, including legacy Follow coordinates, replay replacement, WebGL failure/retry, and 320px controls. The actual-WASM workbench browser journey passed after adapting locators to the independent mobile console; it checks editing, replay, Follow, Overview, rematch, context recovery, draft preservation and offline restore.
+Local checks include Rust workspace build/tests (103), real WASM build and initial native/WASM goldens, Next native/WASM adapter parity, Replay Contract/Player unit tests (35), TypeScript typecheck and production build, Graphics Playwright (10/10), and actual-WASM production browser journeys. Final runtime test/capture results and the independent seven criteria are in [BATTLEFIELD-REDESIGN-VERIFICATION.md](BATTLEFIELD-REDESIGN-VERIFICATION.md); final-head hosted CI results are reported after push. Green tests do not establish user Visual/Art acceptance.
 
-The final production runtime was built from `993ef563325727c2c54b7f602acbb200e9240d26`. The final production browser suite passed 10/10 (2.1 minutes), including all five required Battlefield viewports. The final default before/after comparator confirms identical input, match, owner/public replay digests, final state digest, ticks and viewport set. Final CI and independent acceptance are recorded in the evidence index and completion report. Successful tests do not establish Visual/Art acceptance. Physical mobile hardware, hardware GPU, touch/IME and final user acceptance remain NOT_CHECKED. Hero Atelier and balance acceptance are outside this Wave. PR #3 remains OPEN; Issue #5 remains OPEN; PR #4 stays frozen.
+| Issue #5 scope | Status / limit |
+| --- | --- |
+| G1 World topology, confirmed state and privacy | Verified by source projection, canonical identity comparisons and current-frame checks; see independent report. |
+| G1 Battlefield visual readability and Pixel 3D | Original seven criteria assessed independently from actual final-runtime images; see independent report. |
+| G3 Battlefield Desktop/Mobile observation and replay flow | Browser-verified at five required viewports; selection/Tick/draft/context recovery retained. |
+| G4 native/WASM, contract/player, existing graphics and production browser regressions | Checked locally and by current CI; exact final-head result is reported separately. |
+| G4 balance; G2 Hero Atelier; other Goal-wide conditions | NOT_CHECKED in this Wave; existing unfinished conditions are not accepted by these changes. |
+| Physical mobile/touch/IME, hardware GPU, final user Visual/Art acceptance | NOT_CHECKED. Automated Chromium/SwiftShader runs are not physical-device measurements. |
 
-## Issue #5 scoped acceptance
-
-These are completion gates, not a score. A partially met requirement is FAIL, even where the implementation improves on c9. Luna D's separate visual assessment is in the evidence index.
-
-| Issue #5 condition in this Wave | Result | Evidence / remaining gap |
-| --- | --- | --- |
-| G1: authored World topology; no invented routes/state | PASS | Exact authored polylines; identical input/public/owner replay/result digests in the final comparison. |
-| G1: standard whole-front readability and local role identification | FAIL | Standard now includes all lanes and camp locations, but current-visible bases do not provide a complete world-space unknown-objective presentation; dense Heroes remain difficult to distinguish. |
-| G1: confirmed-Tick event synchronization and privacy | PASS for synchronization | Default T1/T6/T50/T211; controlled death T74, owner-confirmed respawn T94, tower T96, skill T211. Full combat meaning/readability remains a visual failure below. |
-| G1: default Pixel 3D and readable HTML controls | PASS for mode/consistency | Pixel stays default; text/UI are outside pixel post-processing. This does not accept final Hero art. |
-| G3: Battlefield Desktop/Mobile observation and replay flow | PASS for browser interactions | Final 10/10 production tests, five requested viewports; selection/Tick/draft and context recovery checked. Physical touch/IME remains NOT_CHECKED. |
-| G4: native/WASM, Replay Contract/Player and existing graphics regressions | PASS locally | Workspace/native/WASM/unit/graphics/browser checks described above. Exact final-head hosted CI is reported separately after push. |
-| G4: balance and broader gameplay acceptance | NOT_CHECKED in this Wave | No balance work or rules changes. Controlled cases are observation fixtures, not a balance claim. |
-| G5: matched real-battle screenshots and browser recording | PASS for evidence delivery | All five viewports; exact canonical identity comparison; controlled events separately labeled. |
-| G5: Visual/Art acceptance | FAIL | Jungle/camp hierarchy, dense-unit identity and complete local event readability remain short of acceptance. Images and green tests do not override these gaps. |
-| Hero Atelier and other Goal-wide conditions | NOT_CHECKED in this Wave | Existing status remains; not silently accepted by Battlefield changes. |
-
-The bounded implementation, integration and evidence delivery do not establish Goal acceptance. Remaining visual failures are reported without starting another Wave.
+Implementation, integration, evidence and push are separate from Goal acceptance. PR #3 remains OPEN; Issue #5 remains OPEN; PR #4 stays frozen. No merge or additional Wave follows this report.
