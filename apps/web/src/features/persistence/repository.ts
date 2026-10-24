@@ -446,16 +446,22 @@ function assertRulesetRef(value: unknown, path: string): void {
 
 function assertComponentVersions(value: unknown, path: string): void {
   if (!isRecord(value)) throw new PersistenceError("invalid_data", `${path} is malformed.`);
-  for (const key of ["model", "engine", "ruleset", "jinrei_language", "typed_ir", "bytecode", "cost_schedule", "replay_schema"]) {
+  for (const key of ["model", "engine", "ruleset", "jinrei_language", "structured_ast", "typed_ir", "bytecode", "cost_schedule", "replay_schema"]) {
     assertVersion(value[key], `${path}.${key}`);
   }
 }
 
 function assertWorldState(value: unknown, path: string): void {
-  if (!isRecord(value) || !isRecord(value.entities) || !isRecord(value.global_fields)) {
+  if (!isRecord(value) || !isRecord(value.entities) || !isRecord(value.global_fields) || !isRecord(value.collections)) {
     throw new PersistenceError("invalid_data", `${path} is malformed.`);
   }
   assertDomainRecord(value.global_fields, `${path}.global_fields`);
+  for (const [collectionId, values] of Object.entries(value.collections)) {
+    if (!Array.isArray(values)) {
+      throw new PersistenceError("invalid_data", `${path}.collections.${collectionId} must be an array.`);
+    }
+    values.forEach((item, index) => assertDomainValue(item, `${path}.collections.${collectionId}[${index}]`));
+  }
   for (const [entityId, entity] of Object.entries(value.entities)) {
     if (
       !isRecord(entity) ||
@@ -471,7 +477,7 @@ function assertWorldState(value: unknown, path: string): void {
 
 function assertHostLimits(value: unknown, path: string): void {
   if (!isRecord(value)) throw new PersistenceError("invalid_data", `${path} is malformed.`);
-  for (const key of ["max_input_bytes", "max_entities", "max_events", "max_diagnostic_events"]) {
+  for (const key of ["max_input_bytes", "max_entities", "max_events", "max_diagnostic_events", "max_output_bytes"]) {
     const limit = value[key];
     if (typeof limit !== "number" || !Number.isSafeInteger(limit) || limit < 0) {
       throw new PersistenceError("invalid_data", `${path}.${key} must be a non-negative safe integer.`);
@@ -536,11 +542,11 @@ function assertRulePackage(value: unknown, path: string): void {
     throw new PersistenceError("invalid_data", `${path} is not a complete ruleset package.`);
   }
   assertRulesetRef(value.ruleset, `${path}.ruleset`);
-  for (const key of ["minimum_engine_version", "model_version", "primitive_set_version", "jinrei_language_version", "typed_ir_version", "bytecode_version"]) {
+  for (const key of ["minimum_engine_version", "model_version", "primitive_set_version", "jinrei_language_version", "structured_ast_version", "typed_ir_version", "bytecode_version"]) {
     assertVersion(value[key], `${path}.${key}`);
   }
-  if (!isRecord(value.domain.senkei_configuration) || !isRecord(value.world.entity_types)) {
-    throw new PersistenceError("invalid_data", `${path} is missing configuration or world schema records.`);
+  if (!isRecord(value.domain.senkei_configuration) || !isRecord(value.world_initialization) || !isRecord(value.world.entity_types)) {
+    throw new PersistenceError("invalid_data", `${path} is missing configuration, world initialization, or world schema records.`);
   }
 }
 
