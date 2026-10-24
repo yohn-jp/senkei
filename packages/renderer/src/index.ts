@@ -619,9 +619,10 @@ export class Battlefield {
     const lowCanopies: ScenicInstance[] = [];
     const highCanopies: ScenicInstance[] = [];
     const rocks: ScenicInstance[] = [];
-    for (let i = 0; i < 58; i++) {
-      const x = min.x + 0.8 + ((i * 7.13) % (w - 1.8)),
-        z = min.y + 0.6 + ((i * 3.17) % (d - 1.2));
+    let sceneryIndex = 0;
+    const addForestCandidate = (x: number, z: number, seed: number) => {
+      if (x < min.x + 0.4 || x > max.x - 0.4 || z < min.y + 0.4 || z > max.y - 0.4)
+        return;
       const nearLane = this.replay.scene.lanes.some((l) =>
         l.points
           .slice(1)
@@ -634,30 +635,81 @@ export class Battlefield {
       );
       const nearestRoute = Math.min(...routeDistances);
       const hasRoutes = routeDistances.length > 0;
-      const nearRoute = hasRoutes && nearestRoute < 5.5;
-      const onRoute = hasRoutes && nearestRoute < 1.7;
+      const nearRoute = hasRoutes && nearestRoute < 6.5;
+      const onRoute = hasRoutes && nearestRoute < 2.15;
       const nearCamp = (this.replay.scene.camps ?? []).some(
-        (camp) => Math.hypot(x - camp.position.x, z - camp.position.y) < 3.6,
+        (camp) => Math.hypot(x - camp.position.x, z - camp.position.y) < 3.35,
       );
-      if (nearLane || nearCamp || onRoute || (hasRoutes && !nearRoute)) continue;
-      const h = 0.35 + (i % 4) * 0.26;
-      if (i % 5 === 0) {
+      if (nearLane || nearCamp || onRoute || (hasRoutes && !nearRoute)) return;
+      const size = hasRoutes
+        ? 0.66 + (seed % 4) * 0.07
+        : 0.82 + (seed % 4) * 0.1;
+      const h = (0.35 + (seed % 4) * 0.26) * size;
+      if (seed % 7 === 0) {
         rocks.push({
           position: [x, h / 2 - 0.05, z],
-          scale: [0.8 + (i % 3) * 0.16, h, 0.75],
-          rotation: [0, (i % 3) * 0.13, (i % 2 ? 1 : -1) * 0.14],
-          color: i % 2 ? 0x84916e : 0x768b6a,
+          scale: [0.8 + (seed % 3) * 0.16, h, 0.75],
+          rotation: [0, (seed % 3) * 0.13, seed % 2 ? 0.14 : -0.14],
+          color: seed % 2 ? 0x84916e : 0x768b6a,
         });
       } else {
-        trunks.push({ position: [x, 0.56, z], color: 0x6e6650 });
+        trunks.push({
+          position: [x, 0.575 * size, z],
+          scale: [size, size, size],
+          color: 0x6e6650,
+        });
         lowCanopies.push({
-          position: [x, 1.35, z],
-          color: i % 2 ? 0x435e51 : 0x4e6953,
+          position: [x, 1.35 * size, z],
+          scale: [size, size, size],
+          color: seed % 2 ? 0x435e51 : 0x4e6953,
         });
         highCanopies.push({
-          position: [x, 1.95, z],
-          color: i % 3 ? 0x58775c : 0x66805d,
+          position: [x, 1.95 * size, z],
+          scale: [size, size, size],
+          color: seed % 3 ? 0x58775c : 0x66805d,
         });
+      }
+    };
+    if (jungleRoutes.length) {
+      // Form deterministic groves beside the real jungle edges. A clear strip
+      // remains around routes, lanes, and camp pads; the trees are scenery and
+      // carry no collision or navigation meaning.
+      jungleRoutes.forEach((route, routeIndex) => {
+        for (let segment = 1; segment < route.points.length; segment++) {
+          const start = route.points[segment - 1];
+          const end = route.points[segment];
+          const dx = end.x - start.x;
+          const dz = end.y - start.y;
+          const length = Math.hypot(dx, dz);
+          if (length < 2) continue;
+          const tangentX = dx / length;
+          const tangentZ = dz / length;
+          const normalX = -tangentZ;
+          const normalZ = tangentX;
+          const samples = Math.ceil(length / 2.2);
+          for (let sample = 1; sample <= samples; sample++) {
+            const along = (length * sample) / (samples + 1);
+            for (const side of [-1, 1]) {
+              for (let groveRow = 0; groveRow < 2; groveRow++) {
+                const seed = sceneryIndex++;
+                const offset = 2.55 + groveRow * 1.05 + ((routeIndex + sample + seed) % 3) * 0.36;
+                const jitter = ((seed % 3) - 1) * 0.18;
+                addForestCandidate(
+                  start.x + tangentX * (along + jitter) + normalX * offset * side,
+                  start.y + tangentZ * (along + jitter) + normalZ * offset * side,
+                  seed,
+                );
+              }
+            }
+          }
+        }
+      });
+    } else {
+      // Keep the original sparse sample-map dressing and its camera evidence.
+      for (let i = 0; i < 58; i++) {
+        const x = min.x + 0.8 + ((i * 7.13) % (w - 1.8));
+        const z = min.y + 0.6 + ((i * 3.17) % (d - 1.2));
+        addForestCandidate(x, z, i);
       }
     }
     addSceneryInstances(
@@ -684,15 +736,16 @@ export class Battlefield {
       new THREE.BoxGeometry(1, 1, 1),
       rocks,
     );
-    for (const z of [min.y - 0.3, max.y + 0.3])
-      for (let j = 0; j < 12; j++)
-        box(
-          this.scene,
-          [1.2, 0.55, 0.8],
-          [min.x + j * (w / 11), -0.03, z],
-          0x7a8377,
-          j * 0.3,
-        );
+    if (!jungleRoutes.length)
+      for (const z of [min.y - 0.3, max.y + 0.3])
+        for (let j = 0; j < 12; j++)
+          box(
+            this.scene,
+            [1.2, 0.55, 0.8],
+            [min.x + j * (w / 11), -0.03, z],
+            0x7a8377,
+            j * 0.3,
+          );
   }
   private buildCamp(position: WorldPoint, campId: string) {
     const scale = this.replay.scene.routes?.length ? 1.22 : 1;
