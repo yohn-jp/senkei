@@ -126,3 +126,14 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) .next-tab { min-width: 0; padding-inline: 4px; }
   .page-content[data-view="next"] .next-renderer-host .world-label { font-size: 10px; }
 }
+
+.next-save-disclosure { margin-bottom: 13px; }
+.next-save-disclosure > summary { color: #c3d0c5; cursor: pointer; font-size: 12px; min-height: 44px; padding: 12px; border: 1px solid rgba(214,225,218,.11); border-radius: 4px; }
+.next-save-disclosure[open] > summary { margin-bottom: 6px; }
+@media (max-width: 760px) {
+  .page-content[data-view="next"] .next-heading { margin-bottom: 10px; }
+  .page-content[data-view="next"] .next-heading h2 { font-size: 25px; margin: 4px 0; }
+  .page-content[data-view="next"] .next-heading p { display: none; }
+  .page-content[data-view="next"] .next-heading-mark { font-size: 30px; }
+  .page-content[data-view="next"] .next-heading-status { display: none; }
+}
