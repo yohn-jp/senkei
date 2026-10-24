@@ -49,7 +49,9 @@ export class KnownBaseSites {
       }
       const point = marker.position.clone().project(camera);
       label.style.left = `${Math.min(width - 74, Math.max(74, (point.x + 1) * width / 2))}px`;
-      label.style.top = `${(1 - point.y) * height / 2}px`;
+      // Keep immutable site identity above the mobile selected-unit footer.
+      const bottomReserve = width < 700 ? 112 : 48;
+      label.style.top = `${Math.max(4, Math.min(height - bottomReserve, (1 - point.y) * height / 2))}px`;
       label.hidden = Math.abs(point.x) > 1 || Math.abs(point.y) > 1 || point.z < -1 || point.z > 1;
     }
   }
