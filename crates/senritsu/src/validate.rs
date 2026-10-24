@@ -518,11 +518,72 @@ fn validate_observation_source(
             issue(issues, "invalid_observation_source", format!("{path}.source"), "current entity source is valid only inside an entity collection schema");
         }
         ObservationSource::Derived(expression) => {
+            validate_observation_expression_visibility(
+                expression,
+                *visibility,
+                &format!("{path}.source.derived"),
+                package,
+                issues,
+                0,
+            );
             let ty = infer_expression_type(expression, &format!("{path}.source.derived"), None, None, package, issues, 0);
             if ty.as_ref().is_some_and(|ty| !same_type(expected, ty)) {
                 issue(issues, "observation_source_type_mismatch", format!("{path}.source"), "derived observation expression does not match the declared value type");
             }
         }
+    }
+}
+
+fn validate_observation_expression_visibility(
+    expression: &RuleExpression,
+    view: Visibility,
+    path: &str,
+    package: &RulePackage,
+    issues: &mut Vec<ValidationIssue>,
+    depth: u32,
+) {
+    if depth > package.domain.max_expression_depth {
+        return;
+    }
+    match expression {
+        RuleExpression::Field { target, field } => {
+            let Some(entity_type) = selector_type(target, None, None, package, path, issues) else { return };
+            match package.world.entity_types.get(&entity_type).and_then(|schema| schema.fields.get(field)) {
+                Some(schema) if !visibility_can_publish(view, schema.visibility) => issue(
+                    issues,
+                    "hidden_observation_access",
+                    path,
+                    "derived observation reads a world field hidden from this viewer",
+                ),
+                None => issue(issues, "unknown_field", format!("{path}.field"), "derived observation references an undeclared field"),
+                _ => {}
+            }
+        }
+        RuleExpression::GlobalField(field) => match package.world.global_fields.get(field) {
+            Some(schema) if !visibility_can_publish(view, schema.visibility) => issue(
+                issues,
+                "hidden_observation_access",
+                path,
+                "derived observation reads a global field hidden from this viewer",
+            ),
+            None => issue(issues, "unknown_global_field", path, "derived observation references an undeclared global field"),
+            _ => {}
+        },
+        RuleExpression::AddInteger { left, right }
+        | RuleExpression::SubtractInteger { left, right }
+        | RuleExpression::AddFixed { left, right }
+        | RuleExpression::Equal { left, right }
+        | RuleExpression::LessThan { left, right } => {
+            validate_observation_expression_visibility(left, view, &format!("{path}.left"), package, issues, depth + 1);
+            validate_observation_expression_visibility(right, view, &format!("{path}.right"), package, issues, depth + 1);
+        }
+        RuleExpression::And(items) | RuleExpression::Or(items) => {
+            for (index, item) in items.iter().enumerate() {
+                validate_observation_expression_visibility(item, view, &format!("{path}[{index}]"), package, issues, depth + 1);
+            }
+        }
+        RuleExpression::Not(inner) => validate_observation_expression_visibility(inner, view, &format!("{path}.value"), package, issues, depth + 1),
+        RuleExpression::Literal(_) | RuleExpression::IntentArgument(_) => {}
     }
 }
 
