@@ -99,6 +99,7 @@ fn parameters() -> BTreeMap<String, i64> {
         ("hero_energy_regen_per_tick".into(), 1),
         ("hero_max_level".into(), 6),
         ("hero_xp_per_level".into(), 100),
+        ("xp_scale".into(), 2_520),
         ("hero_respawn_base_ticks".into(), 20),
         ("hero_respawn_per_level_ticks".into(), 5),
         ("hero_kill_xp".into(), 80),
@@ -599,6 +600,7 @@ mod tests {
         assert_eq!(rules.parameters["minion_vision_speed_milli"], 1_200);
         assert_eq!(rules.parameters["squad_5_speed_milli"], 800);
         assert_eq!(rules.parameters["hero_max_level"], 6);
+        assert_eq!(rules.parameters["xp_scale"], 2_520);
         assert_eq!(rules.parameters["squad_shield_per_ally"], 2);
         assert_eq!(rules.minions.len(), 2);
         assert_eq!(rules.monsters.len(), 3);

@@ -39,6 +39,7 @@ measurable.
 | `hero_energy_regen_per_tick` | 1 | Slowly replenishes skill use while cooldowns remain the main short-term limit. |
 | `hero_max_level` | 6 | Keeps the initial curve finite while unlocking the two catalog skill tiers. |
 | `hero_xp_per_level` | 100 | A flat first curve is easy to audit; later scenarios can justify a nonlinear curve. |
+| `xp_scale` | 2520 | Required exact XP storage scale: 2520 is the least common multiple of eligible group sizes 1 through 10, covering a contested neutral kill shared across both teams. |
 | `hero_respawn_base_ticks` | 20 | Gives a first death a meaningful but short return delay. |
 | `hero_respawn_per_level_ticks` | 5 | Makes later deaths cost more time without removing a Hero for most of a match. |
 | `hero_kill_xp` | 80 | Rewards a Hero takedown between a Minion and a stronger neutral camp. |
@@ -51,15 +52,20 @@ measurable.
 | `max_match_ticks` | 600 | A finite package-level runtime ceiling for the first implementation; it is not a claim that 600 ticks is the ideal match length. |
 | `tick_duration_ms` | 100 | Gives replay and UI consumers a first wall-clock interpretation of one simulation tick. |
 
-The `xp` world field stores integer units of 1/60 XP. W4 divides each integer
-package reward exactly across one to five eligible Heroes, so no remainder is
-lost. Eligibility is based on phase-start living Heroes of the rewarded side
-within `xp_eligibility_range` of the defeated target, without a Squad or
-participation check; Heroes killed in that combat phase remain eligible, while
-Heroes already dead at phase start do not. `hero_xp_per_level=100` is the
-per-level cost subtracted on level-up. The 1/60 representation is a runtime
-semantic, not a tunable package parameter.
-
+The `xp` world field stores integer units of 1/`xp_scale` XP; the validator
+requires `xp_scale=2520`. A normal enemy or structure reward goes to the
+eligible Heroes on its single credited opposing side. For a contested neutral
+reward, W4 collects all phase-start living Heroes within `xp_eligibility_range`
+on sides that dealt damage to the neutral during that phase, then divides the
+whole reward equally across that combined Hero set. It does not split by side
+first. If only one side has eligible contributors, its eligible Heroes receive
+the full reward. Heroes killed during the phase remain eligible; Heroes
+already dead at phase start do not. Squad membership does not affect
+eligibility. Across ordinary and contested events, the possible equal-share
+group sizes are 1 through 10; 2520 is their least common multiple, so all
+fractions are exact. `hero_xp_per_level=100` is the per-level cost subtracted
+on level-up. XP scale is a required versioned semantic rather than a tuning
+choice.
 ## Provisional structure values
 
 The same tower values apply to every W1 tower placement. The base is a
