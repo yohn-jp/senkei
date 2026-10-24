@@ -4,7 +4,7 @@
   "ruleset_ref": {
     "id": "senkei.initial",
     "version": { "major": 1, "minor": 0, "patch": 0 },
-    "digest": "5c5befc5579abd08b90a1ee2919664ef7ae734148600e82602aea117a6d00cb7"
+    "digest": "d74b06f37399873162a32f03b7b493e41f0b7e0dbe31201246d8113266700232"
   },
   "attacker": {
     "id": "attacker-demo",

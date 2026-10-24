@@ -37,21 +37,21 @@ Input schema `1.0.0`:
   "ruleset_ref": {
     "id": "senkei.initial",
     "version": { "major": 1, "minor": 0, "patch": 0 },
-    "digest": "5c5befc5579abd08b90a1ee2919664ef7ae734148600e82602aea117a6d00cb7"
+    "digest": "d74b06f37399873162a32f03b7b493e41f0b7e0dbe31201246d8113266700232"
   },
   "attacker": {
     "id": "attacker-demo",
     "revision": "1",
     "configuration": {},
     "initial_memory": {},
-    "tactics": "senkei wait {}"
+    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.id), }, }"
   },
   "defender": {
     "id": "defender-demo",
     "revision": "1",
     "configuration": {},
     "initial_memory": {},
-    "tactics": "senkei wait {}"
+    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.id), }, }"
   }
 }
 ```
@@ -68,11 +68,12 @@ so a saved input/output pair records the package digest used for the match.
 `cargo test -p senkei-runner` exercises the real initial package and real
 compiled programs for deterministic repeated matches, tactical edits that
 change the result, multi-tick movement, unit attrition, tower damage, and core
-destruction. It also compiles all seven text recipes directly from the
-unchanged `scenarios/campaign/catalog.ts` source against the verified initial
-ruleset. A schema-only unit-class enum extension is validated separately from
-an engine compatibility declaration that lacks a required transition
-primitive.
+destruction. It also compiles all seven evaluated text sources in
+`scenarios/campaign/source-fixtures.json` against the verified initial ruleset.
+The scenario conformance check keeps that fixture synchronized with the
+TypeScript campaign catalog. A schema-only unit-class enum extension is
+validated separately from an engine compatibility declaration that lacks a
+required transition primitive.
 
 `cargo test --workspace` is the required full native core verification. The
 WASM adapter is kept as a separate boundary crate; Enbu itself depends on the

@@ -244,28 +244,56 @@ fn actual_jinrei_intents_cause_unit_attrition_and_tower_damage() {
 
 #[test]
 fn the_seven_bundled_npc_recipes_compile_against_real_initial_senritsu() {
-    const CATALOG: &str = include_str!("../../../scenarios/campaign/catalog.ts");
     let package = senritsu::initial_package();
     let rules = senritsu::validate(package, &senritsu::initial_engine_compatibility())
         .expect("bundled initial package validates before recipe compilation");
-    let sources = recipe_sources(CATALOG);
+    let sources = load_npc_sources();
     assert_eq!(
         sources.len(),
         7,
-        "catalog should retain all seven source recipes"
+        "campaign source fixture should contain all seven NPC recipes"
     );
 
-    for (index, source) in sources.iter().enumerate() {
+    for (recipe_id, source) in &sources {
         compile(source, &rules).unwrap_or_else(|error| {
-            panic!(
-                "NPC recipe {} failed real Jinrei compilation: {error:?}\n{source}",
-                index + 1
-            )
+            panic!("NPC recipe {recipe_id} failed real Jinrei compilation: {error:?}\n{source}")
         });
     }
 }
 
-fn recipe_sources(catalog: &str) -> Vec<String> {
+fn load_npc_sources() -> Vec<(String, String)> {
+    use std::path::Path;
+
+    #[derive(serde::Deserialize)]
+    struct RecipeSource {
+        id: String,
+        source: String,
+    }
+
+    let fixture_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scenarios/campaign/source-fixtures.json");
+    if fixture_path.is_file() {
+        let json = std::fs::read(&fixture_path).expect("campaign source fixture is readable");
+        let records: Vec<RecipeSource> =
+            serde_json::from_slice(&json).expect("campaign source fixture is valid JSON");
+        return records
+            .into_iter()
+            .map(|record| (record.id, record.source))
+            .collect();
+    }
+
+    // Compatibility path for the initial literal-source catalog. The
+    // scenario owner supplies the evaluated fixture when recipe builders are
+    // introduced; Rust never reimplements their TypeScript generation logic.
+    const CATALOG: &str = include_str!("../../../scenarios/campaign/catalog.ts");
+    literal_recipe_sources(CATALOG)
+        .into_iter()
+        .enumerate()
+        .map(|(index, source)| (format!("literal-{}", index + 1), source))
+        .collect()
+}
+
+fn literal_recipe_sources(catalog: &str) -> Vec<String> {
     let mut rest = catalog;
     let mut sources = Vec::new();
     while let Some(source_start) = rest.find("source: `") {
