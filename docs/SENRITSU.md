@@ -75,6 +75,7 @@ SenritsuはコンテンツとしてOSSで配布可能。初期実装ではサン
 
 次期ゲームルール設計の分担：
 - [WORLD.md](WORLD.md)：地形、対角拠点と三レーン、Minion視界、ジャングル、施設。
+- [BATTLEFIELD.md](BATTLEFIELD.md)：初期トポロジー、仮距離、河川・橋、トラック、射程とノード退出の規範。
 - [UNITS.md](UNITS.md)：Hero Catalogと属性、5Hero/Squad、合流・分離、死亡・復活。
 - [COMBAT.md](COMBAT.md)：通常攻撃、追撃／撤退、XP、レベル、Skill Tree、Tick解決。
 - [BALANCE.md](BALANCE.md)：確定した初期係数、残る未決定数値、バランス検証。

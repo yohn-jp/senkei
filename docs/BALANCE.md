@@ -4,7 +4,7 @@
 
 この文書はSenkeiの新しいゲームシステムについて、**会話で合意した数値の初期値を失わず**、未決定の数値を今後のバランス調整で具体化するための管理表と検証方針を定義する。
 
-ゲームルールは [WORLD.md](WORLD.md)、[UNITS.md](UNITS.md)、[COMBAT.md](COMBAT.md) を参照。これは現行のsenkei.initialの値を修正した証拠ではない。新しいルールセットを実装する際には、SenritsuのID・版・内容digestを変更し、既存のローカルPvE／Jinrei／Enbuと互換性を検査する。
+ゲームルールは [WORLD.md](WORLD.md)、[BATTLEFIELD.md](BATTLEFIELD.md)、[UNITS.md](UNITS.md)、[COMBAT.md](COMBAT.md) を参照。これは現行のsenkei.initialの値を修正した証拠ではない。新しいルールセットを実装する際には、SenritsuのID・版・内容digestを変更し、既存のローカルPvE／Jinrei／Enbuと互換性を検査する。
 
 区分：
 - **合意済みの初期設計値**：現時点の出発点。数値を変える場合には明示した新たな設計判断・版変更が必要。
@@ -128,13 +128,13 @@ Soloを有利にするための無条件攻撃倍率は**現時点で合意さ�
 
 | 領域 | 未決定項目 | 定義先 |
 | --- | --- | --- |
-| Map | 座標・経路長・塔の数・ジャングルキャンプ数と種類 | WORLD |
+| Map | 初期接続・塔／キャンプ配置・暫定経路長はBATTLEFIELDに定義済み。座標埋め込み・距離調整・キャンプ種類は残存 | BATTLEFIELD / WORLD |
 | Minion | 出撃周期・Wave構成・視界範囲・AI・XP・操作可否 | WORLD / COMBAT |
 | Hero | 基礎HP・攻撃・防御・速度・射程・装備・重複選択可否 | UNITS / COMBAT |
 | Growth | XP曲線・最大レベル・成長値・スキルツリーの取得順／条件 | COMBAT |
 | Skills | 各Heroのスキル名・対象・持続・発動・クールダウン・効果 | UNITS / COMBAT |
 | Squad | 人数別の連携効果・成熟時間・隊列・合流・分離コスト | UNITS / COMBAT |
-| Movement | Squad基準速度・地形境界・移動中の攻撃・能力補正の重複 | WORLD / COMBAT |
+| Movement | 移動中の通常攻撃禁止はBATTLEFIELDで確定。残るのはSquad基準速度・占有境界・地形／Skillの合成値とTick丸め | BATTLEFIELD / WORLD / COMBAT |
 | XP | 対象資格の条件・分母・端数・死亡中の受給 | COMBAT |
 | Death | 復活クールタイム・復活HP・成長維持・復活位置の詳細 | UNITS / COMBAT |
 | Jungle | 中立モンスターAI・討伐報酬・再出現・視界 | WORLD / COMBAT |
