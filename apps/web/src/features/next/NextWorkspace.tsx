@@ -1310,23 +1310,23 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         const counts = new Map<string, number>();
         for (const entity of cluster.entities) counts.set(entity.category, (counts.get(entity.category) ?? 0) + 1);
         const composition = [...counts.entries()].map(([category, count]) => `${count} ${pluralizeEntityCategory(category, count)}`).join(" · ");
-        const location = `X ${cluster.position.x.toFixed(2)} · Y ${cluster.position.y.toFixed(2)}`;
+        const location = `X ${Math.round(cluster.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y ${Math.round(cluster.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}`;
         const nearbyLabel = `${cluster.entities.length} nearby visible entities`;
         const countLabel = cluster.entities.length === 1
           ? "1 visible entity"
           : cluster.coLocated ? `${cluster.entities.length} at same position` : nearbyLabel;
         const clusterDescription = cluster.coLocated
           ? `at replay location ${location}`
-          : `within ${cluster.anchorRadius.toFixed(2)} map units of its visible anchor`;
+          : `near World ${location}`;
         const clusterAnnotation = cluster.coLocated
           ? location
-          : `Anchor radius ${cluster.anchorRadius.toFixed(2)} map units · each row shows its replay coordinates`;
+          : `near ${location} · each unit keeps its own position`;
         return <section className={`next-visible-cluster${expanded ? " is-expanded" : ""}`} key={cluster.id}>
           <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${cluster.entities.length} ${cluster.entities.length === 1 ? "visible entity" : cluster.coLocated ? "entities at the same replay position" : "nearby visible entities"} ${clusterDescription}`} className="next-visible-cluster-toggle" onClick={() => setExpandedVisibleClusterId(expanded ? null : cluster.id)} type="button">
             <span><strong>{countLabel}</strong><small>{composition} · {clusterAnnotation}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
           </button>
           {expanded && <ul className="next-visible-cluster-entities">{cluster.entities.map((entity) => <li className={selectedEntityId === entity.id ? "is-selected" : ""} key={entity.id}>
-            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id} · X {entity.position.x.toFixed(2)} · Y {entity.position.y.toFixed(2)}</small></div></div>
+            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id} · X {Math.round(entity.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y {Math.round(entity.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}</small></div></div>
             <div className="next-visible-entity-actions"><button aria-label={`Select ${entity.identity}, replay entity ${entity.id}`} aria-pressed={selectedEntityId === entity.id} onClick={() => {
               selectBattleEntity(entity.id);
               setBattleInspectorOpen(true);
