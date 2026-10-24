@@ -752,6 +752,7 @@
 @media (max-width: 760px) {
   .is-battle-workspace .next-visible-roster-trigger,
   .is-battle-workspace .next-visible-roster-panel { display: none !important; }
+  .is-battle-workspace .next-follow-sheet > header { background: rgba(12,20,25,.97); position: sticky; top: -10px; z-index: 6; }
   .is-battle-workspace .next-visible-clusters { gap: 5px; }
   .is-battle-workspace .next-visible-cluster-toggle { min-height: 46px; }
   .is-battle-workspace .next-visible-cluster-toggle strong { font-size: 13px; }

@@ -34,6 +34,7 @@ const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 const NEXT_RECOVERY_KEY = "senkei.next-workspace-recovery.v1";
+const VISIBLE_ENTITY_CLUSTER_RADIUS = 0.8;
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
 type AtelierScreen = "collection" | "detail" | "skills" | "squads";
@@ -60,12 +61,13 @@ interface VisibleBattleTarget {
   readonly hp: number;
   readonly maxHp: number;
   readonly position: WorldPoint;
-  readonly locationKey: string;
 }
 
 interface VisibleBattleCluster {
   readonly id: string;
   readonly position: WorldPoint;
+  readonly coLocated: boolean;
+  readonly anchorRadius: number;
   readonly entities: readonly VisibleBattleTarget[];
 }
 
@@ -713,17 +715,26 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         hp: entity.hp,
         maxHp: entity.maxHp,
         position: entity.position,
-        locationKey: `${entity.position.x},${entity.position.y}`,
       };
     }), [displayState, nextRules]);
   const visibleEntityClusters = useMemo<VisibleBattleCluster[]>(() => {
-    const groups = new Map<string, VisibleBattleTarget[]>();
+    const groups: { readonly anchor: VisibleBattleTarget; readonly entities: VisibleBattleTarget[] }[] = [];
     for (const entity of visibleCameraTargets) {
-      groups.set(entity.locationKey, [...(groups.get(entity.locationKey) ?? []), entity]);
+      const nearby = groups.find((group) => Math.hypot(
+        entity.position.x - group.anchor.position.x,
+        entity.position.y - group.anchor.position.y,
+      ) <= VISIBLE_ENTITY_CLUSTER_RADIUS);
+      if (nearby) nearby.entities.push(entity);
+      else groups.push({ anchor: entity, entities: [entity] });
     }
-    return [...groups.entries()].map(([id, entities]) => ({
-      id,
-      position: entities[0]?.position ?? { x: 0, y: 0 },
+    return groups.map(({ anchor, entities }) => ({
+      id: anchor.id,
+      position: anchor.position,
+      coLocated: entities.every((entity) => entity.position.x === anchor.position.x && entity.position.y === anchor.position.y),
+      anchorRadius: entities.reduce((farthest, entity) => Math.max(farthest, Math.hypot(
+        entity.position.x - anchor.position.x,
+        entity.position.y - anchor.position.y,
+      )), 0),
       entities,
     }));
   }, [visibleCameraTargets]);
@@ -741,7 +752,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     const frame = requestAnimationFrame(() => {
       const mobile = window.matchMedia("(max-width: 760px)").matches;
       const list = mobile ? mobileVisibleClustersRef.current : desktopVisibleClustersRef.current;
-      list?.querySelector<HTMLElement>(".next-visible-cluster.is-expanded .next-visible-cluster-toggle")?.scrollIntoView({ block: "nearest" });
+      list?.querySelector<HTMLElement>(".next-visible-cluster.is-expanded .next-visible-cluster-entities > li:first-child")?.scrollIntoView({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
   }, [battleMobileView, battleRosterOpen, expandedVisibleClusterId]);
@@ -1263,7 +1274,9 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const closeBattleSheet = (): void => setBattleMobileView(cameraMode === "overview" ? "overview" : "battle");
   const followVisibleEntity = (id: string): void => {
     setSelectedEntityId(id);
-    setBattleMobileView("battle");
+    const mobile = window.matchMedia("(max-width: 760px)").matches;
+    setBattleMobileView(mobile ? "follow" : "battle");
+    setBattleRosterOpen(!mobile);
     setCameraMode("tactical");
     setFollowedEntityId(id);
     setFollowedSquadId(null);
@@ -1298,20 +1311,28 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         for (const entity of cluster.entities) counts.set(entity.category, (counts.get(entity.category) ?? 0) + 1);
         const composition = [...counts.entries()].map(([category, count]) => `${count} ${pluralizeEntityCategory(category, count)}`).join(" · ");
         const location = `X ${cluster.position.x.toFixed(2)} · Y ${cluster.position.y.toFixed(2)}`;
-        const countLabel = cluster.entities.length > 1 ? `${cluster.entities.length} at same position` : "1 visible entity";
+        const nearbyLabel = `${cluster.entities.length} nearby visible entities`;
+        const countLabel = cluster.entities.length === 1
+          ? "1 visible entity"
+          : cluster.coLocated ? `${cluster.entities.length} at same position` : nearbyLabel;
+        const clusterDescription = cluster.coLocated
+          ? `at replay location ${location}`
+          : `within ${cluster.anchorRadius.toFixed(2)} map units of its visible anchor`;
+        const clusterAnnotation = cluster.coLocated
+          ? location
+          : `Anchor radius ${cluster.anchorRadius.toFixed(2)} map units · each row shows its replay coordinates`;
         return <section className={`next-visible-cluster${expanded ? " is-expanded" : ""}`} key={cluster.id}>
-          <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${cluster.entities.length} visible entities at replay location ${location}`} className="next-visible-cluster-toggle" onClick={() => setExpandedVisibleClusterId(expanded ? null : cluster.id)} type="button">
-            <span><strong>{countLabel}</strong><small>{composition} · {location}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
+          <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${cluster.entities.length} ${cluster.entities.length === 1 ? "visible entity" : cluster.coLocated ? "entities at the same replay position" : "nearby visible entities"} ${clusterDescription}`} className="next-visible-cluster-toggle" onClick={() => setExpandedVisibleClusterId(expanded ? null : cluster.id)} type="button">
+            <span><strong>{countLabel}</strong><small>{composition} · {clusterAnnotation}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
           </button>
           {expanded && <ul className="next-visible-cluster-entities">{cluster.entities.map((entity) => <li className={selectedEntityId === entity.id ? "is-selected" : ""} key={entity.id}>
-            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id}</small></div></div>
+            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id} · X {entity.position.x.toFixed(2)} · Y {entity.position.y.toFixed(2)}</small></div></div>
             <div className="next-visible-entity-actions"><button aria-label={`Select ${entity.identity}, replay entity ${entity.id}`} aria-pressed={selectedEntityId === entity.id} onClick={() => {
               selectBattleEntity(entity.id);
               setBattleInspectorOpen(true);
               setBattleRosterOpen(false);
             }} type="button">Select</button><button aria-label={`Follow ${entity.identity}, replay entity ${entity.id}`} onClick={() => {
               followVisibleEntity(entity.id);
-              setBattleRosterOpen(false);
             }} type="button">Follow{entity.catalogId ? ` ${entity.catalogId}` : ""}</button></div>
           </li>)}</ul>}
         </section>;
