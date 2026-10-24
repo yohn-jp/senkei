@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: resolve("apps/web/index.html"),
         graphics: resolve("apps/web/graphics/index.html"),
+        f01Study: resolve("apps/web/f01-study/index.html"),
       },
     },
   },
