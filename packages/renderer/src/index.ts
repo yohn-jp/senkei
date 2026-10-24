@@ -291,6 +291,11 @@ export class Battlefield {
     mobileTransform?: string;
   }[] = [];
   private entityLabels = new Map<string, HTMLSpanElement>();
+  private cueLabels: {
+    element: HTMLSpanElement;
+    point: THREE.Vector3;
+  }[] = [];
+  private cueLayoutSignature = "";
   private marker = new THREE.Group();
   private focusMarker = new THREE.Group();
   private startPointer = { x: 0, y: 0 };
@@ -1609,6 +1614,118 @@ export class Battlefield {
     }
     disposeTree(this.effects);
     this.effects.clear();
+    for (const cueLabel of this.cueLabels) cueLabel.element.remove();
+    this.cueLabels = [];
+    this.cueLayoutSignature = "";
+    if (this.replay.scene.routes?.length) {
+      const addCueLabel = (
+        type: string,
+        text: string,
+        side: DisplayEntity["side"],
+        point: THREE.Vector3,
+      ) => {
+        const element = document.createElement("span");
+        element.className = "world-label cue-world-label";
+        element.dataset.cueType = type;
+        element.dataset.tick = String(state.tick);
+        element.setAttribute("aria-label", text);
+        element.setAttribute("role", "note");
+        const border = `#${colors[side].toString(16).padStart(6, "0")}`;
+        Object.assign(element.style, {
+          background: "rgba(10, 18, 22, .96)",
+          border: `1px solid ${border}`,
+          borderRadius: "4px",
+          boxShadow: "0 2px 8px rgba(0,0,0,.65)",
+          color: "#fff8df",
+          fontFamily: '"DM Mono", monospace',
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: ".04em",
+          lineHeight: "1.35",
+          maxWidth: "min(420px, calc(100vw - 20px))",
+          padding: "5px 7px",
+          textAlign: "center",
+          whiteSpace: "normal",
+          zIndex: "3",
+        });
+        element.textContent = text;
+        this.host.appendChild(element);
+        this.cueLabels.push({ element, point });
+      };
+      const cueAnchor = (entity: DisplayEntity, height: number) =>
+        new THREE.Vector3(
+          entity.position.x,
+          this.height(entity.position) + height,
+          entity.position.y,
+        );
+      for (const cue of cues) {
+        if (cue.type === "attack" || cue.type === "skill") {
+          const source = state.entities[cue.entityId];
+          const target = state.entities[cue.targetId];
+          // Owner/public projections may omit an endpoint; do not infer it.
+          if (!source || !target) continue;
+          const sourcePoint = cueAnchor(source, cue.type === "skill" ? 1.1 : 1);
+          const targetPoint = cueAnchor(target, cue.type === "skill" ? 0.85 : 1);
+          const midpoint = sourcePoint
+            .add(targetPoint)
+            .multiplyScalar(0.5)
+            .add(new THREE.Vector3(0, 1.25, 0));
+          addCueLabel(
+            cue.type,
+            cue.type === "attack"
+              ? `ATTACK · ${this.entityLabel(source)} → ${this.entityLabel(target)}`
+              : `SKILL ${cue.skillKey} · ${this.entityLabel(source)} → ${this.entityLabel(target)}`,
+            source.side,
+            midpoint,
+          );
+        } else if (cue.type === "damage") {
+          const entity = state.entities[cue.entityId];
+          if (!entity) continue;
+          addCueLabel(
+            cue.type,
+            `DAMAGE · ${this.entityLabel(entity)} · HP ${cue.hp}/${entity.maxHp}`,
+            entity.side,
+            cueAnchor(entity, 3),
+          );
+        } else if (cue.type === "vitals") {
+          const entity = state.entities[cue.entityId];
+          if (!entity) continue;
+          addCueLabel(
+            cue.type,
+            `VITALS · ${this.entityLabel(entity)} · HP ${cue.hp}/${cue.maxHp}`,
+            entity.side,
+            cueAnchor(entity, 3),
+          );
+        } else if (cue.type === "destroy") {
+          const entity = state.entities[cue.entityId];
+          if (!entity) continue;
+          const title = entity.kind === "base"
+            ? "BASE DESTROYED"
+            : entity.kind === "tower"
+              ? "TOWER DESTROYED"
+              : this.isHero(entity)
+                ? "HERO DEFEATED"
+                : entity.side === "neutral" && entity.archetype === "monster"
+                  ? "MONSTER DEFEATED"
+                  : "UNIT DESTROYED";
+          addCueLabel(
+            cue.type,
+            `${title} · ${this.entityLabel(entity)}`,
+            entity.side,
+            cueAnchor(entity, 3.2),
+          );
+        } else if (cue.type === "spawn") {
+          const entity = state.entities[cue.entity.id];
+          if (!entity) continue;
+          addCueLabel(
+            cue.type,
+            `APPEARED · ${this.entityLabel(entity)}`,
+            entity.side,
+            cueAnchor(entity, 3),
+          );
+        }
+      }
+    }
     for (const cue of cues) {
       if (cue.type === "spawn") {
         const entity = state.entities[cue.entity.id];
@@ -1856,6 +1973,68 @@ export class Battlefield {
         label.element.hidden =
           Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
       }
+      const cueCameraSignature = [
+        ...this.camera.position.toArray(),
+        ...this.camera.quaternion.toArray(),
+        this.camera.zoom,
+        this.camera.left,
+        this.camera.right,
+        this.camera.top,
+        this.camera.bottom,
+        this.host.clientWidth,
+        this.host.clientHeight,
+      ].map((value) => value.toFixed(3)).join(":");
+      if (cueCameraSignature !== this.cueLayoutSignature) {
+        this.cueLayoutSignature = cueCameraSignature;
+        const hostRect = this.host.getBoundingClientRect();
+        const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+        for (const cueLabel of this.cueLabels) {
+          const p = cueLabel.point.clone().project(this.camera);
+          const inView = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1 && p.z >= -1 && p.z <= 1;
+          cueLabel.element.hidden = !inView;
+          if (!inView) continue;
+          const projectedX = ((p.x + 1) * this.host.clientWidth) / 2;
+          const projectedY = ((1 - p.y) * this.host.clientHeight) / 2;
+          cueLabel.element.style.left = `${projectedX}px`;
+          cueLabel.element.style.top = `${projectedY}px`;
+          const labelWidth = cueLabel.element.getBoundingClientRect().width;
+          const minX = Math.min(this.host.clientWidth / 2, labelWidth / 2 + 4);
+          const maxX = Math.max(minX, this.host.clientWidth - labelWidth / 2 - 4);
+          cueLabel.element.style.left = `${THREE.MathUtils.clamp(projectedX, minX, maxX)}px`;
+          let placedRect: { left: number; right: number; top: number; bottom: number } | null = null;
+          for (let step = 0; step < Math.ceil(this.host.clientHeight / 32) * 2 + 1; step++) {
+            const distance = Math.ceil(step / 2) * 32;
+            const offset = step === 0 ? 0 : step % 2 === 1 ? -distance : distance;
+            cueLabel.element.style.transform = offset < 0
+              ? `translate(-50%, calc(-120% - ${-offset}px))`
+              : offset > 0
+                ? `translate(-50%, calc(-120% + ${offset}px))`
+                : "translate(-50%, -120%)";
+            const rect = cueLabel.element.getBoundingClientRect();
+            const candidate = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+            const inside =
+              candidate.left >= hostRect.left + 4 &&
+              candidate.right <= hostRect.right - 4 &&
+              candidate.top >= hostRect.top + 4 &&
+              candidate.bottom <= hostRect.bottom - 4;
+            const overlaps = placed.some((other) =>
+              candidate.left < other.right + 4 &&
+              candidate.right + 4 > other.left &&
+              candidate.top < other.bottom + 4 &&
+              candidate.bottom + 4 > other.top,
+            );
+            if (inside && !overlaps) {
+              placedRect = candidate;
+              break;
+            }
+          }
+          if (!placedRect) {
+            const rect = cueLabel.element.getBoundingClientRect();
+            placedRect = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+          }
+          placed.push(placedRect);
+        }
+      }
       for (const [id, element] of this.entityLabels) {
         const entity = this.state?.entities[id];
         const group = this.units.get(id);
@@ -1973,5 +2152,6 @@ export class Battlefield {
     this.labels.forEach((label) => label.element.remove());
     this.entityLabels.forEach((label) => label.remove());
     this.baseSites.dispose();
+    this.cueLabels.forEach((label) => label.element.remove());
   }
 }
