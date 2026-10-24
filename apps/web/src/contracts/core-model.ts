@@ -272,6 +272,7 @@ export type WorldEntitySelector =
 export type RuleExpression =
   | { readonly kind: "literal"; readonly value: DomainValue }
   | { readonly kind: "intent_argument"; readonly value: number }
+  | { readonly kind: "current_tick" }
   | { readonly kind: "field"; readonly value: { readonly target: EntitySelector; readonly field: FieldId } }
   | { readonly kind: "global_field"; readonly value: FieldId }
   | { readonly kind: "add_integer"; readonly value: { readonly left: RuleExpression; readonly right: RuleExpression } }

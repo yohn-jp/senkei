@@ -18,6 +18,7 @@ import type {
   LocalPveScenario,
   SenkeiDraft,
 } from "./workspace";
+import type { LocalSenkeiBenchmarkSummary } from "./workspace-data";
 
 export interface EditorFeatureProps {
   readonly ruleset: RulePackage | null;
@@ -38,7 +39,7 @@ export interface BattleFeatureProps {
   readonly baseline_snapshot: SimulationSnapshot | null;
   readonly baseline_scenario_id: string | null;
   readonly outcome: SimulationOutcome | null;
-  readonly benchmark: BenchmarkOutcome | null;
+  readonly benchmark: BenchmarkOutcome | LocalSenkeiBenchmarkSummary | null;
   readonly restricted_diagnostics: RestrictedDiagnostics | null;
   onSelectScenario(scenario_id: string): void;
   onSnapshotChange(snapshot: SimulationSnapshot): void;

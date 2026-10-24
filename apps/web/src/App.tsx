@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   BenchmarkCase,
+  BenchmarkOutcome,
   CompileOutcome,
   CoreClient,
   EditorDraft,
@@ -8,6 +9,8 @@ import type {
   LocalSenkeiDocument,
   LocalSenkeiDocumentSummary,
   LocalSenkeiRevisionSummary,
+  LocalSenkeiBenchmarkSummary,
+  LocalSenkeiRunSummary,
   LocalSenkeiWorkspaceData,
   MatchContext,
   PersistenceFeatureProps,
@@ -46,16 +49,14 @@ const navigation: readonly { id: WorkspaceView; label: string; number: string }[
 ];
 
 const EMPTY_WORKSPACE_DATA: LocalSenkeiWorkspaceData = Object.freeze({
-  bundle_version: 1,
+  bundle_version: 2,
   compiled_program: null,
   compilation: null,
   rulesets: Object.freeze([]),
   component_versions: null,
   scenarios: Object.freeze([]),
-  simulation_snapshots: Object.freeze([]),
-  simulation_scenario_ids: Object.freeze([]),
-  simulation_outcomes: Object.freeze([]),
-  baseline_scenario_id: null,
+  latest_run: null,
+  baseline: null,
   benchmark: null,
   benchmark_history: Object.freeze([]),
   extensions: Object.freeze({}),
@@ -72,6 +73,8 @@ interface PreparedRun {
   readonly draft_key: string;
   readonly snapshot: SimulationSnapshot;
 }
+
+const MAX_BENCHMARK_HISTORY = 20;
 
 function draftKey(draft: EditorDraft): string | null {
   return draft === null ? null : JSON.stringify(draft);
@@ -140,27 +143,36 @@ function snapshotForScenario(
 }
 
 function latestRunFromWorkspace(data: LocalSenkeiWorkspaceData): CompletedRun | null {
-  const index = Math.min(data.simulation_snapshots.length, data.simulation_outcomes.length) - 1;
-  if (index < 0) return null;
+  const run = data.latest_run;
+  if (!run) return null;
   return {
-    scenario_id: data.simulation_scenario_ids[index] ?? null,
-    snapshot: data.simulation_snapshots[index],
-    response: data.simulation_outcomes[index],
+    scenario_id: run.scenario_id,
+    snapshot: run.snapshot,
+    response: run.response,
   };
 }
 
-function activeBaseline(data: LocalSenkeiWorkspaceData): {
-  readonly snapshot: SimulationSnapshot | null;
-  readonly scenario_id: string | null;
-} {
-  const index = data.simulation_snapshots.length - 2;
-  if (index < 0) return { snapshot: null, scenario_id: null };
-  const scenarioId = data.simulation_scenario_ids[index] ?? null;
+function activeBaseline(data: LocalSenkeiWorkspaceData): LocalSenkeiRunSummary | null {
+  return data.baseline;
+}
+
+function summarizeBenchmark(
+  outcome: BenchmarkOutcome,
+  inputs: readonly BenchmarkCase[],
+): LocalSenkeiBenchmarkSummary {
+  const inputById = new Map(inputs.map((item) => [item.case_id, item]));
   return {
-    snapshot: scenarioId !== null && scenarioId === data.baseline_scenario_id
-      ? data.simulation_snapshots[index]
-      : null,
-    scenario_id: data.baseline_scenario_id,
+    cases: outcome.cases.map((item) => {
+      const input = inputById.get(item.case_id);
+      if (!input) throw new Error(`Benchmark result '${item.case_id}' has no matching input snapshot.`);
+      const role = item.case_role ?? input.case_role;
+      return {
+        case_id: item.case_id,
+        ...(role ? { case_role: role } : {}),
+        snapshot: input.snapshot,
+        result: item.outcome.result,
+      };
+    }),
   };
 }
 
@@ -181,7 +193,7 @@ function App() {
   const [preparationError, setPreparationError] = useState<string | null>(null);
   const preparationSequence = useRef(0);
   const [lastRun, setLastRun] = useState<CompletedRun | null>(null);
-  const [benchmark, setBenchmark] = useState<LocalSenkeiWorkspaceData["benchmark"]>(null);
+  const [benchmark, setBenchmark] = useState<BenchmarkOutcome | LocalSenkeiBenchmarkSummary | null>(null);
   const [workspaceData, setWorkspaceData] = useState<LocalSenkeiWorkspaceData>(EMPTY_WORKSPACE_DATA);
   const [documents, setDocuments] = useState<readonly LocalSenkeiDocumentSummary[]>([]);
   const [activeDocument, setActiveDocument] = useState<LocalSenkeiDocument | null>(null);
@@ -365,17 +377,25 @@ function App() {
     compilation: activeCompilation,
     rulesets: mergeRuleset(workspaceData.rulesets, ruleset),
     scenarios,
-    benchmark,
-  }), [activeCompilation, benchmark, ruleset, scenarios, workspaceData]);
+  }), [activeCompilation, ruleset, scenarios, workspaceData]);
 
   const onDraftChange = useCallback((next: EditorDraft): void => {
     editorDraftRef.current = next;
     setEditorDraft(next);
     setCompiled(null);
+    setLastRun(null);
     setWorkspaceData((previous) => ({
       ...previous,
       compiled_program: null,
       compilation: null,
+      latest_run: null,
+      baseline: previous.latest_run
+        ? {
+            scenario_id: previous.latest_run.scenario_id,
+            snapshot: previous.latest_run.snapshot,
+            result: previous.latest_run.response.outcome.result,
+          }
+        : previous.baseline,
     }));
   }, []);
 
@@ -408,28 +428,31 @@ function App() {
     const selectedId = selectedScenarioId;
     const response = await core.simulate(snapshot, options);
     const run: CompletedRun = { scenario_id: selectedId, snapshot, response };
-    const previousIndex = workspaceData.simulation_snapshots.length - 1;
-    const baselineScenario = previousIndex >= 0
-      ? workspaceData.simulation_scenario_ids[previousIndex] ?? null
-      : null;
     setLastRun(run);
     setWorkspaceData((previous) => ({
       ...previous,
-      simulation_snapshots: [...previous.simulation_snapshots, snapshot],
-      simulation_scenario_ids: [...previous.simulation_scenario_ids, selectedId],
-      simulation_outcomes: [...previous.simulation_outcomes, response],
-      baseline_scenario_id: baselineScenario,
+      latest_run: { scenario_id: selectedId, snapshot, response },
+      baseline: previous.latest_run
+        ? {
+            scenario_id: previous.latest_run.scenario_id,
+            snapshot: previous.latest_run.snapshot,
+            result: previous.latest_run.response.outcome.result,
+          }
+        : previous.baseline,
     }));
-  }, [core, selectedScenarioId, workspaceData.simulation_scenario_ids, workspaceData.simulation_snapshots.length]);
+  }, [core, selectedScenarioId]);
 
   const onBenchmark = useCallback(async (cases: readonly BenchmarkCase[]): Promise<void> => {
     if (!core) throw new Error("The local Rust core is still loading.");
     const outcome = await core.benchmark(cases);
+    const summary = summarizeBenchmark(outcome, cases);
     setBenchmark(outcome);
     setWorkspaceData((previous) => ({
       ...previous,
-      benchmark: outcome,
-      benchmark_history: [...previous.benchmark_history, outcome],
+      benchmark: summary,
+      benchmark_history: previous.benchmark
+        ? [...previous.benchmark_history, previous.benchmark].slice(-MAX_BENCHMARK_HISTORY)
+        : previous.benchmark_history,
     }));
   }, [core]);
 
@@ -574,7 +597,7 @@ function App() {
     ? visibleRun.response.outcome
     : null;
   const persistedBaseline = activeBaseline(workspaceData);
-  const baseline = sameSnapshot(persistedBaseline.snapshot, currentSnapshot)
+  const baseline = sameSnapshot(persistedBaseline?.snapshot ?? null, currentSnapshot)
     ? { snapshot: null, scenario_id: null }
     : persistedBaseline;
 
@@ -660,8 +683,8 @@ function App() {
                   scenarios={scenarios}
                   selected_scenario_id={selectedScenarioId}
                   snapshot={currentSnapshot}
-                  baseline_snapshot={baseline.snapshot}
-                  baseline_scenario_id={baseline.scenario_id}
+                  baseline_snapshot={baseline?.snapshot ?? null}
+                  baseline_scenario_id={baseline?.scenario_id ?? null}
                   outcome={visibleOutcome}
                   benchmark={benchmark}
                   restricted_diagnostics={visibleRun?.response.restricted_diagnostics ?? null}
