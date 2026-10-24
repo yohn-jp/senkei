@@ -6,6 +6,7 @@ import { presentationToGraphics, type Replay, type DisplayState } from "@senkei/
 import { ReplayPlayer } from "@senkei/replay-player";
 import {
   type CoreClient,
+  type CoreVersion,
   type DomainValue,
   type HeroDefinition,
   type MatchResult,
@@ -19,7 +20,10 @@ import {
   type SimulationOutcome,
   type SimulationResponse,
   type SimulationSnapshot,
+  type StructuredTacticsAst,
   type TacticalInput,
+  type TacticalSource,
+  type RulesetRef,
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { EditorFeature } from "../editor";
@@ -28,10 +32,12 @@ import "./next-workspace.css";
 const SLOT_IDS = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"] as const;
 const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
+const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
 type Side = "attacker" | "defender";
 type HeroFilter = "placement" | "role" | "trait_id";
+type FormationShape = "single" | "three-lane" | "wings" | "custom";
 
 interface FormationSlot {
   readonly slot_id: string;
@@ -46,6 +52,19 @@ interface BattleRun {
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
   readonly graphicsReplay: Replay;
+}
+
+interface SavedNextSetup {
+  readonly format_version: 1;
+  readonly saved_at: string;
+  readonly ruleset: RulesetRef;
+  readonly schema_version: CoreVersion;
+  readonly mechanics_version: CoreVersion;
+  readonly formation_shape: FormationShape;
+  readonly slots: readonly FormationSlot[];
+  readonly rival_slots: readonly FormationSlot[];
+  readonly draft: SenkeiDraft;
+  readonly rival_source: string;
 }
 
 interface WorkspaceProps {
@@ -64,6 +83,113 @@ const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readon
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseVersion(value: unknown): CoreVersion | null {
+  if (!isRecord(value) || typeof value.major !== "number" || typeof value.minor !== "number" || typeof value.patch !== "number" ||
+      !Number.isInteger(value.major) || !Number.isInteger(value.minor) || !Number.isInteger(value.patch)) return null;
+  if (value.major < 0 || value.minor < 0 || value.patch < 0) return null;
+  return { major: value.major as number, minor: value.minor as number, patch: value.patch as number };
+}
+
+function parseRulesetRef(value: unknown): RulesetRef | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.digest !== "string") return null;
+  const version = parseVersion(value.version);
+  return version ? { id: value.id, version, digest: value.digest } : null;
+}
+
+function parseFormationSlots(value: unknown): readonly FormationSlot[] | null {
+  if (!Array.isArray(value) || value.length !== SLOT_IDS.length) return null;
+  const slots: (FormationSlot | null)[] = value.map((slot, index) => {
+    if (!isRecord(slot) || slot.slot_id !== SLOT_IDS[index]) return null;
+    if (![slot.catalog_id, slot.squad, slot.node, slot.skill_path].every((field) => typeof field === "string" && field.length > 0)) return null;
+    return {
+      slot_id: SLOT_IDS[index],
+      catalog_id: slot.catalog_id as string,
+      squad: slot.squad as string,
+      node: slot.node as string,
+      skill_path: slot.skill_path as string,
+    };
+  });
+  return slots.every((slot) => slot !== null) ? slots as FormationSlot[] : null;
+}
+
+function parseTacticalSource(value: unknown): TacticalSource | null {
+  if (!isRecord(value)) return null;
+  if (value.kind === "text" && typeof value.source === "string") return { kind: "text", source: value.source };
+  if (value.kind === "structured_ast" && isRecord(value.ast)) {
+    return { kind: "structured_ast", ast: value.ast as unknown as StructuredTacticsAst };
+  }
+  return null;
+}
+
+function parseDraft(value: unknown): SenkeiDraft | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.revision !== "string") return null;
+  const schemaVersion = parseVersion(value.schema_version);
+  const ruleset = parseRulesetRef(value.ruleset);
+  const source = parseTacticalSource(value.program_input);
+  if (!schemaVersion || !ruleset || !source || !isRecord(value.configuration) || !isRecord(value.initial_memory)) return null;
+  return {
+    schema_version: schemaVersion,
+    id: value.id,
+    revision: value.revision,
+    ruleset,
+    configuration: value.configuration as SenkeiDraft["configuration"],
+    program_input: source,
+    initial_memory: value.initial_memory as SenkeiDraft["initial_memory"],
+  };
+}
+
+function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
+  if (!isRecord(value) || value.format_version !== 1 || typeof value.saved_at !== "string") return null;
+  const ruleset = parseRulesetRef(value.ruleset);
+  const schemaVersion = parseVersion(value.schema_version);
+  const mechanicsVersion = parseVersion(value.mechanics_version);
+  const slots = parseFormationSlots(value.slots);
+  const rivalSlots = parseFormationSlots(value.rival_slots);
+  const draft = parseDraft(value.draft);
+  const shape = value.formation_shape;
+  if (!ruleset || !schemaVersion || !mechanicsVersion || !slots || !rivalSlots || !draft || typeof value.rival_source !== "string") return null;
+  if (shape !== "single" && shape !== "three-lane" && shape !== "wings" && shape !== "custom") return null;
+  return {
+    format_version: 1,
+    saved_at: value.saved_at,
+    ruleset,
+    schema_version: schemaVersion,
+    mechanics_version: mechanicsVersion,
+    formation_shape: shape,
+    slots,
+    rival_slots: rivalSlots,
+    draft,
+    rival_source: value.rival_source,
+  };
+}
+
+function savedSetupMismatch(setup: SavedNextSetup, packageValue: RulePackage | null, rules: NextRules | null): string | null {
+  if (!packageValue || !rules) return "The current Next ruleset is still loading.";
+  if (setup.ruleset.id !== packageValue.ruleset.id) return `Saved for ${setup.ruleset.id}; current ruleset is ${packageValue.ruleset.id}.`;
+  if (setup.ruleset.digest !== packageValue.ruleset.digest) return "The saved package digest differs from the current Next ruleset.";
+  if (stableKey(setup.ruleset.version) !== stableKey(packageValue.ruleset.version) ||
+      stableKey(setup.schema_version) !== stableKey(packageValue.model_version) ||
+      stableKey(setup.mechanics_version) !== stableKey(rules.mechanics_version)) {
+    return "The saved schema or mechanics version differs from the current Next ruleset.";
+  }
+  if (setup.draft.ruleset.digest !== packageValue.ruleset.digest ||
+      stableKey(setup.draft.schema_version) !== stableKey(packageValue.model_version)) {
+    return "The saved Jinrei draft belongs to a different package or model schema.";
+  }
+  const validSlots = (slots: readonly FormationSlot[]) => slots.every((slot) => {
+    const hero = rules.heroes.find((item) => item.id === slot.catalog_id);
+    return Boolean(hero && Object.prototype.hasOwnProperty.call(rules.map.nodes, slot.node) && slot.squad && hero.skill_paths[slot.skill_path]);
+  });
+  if (!validSlots(setup.slots) || !validSlots(setup.rival_slots)) {
+    return "The saved formation contains a hero, node or skill path that is unavailable in this package.";
+  }
+  return null;
 }
 
 function stableMatchId(value: unknown): string {
@@ -325,7 +451,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [tab, setTab] = useState<WorkspaceTab>("formation");
   const [slots, setSlots] = useState<FormationSlot[]>([]);
   const [rivalSlots, setRivalSlots] = useState<FormationSlot[]>([]);
-  const [formationShape, setFormationShape] = useState<"single" | "three-lane" | "wings" | "custom">("single");
+  const [formationShape, setFormationShape] = useState<FormationShape>("single");
   const [activeSlot, setActiveSlot] = useState(0);
   const [filters, setFilters] = useState<Record<HeroFilter, string>>({ placement: "all", role: "all", trait_id: "all" });
   const [minHp, setMinHp] = useState(0);
@@ -342,8 +468,30 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [displayState, setDisplayState] = useState<DisplayState | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [rendererError, setRendererError] = useState<string | null>(null);
+  const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
+  const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
+  const [savedSetupError, setSavedSetupError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const rendererHost = useRef<HTMLDivElement>(null);
   const renderer = useRef<BattlefieldRenderer | null>(null);
+  const importFileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const serialized = window.localStorage.getItem(NEXT_STORAGE_KEY);
+      if (serialized !== null) {
+        const parsed = parseSavedNextSetup(JSON.parse(serialized) as unknown);
+        if (parsed) setSavedSetup(parsed);
+        else setSavedSetupError("A saved Next setup is present, but its format cannot be read. Import a valid JSON setup or clear this copy explicitly.");
+      }
+    } catch (cause) {
+      setSavedSetupError(cause instanceof Error
+        ? `The saved Next setup could not be read: ${cause.message}`
+        : "The saved Next setup could not be read from this browser.");
+    } finally {
+      setSavedSetupLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!packageValue || !nextRules) return;
@@ -377,6 +525,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
 
   const draftKey = draft ? stableKey(draft) : null;
   const activeCompilation = draftKey !== null && compilation?.key === draftKey ? compilation.result : null;
+  const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
+  const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
   const runIsCurrent = Boolean(run && activeCompilation &&
     run.snapshot.attacker.program.content_digest === activeCompilation.program.content_digest &&
     stableKey(run.snapshot.attacker.configuration.heroes) === stableKey(heroConfiguration(slots)));
@@ -420,6 +570,110 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     ...packageValue,
     domain: { ...packageValue.domain, senkei_configuration: Object.freeze({}) },
   }) : null, [packageValue]);
+
+  const buildSavedSetup = useCallback((): SavedNextSetup | null => {
+    const currentDraft = draftRef.current;
+    if (!packageValue || !nextRules || !currentDraft) return null;
+    return {
+      format_version: 1,
+      saved_at: new Date().toISOString(),
+      ruleset: packageValue.ruleset,
+      schema_version: packageValue.model_version,
+      mechanics_version: nextRules.mechanics_version,
+      formation_shape: formationShape,
+      slots,
+      rival_slots: rivalSlots,
+      draft: currentDraft,
+      rival_source: createStarterJinrei(packageValue, "defender", rivalSlots),
+    };
+  }, [formationShape, nextRules, packageValue, rivalSlots, slots]);
+
+  const saveSetup = useCallback((): void => {
+    const setup = buildSavedSetup();
+    if (!setup || !savedSetupLoaded) {
+      setSaveMessage("Wait for the current local draft to finish loading before saving.");
+      return;
+    }
+    try {
+      window.localStorage.setItem(NEXT_STORAGE_KEY, JSON.stringify(setup));
+      setSavedSetup(setup);
+      setSavedSetupError(null);
+      setSaveMessage("Saved this Next setup in this browser. Legacy Senkei strategies remain separate.");
+    } catch (cause) {
+      setSavedSetupError(cause instanceof Error ? `The Next setup could not be saved: ${cause.message}` : "The Next setup could not be saved in this browser.");
+    }
+  }, [buildSavedSetup, savedSetupLoaded]);
+
+  const restoreSetup = useCallback((): void => {
+    if (!savedSetup || savedSetupMismatchReason) return;
+    draftRef.current = savedSetup.draft;
+    setDraft(savedSetup.draft);
+    setSlots([...savedSetup.slots]);
+    setRivalSlots([...savedSetup.rival_slots]);
+    setFormationShape(savedSetup.formation_shape);
+    setActiveSlot(0);
+    setCompilation(null);
+    setSelectedEntityId(null);
+    setTab("formation");
+    setError(null);
+    setSaveMessage("Restored the saved Next setup. Compile its Jinrei source before launching a new battle.");
+  }, [savedSetup, savedSetupMismatchReason]);
+
+  const clearSavedSetup = useCallback((): void => {
+    try {
+      window.localStorage.removeItem(NEXT_STORAGE_KEY);
+      setSavedSetup(null);
+      setSavedSetupError(null);
+      setSaveMessage("Cleared the local Next setup copy.");
+    } catch (cause) {
+      setSavedSetupError(cause instanceof Error ? `The saved setup could not be cleared: ${cause.message}` : "The saved setup could not be cleared.");
+    }
+  }, []);
+
+  const exportSetup = useCallback((setup: SavedNextSetup, filename: string): void => {
+    const blob = new Blob([JSON.stringify(setup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, []);
+
+  const exportCurrentSetup = useCallback((): void => {
+    const setup = buildSavedSetup();
+    if (!setup) {
+      setSaveMessage("The current Next setup is not ready to export.");
+      return;
+    }
+    exportSetup(setup, `senkei-next-${setup.ruleset.digest.slice(0, 12)}.json`);
+    setSaveMessage("Exported the current Next setup as JSON.");
+  }, [buildSavedSetup, exportSetup]);
+
+  const exportSavedSetup = useCallback((): void => {
+    if (!savedSetup) return;
+    exportSetup(savedSetup, `senkei-next-saved-${savedSetup.ruleset.digest.slice(0, 12)}.json`);
+    setSaveMessage("Exported the saved Next setup as JSON.");
+  }, [exportSetup, savedSetup]);
+
+  const importSetupFile = useCallback(async (file: File): Promise<void> => {
+    try {
+      const parsed = parseSavedNextSetup(JSON.parse(await file.text()) as unknown);
+      if (!parsed) throw new Error("This file is not a supported Next setup.");
+      setSavedSetup(parsed);
+      setSavedSetupError(null);
+      setSaveMessage("Imported a Next setup. Check its ruleset status, then restore it when compatible.");
+      try {
+        window.localStorage.setItem(NEXT_STORAGE_KEY, JSON.stringify(parsed));
+      } catch (cause) {
+        setSavedSetupError(cause instanceof Error
+          ? `The setup is imported for this session, but browser storage failed: ${cause.message}`
+          : "The setup is imported for this session, but browser storage is unavailable.");
+      }
+    } catch (cause) {
+      setSavedSetupError(cause instanceof Error ? `The setup file could not be imported: ${cause.message}` : "The setup file could not be imported.");
+    }
+  }, []);
 
   const refreshStarterTactics = useCallback((before: readonly FormationSlot[], after: readonly FormationSlot[]): void => {
     const currentDraft = draftRef.current;
@@ -612,6 +866,32 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError}</span><button type="button" onClick={() => setRendererError(null)} aria-label="Dismiss renderer error">×</button></div>}
+
+      <section aria-label="Next setup save and restore" className="next-save-bar">
+        <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Keep this formation and Jinrei separate</strong><small>Stored in this browser with its exact ruleset digest.</small></div>
+        <div className="next-save-actions">
+          <button disabled={!draft || !packageValue || !savedSetupLoaded} onClick={saveSetup} type="button">Save setup</button>
+          <button disabled={!canRestoreSavedSetup} onClick={restoreSetup} type="button">Restore saved</button>
+          <button disabled={!draft || !packageValue} onClick={exportCurrentSetup} type="button">Export JSON</button>
+          <button onClick={() => importFileInput.current?.click()} type="button">Import JSON</button>
+          {savedSetup && <button onClick={exportSavedSetup} type="button">Export saved</button>}
+          {(savedSetup || savedSetupError) && <button onClick={clearSavedSetup} type="button">Clear saved</button>}
+          <input accept="application/json,.json" aria-label="Import a Next setup JSON file" hidden onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file) void importSetupFile(file);
+          }} ref={importFileInput} type="file" />
+        </div>
+        {savedSetupError && <p className="next-save-message is-error" role="alert">{savedSetupError}</p>}
+        {savedSetup && <div className={`next-save-message${savedSetupMismatchReason ? " is-error" : ""}`} role={savedSetupMismatchReason ? "alert" : "status"}>
+          {savedSetupMismatchReason
+            ? <>Saved setup from {savedSetup.ruleset.id} · digest <code>{savedSetup.ruleset.digest}</code>. {savedSetupMismatchReason} It remains available to export or clear.</>
+            : <>Saved setup from {new Date(savedSetup.saved_at).toLocaleString()} matches the current ruleset and can be restored.</>}
+        </div>}
+        {savedSetup && <details className="next-save-preview"><summary>Review saved setup · {savedSetup.slots.map((slot) => slot.catalog_id).join(" · ")}</summary><div><span>Rival: {savedSetup.rival_slots.map((slot) => slot.catalog_id).join(" · ")}</span><pre>{savedSetup.draft.program_input.kind === "text" ? savedSetup.draft.program_input.source : JSON.stringify(savedSetup.draft.program_input.ast, null, 2)}</pre></div></details>}
+        {!savedSetup && !savedSetupError && saveMessage && <p className="next-save-message" role="status">{saveMessage}</p>}
+        {!savedSetup && !savedSetupError && !saveMessage && <p className="next-save-message" role="status">{savedSetupLoaded ? "No Next setup is saved yet." : "Checking for a saved Next setup…"}</p>}
+      </section>
 
       <div className="next-layout">
         <nav className="next-tabs" aria-label="Next workbench" role="tablist">
