@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type {
-  CoreVersion,
   DomainType,
   EditorFeatureProps,
-  RulesetRef,
   StructuredTacticsAst,
   TacticalInput,
 } from "../../contracts";
@@ -12,21 +10,14 @@ import { StructuredTacticsEditor } from "./ast-editor";
 import { configurationDefaults, domainValueForType, DomainValueEditor, memoryDefaults } from "./value-editor";
 import "./editor.css";
 
-interface ConversionProps {
-  onParse?(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
-  onFormat?(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;
-}
-
-const fallbackVersion: CoreVersion = { major: 1, minor: 0, patch: 0 };
-
 function createDraft(ruleset: NonNullable<EditorFeatureProps["ruleset"]>): SenkeiDraft {
   const ast: StructuredTacticsAst = {
-    schema_version: ruleset.jinrei_language_version ?? fallbackVersion,
+    schema_version: ruleset.structured_ast_version,
     program_name: "new_senkei",
     declarations: [],
   };
   return {
-    schema_version: ruleset.model_version ?? fallbackVersion,
+    schema_version: ruleset.model_version,
     id: "draft-" + ruleset.ruleset.digest.slice(0, 12),
     revision: "1",
     ruleset: ruleset.ruleset,
@@ -49,7 +40,6 @@ function typeLabel(type: DomainType): string {
 
 export function EditorFeature(props: EditorFeatureProps) {
   const { ruleset, draft, compilation, onDraftChange, onCompile } = props;
-  const conversion = props as EditorFeatureProps & ConversionProps;
   const [mode, setMode] = useState<"text" | "structured">(draft?.program_input.kind === "text" ? "text" : "structured");
   const [busy, setBusy] = useState<"parse" | "format" | "compile" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -108,16 +98,12 @@ export function EditorFeature(props: EditorFeatureProps) {
       setMode("structured");
       return;
     }
-    if (!conversion.onParse) {
-      setError("The Rust parser is not connected yet, so this source cannot be converted to the visual editor.");
-      return;
-    }
     setBusy("parse");
     setError(null);
     setMessage(null);
     const source = draft.program_input.source;
     try {
-      const ast = await conversion.onParse(source, draft.ruleset);
+      const ast = await props.onParse(source, draft.ruleset);
       const latest = draftRef.current;
       if (latest?.program_input.kind === "text" && latest.program_input.source === source) {
         updateDraft({ ...latest, program_input: { kind: "structured_ast", ast } });
@@ -137,16 +123,12 @@ export function EditorFeature(props: EditorFeatureProps) {
       setMode("text");
       return;
     }
-    if (!conversion.onFormat) {
-      setError("The Rust formatter is not connected yet, so this AST cannot be converted to text.");
-      return;
-    }
     setBusy("format");
     setError(null);
     setMessage(null);
     const ast = draft.program_input.ast;
     try {
-      const source = await conversion.onFormat(ast, draft.ruleset);
+      const source = await props.onFormat(ast, draft.ruleset);
       const latest = draftRef.current;
       if (latest?.program_input.kind === "structured_ast" && latest.program_input.ast === ast) {
         updateDraft({ ...latest, program_input: { kind: "text", source } });

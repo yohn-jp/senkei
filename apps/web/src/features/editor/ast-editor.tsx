@@ -206,6 +206,10 @@ function ValueEditor({
   const changeKind = (kind: string) => {
     if (kind === "literal") onChange(initialValue);
     else if (kind === "path") onChange({ kind: "path", value: firstObservationPath(schema) });
+    else if (kind === "filtered_collection") onChange({
+      kind: "filtered_collection",
+      value: { binding: "item", collection: { kind: "path", value: firstCollectionPath(schema) }, predicates: [initialTruth] },
+    });
     else if (kind === "count") onChange({ kind: "count", value: { binding: "item", collection: { kind: "path", value: firstCollectionPath(schema) }, predicates: [initialTruth] } });
     else if (kind === "sum" || kind === "min" || kind === "max") {
       onChange({ kind, value: { binding: "item", collection: { kind: "path", value: firstCollectionPath(schema) }, expression: initialValue } });
@@ -221,6 +225,7 @@ function ValueEditor({
         <select value={expression.kind} onChange={(event) => changeKind(event.currentTarget.value)}>
           <option value="literal">Literal</option>
           <option value="path">Field path</option>
+          <option value="filtered_collection">Filtered collection</option>
           <option value="count">Count</option>
           <option value="sum">Sum</option>
           <option value="min">Minimum</option>
@@ -239,6 +244,31 @@ function ValueEditor({
       )}
       {expression.kind === "path" && (
         <PathField label="Value path" path={expression.value} suggestions={Object.keys(schema.observation_fields)} onChange={(value) => onChange({ kind: "path", value })} />
+      )}
+      {expression.kind === "filtered_collection" && (
+        <div className="editor-node-fields">
+          <TextField
+            label="Binding name"
+            value={expression.value.binding}
+            onChange={(binding) => onChange({
+              ...expression,
+              value: { ...expression.value, binding },
+            })}
+          />
+          <CollectionEditor
+            collection={expression.value.collection}
+            onChange={(collection) => onChange({ ...expression, value: { ...expression.value, collection } })}
+            schema={schema}
+            depth={depth + 1}
+          />
+          <PredicateList
+            label="Filter conditions"
+            predicates={expression.value.predicates}
+            onChange={(predicates) => onChange({ ...expression, value: { ...expression.value, predicates } })}
+            schema={schema}
+            depth={depth + 1}
+          />
+        </div>
       )}
       {expression.kind === "count" && (
         <div className="editor-node-fields">
