@@ -4,7 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const configDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(configDirectory, "../..");
-const baseURL = "http://127.0.0.1:4173";
+const port = process.env.SENKEI_BROWSER_PORT ?? "4173";
+const baseURL = `http://127.0.0.1:${port}`;
 const executablePath = process.env.SENKEI_CHROMIUM_EXECUTABLE;
 
 export default defineConfig({
@@ -18,12 +19,12 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
-    launchOptions: executablePath ? { executablePath } : undefined,
+    launchOptions: { ...(executablePath ? { executablePath } : {}), args:["--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
     ...devices["Desktop Chrome"],
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+    command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
     cwd: repositoryRoot,
     url: baseURL,
     reuseExistingServer: !process.env.CI,

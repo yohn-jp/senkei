@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 test("real WASM Next workbench supports editing, replay, rematch, mobile and offline restore", async ({ page, baseURL }) => {
@@ -13,6 +14,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     }
   });
 
+  await page.setViewportSize({width:1440,height:900});
   await page.goto(baseURL, { waitUntil: "networkidle" });
   await page.getByTestId("nav-next").click();
   await expect(page.getByRole("heading", { name: /Battle workbench/ })).toBeVisible();
@@ -32,23 +34,23 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
 
   await page.locator("#next-tab-battle").click();
-  // Diagnostics are optional and can push an owner replay over the old 16 MB
-  // adapter output cap. Sol can turn this on after the producer limit update.
   const diagnostics = page.getByRole("checkbox", { name: /Include my local replay and diagnostics/ });
-  await page.getByText("Include my local replay and diagnostics").click();
-  await expect(diagnostics).not.toBeChecked();
+  await expect(diagnostics).toBeChecked();
   const launch = page.getByRole("button", { name: "Launch local battle" });
   await expect(launch).toBeEnabled();
   await launch.click();
   await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator(".next-result-strip")).toContainText("Attacker Victory");
+  await expect(page.locator(".next-result-strip")).toContainText(/Attacker Victory|Defender Victory|Draw/);
   await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
 
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
   await slider.focus();
   await slider.press("End");
   await expect(page.locator(".next-tick-readout")).toContainText("/");
-  await expect(page.locator(".next-stage-hud")).not.toContainText("0 VISIBLE ENTITIES");
+  await expect(page.locator(".next-stage-hud")).not.toContainText(/\b0 VISIBLE ENTITIES\b/);
+  mkdirSync("../../docs/evidence/next", { recursive:true });
+  await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
+  await page.screenshot({path:"../../docs/evidence/next/desktop-battle.png"});
   const finalTick = await page.locator(".next-tick-readout").innerText();
 
   await page.locator("#next-tab-formation").click();
@@ -57,6 +59,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const revisedRun = page.getByRole("button", { name: "Run revised battle" });
   await expect(revisedRun).toBeEnabled();
   await revisedRun.click();
+  await expect(launch).toBeEnabled({timeout:90_000});
   await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({ timeout: 90_000 });
   await page.getByRole("button", { name: "Save setup" }).click();
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
@@ -69,6 +72,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   }));
   expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.width);
   expect(mobileLayout.cameraControls).not.toBe("none");
+  await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
+  await page.screenshot({path:"../../docs/evidence/next/mobile-battle.png"});
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);

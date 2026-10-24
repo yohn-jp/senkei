@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { OrthographicCamera, Vector3 } from "three";
-const evidence = "docs/evidence/g1";
+const evidence = process.env.SENKEI_GRAPHICS_EVIDENCE_DIR ?? "docs/evidence/g1";
 const g1 = JSON.parse(
   readFileSync(
     new URL(

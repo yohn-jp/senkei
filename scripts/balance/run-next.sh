@@ -21,8 +21,12 @@ if [[ ! -s "${report_path}" ]]; then
   exit 1
 fi
 
-if [[ ! -s "${wasm_path}" ]]; then
+# A cached artifact may predate the current native code or rules digest.
+if [[ -z "${SENKEI_WASM_PATH:-}" ]]; then
   bash "${repo_root}/scripts/wasm/build.sh"
+elif [[ ! -s "${wasm_path}" ]]; then
+  echo "Requested WebAssembly artifact is missing: ${wasm_path}" >&2
+  exit 1
 fi
 
 node "${repo_root}/tests/conformance/compare-next-adapters.mjs" "${fixture_dir}"
