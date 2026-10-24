@@ -74,7 +74,9 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await slider.press("Home");
   await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
   await page.getByRole("button", {name:"Play replay", exact:true}).click();
-  await expect.poll(async () => Number(await slider.inputValue())).toBeGreaterThanOrEqual(25);
+  // The hosted SwiftShader runner can advance more slowly under parallel
+  // renderer load; verify cursor movement without making an FPS assertion.
+  await expect.poll(async () => Number(await slider.inputValue()), {timeout:15_000}).toBeGreaterThanOrEqual(25);
   await page.getByRole("button", {name:"Pause replay", exact:true}).click();
   const pausedTick = await slider.inputValue();
   await page.waitForTimeout(250);
