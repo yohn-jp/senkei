@@ -113,6 +113,7 @@ fn parameters() -> BTreeMap<String, i64> {
         // units and ticks respectively.
         ("squad_maturation_ticks".into(), 40),
         ("squad_merge_distance".into(), 30),
+        ("formation_spacing".into(), 8),
         ("squad_shield_per_ally".into(), 2),
         // Objective combat values apply uniformly to W1's tower placements.
         ("structure_tower_hp".into(), 1_200),
@@ -602,6 +603,7 @@ mod tests {
         assert_eq!(rules.parameters["hero_max_level"], 6);
         assert_eq!(rules.parameters["xp_scale"], 2_520);
         assert_eq!(rules.parameters["squad_shield_per_ally"], 2);
+        assert_eq!(rules.parameters["formation_spacing"], 8);
         assert_eq!(rules.minions.len(), 2);
         assert_eq!(rules.monsters.len(), 3);
     }

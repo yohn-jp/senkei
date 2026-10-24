@@ -48,9 +48,16 @@ measurable.
 | `structure_base_xp` | 0 | The base ends the match, so no post-victory progression reward is needed. |
 | `squad_maturation_ticks` | 40 | A short, observable delay before a maintained formation reaches full coordination. |
 | `squad_merge_distance` | 30 world units | Requires Heroes to rendezvous closely relative to W1's edge lengths. |
+| `formation_spacing` | 8 world units | Starting offset for the five-Hero cardinal formation; its maximum diameter is 16, below the 30-unit merge distance, while making each Hero's position visible. |
 | `squad_shield_per_ally` | 2 shield | At full maturity, each other living Squad member contributes two shield points to a Hero; the contribution scales with the contributor's maturity and `maturity_effect_milli`, then rounds up to a whole shield point. |
 | `max_match_ticks` | 600 | A finite package-level runtime ceiling for the first implementation; it is not a claim that 600 ticks is the ideal match length. |
 | `tick_duration_ms` | 100 | Gives replay and UI consumers a first wall-clock interpretation of one simulation tick. |
+
+W3 applies `formation_spacing` to actual initial Hero positions: slots 0–4 use
+offsets `(+s,0)`, `(0,+s)`, `(0,0)`, `(-s,0)`, `(0,-s)` from the configured
+node; the defender orientation is reversed. A Solo remains centered. Enbu owns
+these coordinates, and navigation preserves them as entity positions for the
+renderer to display; the renderer does not invent a formation.
 
 The `xp` world field stores integer units of 1/`xp_scale` XP; the validator
 requires `xp_scale=2520`. A normal enemy or structure reward goes to the
