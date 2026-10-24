@@ -2,6 +2,23 @@ import { expect, test } from "@playwright/test";
 
 test("real WASM local PvE journey remains playable offline", async ({ page, baseURL }) => {
   test.setTimeout(180_000);
+  const firstRevisionSource = `senkei careful_march {
+    action advance_until_tick_40 {
+        when match.tick < 40,
+        do move_forward(argmin unit in allies.units by unit.position then unit.id),
+    },
+    action deploy_ready_reserve {
+        when match.tick >= 4,
+        do deploy(
+            argmin barracks in allies.barracks by barracks.resources then barracks.id,
+            argmin reserve in filter reserve in allies.reserves {
+                reserve.available_tick <= match.tick,
+            } by reserve.available_tick then reserve.id,
+            mid,
+        ),
+    },
+}`;
+  const secondRevisionSource = firstRevisionSource.replace("match.tick < 40", "match.tick < 24");
   const externalRequests: string[] = [];
   const pageErrors: string[] = [];
   const wasmResponses: { readonly status: number; readonly fromServiceWorker: boolean }[] = [];
@@ -23,13 +40,18 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
 
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  const starterProgram = await page.locator(".editor-digest").innerText();
 
   await page.getByRole("button", { name: "Jinrei text" }).click();
   const sourceEditor = page.getByRole("textbox", { name: "Jinrei source" });
   await expect(sourceEditor).toBeVisible();
-  await sourceEditor.fill(`${await sourceEditor.inputValue()}\n// edited in the browser journey\n`);
+  await sourceEditor.fill(firstRevisionSource);
+  const credits = page.getByRole("spinbutton", { name: "Starting Credits" });
+  await credits.fill("30");
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await expect.poll(() => page.locator(".editor-digest").innerText()).not.toBe(starterProgram);
+  const firstRevisionProgram = await page.locator(".editor-digest").innerText();
 
   const navigation = page.getByRole("navigation", { name: "Workspace" });
   await navigation.getByRole("button", { name: /Battle lab/ }).click();
@@ -60,15 +82,49 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await navigation.getByRole("button", { name: /Tactics/ }).click();
   const offlineSource = page.getByRole("textbox", { name: "Jinrei source" });
   await expect(offlineSource).toBeVisible();
-  await offlineSource.fill(`${await offlineSource.inputValue()}\n// recompiled after offline reload\n`);
+  await expect(offlineSource).toHaveValue(firstRevisionSource);
+  const offlineCredits = page.getByRole("spinbutton", { name: "Starting Credits" });
+  await expect(offlineCredits).toHaveValue("30");
+  await offlineSource.fill(secondRevisionSource);
+  await offlineCredits.fill("31");
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await expect.poll(() => page.locator(".editor-digest").innerText()).not.toBe(firstRevisionProgram);
   await navigation.getByRole("button", { name: /Battle lab/ }).click();
   await expect(page.getByText("No battle result")).toBeVisible();
   await expect(run).toBeEnabled({ timeout: 30_000 });
   await run.click();
   await expect(page.getByText("ENBU MATCH RESULT")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole("heading", { name: "Tactics & CU trace" })).toBeVisible();
+  const replayTick = page.getByRole("slider", { name: "Seek to replay tick" });
+  await replayTick.focus();
+  await replayTick.press("Home");
+  for (let tick = 0; tick < 4; tick += 1) await replayTick.press("ArrowRight");
+  await expect(page.getByRole("heading", { name: "Tick 4 activity" })).toBeVisible();
+  await expect(page.getByText("Unit Deployed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Deploy Ready Reserve", { exact: true })).toBeVisible();
+  await navigation.getByRole("button", { name: /Library/ }).click();
+  await page.getByRole("button", { name: "Save revision" }).click();
+  await expect(page.getByText("REV 3")).toBeVisible();
+
+  // Reopen the latest saved revision while still offline. It must retain its
+  // rematch result, and running again must produce a fresh result as well.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Library/ }).click();
+  await page.getByRole("button", { name: "Open Offline campaign journey" }).click();
+  await expect(page.getByRole("heading", { name: "Offline campaign journey" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Tactics/ }).click();
+  const finalSource = page.getByRole("textbox", { name: "Jinrei source" });
+  await expect(finalSource).toHaveValue(secondRevisionSource);
+  await expect(page.getByRole("spinbutton", { name: "Starting Credits" })).toHaveValue("31");
+  await page.getByRole("button", { name: "Compile tactics" }).click();
+  await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Battle lab/ }).click();
+  const reloadedRun = page.getByRole("button", { name: "Run simulation" });
+  await expect(reloadedRun).toBeEnabled({ timeout: 30_000 });
+  await reloadedRun.click();
+  await expect(page.getByText("ENBU MATCH RESULT")).toBeVisible({ timeout: 60_000 });
 
   expect(wasmResponses.some((response) => response.status === 200)).toBe(true);
   expect(externalRequests).toEqual([]);
