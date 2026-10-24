@@ -51,14 +51,15 @@ pub(crate) struct EvalContext<'a> {
     pub intent: Option<&'a Intent>,
     pub observed_entity: Option<&'a senkei_model::EntityId>,
     pub projection_index: Option<&'a world::ProjectionIndex>,
+    pub tick: u32,
 }
 
 impl<'a> EvalContext<'a> {
-    fn intent(side: CombatantSide, intent: &'a Intent, projection_index: &'a world::ProjectionIndex) -> Self {
-        Self { side: Some(side), intent: Some(intent), observed_entity: None, projection_index: Some(projection_index) }
+    fn intent(side: CombatantSide, intent: &'a Intent, projection_index: &'a world::ProjectionIndex, tick: u32) -> Self {
+        Self { side: Some(side), intent: Some(intent), observed_entity: None, projection_index: Some(projection_index), tick }
     }
-    fn global(projection_index: &'a world::ProjectionIndex) -> Self {
-        Self { side: None, intent: None, observed_entity: None, projection_index: Some(projection_index) }
+    fn global(projection_index: &'a world::ProjectionIndex, tick: u32) -> Self {
+        Self { side: None, intent: None, observed_entity: None, projection_index: Some(projection_index), tick }
     }
 }
 
@@ -531,7 +532,7 @@ fn apply_transitions(
                 for (index, (side, intent)) in accepted.iter().enumerate().filter(|(_, (_, intent))| &intent.capability == capability) {
                     let context = EvalContext {
                         side: Some(*side), intent: Some(intent), observed_entity: None,
-                        projection_index: Some(projection_index),
+                        projection_index: Some(projection_index), tick,
                     };
                     let condition = rule.when.as_ref()
                         .map(|expr| eval_truth(expr, &phase_world, context))
@@ -542,7 +543,7 @@ fn apply_transitions(
                 }
             } else {
                 let condition = rule.when.as_ref()
-                    .map(|expr| eval_truth(expr, &phase_world, EvalContext::global(projection_index)))
+                    .map(|expr| eval_truth(expr, &phase_world, EvalContext::global(projection_index, tick)))
                     .transpose()?.unwrap_or(Truth::True);
                 if condition == Truth::True {
                     effects.push((rule.order, rule.id.clone(), CombatantSide::Attacker, 0, None, rule.operations.clone()));
@@ -593,7 +594,7 @@ fn apply_primitive(
     use senkei_model::TransitionPrimitive as P;
     let eval_context = EvalContext {
         side: intent.map(|_| side), intent, observed_entity: None,
-        projection_index: Some(projection_index),
+        projection_index: Some(projection_index), tick,
     };
     match operation {
         P::SetField { target, field, value } => {
@@ -849,13 +850,13 @@ fn clamp_integer(base: i128, delta: i128, min: Option<i64>, max: Option<i64>) ->
 fn evaluate_termination(
     plan: &RulePlan,
     world: &WorldState,
-    _tick: u32,
+    tick: u32,
     projection_index: &world::ProjectionIndex,
 ) -> Result<Option<(MatchOutcome, SymbolId)>, ApiError> {
     let mut conditions = plan.termination.conditions.iter().collect::<Vec<_>>();
     conditions.sort_by_key(|condition| condition.order);
     for condition in conditions {
-        if eval_truth(&condition.when, world, EvalContext::global(projection_index))? == Truth::True {
+        if eval_truth(&condition.when, world, EvalContext::global(projection_index, tick))? == Truth::True {
             return Ok(Some((condition.outcome, condition.reason.clone())));
         }
     }
@@ -996,6 +997,7 @@ pub(crate) fn eval_value(expression: &RuleExpression, world: &WorldState, contex
     use RuleExpression as E;
     Ok(match expression {
         E::Literal(value) => Some(value.clone()),
+        E::CurrentTick => Some(DomainValue::Integer(i64::from(context.tick))),
         E::IntentArgument(index) => context.intent.and_then(|intent| intent.arguments.get(*index as usize).cloned()),
         E::Field { target, field } => {
             let entity = select_entity(target, context, world)?;

@@ -205,7 +205,7 @@ pub(crate) fn validate_intent(
     side: CombatantSide,
     world: &WorldState,
     plan: &RulePlan,
-    _tick: u32,
+    tick: u32,
     projection_index: &crate::world::ProjectionIndex,
 ) -> Result<Intent, senkei_model::SymbolId> {
     let rejected = |reason: &str| senkei_model::SymbolId::from(reason);
@@ -246,7 +246,7 @@ pub(crate) fn validate_intent(
     let allowed_phase = plan.phases.iter().any(|phase| capability.phases.contains(&phase.id) && phase.kind == senkei_model::PhaseKind::Transition);
     if !allowed_phase { return Err(rejected("enbu.capability_unavailable")); }
     for precondition in &capability.preconditions {
-        match crate::eval_truth(precondition, world, crate::EvalContext::intent(side, &normalized, projection_index)) {
+        match crate::eval_truth(precondition, world, crate::EvalContext::intent(side, &normalized, projection_index, tick)) {
             Ok(senkei_model::Truth::True) => {},
             _ => return Err(rejected("enbu.precondition_failed")),
         }

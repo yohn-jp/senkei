@@ -404,6 +404,83 @@ fn concurrent_attacks_against_one_target_sum_once_per_intent() {
 }
 
 #[test]
+fn current_tick_is_shared_by_observations_preconditions_transitions_and_termination() {
+    let (attacker, defender, base_rules, context) = damage_fixture(3, 100, 100, 20);
+    let mut plan = base_rules.plan().clone();
+    let tick_expr = RuleExpression::CurrentTick;
+    let at_two = || RuleExpression::Equal {
+        left: Box::new(tick_expr.clone()),
+        right: Box::new(RuleExpression::Literal(DomainValue::Integer(2))),
+    };
+    plan.domain.capabilities.get_mut(&id("strike")).unwrap().preconditions = vec![at_two()];
+    plan.transitions[0].when = Some(at_two());
+    plan.termination.conditions = vec![TerminationCondition {
+        order: 1,
+        when: RuleExpression::Not(Box::new(RuleExpression::LessThan {
+            left: Box::new(tick_expr.clone()),
+            right: Box::new(RuleExpression::Literal(DomainValue::Integer(2))),
+        })),
+        outcome: MatchOutcome::Draw,
+        reason: id("at-tick-two"),
+    }];
+    let observation_tick: ObservationPath = ObservationPath::new("current_tick");
+    plan.domain.observation_fields.insert(
+        observation_tick.clone(),
+        ObservationFieldSchema {
+            value_type: DomainType::Integer { min: Some(0), max: Some(3) },
+            visibility: Visibility::Public,
+            source: ObservationSource::Derived(tick_expr),
+        },
+    );
+    let plan = reverify(&ruleset(), plan);
+
+    struct TickStrike(Vec<ObservationSnapshot>);
+    impl TacticalExecutionPort for TickStrike {
+        fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            self.0.push(request.observation.clone());
+            let intents = if request.side == CombatantSide::Attacker {
+                vec![Intent {
+                    action_id: ActionId::new(format!("strike-{}", request.tick)),
+                    capability: id("strike"),
+                    actor: None,
+                    target: Some(id("defender-core")),
+                    arguments: Vec::new(),
+                    priority: None,
+                }]
+            } else {
+                Vec::new()
+            };
+            Ok(TacticalExecutionOutput {
+                status: TacticalExecutionStatus::Completed,
+                intents,
+                next_memory: request.memory.clone(),
+                charged_cu: LogicalCu::ZERO,
+                required_cu: LogicalCu::ZERO,
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
+    let mut port = TickStrike(Vec::new());
+    let artifact = simulate(&attacker, &defender, &plan, &context, &mut port).unwrap();
+    assert_eq!(artifact.result.final_tick, 2);
+    assert_eq!(artifact.result.termination_reason, id("at-tick-two"));
+    assert_eq!(port.0.len(), 4);
+    for observation in &port.0[..2] {
+        assert_eq!(observation.fields[&observation_tick], Observed::Known(DomainValue::Integer(1)));
+    }
+    for observation in &port.0[2..] {
+        assert_eq!(observation.fields[&observation_tick], Observed::Known(DomainValue::Integer(2)));
+    }
+    assert!(artifact.replay.frames[1].events.is_empty());
+    assert_eq!(artifact.replay.frames[2].events.len(), 1);
+    assert!(artifact.diagnostics.events.iter().any(|event| event.tick == 1
+        && matches!(&event.record, DiagnosticRecord::IntentRejected { reason, .. } if reason == &id("enbu.precondition_failed"))));
+    assert!(artifact.diagnostics.events.iter().any(|event| event.tick == 2
+        && matches!(&event.record, DiagnosticRecord::IntentAccepted { .. })));
+}
+
+#[test]
 fn a_silent_port_reaches_the_ruleset_timeout() {
     struct Wait;
     impl TacticalExecutionPort for Wait {

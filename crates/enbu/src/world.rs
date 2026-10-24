@@ -290,7 +290,7 @@ fn collection_observation(
         { continue; }
         if let Some(filter) = filter {
             let context = EvalContext {
-                side: Some(side), intent: None, observed_entity: Some(id), projection_index: Some(projection_index),
+                side: Some(side), intent: None, observed_entity: Some(id), projection_index: Some(projection_index), tick,
             };
             match crate::eval_truth(filter, world, context)? {
                 senkei_model::Truth::True => {},
@@ -384,7 +384,7 @@ fn observation_field_value(
             let owner = current_entity.and_then(|id| world.entities.get(id)).and_then(|entity| entity.owner);
             if !visibility_item(schema.visibility, side, owner) { return Ok(Observed::Unknown); }
             let context = EvalContext {
-                side: Some(side), intent: None, observed_entity: current_entity, projection_index: Some(projection_index),
+                side: Some(side), intent: None, observed_entity: current_entity, projection_index: Some(projection_index), tick,
             };
             crate::eval_value(expression, world, context)?
         }
