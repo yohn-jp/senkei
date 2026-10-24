@@ -28,6 +28,26 @@ fn fragile_rules() -> VerifiedRulePlan {
         .unwrap_or_else(|issues| panic!("derived test-only package validates: {issues:?}"))
 }
 
+fn reveal_rules() -> VerifiedRulePlan {
+    let mut package = senritsu::next_package();
+    let next = package.next.as_mut().expect("published Next package contains finite mechanics");
+    // The canonical recon active unlocks at level four. Start the test roster
+    // at that level so the fixture can isolate reveal timing without adding a
+    // second progression or combat implementation.
+    next.parameters.insert("hero_start_level".into(), 4);
+    // Keep R03's base vision while leveling; the target node below is 340
+    // units away, just beyond that sight radius and within the active's 420
+    // range.
+    next.heroes.iter_mut().find(|hero| hero.id == "R03")
+        .expect("the published catalog contains R03")
+        .growth.vision = 0;
+    package.ruleset.version = Version::new(1, 0, 1);
+    package.ruleset.digest = senritsu::canonical_digest(&package)
+        .expect("reveal test package has canonical content");
+    senritsu::validate(package, &senritsu::next_engine_compatibility())
+        .unwrap_or_else(|issues| panic!("derived reveal test package validates: {issues:?}"))
+}
+
 fn configured_snapshot(
     rules: &VerifiedRulePlan,
     side: CombatantSide,
@@ -762,6 +782,130 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     cases
 }
 
+fn reveal_expiry_case() {
+    let rules = reveal_rules();
+    let actor = hero_selector("slot-1");
+    let enemy = "argmin hero in filter hero in enemies.visible_heroes { hero.catalog_id == \"F01\", } by hero.hp then hero.id";
+    let tactics = format!(
+        "senkei w9_reveal_expiry {{ action reveal_target {{ when match.tick == 1, do activate({actor}, \"r03_a_active\", {enemy}), }} }}"
+    );
+    let compiled = compile(&tactics, &rules)
+        .unwrap_or_else(|error| panic!("catalog reveal policy compiles: {error:?}"));
+    let attacker_nodes = [
+        "jungle_center", "attacker_base", "attacker_base", "attacker_base", "attacker_base",
+    ].map(str::to_owned);
+    let defender_nodes = [
+        "top_2", "defender_base", "defender_base", "defender_base", "defender_base",
+    ].map(str::to_owned);
+    let (mut attacker, defender, mut context) = build_match(
+        &rules,
+        &[1, 1, 1, 1, 1],
+        "w9-reveal-expiry",
+        6,
+        Some(&attacker_nodes),
+        Some(&defender_nodes),
+    );
+    set_catalog(&mut attacker, 0, "R03", &rules);
+    attacker.program = compiled.program;
+    // This minion is the sole attacker vision source for the target. F01
+    // destroys it during tick one, so reveal must preserve sight after the
+    // ordinary source disappears.
+    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "top_2");
+    vision_source.fields.insert(FieldId::from("hp"), DomainValue::Integer(1));
+    vision_source.fields.insert(FieldId::from("attack"), DomainValue::Integer(0));
+    vision_source.fields.insert(FieldId::from("speed"), DomainValue::Integer(0));
+    context.initial_world.entities.insert("w9-reveal-vision-source".into(), vision_source);
+    let mut vm = Vm::new(&rules);
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("reveal lifecycle executes through Enbu: {error:?}"));
+
+    let accepted = accepted_actors(&artifact, CombatantSide::Attacker, "activate");
+    assert_eq!(accepted.len(), 1, "the real R03 reveal active is accepted at tick one");
+    assert_eq!(artifact.result.final_tick, 6, "match continues beyond the reveal boundary");
+    assert_eq!(artifact.result.termination_reason.as_str(), "time_limit");
+
+    let owner = artifact.owner_replay.as_ref().expect("Next match contains attacker owner replay");
+    let visible_target = |replay: &PresentationReplay, tick: u32| {
+        let frame = replay.frames.iter().find(|frame| frame.tick == tick)
+            .unwrap_or_else(|| panic!("replay has tick {tick}"));
+        frame.visible_state.as_ref().is_some_and(|state| {
+            state.entities.values().any(|entity| {
+                entity.entity_type.as_str() == "hero"
+                    && entity.owner == Some(CombatantSide::Defender)
+                    && entity.fields.get(&FieldId::from("catalog_id"))
+                        == Some(&DomainValue::String("F01".into()))
+            })
+        })
+    };
+
+    // R03's 420-range reveal reaches the target from 340 units away, beyond
+    // R03's 330 vision radius. The only nearer vision source dies at tick one.
+    // Reveal lasts through tick four and expires before tick five's snapshot.
+    assert!(visible_target(owner, 0), "attacker initially sees the target through its minion source");
+    assert!(visible_target(owner, 1), "owner replay sees the target while reveal is active");
+    let tick_one_events = &owner.frames.iter().find(|frame| frame.tick == 1).unwrap().events;
+    assert!(tick_one_events.iter().any(|event| event.event.as_str() == "next.skill"
+        && event.payload.get(&FieldId::from("skill")) == Some(&DomainValue::String("r03_a_active".into()))),
+        "the owner replay records the catalog Reveal skill execution");
+    assert!(visible_target(owner, 4), "reveal remains active through expiry minus one");
+    assert!(!visible_target(owner, 5), "owner replay hides the enemy at the expiry boundary");
+    assert!(!visible_target(owner, 6), "owner replay keeps the enemy hidden after expiry");
+    assert!(visible_target(&artifact.replay, 4), "public replay includes the mutually visible target before expiry");
+    assert!(!visible_target(&artifact.replay, 5), "public replay hides the target at the expiry boundary");
+    assert!(!visible_target(&artifact.replay, 6), "public replay keeps the target hidden after expiry");
+
+    let tick_one = owner.frames.iter().find(|frame| frame.tick == 1).unwrap().visible_state.as_ref().unwrap();
+    let source = tick_one.entities.values().find(|entity| entity.entity_type.as_str() == "minion"
+        && entity.owner == Some(CombatantSide::Attacker)
+        && entity_integer(entity, "hp") == 0)
+        .expect("tick-one owner view includes the vision minion");
+    assert_eq!(entity_integer(source, "hp"), 0, "the sole nearby vision source dies in the reveal tick");
+    let tick_two = owner.frames.iter().find(|frame| frame.tick == 2).unwrap().visible_state.as_ref().unwrap();
+    assert!(!tick_two.entities.values().any(|entity| entity.entity_type.as_str() == "minion"
+        && entity.owner == Some(CombatantSide::Attacker)
+        && entity_integer(entity, "hp") == 0),
+        "the dead vision source is removed before the next observation");
+    let tick_four = owner.frames.iter().find(|frame| frame.tick == 4).unwrap().visible_state.as_ref().unwrap();
+    let scout = tick_four.entities.values().find(|entity| entity.entity_type.as_str() == "hero"
+        && entity.owner == Some(CombatantSide::Attacker)
+        && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String("R03".into())))
+        .expect("attacker owner view includes the recon Hero");
+    let target = tick_four.entities.values().find(|entity| entity.entity_type.as_str() == "hero"
+        && entity.owner == Some(CombatantSide::Defender)
+        && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String("F01".into())))
+        .expect("target remains visible through reveal");
+    let dx = entity_integer(scout, "x") - entity_integer(target, "x");
+    let dy = entity_integer(scout, "y") - entity_integer(target, "y");
+    let vision = entity_integer(scout, "vision");
+    assert!(dx * dx + dy * dy > vision * vision,
+        "the target remains visible at tick four while outside every living scout's radius");
+
+    let private_fields = [
+        "slot_id", "xp", "cooldowns", "squad", "skill_path", "attack_ready",
+        "respawn_at", "reveal_attacker_until", "reveal_defender_until", "reveal_until",
+    ].map(FieldId::from);
+    for replay in [owner, &artifact.replay] {
+        for frame in &replay.frames {
+            for entity in frame.visible_state.iter().flat_map(|state| state.entities.values())
+                .filter(|entity| entity.owner == Some(CombatantSide::Defender))
+            {
+                assert!(private_fields.iter().all(|field| !entity.fields.contains_key(field)),
+                    "private enemy fields remain unknown in owner/public projections at tick {}", frame.tick);
+            }
+        }
+    }
+
+    // The owner-only slot identity is absent from the enemy observation type,
+    // so a tactical program cannot turn it into a queryable private field.
+    let private_probe = compile(
+        "senkei w9_private_enemy_probe { state private_slot { any hero in enemies.visible_heroes { hero.slot_id is unknown, } } }",
+        &rules,
+    );
+    let private_probe_error = private_probe.expect_err("Jinrei rejects reads of owner-only enemy slot IDs");
+    assert!(private_probe_error.message.contains("unknown or unobservable field 'slot_id'"),
+        "the rejection is specifically the enemy slot visibility boundary");
+}
+
 fn catalog_scenario_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     let next = rules.plan().next.as_ref().unwrap();
     let mut cases = Vec::new();
@@ -1217,4 +1361,9 @@ fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
 fn every_catalog_hero_can_be_selected_and_simulated() {
     let rules = rules();
     assert_eq!(catalog_scenario_cases(&rules).len(), 12);
+}
+
+#[test]
+fn next_reveal_expires_at_the_same_tick_in_owner_and_public_replays() {
+    reveal_expiry_case();
 }
