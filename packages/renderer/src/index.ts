@@ -552,7 +552,7 @@ export class Battlefield {
       ? laneCenters.reduce(
           (sum, point) => {
             sum.x += point.x;
-            sum.z += point.y;
+            sum.z += point.z;
             return sum;
           },
           new THREE.Vector3(),
