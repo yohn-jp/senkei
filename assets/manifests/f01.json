@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "appearanceKey": "hero.f01.aegis-marshal.v1",
+  "heroId": "F01",
+  "displayName": "Aegis Marshal (制作仮称)",
+  "generator": {
+    "entry": "tools/assets/build_hero.py",
+    "version": 1,
+    "blender": "5.2.2 LTS"
+  },
+  "coordinates": {
+    "gltfUp": "Y",
+    "front": "+Z",
+    "unit": "metre"
+  },
+  "rig": "senkei.humanoid.v1",
+  "animations": [
+    {
+      "name": "Idle",
+      "loop": true,
+      "duration": 2.966666666666667,
+      "start": "guard",
+      "end": "guard"
+    },
+    {
+      "name": "Walk",
+      "loop": true,
+      "duration": 0.9666666666666667,
+      "start": "guard",
+      "end": "guard"
+    },
+    {
+      "name": "Attack",
+      "loop": false,
+      "duration": 1.3666666666666667,
+      "start": "guard",
+      "end": "guard"
+    },
+    {
+      "name": "Skill",
+      "loop": false,
+      "duration": 1.9666666666666666,
+      "start": "guard",
+      "end": "guard"
+    },
+    {
+      "name": "Death",
+      "loop": false,
+      "duration": 2.1666666666666665,
+      "start": "guard",
+      "end": "fallen; clamp last frame"
+    }
+  ],
+  "materials": [
+    "Joint • graphite",
+    "Silver • tempered steel",
+    "Azure • enamel",
+    "Gold • officer insignia",
+    "Silver • polished edges",
+    "Leather • oxblood",
+    "Azure • woven wool",
+    "Skin • warm bronze",
+    "Eyes • ivory",
+    "Eyes • slate blue",
+    "Hair • ash silver",
+    "Face • warm shadow"
+  ],
+  "license": "Apache-2.0",
+  "sources": [
+    "assets/sources/heroes/common.py",
+    "assets/sources/heroes/f01.py",
+    "tools/assets/build_hero.py"
+  ],
+  "lods": [
+    {
+      "level": "detail",
+      "url": "/assets/heroes/f01/f01-detail.glb",
+      "file": "assets/generated/f01/f01-detail.glb",
+      "triangles": 25535,
+      "bytes": 1542968,
+      "sha256": "7afc3ae1ec7545b76958f234549b3a1b3d2b73cc63af53d9b7c02abefd8abd38"
+    },
+    {
+      "level": "battle",
+      "url": "/assets/heroes/f01/f01-battle.glb",
+      "file": "assets/generated/f01/f01-battle.glb",
+      "triangles": 8937,
+      "bytes": 537876,
+      "sha256": "53143c3a61cf5128dd410457a54ee9c032f9cf891e4c3fa98fdcc81bc6867d98"
+    }
+  ],
+  "sourceHashes": {
+    "assets/sources/heroes/common.py": "2606bad503a0c873c7de7067a616ca2671098d21db4aca4717c8d0ca68846225",
+    "assets/sources/heroes/f01.py": "0587f858b9d60f42cdce9222915de137674525d2240185e2a12952a45a4f7eb5",
+    "tools/assets/build_hero.py": "ac17e1be60bbf1a29d784a201b195847c5035c1abb6ecf90e76ffdb2d969bb21"
+  }
+}

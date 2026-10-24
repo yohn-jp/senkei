@@ -5,3 +5,7 @@ dist/
 apps/web/public/wasm/
 test-results/
 playwright-report/
+
+apps/web/public/assets/heroes/
+assets/generated/**/*.blend1
+assets/sources/**/__pycache__/

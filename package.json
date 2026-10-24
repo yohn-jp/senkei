@@ -13,7 +13,13 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "contract:types": "json2ts packages/replay-contract/replay.schema.json packages/replay-contract/src/generated.ts --bannerComment '/* Generated from replay.schema.json. Run npm run contract:types. */'",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "assets:stage": "node tools/assets/stage.mjs",
+    "assets:build": "blender --background --factory-startup --python-exit-code 1 --threads 8 --python tools/assets/build_hero.py -- --render",
+    "assets:validate": "node tools/assets/validate.mjs",
+    "predev": "npm run assets:stage",
+    "prebuild": "npm run assets:stage",
+    "prepreview": "npm run assets:stage"
   },
   "dependencies": {
     "@senkei/renderer": "*",
@@ -31,6 +37,7 @@
     "@types/react-dom": "^19.1.7",
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "gltf-validator": "2.0.0-dev.3.10",
     "json-schema-to-typescript": "^15.0.4",
     "typescript": "~5.9.2",
     "vite": "^7.1.7",
