@@ -46,8 +46,85 @@ interface Recipe {
 const firstUnit = (field: string): string =>
   `argmin unit in allies.units by unit.${field} then unit.id`;
 
-const weakestUnitText = (): string =>
-  `argmin unit in allies.units by unit.hp then unit.id`;
+const coreStrikeAction = `action strike_core {
+    when true,
+    do attack_core(
+        ${firstUnit("position")},
+        argmin core in enemies.visible_cores by core.hp then core.id,
+    ),
+}`;
+
+const marchAction = (condition = "true"): string => `action advance_line {
+    when ${condition},
+    do move_forward(${firstUnit("position")}),
+}`;
+
+function campaignTactic(
+  name: string,
+  extraDeclarations: readonly string[] = [],
+  movementCondition = "true",
+): string {
+  return `senkei ${name} {
+    ${[...extraDeclarations, coreStrikeAction, marchAction(movementCondition)].join(",\n    ")},
+}`;
+}
+
+function attackLaneUnitAction(
+  actionName: string,
+  lane: string,
+  chooseWeakest: boolean,
+): string {
+  const targetSelection = chooseWeakest
+    ? `argmin target in filter target in enemies.visible_units {
+            target.lane == ${lane},
+            target.hp > 0,
+        } by target.hp then target.id`
+    : `argmax target in filter target in enemies.visible_units {
+            target.lane == ${lane},
+            target.hp > 0,
+        } by target.position then target.id`;
+  return `action ${actionName} {
+    when true,
+    do attack_unit(
+        argmin unit in filter unit in allies.units { unit.lane == ${lane} }
+            by unit.position then unit.id,
+        ${targetSelection},
+    ),
+}`;
+}
+
+const firstTopUnitAttack = attackLaneUnitAction("attack_top_unit", "top", true);
+const interceptVisibleDeclarations = ["top", "mid", "bot"].map((lane) =>
+  attackLaneUnitAction(`intercept_${lane}_unit`, lane, false),
+);
+
+const towerPressureDeclarations = [
+  `state top_tower_stance {
+    any ally in allies.units {
+        ally.lane == top,
+        ally.position >= 13,
+        ally.position <= 17,
+    },
+    any tower in enemies.visible_towers {
+        tower.lane == top,
+        tower.hp > 0,
+    },
+}`,
+  `action attack_top_tower {
+    when true,
+    do attack_tower(
+        argmax actor in filter unit in allies.units {
+            unit.lane == top,
+            unit.position >= 13,
+            unit.position <= 17,
+        } by actor.position then actor.id,
+        argmin target in filter tower in enemies.visible_towers {
+            tower.lane == top,
+            tower.hp > 0,
+        } by target.hp then target.id,
+    ),
+}`,
+];
 
 const recipes: readonly Recipe[] = [
   {
@@ -63,12 +140,7 @@ const recipes: readonly Recipe[] = [
       { id: "inspect-movement", label: "Find a move event in the public replay." },
       { id: "repeat-result", label: "Run the same input again and compare the result." },
     ],
-    source: `senkei marching_line {
-    action advance_one {
-        when true,
-        do move_forward(${firstUnit("position")}),
-    },
-}`,
+    source: campaignTactic("marching_line", [firstTopUnitAttack]),
   },
   {
     id: "core-pressure",
@@ -83,15 +155,7 @@ const recipes: readonly Recipe[] = [
       { id: "inspect-objective", label: "Trace an attack aimed at the core." },
       { id: "compare-lines", label: "Compare this tactic with Marching line." },
     ],
-    source: `senkei core_pressure {
-    action strike_core {
-        when true,
-        do attack_core(
-            ${firstUnit("position")},
-            argmin core in enemies.visible_cores by core.position then core.id,
-        ),
-    },
-}`,
+    source: campaignTactic("core_pressure"),
     configuration: {
       starting_credits: integer(24),
       initial_deployments: list([
@@ -114,12 +178,7 @@ const recipes: readonly Recipe[] = [
       { id: "observe-target", label: "Check which visible unit was selected." },
       { id: "respect-visibility", label: "Confirm no hidden target appears in the replay." },
     ],
-    source: `senkei intercept_visible {
-    action intercept {
-        when true,
-        do attack_unit(${firstUnit("position")}, argmin target in enemies.visible_units by target.hp then target.id),
-    },
-}`,
+    source: campaignTactic("intercept_visible", interceptVisibleDeclarations),
   },
   {
     id: "tower-pressure",
@@ -134,12 +193,11 @@ const recipes: readonly Recipe[] = [
       { id: "inspect-tower", label: "Find the tower target and damage event." },
       { id: "compare-cases", label: "Run the previous challenge and compare replay frames." },
     ],
-    source: `senkei tower_pressure {
-    action attack_tower {
-        when true,
-        do attack_tower(${firstUnit("position")}, argmin tower in enemies.visible_towers by tower.hp then tower.id),
-    },
-}`,
+    source: campaignTactic(
+      "tower_pressure",
+      towerPressureDeclarations,
+      "not { top_tower_stance, }",
+    ),
     configuration: {
       starting_credits: integer(24),
       initial_deployments: list([
@@ -162,19 +220,13 @@ const recipes: readonly Recipe[] = [
       { id: "trace-threat", label: "Find the core threat observation in diagnostics." },
       { id: "compare-branches", label: "Check which movement action fired in each state." },
     ],
-    source: `senkei hold_under_pressure {
-    state wounded {
-        self.core.hp < 300,
-    },
-    action withdraw {
-        when wounded,
-        do move_backward(${firstUnit("position")}),
-    },
-    action advance {
-        when not { wounded, },
-        do move_forward(${firstUnit("position")}),
-    },
+    source: campaignTactic("hold_under_pressure", [`state wounded {
+    self.core.hp < 300,
 }`,
+  `action withdraw {
+    when wounded,
+    do move_backward(${firstUnit("position")}),
+}`], "not { wounded, }"),
     configuration: {
       starting_credits: integer(24),
       initial_deployments: list([
@@ -197,21 +249,25 @@ const recipes: readonly Recipe[] = [
       { id: "select-medic", label: "Confirm the ability actor is a medic." },
       { id: "heal-ally", label: "Find a support effect on a friendly unit." },
     ],
-    source: `senkei medic_support {
-    state ally_injured {
-        any ally in allies.units {
-            ally.hp < ally.max_hp,
-        },
-    },
-    action support_weakest {
-        when ally_injured,
-        do use_ability(
-            argmin medic in filter unit in allies.units { unit.unit_class == medic }
-                by medic.hp then medic.id,
-            ${weakestUnitText()},
-        ),
+    source: campaignTactic("medic_support", [`state ally_injured {
+    any ally in allies.units {
+        ally.lane == top,
+        ally.hp < ally.max_hp,
     },
 }`,
+  `action support_top {
+    when ally_injured,
+    do use_ability(
+        argmin medic in filter unit in allies.units {
+            unit.lane == top,
+            unit.unit_class == medic,
+        } by medic.hp then medic.id,
+        argmin ally in filter unit in allies.units {
+            unit.lane == top,
+            unit.hp < unit.max_hp,
+        } by ally.hp then ally.id,
+    ),
+}`]),
     configuration: {
       starting_credits: integer(24),
       initial_deployments: list([
@@ -234,16 +290,16 @@ const recipes: readonly Recipe[] = [
       { id: "wait-for-reserve", label: "Find the first deployment after its available tick." },
       { id: "check-credit-cost", label: "Compare the starting and remaining resources." },
     ],
-    source: `senkei deploy_reserve {
-    action deploy_next {
+    source: campaignTactic("deploy_reserve", [`action deploy_next {
         when match.tick >= 4,
         do deploy(
             argmin barracks in allies.barracks by barracks.resources then barracks.id,
-            argmin reserve in allies.reserves by reserve.available_tick then reserve.id,
+            argmin reserve in filter reserve in allies.reserves {
+                reserve.available_tick <= match.tick,
+            } by reserve.available_tick then reserve.id,
             mid,
         ),
-    },
-}`,
+    }`]),
   },
 ];
 
