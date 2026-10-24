@@ -2208,8 +2208,13 @@ export class Battlefield {
           this.cueSummary.style.maxWidth = this.mobile
             ? "min(240px, calc(100% - 16px))"
             : "min(320px, calc(100% - 16px))";
-          this.cueSummary.style.bottom = "32px";
-          this.cueSummary.style.left = "8px";
+          // .world-label supplies top:0; reset both opposing insets so an
+          // absolute summary stays content-sized instead of covering the scene.
+          this.cueSummary.style.top = this.mobile ? "38px" : "auto";
+          this.cueSummary.style.bottom = this.mobile ? "auto" : "12px";
+          this.cueSummary.style.left = this.mobile ? "8px" : "auto";
+          this.cueSummary.style.right = this.mobile ? "auto" : "12px";
+          this.cueSummary.style.transform = "none";
         }
       }
       for (const [id, element] of this.entityLabels) {
