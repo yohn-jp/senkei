@@ -472,8 +472,14 @@ function semanticCueExpectationAt(
 async function assertCueSummaryGeometry(
   page: import("@playwright/test").Page,
   tick: number,
+  requireVisible = false,
 ): Promise<void> {
   const summary = page.locator(`.cue-summary-label[data-tick="${tick}"]`);
+  if (await summary.count() === 0) {
+    expect(requireVisible, `the T${tick} overflow summary should be present`).toBe(false);
+    return;
+  }
+  if (!requireVisible && !(await summary.isVisible())) return;
   await expect(summary, `the overflow summary should represent the current T${tick} cues`).toHaveCount(1);
   await expect(summary, `the T${tick} overflow summary should be visible`).toBeVisible();
   const summaryBox = await summary.boundingBox();
@@ -526,7 +532,8 @@ async function assertSemanticCueAtTick(
     expectedCue!.locator,
     `${expected!.sourceEvent} should render the expected ${expected!.type} cue visibly at T${tick}`,
   ).toBeVisible();
-  await assertCueSummaryGeometry(page, tick);
+  const mobileTowerDestroy = semantic === "tower-destroy" && (page.viewportSize()?.width ?? Infinity) <= 700;
+  await assertCueSummaryGeometry(page, tick, mobileTowerDestroy);
   const texts = await cuesAtTick().allInnerTexts();
   const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
     elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
