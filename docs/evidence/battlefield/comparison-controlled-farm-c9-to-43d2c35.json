@@ -1,0 +1,81 @@
+{
+  "beforeCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "afterCommit": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "identity": {
+    "sameInputSha256": true,
+    "sameMatchId": true,
+    "sameOwnerReplayDigest": true,
+    "samePublicReplayDigest": true,
+    "sameFinalStateDigest": true,
+    "sameExactTicks": true,
+    "sameViewports": true
+  },
+  "exactTicks": {
+    "before": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 1,
+      "tower_destroy": null,
+      "base_destroy": null,
+      "hero_death": null,
+      "hero_respawn": null,
+      "neutral_monster_respawn": 109,
+      "skill": 211,
+      "end": 240
+    },
+    "after": {
+      "tactical": 0,
+      "overview": 0,
+      "follow": 50,
+      "advance": 1,
+      "clash": 1,
+      "tower_destroy": null,
+      "base_destroy": null,
+      "hero_death": null,
+      "hero_respawn": null,
+      "neutral_monster_respawn": 109,
+      "skill": 211,
+      "end": 240
+    }
+  },
+  "screenshots": {
+    "beforeCount": 16,
+    "afterCount": 18,
+    "commonCount": 16,
+    "exactPixelFiles": 0,
+    "differentPixelFiles": [
+      "1440x900/advance-t001.png",
+      "1440x900/clash-t001.png",
+      "1440x900/end-t240.png",
+      "1440x900/follow-t050.png",
+      "1440x900/monster-respawn-t109.png",
+      "1440x900/overview-t000.png",
+      "1440x900/skill-t211.png",
+      "1440x900/tactical-t000.png",
+      "390x844/advance-t001.png",
+      "390x844/clash-t001.png",
+      "390x844/end-t240.png",
+      "390x844/follow-t050.png",
+      "390x844/monster-respawn-t109.png",
+      "390x844/overview-t000.png",
+      "390x844/skill-t211.png",
+      "390x844/tactical-t000.png"
+    ],
+    "onlyBefore": [],
+    "onlyAfter": [
+      "390x844/details-view-t001.png",
+      "390x844/timeline-view-t001.png"
+    ]
+  },
+  "layout": {
+    "metricsEqual": false,
+    "changedViewports": [
+      "1440x900",
+      "390x844"
+    ]
+  },
+  "captureIdentityMatches": true,
+  "allScreenshotsIdentical": false
+}

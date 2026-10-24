@@ -1,0 +1,767 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "default-ui-draft",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": null,
+  "input": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde"
+  },
+  "replay": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "publicPresentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "sourceFrameCount": 212,
+    "timelineEventCount": 713,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.objective_destroyed"
+    ],
+    "sha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+      "uncompressedBytes": 9659881,
+      "compressedBytes": 257319
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+      "uncompressedBytes": 4947035,
+      "compressedBytes": 107754
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+      "uncompressedBytes": 938643,
+      "compressedBytes": 16399
+    },
+    "controlledSource": null
+  },
+  "result": {
+    "outcome": "attacker_victory",
+    "terminationReason": "base_destroyed",
+    "finalTick": 211,
+    "finalStateDigest": "a1b81b6b1d44dba12d6540c81b62b943d064f1751b7eb2438622bafa838145e9"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 6,
+    "tower_destroy": null,
+    "base_destroy": 211,
+    "hero_death": null,
+    "hero_respawn": null,
+    "monster_respawn": null,
+    "skill": null,
+    "end": 211
+  },
+  "baseSiteAssertions": {
+    "immutableSiteIds": [
+      "attacker_base",
+      "defender_base"
+    ],
+    "enemySiteId": "defender_base",
+    "firstObservedEnemyTick": 31,
+    "checks": {
+      "1440x900/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1440x900/enemy-before-visible-t030": {
+        "tick": 30,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1440x900/enemy-first-visible-t031": {
+        "tick": 31,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "visible",
+            "side": "vermilion",
+            "text": "VERMILION BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1920x1080/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1920x1080/base-destroy-t211": {
+        "tick": 211,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "destroyed",
+            "side": "vermilion",
+            "text": "VERMILION BASEDestroyed · confirmed",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1440x900/base-destroy-t211": {
+        "tick": 211,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "destroyed",
+            "side": "vermilion",
+            "text": "VERMILION BASEDestroyed · confirmed",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "430x932/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "430x932/base-destroy-t211": {
+        "tick": 211,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "destroyed",
+            "side": "vermilion",
+            "text": "VERMILION BASEDestroyed · confirmed",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "390x844/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "390x844/base-destroy-t211": {
+        "tick": 211,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "destroyed",
+            "side": "vermilion",
+            "text": "VERMILION BASEDestroyed · confirmed",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "320x844/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "320x844/base-destroy-t211": {
+        "tick": 211,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "destroyed",
+            "side": "vermilion",
+            "text": "VERMILION BASEDestroyed · confirmed",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "heroRespawnProof": null,
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": false,
+    "baseDestroy": true,
+    "heroDeath": false,
+    "heroRespawn": false,
+    "neutralMonsterRespawn": false,
+    "activeSkill": false,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": true,
+    "explicitOverviewMode": true,
+    "followTarget": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-14",
+    "followAvailable": {
+      "initial": true,
+      "1920x1080": true,
+      "1440x900": true,
+      "430x932": true,
+      "390x844": true,
+      "320x844": true
+    }
+  },
+  "mobileConsole": {
+    "430x932": {
+      "Timeline view": true,
+      "Details view": true
+    },
+    "390x844": {
+      "Timeline view": true,
+      "Details view": true
+    },
+    "320x844": {
+      "Timeline view": true,
+      "Details view": true
+    }
+  },
+  "layoutByViewport": {
+    "1920x1080": {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "document": {
+        "width": 1920,
+        "height": 1080,
+        "viewportWidth": 1920,
+        "viewportHeight": 1080
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1846,
+        "height": 789.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 973,
+        "width": 1848,
+        "height": 81
+      },
+      "camera": {
+        "pose": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "1440x900": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "width": 1440,
+        "height": 900,
+        "viewportWidth": 1440,
+        "viewportHeight": 900
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1366,
+        "height": 609.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 793,
+        "width": 1368,
+        "height": 81
+      },
+      "camera": {
+        "pose": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "430x932": {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "document": {
+        "width": 430,
+        "height": 932,
+        "viewportWidth": 430,
+        "viewportHeight": 932
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 428,
+        "height": 603.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 757,
+        "width": 430,
+        "height": 99
+      },
+      "camera": {
+        "pose": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "390x844": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "width": 390,
+        "height": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 388,
+        "height": 491.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 645,
+        "width": 390,
+        "height": 123
+      },
+      "camera": {
+        "pose": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    },
+    "320x844": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "document": {
+        "width": 320,
+        "height": 844,
+        "viewportWidth": 320,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 146,
+        "width": 318,
+        "height": 497
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 647,
+        "width": 320,
+        "height": 121
+      },
+      "camera": {
+        "pose": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044",
+        "mode": "tactical",
+        "tick": "211"
+      }
+    }
+  },
+  "cameraPosesByCapture": {
+    "1920x1080/tactical-t000.png": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+    "1920x1080/overview-t000.png": "24.000,56.313,45.743:1.000:-63.438,63.438,27.114,-27.114",
+    "1920x1080/follow-t050.png": "48.000,30.065,64.320:1.000:-17.688,17.688,7.560,-7.560",
+    "1920x1080/advance-t001.png": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+    "1920x1080/clash-t006.png": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+    "1920x1080/base-destroy-t211.png": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+    "1920x1080/end-t211.png": "24.000,56.096,46.116:1.000:-52.939,52.939,22.627,-22.627",
+    "1440x900/tactical-t000.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/overview-t000.png": "24.000,56.778,44.944:1.000:-63.544,63.544,28.330,-28.330",
+    "1440x900/follow-t050.png": "48.000,30.065,64.320:1.000:-16.957,16.957,7.560,-7.560",
+    "1440x900/advance-t001.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/clash-t006.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/base-destroy-t211.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "1440x900/end-t211.png": "24.000,56.484,45.450:1.000:-53.027,53.027,23.641,-23.641",
+    "430x932/tactical-t000.png": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+    "430x932/overview-t000.png": "52.654,52.141,16.000:1.000:-27.423,27.423,38.636,-38.636",
+    "430x932/follow-t050.png": "80.000,34.065,32.320:1.000:-5.366,5.366,7.560,-7.560",
+    "430x932/advance-t001.png": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+    "430x932/clash-t006.png": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+    "430x932/base-destroy-t211.png": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+    "430x932/end-t211.png": "53.235,51.770,16.000:1.000:-22.663,22.663,31.929,-31.929",
+    "390x844/tactical-t000.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/overview-t000.png": "52.163,52.455,16.000:1.000:-28.506,28.506,37.837,-37.837",
+    "390x844/follow-t050.png": "80.000,34.065,32.320:1.000:-5.696,5.696,7.560,-7.560",
+    "390x844/advance-t001.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/clash-t006.png": "52.668,52.133,16.000:1.000:-24.759,24.759,32.863,-32.863",
+    "390x844/base-destroy-t211.png": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+    "390x844/end-t211.png": "52.470,52.259,16.000:1.000:-26.226,26.226,33.188,-33.188",
+    "320x844/tactical-t000.png": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044",
+    "320x844/overview-t000.png": "51.343,52.981,16.000:1.000:-28.362,28.362,44.326,-44.326",
+    "320x844/follow-t050.png": "80.000,34.065,32.320:1.000:-4.837,4.837,7.560,-7.560",
+    "320x844/advance-t001.png": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044",
+    "320x844/clash-t006.png": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044",
+    "320x844/base-destroy-t211.png": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044",
+    "320x844/end-t211.png": "52.213,52.424,16.000:1.000:-23.063,23.063,36.044,-36.044"
+  },
+  "followTargetPosition": {
+    "id": "visible-8",
+    "x": 48,
+    "z": 32.32,
+    "sourceX": 1200,
+    "sourceY": 808
+  },
+  "skillFollowCaptures": {},
+  "cameraTargetsByCapture": {
+    "1920x1080/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "1440x900/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "430x932/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "390x844/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "320x844/follow-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    }
+  },
+  "roleFollowCaptures": {},
+  "clusterInspection": null,
+  "semanticCueAssertions": {},
+  "viewports": [
+    {
+      "name": "1920x1080",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "430x932",
+      "width": 430,
+      "height": 932
+    },
+    {
+      "name": "390x844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "name": "320x844",
+      "width": 320,
+      "height": 844
+    }
+  ],
+  "screenshotNames": [
+    "tactical",
+    "overview",
+    "follow",
+    "advance",
+    "clash",
+    "base-destroy",
+    "end"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+    "publicReplaySha256": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+    "inputSnapshotSha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+    "imageSha256": {
+      "1440x900/advance-t001.png": "7381da0e34b4328e2f18cf2a474f17b270f20d6845955bc1ed3fcffcc0511123",
+      "1440x900/base-destroy-t211.png": "59e2f8fe55fa1f62dc17a48d7c5fba4752c0d3739fde661119b65075469928d9",
+      "1440x900/clash-t006.png": "e85978e9c0ed63e8df30bf83949eefd066505bd6e11c37624219464e4ddc5e69",
+      "1440x900/end-t211.png": "59e2f8fe55fa1f62dc17a48d7c5fba4752c0d3739fde661119b65075469928d9",
+      "1440x900/follow-t050.png": "5b6fc00c4f701919f3c6398e390213c8467e40fb25bfec24e8c7405c6228a11e",
+      "1440x900/overview-t000.png": "1741f8da7dbf75ccd6d579f7865f0c2784ec35fbc15e70acf1b7ad200460f0e2",
+      "1440x900/tactical-t000.png": "4a11db108b4aea2b44d285bedd33c4ba17e97ab9ab5863c4f9fff182ea2712c1",
+      "1920x1080/advance-t001.png": "3988c36a401e9b1476c7114a2c1a258fd281ce33f8f099093364a2439935e707",
+      "1920x1080/base-destroy-t211.png": "a6e571b641d211340d0486b2c78846a03eaaa9805ed385ba30b960b4e048e928",
+      "1920x1080/clash-t006.png": "cb0acaadf399c60ae9e8e9e80acdca548019dbe8dda4901b30c2911f45689db6",
+      "1920x1080/end-t211.png": "a6e571b641d211340d0486b2c78846a03eaaa9805ed385ba30b960b4e048e928",
+      "1920x1080/follow-t050.png": "883e9f9bf9e85afbc67f8e0809ebef851b1376f054884ab45f415142d97ac9be",
+      "1920x1080/overview-t000.png": "4b40b800bbbf531bc26ea0926f8e1fe8b4a08522a23d72bcae73d52ae73c9ab9",
+      "1920x1080/tactical-t000.png": "7f815da79aa931bb98ee41224b4e14868d006f3404aac270be7b6351af4b6316",
+      "320x844/advance-t001.png": "15d564b96d81f10c5004df0a1d3eb2e2bdd4f9dd2c86d2f3fc9aca80e9813fbc",
+      "320x844/base-destroy-t211.png": "f0c43931c38efb13e86cda5c5bdda692b3d314881d3eb4a97477211e2020c008",
+      "320x844/clash-t006.png": "f076ba863b9a385b199671fe6741b43afb73054d6b87c988dba7b5df61d82b4c",
+      "320x844/details-view-t006.png": "ebc38645c0ea1ec4481846bbf5b5bccb3b6e6e0d40963f2739db979a2c0f4cc0",
+      "320x844/end-t211.png": "f0c43931c38efb13e86cda5c5bdda692b3d314881d3eb4a97477211e2020c008",
+      "320x844/follow-t050.png": "6d4bb876f6accb2c158ed799e4f1addb4b32522620762eb3064d99afbbecec32",
+      "320x844/overview-t000.png": "20ea0cdde05f4b85bcb1da191f91a57ad6274827c34d862a2abba3e807fc349c",
+      "320x844/tactical-t000.png": "3ea721e9463fb2ebee9f98df6e34527b0e36a1165ae7fbf9473600d27f697c57",
+      "320x844/timeline-view-t006.png": "f8ca2d1acbe959b7045c87b57b1d7b9d6d547d1a6eac70b935a82fa2e2992284",
+      "390x844/advance-t001.png": "69f8be862555c0d60bd2bed8db51e3b1c436e2e70f142fcc975e49d69c0371a3",
+      "390x844/base-destroy-t211.png": "695583d4644d148df278723519add8c96ec55808da723fd07b971e1a4c641750",
+      "390x844/clash-t006.png": "62c0c65c3d81d45f9926218e9b2f3d1f091879b90621e6979f209b181ee610d9",
+      "390x844/details-view-t006.png": "94352e87bb711f31c0dd7f5f6c5c733e8048e82bc2ef84cdee38cb50d3fa4ecf",
+      "390x844/end-t211.png": "695583d4644d148df278723519add8c96ec55808da723fd07b971e1a4c641750",
+      "390x844/follow-t050.png": "36525f884c5eaa1b4766d4b1c1ce0735e7bd79043f487f488996d473e5c31999",
+      "390x844/overview-t000.png": "7659b503f65fca5e43a7c777f8bae2e1828255678102ae7f200e79eeae4b9094",
+      "390x844/tactical-t000.png": "4371c8bb9fe884bf3cfdf243e524bd0e6aa2283f3e0883dfcdfc69c5aab5d316",
+      "390x844/timeline-view-t006.png": "b85f0f3355b64f3cbab3ce9fd2bdb295b12af882f079d4bc19fafb4e4e5978df",
+      "430x932/advance-t001.png": "69a0db8ebcbb6a8b18f711b9c971644cde016be30640d5b7b28ae4e5ea27b0b1",
+      "430x932/base-destroy-t211.png": "808b953addf2628dce0211d50ee3b700298aa1927ed95c96cf21f01dc3a86294",
+      "430x932/clash-t006.png": "22bd8dcb17f4e944e300df4b8efbde9e9f4acc44077f492ecc9a11b5213e0caa",
+      "430x932/details-view-t006.png": "9de91e8b3ceba2df96e7e86a3b34c560e44306510a0306a636f4e7534aac8efc",
+      "430x932/end-t211.png": "808b953addf2628dce0211d50ee3b700298aa1927ed95c96cf21f01dc3a86294",
+      "430x932/follow-t050.png": "ec3d3cec696861b8ae617df964a6f3f7f2bcbafd276afce436053242d21d14a3",
+      "430x932/overview-t000.png": "57c4ed8ea8d31b7ed8279ecf4b51c988ee8b7e04dd27fabae2402cd1d27387f2",
+      "430x932/tactical-t000.png": "82e5790dda934c9455aef5822fe380c9367e46fb19ef5d4161f0b03b0a451f01",
+      "430x932/timeline-view-t006.png": "a0b6b714dde0e6361ef28d91ef9e41a51243cd21c57c1e853a3cddef57d68619"
+    }
+  }
+}

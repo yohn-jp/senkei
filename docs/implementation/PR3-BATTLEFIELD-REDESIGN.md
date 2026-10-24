@@ -1,6 +1,6 @@
 # PR #3 Battlefield redesign Wave
 
-Authority: [Issue #5](https://github.com/yohn-jp/senkei/issues/5) and [blocking request](https://github.com/yohn-jp/senkei/pull/3#issuecomment-6385227700). Baseline: `c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb`. Production runtime: `2475d6ead90584da820db6e23f6ac258c1a1f7f3`. Later evidence/report commits do not change the runtime. This Wave covers Battlefield; Hero Atelier, balance and frozen PR #4 retain their existing status.
+Authority: [Issue #5](https://github.com/yohn-jp/senkei/issues/5) and [blocking request](https://github.com/yohn-jp/senkei/pull/3#issuecomment-6385227700). Baseline: `c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb`. Production runtime: `43d2c35b908d0a6d08eaf049f28cde43f5190b01`. Later evidence/report commits do not change the runtime. This Wave covers Battlefield; Hero Atelier, balance and frozen PR #4 retain their existing status.
 
 ## Cause and resulting architecture
 
@@ -14,7 +14,7 @@ Standard observation frames the authored lane/camp network; Overview includes fu
 
 Desktop gives the scene the main workspace. Mobile has Battle / Overview / Follow / Timeline / Details states with replay transport outside the scene and 44px actions. Returning to Battle/Overview closes the roster while preserving Tick, selection and draft. Nearby visible-unit inspection exposes actual identities, roles, HP and native Senritsu coordinates without displacing models or calling a visual group a Squad. The five overlapping Heroes at T50 occupy distinct nearby coordinates; the UI does not falsely describe them as co-located.
 
-Current-Tick cue labels identify actual attack source/target, HP, skill key and defeat/destruction type. Hero deaths and facility destruction outrank routine attacks; selected/tracked events have priority. Mobile shows up to three text cues, desktop up to eight, with a truthful count of remaining in-view events; actual 3D cue geometry remains. An adapter visibility-entry event is **APPEARED**, not an invented public respawn. Paused exact-Tick visibility and adjacent-Tick stale-label checks use real controlled Enbu cases.
+Current-Tick cue labels identify actual attack source/target, HP, skill key and defeat/destruction type. Hero deaths and facility destruction outrank routine attacks; selected/tracked events have priority. Mobile shows up to three text cues, desktop up to eight, with a truthful count of remaining in-view events; actual 3D cue geometry remains. An adapter visibility-entry event is **APPEARED**, not an invented public respawn. Event summaries explicitly reset opposing CSS insets so they remain content-sized; exact-event tests also check summary height and rectangle overlap, rather than relying on DOM visibility alone. Paused exact-Tick visibility and adjacent-Tick stale-label checks use real controlled Enbu cases.
 
 ## Ownership and integration
 
@@ -34,7 +34,7 @@ No frozen PR #4 assets or new Blender production were used. No gameplay/balance 
 
 The [evidence index](../evidence/battlefield/README.md) links the exact baseline/current images and browser recordings. Metadata pins the HTML build revision, actual WASM hash, simulation input, owner/public replay and result digests, Tick and viewport. The same actual default match is compared at 1920×1080, 1440×900, 430×932, 390×844 and 320×844. Separate cue/farm inputs run through the canonical core and are explicitly controlled verification setups, not ordinary UI-created matches or balance evidence. Owner-only Hero respawn proof is never presented as a public event.
 
-Local checks include Rust workspace build/tests (103), real WASM build and initial native/WASM goldens, Next native/WASM adapter parity, Replay Contract/Player unit tests (35), TypeScript typecheck and production build, Graphics Playwright (10/10), and actual-WASM production browser journeys. Final runtime test/capture results and the independent seven criteria are in [BATTLEFIELD-REDESIGN-VERIFICATION.md](BATTLEFIELD-REDESIGN-VERIFICATION.md); final-head hosted CI results are reported after push. Green tests do not establish user Visual/Art acceptance.
+Local checks include Rust workspace build/tests (103), real WASM build and initial native/WASM goldens, Next native/WASM adapter parity, Replay Contract/Player unit tests (35), TypeScript typecheck and production build, Graphics Playwright (10/10), and final actual-WASM production browser journeys (10/10, 2.2 minutes). Focused current-runtime cue, skill, Monster/Minion and nearby-cluster runs also passed; default/cue/farm c9 comparisons each match all seven canonical identity fields. Final runtime test/capture results and the independent seven criteria are in [BATTLEFIELD-REDESIGN-VERIFICATION.md](BATTLEFIELD-REDESIGN-VERIFICATION.md); final-head hosted CI results are reported after push. Green tests do not establish user Visual/Art acceptance.
 
 | Issue #5 scope | Status / limit |
 | --- | --- |

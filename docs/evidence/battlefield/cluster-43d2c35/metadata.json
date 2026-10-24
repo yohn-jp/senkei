@@ -1,0 +1,502 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "default-ui-draft",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": null,
+  "input": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde"
+  },
+  "replay": {
+    "matchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "publicPresentationDigest": "52061e54902949ef5c5ad00c4555c390053b31c8e0a2cdf1c661150035c0c867",
+    "sourceFrameCount": 212,
+    "timelineEventCount": 713,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.objective_destroyed"
+    ],
+    "sha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+      "uncompressedBytes": 9659881,
+      "compressedBytes": 257319
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+      "uncompressedBytes": 4947035,
+      "compressedBytes": 107754
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/baseline-c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+      "uncompressedBytes": 938643,
+      "compressedBytes": 16399
+    },
+    "controlledSource": null
+  },
+  "result": {
+    "outcome": "attacker_victory",
+    "terminationReason": "base_destroyed",
+    "finalTick": 211,
+    "finalStateDigest": "a1b81b6b1d44dba12d6540c81b62b943d064f1751b7eb2438622bafa838145e9"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 6,
+    "tower_destroy": null,
+    "base_destroy": 211,
+    "hero_death": null,
+    "hero_respawn": null,
+    "monster_respawn": null,
+    "skill": null,
+    "end": 211
+  },
+  "baseSiteAssertions": {
+    "immutableSiteIds": [
+      "attacker_base",
+      "defender_base"
+    ],
+    "enemySiteId": "defender_base",
+    "firstObservedEnemyTick": 31,
+    "checks": {
+      "1440x900/t000": {
+        "tick": 0,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1440x900/enemy-before-visible-t030": {
+        "tick": 30,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "unknown",
+            "side": "vermilion",
+            "text": "VERMILION BASE SITEState unknown",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      },
+      "1440x900/enemy-first-visible-t031": {
+        "tick": 31,
+        "labels": [
+          {
+            "siteId": "attacker_base",
+            "siteState": "visible",
+            "side": "azure",
+            "text": "AZURE BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          },
+          {
+            "siteId": "defender_base",
+            "siteState": "visible",
+            "side": "vermilion",
+            "text": "VERMILION BASEVisible base",
+            "datasetKeys": [
+              "siteId",
+              "siteState"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "heroRespawnProof": null,
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": false,
+    "baseDestroy": true,
+    "heroDeath": false,
+    "heroRespawn": false,
+    "neutralMonsterRespawn": false,
+    "activeSkill": false,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": false,
+    "explicitOverviewMode": false,
+    "followTarget": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-14",
+    "followAvailable": {
+      "initial": true
+    }
+  },
+  "mobileConsole": {},
+  "layoutByViewport": {},
+  "cameraPosesByCapture": {
+    "1440x900/selected-visible-cluster-t050.png": "34.632,30.059,55.408:1.000:-16.957,16.957,7.560,-7.560",
+    "1440x900/follow-f03-same-tick.png": "48.000,30.065,64.320:1.000:-16.957,16.957,7.560,-7.560",
+    "390x844/selected-visible-cluster-t050.png": "48.000,30.065,64.320:1.000:-5.696,5.696,7.560,-7.560",
+    "390x844/follow-f03-same-tick.png": "48.000,30.065,64.320:1.000:-5.696,5.696,7.560,-7.560"
+  },
+  "followTargetPosition": {
+    "id": "visible-8",
+    "x": 48,
+    "z": 32.32,
+    "sourceX": 1200,
+    "sourceY": 808
+  },
+  "skillFollowCaptures": {},
+  "cameraTargetsByCapture": {
+    "1440x900/selected-visible-cluster-t050.png": {
+      "x": 36.236,
+      "y": 0.06,
+      "z": 24.477
+    },
+    "1440x900/follow-f03-same-tick.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "390x844/selected-visible-cluster-t050.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    },
+    "390x844/follow-f03-same-tick.png": {
+      "x": 48,
+      "y": 0.065,
+      "z": 32.32
+    }
+  },
+  "roleFollowCaptures": {},
+  "clusterInspection": {
+    "1440x900": {
+      "tick": 50,
+      "selectedCatalogId": "F03",
+      "selectedDisplayEntityId": "entity-14",
+      "selectedOption": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-14",
+      "clusterLabel": "Collapse 6 nearby visible entities near World X 1200 · Y 808",
+      "heroRows": [
+        {
+          "sourceReplayEntityId": "visible-10",
+          "catalogId": "F01",
+          "displayEntityId": "entity-2",
+          "identity": "F01 · Bannerhold",
+          "hp": 157,
+          "maxHp": 260,
+          "replayWorldPosition": {
+            "x": 1208,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 48.32,
+            "z": 32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-11",
+          "catalogId": "R04",
+          "displayEntityId": "entity-3",
+          "identity": "R04 · Lifeline",
+          "hp": 190,
+          "maxHp": 190,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 792
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 31.68
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-12",
+          "catalogId": "R02",
+          "displayEntityId": "entity-4",
+          "identity": "R02 · Farshot",
+          "hp": 121,
+          "maxHp": 165,
+          "replayWorldPosition": {
+            "x": 1192,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 47.68,
+            "z": 32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-8",
+          "catalogId": "F03",
+          "displayEntityId": "entity-14",
+          "identity": "F03 · Breach",
+          "hp": 220,
+          "maxHp": 220,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 808
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 32.32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-9",
+          "catalogId": "F06",
+          "displayEntityId": "entity-15",
+          "identity": "F06 · Pathfinder",
+          "hp": 190,
+          "maxHp": 190,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 32
+          }
+        }
+      ],
+      "followTarget": {
+        "id": "visible-8",
+        "x": 48,
+        "z": 32.32,
+        "sourceX": 1200,
+        "sourceY": 808
+      },
+      "cameraTarget": {
+        "x": 48,
+        "y": 0.065,
+        "z": 32.32
+      },
+      "trackedIds": [
+        "entity-14"
+      ],
+      "screenshots": [
+        "selected-visible-cluster-t050.png",
+        "follow-f03-same-tick.png"
+      ]
+    },
+    "390x844": {
+      "tick": 50,
+      "selectedCatalogId": "F03",
+      "selectedDisplayEntityId": "entity-14",
+      "selectedOption": "Azure · F03 · Breach · Frontline · Damage · HP 220/220 · ID entity-14",
+      "clusterLabel": "Collapse 6 nearby visible entities near World X 1200 · Y 808",
+      "heroRows": [
+        {
+          "sourceReplayEntityId": "visible-10",
+          "catalogId": "F01",
+          "displayEntityId": "entity-2",
+          "identity": "F01 · Bannerhold",
+          "hp": 157,
+          "maxHp": 260,
+          "replayWorldPosition": {
+            "x": 1208,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 48.32,
+            "z": 32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-11",
+          "catalogId": "R04",
+          "displayEntityId": "entity-3",
+          "identity": "R04 · Lifeline",
+          "hp": 190,
+          "maxHp": 190,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 792
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 31.68
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-12",
+          "catalogId": "R02",
+          "displayEntityId": "entity-4",
+          "identity": "R02 · Farshot",
+          "hp": 121,
+          "maxHp": 165,
+          "replayWorldPosition": {
+            "x": 1192,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 47.68,
+            "z": 32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-8",
+          "catalogId": "F03",
+          "displayEntityId": "entity-14",
+          "identity": "F03 · Breach",
+          "hp": 220,
+          "maxHp": 220,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 808
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 32.32
+          }
+        },
+        {
+          "sourceReplayEntityId": "visible-9",
+          "catalogId": "F06",
+          "displayEntityId": "entity-15",
+          "identity": "F06 · Pathfinder",
+          "hp": 190,
+          "maxHp": 190,
+          "replayWorldPosition": {
+            "x": 1200,
+            "y": 800
+          },
+          "cameraRenderPosition": {
+            "x": 48,
+            "z": 32
+          }
+        }
+      ],
+      "followTarget": {
+        "id": "visible-8",
+        "x": 48,
+        "z": 32.32,
+        "sourceX": 1200,
+        "sourceY": 808
+      },
+      "cameraTarget": {
+        "x": 48,
+        "y": 0.065,
+        "z": 32.32
+      },
+      "trackedIds": [
+        "entity-14"
+      ],
+      "screenshots": [
+        "selected-visible-cluster-t050.png",
+        "follow-f03-same-tick.png"
+      ]
+    }
+  },
+  "semanticCueAssertions": {},
+  "viewports": [
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "390x844",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "screenshotNames": [
+    "selected-visible-cluster",
+    "follow-f03-same-tick"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "46542c6ed951480393f259bcbf3fce3d143dfd7dfd92af600c77a6ff46388e56",
+    "publicReplaySha256": "8e52e3e73de3fee9df22e50a7a6f011a4f53a14cd4402ea1d70315aa1d05b66c",
+    "inputSnapshotSha256": "7caf454d46379bedfa5f13b20552e8bff1c9b980d21f260aca8a3689c6331fde",
+    "imageSha256": {
+      "1440x900/follow-f03-same-tick.png": "cd1cedc6cfa7298a4bc2dc1f919823689ddf5d395827ccfc638dc17d9a2aa7c2",
+      "1440x900/selected-visible-cluster-t050.png": "f15f53da0394f9fea077f46237458d083f40fdd74a264105f7b87e31413055d4",
+      "390x844/follow-f03-same-tick.png": "f60cd99877564d88c82c85a533a33197bdc7b295ff526845b1eb303db4f5d3df",
+      "390x844/selected-visible-cluster-t050.png": "f60cd99877564d88c82c85a533a33197bdc7b295ff526845b1eb303db4f5d3df"
+    }
+  }
+}
