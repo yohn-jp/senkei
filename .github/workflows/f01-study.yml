@@ -1,0 +1,28 @@
+name: F01 static study
+on:
+  push:
+    branches: [feat/three-f01-static-study]
+permissions:
+  contents: read
+jobs:
+  prepare-workbench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test && npm run build
+      - name: Package source and locked dependencies for offline visual iteration
+        run: tar -czf "$RUNNER_TEMP/f01-workspace.tgz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f01-isolated-workbench
+          path: ${{ runner.temp }}/f01-workspace.tgz
+          retention-days: 1
