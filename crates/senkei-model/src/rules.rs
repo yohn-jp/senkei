@@ -282,6 +282,7 @@ pub enum CollectionSource {
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum RuleExpression {
     Literal(DomainValue),
+    CurrentTick,
     IntentArgument(u16),
     Field { target: EntitySelector, field: FieldId },
     GlobalField(FieldId),

@@ -1,7 +1,7 @@
 use senkei_model::{
     derive_invocation_entity_id, derive_projected_entity_id, ApiError, ApiErrorCode,
     CombatantSide, ContentDigest, DomainValue, EntityId, LogicalCu, MatchId, Observed,
-    ProjectionId, RuleId, StructuredTacticsAst, TacticalCapabilityCall,
+    ProjectionId, RuleExpression, RuleId, StructuredTacticsAst, TacticalCapabilityCall,
     TacticalDeclaration, TacticalPredicate, TypeId, Version,
 };
 use std::collections::BTreeMap;
@@ -46,6 +46,7 @@ fn ast_and_errors_have_stable_transport_shapes() {
     let error_json = serde_json::to_string(&error).unwrap();
     assert!(error_json.contains(r#""path":null"#));
     assert!(error_json.contains(r#""details":{}"#));
+    assert_eq!(serde_json::to_string(&RuleExpression::CurrentTick).unwrap(), r#"{"kind":"current_tick"}"#);
 }
 
 #[test]

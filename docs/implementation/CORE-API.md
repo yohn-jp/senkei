@@ -344,7 +344,9 @@ without including private source or bytecode in public responses.
   and operation index (u32 big-endian); output is `run:<hex>`.
 - `ObservationFieldSchema.source` is explicit (`Tick`, world global field,
   selected world entity field, current collection entity field, or typed
-  `RuleExpression`). `CollectionSchema.source` filters typed world entities;
+  `RuleExpression`). Rule expressions also have a typed `CurrentTick` source;
+  no global field is reserved for or implicitly mutated as a clock.
+  `CollectionSchema.source` filters typed world entities;
   no dotted path string is parsed as world navigation. Visible fields define
   each entity projection. Collection `order_by` fields compare ascending
   using schema-typed values; EntityId ascending breaks iteration ties.
