@@ -262,6 +262,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const controlledSnapshotPath = process.env.BATTLEFIELD_CONTROLLED_SNAPSHOT_PATH;
   const controlledSourcePath = process.env.BATTLEFIELD_CONTROLLED_SOURCE_PATH;
   const controlledExpectedPath = process.env.BATTLEFIELD_CONTROLLED_EXPECTED_RESULT_PATH;
+  const skillFollowOnly = process.env.BATTLEFIELD_SKILL_FOLLOW_ONLY === "true";
   const controlledSnapshot = controlledScenario && controlledSnapshotPath
     ? JSON.parse(readFileSync(resolve(controlledSnapshotPath), "utf8")) as JsonRecord
     : null;
@@ -283,6 +284,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   }
   if (controlledScenario && tacticProfile !== "default-ui-draft") {
     throw new Error("Controlled scenarios use their compiled snapshot and cannot be combined with a UI tactic transformation.");
+  }
+  if (skillFollowOnly && controlledScenario !== "farm") {
+    throw new Error("Focused skill-follow capture requires the real farm scenario.");
   }
   const captureProfile = controlledScenario ? `controlled-${controlledScenario}-snapshot` : tacticProfile;
   const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
@@ -526,6 +530,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const layoutByViewport: Record<string, JsonRecord> = {};
   const cameraPosesByCapture: Record<string, string | null> = {};
   const cameraTargetsByCapture: Record<string, { x: number; y: number; z: number } | null> = {};
+  const skillFollowCaptures: Record<string, JsonRecord> = {};
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
   const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
@@ -539,6 +544,34 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     await expect(canvas).toHaveAttribute("data-rendered", "true");
     const directory = join(outputDirectory, viewport.name);
     mkdirSync(directory, { recursive: true });
+
+    if (skillFollowOnly) {
+      if (viewport.width <= 700 || skillTick === null) {
+        throw new Error("Focused skill-follow capture requires a desktop viewport and an active skill tick.");
+      }
+      await seekToTick(page, skillTick);
+      const skillFollowTarget = await clickFollow(page);
+      expect(skillFollowTarget.catalogId).toBe("F03");
+      const expectedSkillPosition = replayHeroPosition(sourceReplay, skillTick, skillFollowTarget);
+      expect(expectedSkillPosition, "F03 must be visible at the active-skill tick").not.toBeNull();
+      await waitForSettledCamera(page);
+      const actualSkillCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+      expect(actualSkillCameraTarget, "skill Follow must expose the actual target location").not.toBeNull();
+      expect(Math.abs(actualSkillCameraTarget!.x - expectedSkillPosition!.x)).toBeLessThan(0.01);
+      expect(Math.abs(actualSkillCameraTarget!.z - expectedSkillPosition!.z)).toBeLessThan(0.01);
+      const fileName = `skill-follow-t${String(skillTick).padStart(3, "0")}.png`;
+      cameraPosesByCapture[`${viewport.name}/${fileName}`] = await canvas.getAttribute("data-camera");
+      cameraTargetsByCapture[`${viewport.name}/${fileName}`] = actualSkillCameraTarget;
+      skillFollowCaptures[viewport.name] = {
+        tick: skillTick,
+        catalogId: skillFollowTarget.catalogId,
+        selectedVisibleEntity: skillFollowTarget.target,
+        replayPosition: expectedSkillPosition,
+        cameraTarget: actualSkillCameraTarget,
+      };
+      await page.screenshot({ path: join(directory, fileName), animations: "disabled" });
+      continue;
+    }
 
     await seekToTick(page, stateTicks.tactical ?? 0);
     modeSupport.tactical = await clickCameraMode(page, "tactical");
@@ -730,9 +763,10 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     layoutByViewport,
     cameraPosesByCapture,
     followTargetPosition: expectedFollowPosition,
+    skillFollowCaptures,
     cameraTargetsByCapture,
     viewports: captureViewports,
-    screenshotNames: [
+    screenshotNames: skillFollowOnly ? ["skill-follow"] : [
       "tactical", "overview", "follow", "advance", "clash", "tower-destroy", "base-destroy",
       "hero-death", "hero-respawn", "monster-respawn", "skill", "end",
     ].filter((name) => stateTicks[name.replaceAll("-", "_") as keyof typeof stateTicks] !== null),
