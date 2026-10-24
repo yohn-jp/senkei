@@ -182,8 +182,53 @@ function cone(
   parent.add(mesh);
   return mesh;
 }
+type ScenicInstance = {
+  position: [number, number, number];
+  color: number;
+  scale?: [number, number, number];
+  rotation?: [number, number, number];
+};
+function addSceneryInstances(
+  parent: THREE.Object3D,
+  name: string,
+  geometry: THREE.BufferGeometry,
+  items: ScenicInstance[],
+) {
+  if (!items.length) {
+    geometry.dispose();
+    return;
+  }
+  const mesh = new THREE.InstancedMesh(
+    geometry,
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 1,
+      flatShading: true,
+    }),
+    items.length,
+  );
+  mesh.name = name;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const transform = new THREE.Object3D();
+  items.forEach((item, index) => {
+    transform.position.set(...item.position);
+    transform.rotation.set(...(item.rotation ?? [0, 0, 0]));
+    transform.scale.set(...(item.scale ?? [1, 1, 1]));
+    transform.updateMatrix();
+    mesh.setMatrixAt(index, transform.matrix);
+    mesh.setColorAt(index, new THREE.Color(item.color));
+  });
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+  parent.add(mesh);
+}
 function disposeTree(root: THREE.Object3D) {
   root.traverse((node) => {
+    if (node instanceof THREE.InstancedMesh) node.dispose();
     if (node instanceof THREE.Mesh) {
       node.geometry.dispose();
       const mats = Array.isArray(node.material)
@@ -566,6 +611,11 @@ export class Battlefield {
     }
 
     // Reproducible low-poly groves frame open jungle clearings between lanes.
+    // One mesh per repeated shape keeps the fixed forest light on draw calls.
+    const trunks: ScenicInstance[] = [];
+    const lowCanopies: ScenicInstance[] = [];
+    const highCanopies: ScenicInstance[] = [];
+    const rocks: ScenicInstance[] = [];
     for (let i = 0; i < 58; i++) {
       const x = min.x + 0.8 + ((i * 7.13) % (w - 1.8)),
         z = min.y + 0.6 + ((i * 3.17) % (d - 1.2));
@@ -580,23 +630,48 @@ export class Battlefield {
       if (near || inRiver) continue;
       const h = 0.35 + (i % 4) * 0.26;
       if (i % 5 === 0) {
-        const rock = box(
-          this.scene,
-          [0.8 + (i % 3) * 0.16, h, 0.75],
-          [x, h / 2 - 0.05, z],
-          i % 2 ? 0x84916e : 0x768b6a,
-          (i % 3) * 0.13,
-        );
-        rock.rotation.z = (i % 2 ? 1 : -1) * 0.14;
+        rocks.push({
+          position: [x, h / 2 - 0.05, z],
+          scale: [0.8 + (i % 3) * 0.16, h, 0.75],
+          rotation: [0, (i % 3) * 0.13, (i % 2 ? 1 : -1) * 0.14],
+          color: i % 2 ? 0x84916e : 0x768b6a,
+        });
       } else {
-        const tree = new THREE.Group();
-        tree.position.set(x, 0, z);
-        box(tree, [0.2, 1.15, 0.2], [0, 0.56, 0], 0x6e6650);
-        cone(tree, 0.76, 1.6, 1.35, i % 2 ? 0x435e51 : 0x4e6953);
-        cone(tree, 0.58, 1.36, 1.95, i % 3 ? 0x58775c : 0x66805d);
-        this.scene.add(tree);
+        trunks.push({ position: [x, 0.56, z], color: 0x6e6650 });
+        lowCanopies.push({
+          position: [x, 1.35, z],
+          color: i % 2 ? 0x435e51 : 0x4e6953,
+        });
+        highCanopies.push({
+          position: [x, 1.95, z],
+          color: i % 3 ? 0x58775c : 0x66805d,
+        });
       }
     }
+    addSceneryInstances(
+      this.scene,
+      "jungle-tree-trunks",
+      new THREE.BoxGeometry(0.2, 1.15, 0.2),
+      trunks,
+    );
+    addSceneryInstances(
+      this.scene,
+      "jungle-low-foliage",
+      new THREE.ConeGeometry(0.76, 1.6, 4),
+      lowCanopies,
+    );
+    addSceneryInstances(
+      this.scene,
+      "jungle-high-foliage",
+      new THREE.ConeGeometry(0.58, 1.36, 4),
+      highCanopies,
+    );
+    addSceneryInstances(
+      this.scene,
+      "jungle-rocks",
+      new THREE.BoxGeometry(1, 1, 1),
+      rocks,
+    );
     for (const z of [min.y - 0.3, max.y + 0.3])
       for (let j = 0; j < 12; j++)
         box(
