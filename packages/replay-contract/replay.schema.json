@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://senkei.yohn.jp/replay/v0.1/schema.json",
+  "title": "PresentationReplay",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1"
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "enum": [
+            "sample",
+            "official"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "enbuVersion": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "senritsu": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "id",
+            "digest"
+          ]
+        },
+        "view": {
+          "const": "public"
+        }
+      },
+      "required": [
+        "origin",
+        "title",
+        "enbuVersion",
+        "senritsu",
+        "view"
+      ]
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coordinates": {
+          "const": "x-right-y-down"
+        },
+        "assetCatalogVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "tickDurationMs": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 5000
+        }
+      },
+      "required": [
+        "coordinates",
+        "assetCatalogVersion",
+        "tickDurationMs"
+      ]
+    },
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "$ref": "#/$defs/WorldPoint"
+            },
+            "max": {
+              "$ref": "#/$defs/WorldPoint"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Lane"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        }
+      },
+      "required": [
+        "bounds",
+        "lanes"
+      ]
+    },
+    "initialView": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entity"
+      },
+      "minItems": 1,
+      "maxItems": 2000
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "minItems": 1,
+      "maxItems": 20000
+    },
+    "result": {
+      "$ref": "#/$defs/Result"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "header",
+    "presentation",
+    "scene",
+    "initialView",
+    "timeline",
+    "result"
+  ],
+  "$defs": {
+    "WorldPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "Entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "side": {
+          "enum": [
+            "azure",
+            "vermilion",
+            "neutral"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "unit",
+            "tower",
+            "base"
+          ]
+        },
+        "archetype": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "appearanceKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "position": {
+          "$ref": "#/$defs/WorldPoint"
+        },
+        "hp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "maxHp": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      },
+      "required": [
+        "id",
+        "side",
+        "kind",
+        "archetype",
+        "appearanceKey",
+        "position",
+        "hp",
+        "maxHp"
+      ]
+    },
+    "Result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "winner": {
+          "enum": [
+            "azure",
+            "vermilion",
+            "draw"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      },
+      "required": [
+        "winner",
+        "reason",
+        "tick"
+      ]
+    },
+    "Lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPoint"
+          },
+          "minItems": 2,
+          "maxItems": 100
+        },
+        "elevation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "points",
+        "elevation"
+      ]
+    },
+    "Event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "spawn"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entity": {
+              "$ref": "#/$defs/Entity"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entity"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "move"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "position": {
+              "$ref": "#/$defs/WorldPoint"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "position"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "attack"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "targetId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "targetId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "damage"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "hp": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "hp"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "destroy"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "disappear"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "match-end"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "result": {
+              "$ref": "#/$defs/Result"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "result"
+          ]
+        }
+      ]
+    }
+  }
+}

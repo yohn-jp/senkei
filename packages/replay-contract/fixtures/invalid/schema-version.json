@@ -1,0 +1,2738 @@
+{
+  "schemaVersion": "9.9",
+  "header": {
+    "origin": "sample",
+    "title": "朱軍の塔、陥落",
+    "enbuVersion": null,
+    "senritsu": {
+      "id": "graphics-fixture-only",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "view": "public"
+  },
+  "presentation": {
+    "coordinates": "x-right-y-down",
+    "assetCatalogVersion": "procedural-g1",
+    "tickDurationMs": 400
+  },
+  "scene": {
+    "bounds": {
+      "min": {
+        "x": -15,
+        "y": -8
+      },
+      "max": {
+        "x": 15,
+        "y": 8
+      }
+    },
+    "lanes": [
+      {
+        "id": "top",
+        "label": "TOP",
+        "points": [
+          {
+            "x": -11,
+            "y": -5
+          },
+          {
+            "x": 0,
+            "y": -5
+          },
+          {
+            "x": 11,
+            "y": -5
+          }
+        ],
+        "elevation": 0.65
+      },
+      {
+        "id": "mid",
+        "label": "MID",
+        "points": [
+          {
+            "x": -11,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 11,
+            "y": 0
+          }
+        ],
+        "elevation": 0.15
+      },
+      {
+        "id": "bot",
+        "label": "BOT",
+        "points": [
+          {
+            "x": -11,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 11,
+            "y": 5
+          }
+        ],
+        "elevation": 0.4
+      }
+    ]
+  },
+  "initialView": [
+    {
+      "id": "azure-base",
+      "side": "azure",
+      "kind": "base",
+      "archetype": "citadel",
+      "appearanceKey": "citadel",
+      "position": {
+        "x": -13,
+        "y": 0
+      },
+      "hp": 500,
+      "maxHp": 500
+    },
+    {
+      "id": "vermilion-base",
+      "side": "vermilion",
+      "kind": "base",
+      "archetype": "citadel",
+      "appearanceKey": "citadel",
+      "position": {
+        "x": 13,
+        "y": 0
+      },
+      "hp": 500,
+      "maxHp": 500
+    },
+    {
+      "id": "azure-top-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": -8,
+        "y": -5
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "azure-top-infantry",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": -6.0,
+        "y": -5.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-top-heavy",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": -7.2,
+        "y": -5.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-top-archer",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": -8.4,
+        "y": -4.2
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-top-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": 8,
+        "y": -5
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "vermilion-top-infantry",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": 6.0,
+        "y": -5.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-top-heavy",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": 7.2,
+        "y": -5.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-top-archer",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": 8.4,
+        "y": -4.2
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-mid-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": -8,
+        "y": 0
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "azure-mid-infantry",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": -6.0,
+        "y": -0.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-mid-heavy",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": -7.2,
+        "y": 0.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-mid-archer",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": -8.4,
+        "y": 0.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-mid-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": 8,
+        "y": 0
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "vermilion-mid-infantry",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": 6.0,
+        "y": -0.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-mid-heavy",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": 7.2,
+        "y": 0.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-mid-archer",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": 8.4,
+        "y": 0.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-bot-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": -8,
+        "y": 5
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "azure-bot-infantry",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": -6.0,
+        "y": 4.2
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-bot-heavy",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": -7.2,
+        "y": 5.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "azure-bot-archer",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": -8.4,
+        "y": 5.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-bot-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "watchtower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": 8,
+        "y": 5
+      },
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "vermilion-bot-infantry",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "infantry",
+      "appearanceKey": "infantry",
+      "position": {
+        "x": 6.0,
+        "y": 4.2
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-bot-heavy",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "heavy",
+      "appearanceKey": "heavy",
+      "position": {
+        "x": 7.2,
+        "y": 5.0
+      },
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "vermilion-bot-archer",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "archer",
+      "appearanceKey": "archer",
+      "position": {
+        "x": 8.4,
+        "y": 5.8
+      },
+      "hp": 100,
+      "maxHp": 100
+    }
+  ],
+  "timeline": [
+    {
+      "tick": 1,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -5.62,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -6.82,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -8.02,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 1,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 5.62,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 6.82,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 8.02,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 1,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -5.62,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -6.82,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -8.02,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 5.62,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 6.82,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 8.02,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -5.62,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 1,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -6.82,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -8.02,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 1,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 5.62,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 1,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 6.82,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 1,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 8.02,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -5.24,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -6.44,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -7.640000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 2,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 5.24,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 6.44,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 7.640000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 2,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -5.24,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -6.44,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -7.640000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 5.24,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 6.44,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 7.640000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -5.24,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 2,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -6.44,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -7.640000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 2,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 5.24,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 2,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 6.44,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 2,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 7.640000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -4.859999999999999,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -6.0600000000000005,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -7.26,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 3,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 4.859999999999999,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 6.0600000000000005,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 7.26,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 3,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -4.859999999999999,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -6.0600000000000005,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -7.26,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 4.859999999999999,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 6.0600000000000005,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 7.26,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -4.859999999999999,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 3,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -6.0600000000000005,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -7.26,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 3,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 4.859999999999999,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 3,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 6.0600000000000005,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 3,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 7.26,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -4.48,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -5.68,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -6.880000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 4,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 4.48,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 5.68,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 6.880000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 4,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -4.48,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -5.68,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -6.880000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 4.48,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 5.68,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 6.880000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -4.48,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 4,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -5.68,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -6.880000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 4,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 4.48,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 4,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 5.68,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 4,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 6.880000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -4.1,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -5.300000000000001,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -6.5,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 5,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 4.1,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 5.300000000000001,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 6.5,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 5,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -4.1,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -5.300000000000001,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -6.5,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 4.1,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 5.300000000000001,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 6.5,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -4.1,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 5,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -5.300000000000001,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -6.5,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 5,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 4.1,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 5,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 5.300000000000001,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 5,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 6.5,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -3.7199999999999998,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -4.92,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -6.12,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 6,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 3.7199999999999998,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 4.92,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 6.12,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 6,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -3.7199999999999998,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -4.92,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -6.12,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 3.7199999999999998,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 4.92,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 6.12,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -3.7199999999999998,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 6,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -4.92,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -6.12,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 6,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 3.7199999999999998,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 6,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 4.92,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 6,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 6.12,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -3.34,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -4.54,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -5.74,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 7,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 3.34,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 4.54,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 5.74,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 7,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -3.34,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -4.54,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -5.74,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 3.34,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 4.54,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 5.74,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -3.34,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 7,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -4.54,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -5.74,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 7,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 3.34,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 7,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 4.54,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 7,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 5.74,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -2.96,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -4.16,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -5.36,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 8,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 2.96,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 4.16,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 5.36,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 8,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -2.96,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -4.16,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -5.36,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 2.96,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 4.16,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 5.36,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -2.96,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 8,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -4.16,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -5.36,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 8,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 2.96,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 8,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 4.16,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 8,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 5.36,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -2.58,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -3.7800000000000002,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -4.98,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 9,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 2.58,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 3.7800000000000002,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 4.98,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 9,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -2.58,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -3.7800000000000002,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -4.98,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 2.58,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 3.7800000000000002,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 4.98,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -2.58,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 9,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -3.7800000000000002,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -4.98,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 9,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 2.58,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 9,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 3.7800000000000002,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 9,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 4.98,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -2.2,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -3.4000000000000004,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -4.6000000000000005,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 10,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 2.2,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 3.4000000000000004,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 4.6000000000000005,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 10,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -2.2,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -3.4000000000000004,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -4.6000000000000005,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 2.2,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 3.4000000000000004,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 4.6000000000000005,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -2.2,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 10,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -3.4000000000000004,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -4.6000000000000005,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 10,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 2.2,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 10,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 3.4000000000000004,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 10,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 4.6000000000000005,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -1.8200000000000003,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -3.0200000000000005,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -4.220000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 11,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 1.8200000000000003,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 3.0200000000000005,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 4.220000000000001,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 11,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -1.8200000000000003,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -3.0200000000000005,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -4.220000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 1.8200000000000003,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 3.0200000000000005,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 4.220000000000001,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -1.8200000000000003,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 11,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -3.0200000000000005,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -4.220000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 11,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 1.8200000000000003,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 11,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 3.0200000000000005,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 11,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 4.220000000000001,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-top-infantry",
+      "position": {
+        "x": -1.4399999999999995,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 1,
+      "type": "move",
+      "entityId": "azure-top-heavy",
+      "position": {
+        "x": -2.6399999999999997,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 2,
+      "type": "move",
+      "entityId": "azure-top-archer",
+      "position": {
+        "x": -3.84,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 12,
+      "order": 3,
+      "type": "move",
+      "entityId": "vermilion-top-infantry",
+      "position": {
+        "x": 1.4399999999999995,
+        "y": -5.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 4,
+      "type": "move",
+      "entityId": "vermilion-top-heavy",
+      "position": {
+        "x": 2.6399999999999997,
+        "y": -5.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 5,
+      "type": "move",
+      "entityId": "vermilion-top-archer",
+      "position": {
+        "x": 3.84,
+        "y": -4.2
+      }
+    },
+    {
+      "tick": 12,
+      "order": 6,
+      "type": "move",
+      "entityId": "azure-mid-infantry",
+      "position": {
+        "x": -1.4399999999999995,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 7,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": -2.6399999999999997,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 8,
+      "type": "move",
+      "entityId": "azure-mid-archer",
+      "position": {
+        "x": -3.84,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 9,
+      "type": "move",
+      "entityId": "vermilion-mid-infantry",
+      "position": {
+        "x": 1.4399999999999995,
+        "y": -0.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 10,
+      "type": "move",
+      "entityId": "vermilion-mid-heavy",
+      "position": {
+        "x": 2.6399999999999997,
+        "y": 0.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 11,
+      "type": "move",
+      "entityId": "vermilion-mid-archer",
+      "position": {
+        "x": 3.84,
+        "y": 0.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 12,
+      "type": "move",
+      "entityId": "azure-bot-infantry",
+      "position": {
+        "x": -1.4399999999999995,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 12,
+      "order": 13,
+      "type": "move",
+      "entityId": "azure-bot-heavy",
+      "position": {
+        "x": -2.6399999999999997,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 14,
+      "type": "move",
+      "entityId": "azure-bot-archer",
+      "position": {
+        "x": -3.84,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 12,
+      "order": 15,
+      "type": "move",
+      "entityId": "vermilion-bot-infantry",
+      "position": {
+        "x": 1.4399999999999995,
+        "y": 4.2
+      }
+    },
+    {
+      "tick": 12,
+      "order": 16,
+      "type": "move",
+      "entityId": "vermilion-bot-heavy",
+      "position": {
+        "x": 2.6399999999999997,
+        "y": 5.0
+      }
+    },
+    {
+      "tick": 12,
+      "order": 17,
+      "type": "move",
+      "entityId": "vermilion-bot-archer",
+      "position": {
+        "x": 3.84,
+        "y": 5.8
+      }
+    },
+    {
+      "tick": 13,
+      "order": 0,
+      "type": "attack",
+      "entityId": "azure-mid-heavy",
+      "targetId": "vermilion-mid-infantry"
+    },
+    {
+      "tick": 13,
+      "order": 1,
+      "type": "damage",
+      "entityId": "vermilion-mid-infantry",
+      "hp": 35
+    },
+    {
+      "tick": 14,
+      "order": 0,
+      "type": "attack",
+      "entityId": "azure-mid-archer",
+      "targetId": "vermilion-mid-infantry"
+    },
+    {
+      "tick": 14,
+      "order": 1,
+      "type": "damage",
+      "entityId": "vermilion-mid-infantry",
+      "hp": 0
+    },
+    {
+      "tick": 14,
+      "order": 2,
+      "type": "destroy",
+      "entityId": "vermilion-mid-infantry"
+    },
+    {
+      "tick": 15,
+      "order": 0,
+      "type": "disappear",
+      "entityId": "vermilion-mid-archer"
+    },
+    {
+      "tick": 16,
+      "order": 0,
+      "type": "spawn",
+      "entity": {
+        "id": "azure-reinforcement",
+        "side": "azure",
+        "kind": "unit",
+        "archetype": "infantry",
+        "appearanceKey": "infantry",
+        "position": {
+          "x": -7,
+          "y": 0
+        },
+        "hp": 100,
+        "maxHp": 100
+      }
+    },
+    {
+      "tick": 17,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": 3,
+        "y": 0
+      }
+    },
+    {
+      "tick": 18,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": 4,
+        "y": 0
+      }
+    },
+    {
+      "tick": 19,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": 5,
+        "y": 0
+      }
+    },
+    {
+      "tick": 20,
+      "order": 0,
+      "type": "move",
+      "entityId": "azure-mid-heavy",
+      "position": {
+        "x": 6,
+        "y": 0
+      }
+    },
+    {
+      "tick": 21,
+      "order": 0,
+      "type": "attack",
+      "entityId": "azure-mid-heavy",
+      "targetId": "vermilion-mid-tower"
+    },
+    {
+      "tick": 21,
+      "order": 1,
+      "type": "damage",
+      "entityId": "vermilion-mid-tower",
+      "hp": 100
+    },
+    {
+      "tick": 23,
+      "order": 0,
+      "type": "attack",
+      "entityId": "azure-mid-heavy",
+      "targetId": "vermilion-mid-tower"
+    },
+    {
+      "tick": 23,
+      "order": 1,
+      "type": "damage",
+      "entityId": "vermilion-mid-tower",
+      "hp": 0
+    },
+    {
+      "tick": 23,
+      "order": 2,
+      "type": "destroy",
+      "entityId": "vermilion-mid-tower"
+    },
+    {
+      "tick": 28,
+      "order": 0,
+      "type": "match-end",
+      "result": {
+        "winner": "azure",
+        "reason": "塔陥落（合成サンプル）",
+        "tick": 28
+      }
+    }
+  ],
+  "result": {
+    "winner": "azure",
+    "reason": "塔陥落（合成サンプル）",
+    "tick": 28
+  }
+}
