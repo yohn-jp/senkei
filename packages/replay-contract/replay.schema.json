@@ -144,7 +144,6 @@
         },
         "routes": {
           "type": "array",
-          "maxItems": 512,
           "description": "Traversable map edges projected from the ruleset world graph.",
           "items": {
             "$ref": "#/$defs/Route"

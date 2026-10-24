@@ -99,8 +99,6 @@ export interface PresentationReplay {
     }[];
     /**
      * Traversable map edges projected from the ruleset world graph.
-     *
-     * @maxItems 512
      */
     routes?: Route[];
   };
