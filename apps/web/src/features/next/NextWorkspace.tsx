@@ -33,6 +33,7 @@ const SLOT_IDS = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"] as cons
 const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
+const NEXT_RECOVERY_KEY = "senkei.next-workspace-recovery.v1";
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
 type AtelierScreen = "collection" | "detail" | "skills" | "squads";
@@ -313,6 +314,23 @@ function formationGroupsPattern(slots: readonly FormationSlot[]): string {
   return [...counts.values()].sort((left, right) => right - left).join("+");
 }
 
+function skillPathPrerequisiteIssues(hero: HeroDefinition, path: string): readonly string[] {
+  const ids = hero.skill_paths[path] ?? [];
+  return ids.flatMap((id, index) => {
+    const skill = hero.skills.find((item) => item.id === id);
+    if (!skill) return [`The selected path references missing skill ${id}.`];
+    return skill.prerequisites.flatMap((prerequisiteId) => {
+      const prerequisite = hero.skills.find((item) => item.id === prerequisiteId);
+      const prerequisiteIndex = ids.indexOf(prerequisiteId);
+      if (!prerequisite) return [`${skill.name} requires unknown skill ${prerequisiteId}.`];
+      if (prerequisiteIndex < 0) return [`${skill.name} requires ${prerequisite.name}, which is not in this path.`];
+      if (prerequisiteIndex >= index) return [`${prerequisite.name} must appear before ${skill.name}.`];
+      if (prerequisite.unlock_level > skill.unlock_level) return [`${prerequisite.name} unlocks after ${skill.name} requires it.`];
+      return [];
+    });
+  });
+}
+
 function createTacticDraft(packageValue: RulePackage, rules: NextRules, side: Side): SenkeiDraft {
   const heroes = defaultSlots(rules, side, side === "attacker" ? DEFAULT_HERO_IDS : DEFAULT_RIVAL_IDS);
   const source = createStarterJinrei(packageValue, side, heroes);
@@ -497,6 +515,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
   const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
   const [savedSetupError, setSavedSetupError] = useState<string | null>(null);
+  const [recoverySetup, setRecoverySetup] = useState<SavedNextSetup | null>(null);
+  const recoverySetupRef = useRef<SavedNextSetup | null>(null);
+  const [recoverySetupLoaded, setRecoverySetupLoaded] = useState(false);
+  const [recoveryLoadError, setRecoveryLoadError] = useState<string | null>(null);
+  const [recoveryRestored, setRecoveryRestored] = useState(false);
+  const [recoveryAvailable, setRecoveryAvailable] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const rendererHost = useRef<HTMLDivElement>(null);
   const renderer = useRef<BattlefieldRenderer | null>(null);
@@ -520,8 +544,48 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   }, []);
 
   useEffect(() => {
-    if (!packageValue || !nextRules) return;
     try {
+      const serialized = window.localStorage.getItem(NEXT_RECOVERY_KEY);
+      if (serialized !== null) {
+        const parsed = parseSavedNextSetup(JSON.parse(serialized) as unknown);
+        if (parsed) {
+          recoverySetupRef.current = parsed;
+          setRecoverySetup(parsed);
+          setRecoveryAvailable(true);
+        } else {
+          setRecoveryLoadError("An unsaved Next recovery copy is present, but its format cannot be read. It has been preserved; clear it explicitly to start a new recovery copy.");
+        }
+      }
+    } catch (cause) {
+      setRecoveryLoadError(cause instanceof Error
+        ? `The unsaved Next recovery copy could not be read: ${cause.message}. It has been preserved.`
+        : "The unsaved Next recovery copy could not be read. It has been preserved.");
+    } finally {
+      setRecoverySetupLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!packageValue || !nextRules || !recoverySetupLoaded) return;
+    try {
+      const recovered = recoverySetupRef.current;
+      if (recovered && savedSetupMismatch(recovered, packageValue, nextRules) === null) {
+        setSlots([...recovered.slots]);
+        setRivalSlots([...recovered.rival_slots]);
+        setFormationShape(recovered.formation_shape);
+        setActiveSlot(0);
+        draftRef.current = recovered.draft;
+        setDraft(recovered.draft);
+        setCompilation(null);
+        setRun(null);
+        setBaselineRun(null);
+        setError(null);
+        setRendererError(null);
+        setSelectedEntityId(null);
+        setRecoveryRestored(true);
+        setSaveMessage("Recovered this unsaved Next draft after reload. Your explicit saved setup remains separate.");
+        return;
+      }
       const playerSlots = defaultSlots(nextRules, "attacker", DEFAULT_HERO_IDS);
       const enemySlots = defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS);
       const initialDraft = createTacticDraft(packageValue, nextRules, "attacker");
@@ -547,11 +611,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       setBaselineRun(null);
       setError(cause instanceof Error ? cause.message : "The Next formation could not be initialized from the ruleset.");
     }
-  }, [packageValue?.ruleset.digest]);
+  }, [packageValue?.ruleset.digest, recoverySetupLoaded]);
 
   const draftKey = draft ? stableKey(draft) : null;
   const activeCompilation = draftKey !== null && compilation?.key === draftKey ? compilation.result : null;
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
+  const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
   const runIsCurrent = Boolean(run && activeCompilation &&
     run.snapshot.attacker.program.content_digest === activeCompilation.program.content_digest &&
@@ -623,6 +688,21 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     };
   }, [formationShape, nextRules, packageValue, rivalSlots, slots]);
 
+  useEffect(() => {
+    if (!recoverySetupLoaded || !savedSetupLoaded || slots.length !== 5 || !draft || recoveryLoadError || recoveryMismatchReason) return;
+    const setup = buildSavedSetup();
+    if (!setup) return;
+    try {
+      window.localStorage.setItem(NEXT_RECOVERY_KEY, JSON.stringify(setup));
+      recoverySetupRef.current = setup;
+      setRecoveryAvailable(true);
+    } catch (cause) {
+      setRecoveryLoadError(cause instanceof Error
+        ? `Unsaved draft recovery could not be written: ${cause.message}. Use Save setup or export JSON to keep another copy.`
+        : "Unsaved draft recovery could not be written. Use Save setup or export JSON to keep another copy.");
+    }
+  }, [buildSavedSetup, draft, recoveryLoadError, recoveryMismatchReason, recoverySetupLoaded, savedSetupLoaded, slots.length]);
+
   const saveSetup = useCallback((): void => {
     const setup = buildSavedSetup();
     if (!setup || !savedSetupLoaded) {
@@ -662,6 +742,22 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       setSaveMessage("Cleared the local Next setup copy.");
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The saved setup could not be cleared: ${cause.message}` : "The saved setup could not be cleared.");
+    }
+  }, []);
+
+  const clearRecoveryCopy = useCallback((): void => {
+    try {
+      window.localStorage.removeItem(NEXT_RECOVERY_KEY);
+      recoverySetupRef.current = null;
+      setRecoverySetup(null);
+      setRecoveryLoadError(null);
+      setRecoveryRestored(false);
+      setRecoveryAvailable(false);
+      setSaveMessage("Cleared the previous recovery copy. The current draft will be captured as a new recovery copy.");
+    } catch (cause) {
+      setRecoveryLoadError(cause instanceof Error
+        ? `The recovery copy could not be cleared: ${cause.message}`
+        : "The recovery copy could not be cleared.");
     }
   }, []);
 
@@ -929,7 +1025,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError}</span><button type="button" onClick={() => setRendererError(null)} aria-label="Dismiss renderer error">×</button></div>}
 
       <section aria-label="Next setup save and restore" className="next-save-bar">
-        <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Keep this formation and Jinrei separate</strong><small>Stored in this browser with its exact ruleset digest.</small></div>
+        <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Saved setup and recovery copy</strong><small>Save setup pins a restore point; current edits are recovered separately after reload.</small></div>
         <div className="next-save-actions">
           <button disabled={!draft || !packageValue || !savedSetupLoaded} onClick={saveSetup} type="button">Save setup</button>
           <button disabled={!canRestoreSavedSetup} onClick={restoreSetup} type="button">Restore saved</button>
@@ -944,6 +1040,9 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
           }} ref={importFileInput} type="file" />
         </div>
         {savedSetupError && <p className="next-save-message is-error" role="alert">{savedSetupError}</p>}
+        {recoveryLoadError && <div className="next-save-message is-error" role="alert">{recoveryLoadError} <button className="next-inline-action" onClick={clearRecoveryCopy} type="button">Clear recovery copy</button></div>}
+        {recoverySetupLoaded && recoveryMismatchReason && !recoveryLoadError && <div className="next-save-message is-error" role="alert">Unsaved recovery from {recoverySetup ? new Date(recoverySetup.saved_at).toLocaleString() : "a prior session"} belongs to a different ruleset or schema. It is preserved and not loaded. {recoveryMismatchReason} <button className="next-inline-action" onClick={clearRecoveryCopy} type="button">Discard incompatible recovery</button></div>}
+        {!recoveryLoadError && !recoveryMismatchReason && recoveryAvailable && <p className="next-save-message" role="status">{recoveryRestored ? "Recovered this unsaved draft after reload; further edits continue to auto-save." : "Unsaved edits are automatically saved as a separate local recovery copy."}</p>}
         {savedSetup && <div className={`next-save-message${savedSetupMismatchReason ? " is-error" : ""}`} role={savedSetupMismatchReason ? "alert" : "status"}>
           {savedSetupMismatchReason
             ? <>Saved setup from {savedSetup.ruleset.id} · digest <code>{savedSetup.ruleset.digest}</code>. {savedSetupMismatchReason} It remains available to export or clear.</>
@@ -984,7 +1083,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             </nav>
 
             {atelierScreen === "collection" && <>
-            <div className="next-collection-summary" aria-label="Five selected Hero slots">
+            <div className="next-collection-summary" aria-label="Five selected Hero slots" role="group">
               {slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-label={`Choose hero for slot ${index + 1}`} aria-pressed={activeSlot === index} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id ?? slot.slot_id} · {hero ? formatId(hero.placement) : "EMPTY"}</small></button>; })}
             </div>
             <div className="next-formation-tools">
@@ -1020,18 +1119,19 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             </>}
 
             {atelierScreen === "detail" && <div className="next-atelier-detail">
-              <div className="next-atelier-roster" aria-label="Choose a Hero for detail"><span className="next-filter-label">FORMATION · SELECT ONE OF FIVE</span>{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
+              <div className="next-atelier-roster" aria-label="Choose a Hero for detail" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
               {currentHero && activeSlotValue ? <article className="next-hero-dossier">
                 <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. No approved character model is bundled for this Hero.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
                 <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div><div className="next-stat-matrix"><span>STAT</span><span>BASE</span><span>PER LEVEL</span>{(["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const).map((stat) => <Fragment key={stat}><strong>{formatId(stat)}</strong><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></Fragment>)}</div></section>
-                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Always-on passive effect" : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
+                <aside className="next-capability-map"><strong>Jinrei capability mapping</strong>{packageValue.domain.capabilities.activate ? <p>Active skills are issued through <code>activate</code> with the ruleset’s typed arguments: {packageValue.domain.capabilities.activate.arguments.map((argument) => `${formatId(argument.id)} (${argument.value_type.kind})`).join(" · ")}. Passive skills are granted automatically at their unlock level.</p> : <p role="alert">This ruleset has no <code>activate</code> capability, so its active skills cannot be ordered from Jinrei.</p>}</aside>
+                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Granted automatically when its level requirement is met." : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks · Jinrei activate capability`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
                 <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. Appearance identity is recorded; its 3D character asset is not available.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
               </article> : <div className="next-catalog-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
             </div>}
 
             {atelierScreen === "skills" && <div className="next-skill-tree-screen">
-              <div className="next-atelier-roster" aria-label="Choose a Hero skill tree"><span className="next-filter-label">FORMATION · CURRENT PLAN</span>{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{formatId(slot.skill_path)}</small></button>; })}</div>
-              {currentHero && activeSlotValue ? <div className="next-skill-tree-content"><div className="next-skill-tree-title"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>Acquisition is planned here. Enbu awards skills only when the Hero reaches each unlock level.</p></div><span className="next-owner-tag">CURRENT · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-branches">{pathNames.map((path) => { const selected = activeSlotValue.skill_path === path; const pathSkills = (currentHero.skill_paths[path] ?? []).map((id) => currentHero.skills.find((skill) => skill.id === id)).filter((skill) => skill !== undefined); return <article className={`next-skill-branch${selected ? " is-selected" : ""}`} key={path}><header><div><span className="next-eyebrow">{formatId(path)} · {pathSkills.length} PLANNED NODES</span><h5>{pathSkills[0]?.name ?? formatId(path)} <span>→</span> {pathSkills[pathSkills.length - 1]?.name ?? ""}</h5></div><button aria-pressed={selected} aria-label={`Choose ${formatId(path)} for ${activeSlotValue.slot_id}`} className="next-secondary-button" onClick={() => changeSlot(activeSlot, { skill_path: path })} type="button">{selected ? "Selected" : "Choose path"}</button></header><ol>{pathSkills.map((skill, index) => <li key={skill.id}><span className="next-skill-level">LV {skill.unlock_level}</span><div className="next-skill-node"><span className="next-skill-node-mark">{skill.passive ? "◇" : "✦"}</span><div><strong>{skill.name}</strong><small>{skill.passive ? "Passive" : "Active"} · {formatId(skill.effect)} · {formatId(skill.target)} target</small><p>{skill.passive ? "This passive is granted when its level requirement is reached." : `Power ${skill.power} · range ${skill.range} · energy ${skill.cost} · cooldown ${skill.cooldown}${skill.duration > 0 ? ` · duration ${skill.duration}` : ""}`}</p>{skill.prerequisites.length > 0 && <small>Requires {skill.prerequisites.map((id) => currentHero.skills.find((item) => item.id === id)?.name ?? id).join(", ")}</small>}</div><span className="next-skill-plan-state">{selected ? `PLANNED · LEVEL ${skill.unlock_level}` : "OTHER BRANCH"}</span></div>{index < pathSkills.length - 1 && <span className="next-skill-connector" aria-hidden="true" />}</li>)}</ol></article>; })}</div><p className="next-skill-tree-note">The chosen branch is saved in the same five-slot setup and passed into the real Enbu Hero configuration. This screen does not mark future skills as already acquired.</p><div className="next-panel-footer"><span>Selected path: {skillNames(currentHero, activeSlotValue.skill_path).join(" → ")}</span><button className="next-secondary-button" onClick={() => setAtelierScreen("squads")} type="button">Arrange Squads <b>→</b></button></div></div> : <div className="next-catalog-empty">Select a populated Hero slot to plan its skill tree.</div>}
+              <div className="next-atelier-roster" aria-label="Choose a Hero skill tree" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{formatId(slot.skill_path)}</small></button>; })}</div>
+              {currentHero && activeSlotValue ? <div className="next-skill-tree-content"><div className="next-skill-tree-title"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>Acquisition is planned here. Enbu awards skills only when the Hero reaches each unlock level.</p></div><span className="next-owner-tag">CURRENT · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-capability-map"><strong>Active skill command</strong><p>{packageValue.domain.capabilities.activate ? <>An active skill uses Jinrei <code>activate</code> ({packageValue.domain.capabilities.activate.arguments.map((argument) => formatId(argument.id)).join(", ")}). A prerequisite must be acquired before the dependent node becomes available.</> : <>No <code>activate</code> capability is defined by this ruleset; active skill plans are unavailable.</>}</p></div><div className="next-skill-branches">{pathNames.map((path) => { const selected = activeSlotValue.skill_path === path; const pathSkills = (currentHero.skill_paths[path] ?? []).map((id) => currentHero.skills.find((skill) => skill.id === id)).filter((skill) => skill !== undefined); const prerequisiteIssues = skillPathPrerequisiteIssues(currentHero, path); const hasActiveSkill = pathSkills.some((skill) => !skill.passive); const canChoose = prerequisiteIssues.length === 0 && (!hasActiveSkill || Boolean(packageValue.domain.capabilities.activate)); return <article className={`next-skill-branch${selected ? " is-selected" : ""}${canChoose ? "" : " is-unavailable"}`} key={path}><header><div><span className="next-eyebrow">{formatId(path)} · {pathSkills.length} PLANNED NODES</span><h5>{pathSkills[0]?.name ?? formatId(path)} <span>→</span> {pathSkills[pathSkills.length - 1]?.name ?? ""}</h5></div><button aria-pressed={selected} aria-label={`Choose ${formatId(path)} for ${activeSlotValue.slot_id}`} className="next-secondary-button" disabled={!canChoose} onClick={() => changeSlot(activeSlot, { skill_path: path })} type="button">{selected ? "Selected" : "Choose path"}</button></header>{prerequisiteIssues.length > 0 && <p className="next-skill-path-error" role="alert">Unavailable: {prerequisiteIssues.join(" ")}</p>}{!packageValue.domain.capabilities.activate && hasActiveSkill && <p className="next-skill-path-error" role="alert">Unavailable: this ruleset has no activate capability for active skills.</p>}<ol>{pathSkills.map((skill, index) => { const prerequisites = skill.prerequisites.map((id) => currentHero.skills.find((item) => item.id === id)).filter((item) => item !== undefined); return <li key={skill.id}><span className="next-skill-level">LV {skill.unlock_level}</span><div className="next-skill-node"><span className="next-skill-node-mark">{skill.passive ? "◇" : "✦"}</span><div><strong>{skill.name}</strong><small>{skill.passive ? "Passive · acquired at unlock level" : `Active · ${formatId(skill.effect)} · ${formatId(skill.target)} target · activate capability`}</small><p>{skill.passive ? "Granted automatically when its level requirement is met." : `Power ${skill.power} · range ${skill.range} · energy ${skill.cost} · cooldown ${skill.cooldown}${skill.duration > 0 ? ` · duration ${skill.duration}` : ""}`}</p>{prerequisites.length > 0 && <small>Requires {prerequisites.map((item) => `${item.name} (LV ${item.unlock_level})`).join(", ")} · locked until prerequisites are acquired</small>}</div><span className="next-skill-plan-state">{selected ? `PLANNED · UNLOCKS LV ${skill.unlock_level}` : "NOT SELECTED"}</span></div>{index < pathSkills.length - 1 && <span className="next-skill-connector" aria-hidden="true" />}</li>; })}</ol></article>; })}</div><p className="next-skill-tree-note">The chosen branch is saved in the same five-slot setup and passed into the real Enbu Hero configuration. This screen does not mark future skills as already acquired.</p><div className="next-panel-footer"><span>Selected path: {skillNames(currentHero, activeSlotValue.skill_path).join(" → ")}</span><button className="next-secondary-button" onClick={() => setAtelierScreen("squads")} type="button">Arrange Squads <b>→</b></button></div></div> : <div className="next-catalog-empty">Select a populated Hero slot to plan its skill tree.</div>}
             </div>}
 
             {atelierScreen === "squads" && <div className="next-assembly-screen">
