@@ -653,7 +653,10 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const heroes = nextRules?.heroes ?? [];
   const visibleCameraTargets = useMemo(() => Object.values(displayState?.entities ?? {})
     .filter((entity) => !entity.destroyed && entity.hp > 0)
-    .sort((left, right) => left.side.localeCompare(right.side) || left.kind.localeCompare(right.kind) || left.id.localeCompare(right.id))
+    .sort((left, right) => {
+      const priority = (entity: DisplayState["entities"][string]) => entity.archetype === "hero" ? 0 : entity.kind === "unit" ? 1 : entity.kind === "tower" ? 2 : 3;
+      return priority(left) - priority(right) || left.side.localeCompare(right.side) || left.id.localeCompare(right.id);
+    })
     .map((entity) => ({
       id: entity.id,
       label: `${formatId(entity.side)} · ${entity.catalogId ? `${entity.catalogId} · ` : ""}${formatId(entity.archetype)} · HP ${entity.hp}/${entity.maxHp}`,
@@ -681,7 +684,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     : null;
   const visibleSquadTargets = useMemo<VisibleSquadTarget[]>(() => {
     if (!ownerReplay || !ownerFrame?.visible_state || !displayState) return [];
-    const groups = new Map<string, string[]>();
+    const groups = new Map<string, Set<string>>();
     for (const entity of Object.values(ownerFrame.visible_state.entities)) {
       if (entity.owner !== "attacker" || entity.entity_type !== "hero") continue;
       const squad = fieldString(entity.fields.squad);
@@ -690,35 +693,42 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       const catalogId = fieldString(entity.fields.catalog_id);
       if (!squad || x === null || y === null) continue;
       const location = { x: x / NEXT_WORLD_UNITS_PER_RENDER_UNIT, y: y / NEXT_WORLD_UNITS_PER_RENDER_UNIT };
-      const visible = Object.values(displayState.entities)
+      const matches = Object.values(displayState.entities)
         .filter((candidate) => !candidate.destroyed && candidate.hp > 0 && candidate.side === "azure" &&
-          candidate.archetype === entity.entity_type && (!catalogId || candidate.catalogId === catalogId))
-        .map((candidate) => ({ candidate, distance: Math.hypot(candidate.position.x - location.x, candidate.position.y - location.y) }))
-        .sort((left, right) => left.distance - right.distance)[0];
+          candidate.archetype === entity.entity_type && (!catalogId || candidate.catalogId === catalogId) &&
+          candidate.position.x === location.x && candidate.position.y === location.y);
       // Squad membership is private owner-replay data; camera IDs must still
-      // come from a currently visible graphics entity at this exact tick.
-      if (!visible || visible.distance > 0.08) continue;
-      groups.set(squad, [...(groups.get(squad) ?? []), visible.candidate.id]);
+      // come from one unambiguous visible graphics entity at this exact tick.
+      // Matching by nearest position could assign a duplicate Hero to a
+      // different Squad, so ambiguity means no follow target for that entity.
+      if (matches.length !== 1) continue;
+      const members = groups.get(squad) ?? new Set<string>();
+      members.add(matches[0].id);
+      groups.set(squad, members);
     }
     return [...groups.entries()]
-      .map(([id, memberIds]) => ({ id, memberIds, label: `${formatId(id)} · ${memberIds.length} visible ${memberIds.length === 1 ? "Hero" : "Heroes"}` }))
+      .map(([id, memberSet]) => {
+        const memberIds = [...memberSet];
+        return { id, memberIds, label: `${formatId(id)} · ${memberIds.length} visible ${memberIds.length === 1 ? "Hero" : "Heroes"}` };
+      })
       .filter((group) => group.memberIds.length > 0)
       .sort((left, right) => left.id.localeCompare(right.id));
   }, [displayState, ownerFrame, ownerReplay]);
+  const followedSquadMembers = visibleSquadTargets.find((target) => target.id === followedSquadId)?.memberIds ?? [];
+  const followedSquadMemberKey = followedSquadMembers.join("|");
   const selectedDisplayEntity = selectedEntityId ? displayState?.entities[selectedEntityId] ?? null : null;
   const selectedEntity = useMemo(() => {
     if (!selectedDisplayEntity) return null;
     const owner = selectedDisplayEntity.side === "azure" ? "attacker" : selectedDisplayEntity.side === "vermilion" ? "defender" : null;
     const catalogId = selectedDisplayEntity.catalogId;
     const position = selectedDisplayEntity.position;
-    return Object.values(publicEntities)
+    const matches = Object.values(publicEntities)
       .filter((entity) => entity.entity_type === selectedDisplayEntity.archetype && entity.owner === owner &&
-        (!catalogId || fieldString(entity.fields.catalog_id) === catalogId))
-      .map((entity) => ({ entity, distance: Math.hypot(
-        (fieldInteger(entity.fields.x) ?? Number.NaN) / NEXT_WORLD_UNITS_PER_RENDER_UNIT - position.x,
-        (fieldInteger(entity.fields.y) ?? Number.NaN) / NEXT_WORLD_UNITS_PER_RENDER_UNIT - position.y,
-      ) }))
-      .sort((left, right) => left.distance - right.distance)[0]?.entity ?? null;
+        (!catalogId || fieldString(entity.fields.catalog_id) === catalogId) &&
+        fieldInteger(entity.fields.x) !== null && fieldInteger(entity.fields.y) !== null &&
+        fieldInteger(entity.fields.x)! / NEXT_WORLD_UNITS_PER_RENDER_UNIT === position.x &&
+        fieldInteger(entity.fields.y)! / NEXT_WORLD_UNITS_PER_RENDER_UNIT === position.y);
+    return matches.length === 1 ? matches[0] : null;
   }, [publicEntities, selectedDisplayEntity]);
   const diagnostics = run?.response.restricted_diagnostics ?? null;
   const abilityEvents = useMemo(() => {
@@ -969,29 +979,27 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   useEffect(() => {
     const current = renderer.current;
     if (!current) return;
-    if (focusedReplayPoint && displayState?.tick === focusedReplayPoint.tick) {
+    if (focusedReplayPoint && player?.state.tick === focusedReplayPoint.tick) {
       current.focusPoint(focusedReplayPoint.point);
       return;
     }
     if (followedEntityId) {
-      if (visibleCameraTargets.some((target) => target.id === followedEntityId)) current.setTracking(followedEntityId);
-      else {
-        setFollowedEntityId(null);
-        current.setCameraMode(cameraMode);
-      }
+      current.setTracking(followedEntityId);
       return;
     }
     if (followedSquadId) {
-      const squad = visibleSquadTargets.find((target) => target.id === followedSquadId);
-      if (squad) current.setTrackingGroup(squad.memberIds);
-      else {
-        setFollowedSquadId(null);
-        current.setCameraMode(cameraMode);
-      }
+      if (followedSquadMembers.length) current.setTrackingGroup(followedSquadMembers);
+      else setFollowedSquadId(null);
       return;
     }
     current.setCameraMode(cameraMode);
-  }, [cameraMode, displayState?.tick, followedEntityId, followedSquadId, focusedReplayPoint, visibleCameraTargets, visibleSquadTargets]);
+  }, [cameraMode, followedEntityId, followedSquadId, followedSquadMemberKey, focusedReplayPoint, player, rendererAttempt, run]);
+
+  useEffect(() => {
+    if (followedEntityId && !visibleCameraTargets.some((target) => target.id === followedEntityId)) {
+      setFollowedEntityId(null);
+    }
+  }, [followedEntityId, visibleCameraTargets]);
 
   useEffect(() => {
     if (selectedEntityId && !visibleCameraTargets.some((entity) => entity.id === selectedEntityId)) {
@@ -1117,6 +1125,14 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const runResult: MatchResult | null = runOutcome?.result ?? null;
   const frameEvents = selectedFrame?.events ?? [];
   const timelineEvents = run?.graphicsReplay.timeline ?? [];
+  const contextualTimelineEvents = useMemo(() => {
+    if (timelineEvents.length === 0) return [];
+    const tick = displayState?.tick ?? 0;
+    const pivot = timelineEvents.findIndex((event) => event.tick >= tick);
+    const center = pivot < 0 ? timelineEvents.length - 1 : pivot;
+    const start = Math.max(0, Math.min(timelineEvents.length - 180, center - 90));
+    return timelineEvents.slice(start, start + 180);
+  }, [displayState?.tick, timelineEvents]);
   const sceneBounds = run?.graphicsReplay.scene.bounds ?? null;
   const miniMapPoint = (point: WorldPoint): WorldPoint => {
     if (!sceneBounds) return { x: 0, y: 0 };
@@ -1131,10 +1147,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const setBattleView = (view: BattlefieldMobileView): void => {
     setBattleMobileView(view);
     if (view === "battle" || view === "overview") {
-      setCameraMode(view === "overview" ? "overview" : "tactical");
+      const nextMode = view === "overview" ? "overview" : "tactical";
+      setCameraMode(nextMode);
       setFollowedEntityId(null);
       setFollowedSquadId(null);
       setFocusedReplayPoint(null);
+      renderer.current?.setCameraMode(nextMode);
     }
   };
   const followVisibleEntity = (id: string): void => {
@@ -1371,51 +1389,52 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   <label className="next-camera-target next-squad-camera-target"><select aria-label="Follow own visible Squad" disabled={visibleSquadTargets.length === 0} onChange={(event) => event.target.value && followVisibleSquad(event.target.value)} value={followedSquadId ?? ""}><option value="">{ownerReplay ? "No confirmed visible Squad" : "Own Squad unavailable in public replay"}</option>{visibleSquadTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label>
                   <button aria-label="Zoom in" onClick={() => renderer.current?.zoom(1.2)} type="button">＋</button><button aria-label="Zoom out" onClick={() => renderer.current?.zoom(0.83)} type="button">−</button><button aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)} type="button">{pixel ? "Pixel 3D" : "Smooth 3D"}</button>
                 </div>
-                <div className="next-replay-controls" aria-label="Replay controls">
-                  <div className="next-replay-toolbar">
-                    <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
-                    <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-                    <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
-                  </div>
-                  <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
-                </div>
                 <div className="next-battle-lower" hidden={!battleInspectorOpen && battleMobileView !== "details"}>
-                  <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">VISIBLE STATE · TICK {displayState?.tick ?? 0}</span><h4>{selectedEntity ? fieldString(selectedEntity.fields.catalog_id) ?? selectedEntity.entity_type : "Select a unit"}</h4></div><span className="next-owner-tag">{selectedEntity ? selectedEntity.owner ?? "neutral" : run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER" : "PUBLIC"}</span></div>
+                  <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">VISIBLE STATE · TICK {displayState?.tick ?? 0}</span><h4>{selectedEntity ? fieldString(selectedEntity.fields.catalog_id) ?? selectedEntity.entity_type : "Select a unit"}</h4></div><span className="next-owner-tag">{selectedEntity ? selectedEntity.owner ?? "neutral" : run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER" : "PUBLIC"}</span>{battleMobileView === "details" && <button aria-label="Close details sheet" className="next-mobile-sheet-close" onClick={() => setBattleView("battle")} type="button">×</button>}</div>
                     {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "squad", "skill_path", "skills"] as const).map((field) => {
                       const value = selectedEntity.fields[field];
                       const label = field === "xp" && value?.kind === "integer"
                         ? formatExperience(value.value, nextRules)
                         : value ? domainLabel(value) : "";
                       return value ? <div key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
-                    })}</div> : <p className="next-empty-detail">Tap a visible unit to inspect only the HP, XP, level and skill state present in this replay.</p>}
+                    })}</div> : <p className="next-empty-detail">{selectedDisplayEntity ? "This visible unit has no unambiguous state record in the replay at this tick." : "Tap a visible unit to inspect only the HP, XP, level and skill state present in this replay."}</p>}
                     {selectedEntity && fieldInteger(selectedEntity.fields.xp) !== null && <div className="next-xp-bar"><span>XP <b>{formatExperience(fieldInteger(selectedEntity.fields.xp) ?? 0, nextRules)}</b></span><span>Level <b>{fieldInteger(selectedEntity.fields.level) ?? 1}</b></span></div>}
                   </section>
                   <section className="next-detail-card next-event-card"><div className="next-card-heading"><div><span className="next-eyebrow">BATTLE EVENTS</span><h4>Current tick</h4></div><button onClick={() => setTab("analysis")} type="button">Full analysis ↗</button></div>
                     {frameEvents.length ? <ul className="next-event-list">{frameEvents.slice(-6).map((event, index) => <li key={`${event.event}-${event.entity}-${index}`}><span>T{selectedFrame?.tick}</span><div><strong>{eventTitle(event)}</strong><small>{eventDetails(event) || event.entity || "Battle system"}</small></div></li>)}</ul> : <p className="next-empty-detail">No visible event is recorded at this tick.</p>}
                   </section>
                 </div>
+              <section aria-label="Choose a visible unit or confirmed owner Squad to follow" className="next-mobile-sheet next-follow-sheet" hidden={battleMobileView !== "follow"}>
+                <header><div><span className="next-eyebrow">CAMERA TARGETS · TICK {displayState?.tick ?? 0}</span><h4>Follow a visible unit</h4></div><button aria-label="Close follow sheet" onClick={() => setBattleView("battle")} type="button">×</button></header>
+                {ownerReplay ? <><span className="next-eyebrow next-follow-subhead">CONFIRMED OWNER SQUADS</span>{visibleSquadTargets.length ? <div className="next-follow-list">{visibleSquadTargets.map((target) => <button key={target.id} onClick={() => followVisibleSquad(target.id)} type="button"><span>{target.label}</span><b>Follow Squad ↗</b></button>)}</div> : <p className="next-empty-detail">No owned Hero Squad membership is confirmed among currently visible entities at this tick.</p>}</> : <p className="next-empty-detail">Own-Squad follow is unavailable in this public replay. No private membership is inferred.</p>}
+                <span className="next-eyebrow next-follow-subhead">CURRENTLY VISIBLE ENTITIES</span>
+                <div className="next-follow-list">{visibleCameraTargets.length ? visibleCameraTargets.map((entity) => <button key={entity.id} onClick={() => followVisibleEntity(entity.id)} type="button"><span>{entity.label}</span><b>Follow ↗</b></button>) : <p className="next-empty-detail">No living visible units at this tick.</p>}</div>
+              </section>
+              <section aria-label="Replay event timeline" className="next-mobile-sheet next-mobile-timeline" hidden={battleMobileView !== "timeline"}>
+                <header><div><span className="next-eyebrow">PUBLIC PRESENTATION REPLAY</span><h4>Event timeline <small>{timelineEvents.length}</small></h4></div><button aria-label="Close timeline sheet" onClick={() => setBattleView("battle")} type="button">×</button></header>
+                {contextualTimelineEvents.length ? <ol className="next-timeline">{[...contextualTimelineEvents].reverse().map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "Battle system"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">View ↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
+              </section>
+              </div>
+              <div className="next-replay-controls" aria-label="Replay controls">
+                <div className="next-replay-toolbar">
+                  <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
+                  <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+                  <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
+                </div>
+                <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
               </div>
               <details className="next-result-disclosure"><summary><span>Confirmed result · {formatId(runResult.outcome)}</span><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks · {run.graphicsReplay.timeline.length} public presentation events</small></summary><div className="next-result-detail"><span>YOUR CU <strong>{runResult.cu_spent.attacker}</strong></span><span>REPLAY VIEW <strong>{run.graphicsReplay.header.view === "attacker" ? "Owner" : "Public"}</strong></span><button className="next-result-analysis" onClick={() => setTab("analysis")} type="button">Analyze <b>↗</b></button></div></details>
               <nav className="next-battle-mobile-tabs" aria-label="Battlefield console" data-testid="battle-mobile-console">
                 {([ ["battle", "Battle"], ["overview", "Overview"], ["follow", "Follow"], ["timeline", "Timeline"], ["details", "Details"] ] as const).map(([view, label]) => <button aria-label={`${label} view`} aria-pressed={battleMobileView === view} className={battleMobileView === view ? "is-active" : ""} key={view} onClick={() => setBattleView(view)} type="button"><span>{view === "battle" ? "⌖" : view === "overview" ? "◇" : view === "follow" ? "◎" : view === "timeline" ? "≋" : "◉"}</span>{label}</button>)}
               </nav>
-              <section aria-label="Choose a visible unit or confirmed owner Squad to follow" className="next-mobile-sheet next-follow-sheet" hidden={battleMobileView !== "follow"}>
-                <header><div><span className="next-eyebrow">CAMERA TARGETS</span><h4>Follow a visible unit</h4></div><button aria-label="Close follow sheet" onClick={() => setBattleView("battle")} type="button">×</button></header>
-                <div className="next-follow-list">{visibleCameraTargets.length ? visibleCameraTargets.map((entity) => <button key={entity.id} onClick={() => followVisibleEntity(entity.id)} type="button"><span>{entity.label}</span><b>Follow ↗</b></button>) : <p className="next-empty-detail">No living visible units at this tick.</p>}</div>
-                {ownerReplay ? <><span className="next-eyebrow next-follow-subhead">CONFIRMED OWNER SQUADS · TICK {displayState?.tick ?? 0}</span>{visibleSquadTargets.length ? <div className="next-follow-list">{visibleSquadTargets.map((target) => <button key={target.id} onClick={() => followVisibleSquad(target.id)} type="button"><span>{target.label}</span><b>Follow Squad ↗</b></button>)}</div> : <p className="next-empty-detail">No owned Hero Squad membership is confirmed among currently visible entities at this tick.</p>}</> : <p className="next-empty-detail">Own-Squad follow is unavailable in this public replay. No private membership is inferred.</p>}
-              </section>
-              <section aria-label="Replay event timeline" className="next-mobile-sheet next-mobile-timeline" hidden={battleMobileView !== "timeline"}>
-                <header><div><span className="next-eyebrow">PUBLIC PRESENTATION REPLAY</span><h4>Event timeline <small>{timelineEvents.length}</small></h4></div><button aria-label="Close timeline sheet" onClick={() => setBattleView("battle")} type="button">×</button></header>
-                {timelineEvents.length ? <ol className="next-timeline">{timelineEvents.slice(-180).reverse().map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "Battle system"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">View ↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
-              </section>
             </> : <div className="next-empty-battle"><span className="next-empty-glyph">⌁</span><strong>Battlefield is waiting</strong><p>Compile the current Jinrei draft, then launch five heroes against the local rival.</p><button className="next-secondary-button" onClick={() => setTab(activeCompilation ? "formation" : "jinrei")} type="button">{activeCompilation ? "Review formation" : "Open Jinrei editor"} <b>→</b></button></div>}
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
             <div className="next-panel-header"><div><span className="next-eyebrow">04 · REPLAY AND ABILITY TRACE</span><h3>Read the <em>result</em></h3><p>Select a public event to return the battlefield to that exact replay tick.</p></div>{run && <button className="next-secondary-button" onClick={() => setTab("battle")} type="button">Back to battle <b>↗</b></button>}</div>
             {!run ? <div className="next-empty-battle"><span className="next-empty-glyph">⌁</span><strong>No local battle yet</strong><p>Run a Next battle to populate its public event timeline and optional local diagnostics.</p><button className="next-secondary-button" onClick={() => setTab("jinrei")} type="button">Edit Jinrei <b>→</b></button></div> : <div className="next-analysis-grid">
-              <div className="next-analysis-column"><section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">{run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER REPLAY" : "PUBLIC PRESENTATION REPLAY"}</span><h4>Visible battle events <small>{timelineEvents.length}</small></h4></div><span className={run.graphicsReplay.header.view === "attacker" ? "next-local-tag" : "next-public-tag"}>{run.graphicsReplay.header.view === "attacker" ? "YOUR VIEW" : "PUBLIC"}</span></div>
-                {timelineEvents.length ? <ol className="next-timeline">{timelineEvents.slice(-180).map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "System event"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
+              <div className="next-analysis-column"><section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">{run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER REPLAY" : "PUBLIC PRESENTATION REPLAY"}</span><h4>Visible battle events <small>{contextualTimelineEvents.length} shown · {timelineEvents.length} total</small></h4></div><span className={run.graphicsReplay.header.view === "attacker" ? "next-local-tag" : "next-public-tag"}>{run.graphicsReplay.header.view === "attacker" ? "YOUR VIEW" : "PUBLIC"}</span></div>
+                {contextualTimelineEvents.length ? <ol className="next-timeline">{contextualTimelineEvents.map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "System event"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
               </section></div>
               <div className="next-analysis-column"><section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">XP AND ABILITY EVENTS</span><h4>Hero progression</h4></div><span className="next-event-count">{abilityEvents.length}</span></div>
                 {abilityEvents.length ? <ol className="next-diagnostic-list">{abilityEvents.map(({ tick, event, key }) => <li key={key}><span>T{String(tick).padStart(2, "0")}</span><div><strong>{eventTitle(event)}</strong><small>{eventDetails(event) || event.entity || "Visible ability or progression event"}</small></div><button onClick={() => { player?.pause(); player?.seek(tick); setTab("battle"); }} type="button">View ↗</button></li>)}</ol> : <p className="next-empty-detail">No XP or ability event has been emitted in this replay yet. Choose a skill path and add an `activate` order in Jinrei to inspect its effect.</p>}
