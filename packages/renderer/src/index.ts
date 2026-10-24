@@ -666,8 +666,8 @@ export class Battlefield {
           (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
         )
     const boundsHalfHeight = this.authoredOverviewHalfHeight(target);
-    // Tactical frames only public current entities and their nearby map
-    // context. Overview is the explicit whole-map inspection framing.
+    // Standard observation fits the authored lane/camp network. Overview
+    // includes the complete World bounds; Follow frames a current target.
     const halfHeight = tactical?.halfHeight ?? boundsHalfHeight;
     const safeFrame = this.strategicViewportFit(target, halfHeight);
     this.controls.enableDamping = false;
