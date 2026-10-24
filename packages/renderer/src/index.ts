@@ -277,17 +277,20 @@ export class Battlefield {
   private mobile = false;
   private pixel = true;
   private destroyed = false;
+  private cameraMode: BattlefieldCameraMode = "tactical";
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   private selected: string | null = null;
-  private tracked: string | null = null;
+  private trackedIds: string[] = [];
   private labels: {
     element: HTMLSpanElement;
     point: THREE.Vector3;
     desktopTransform?: string;
     mobileTransform?: string;
   }[] = [];
+  private entityLabels = new Map<string, HTMLSpanElement>();
   private marker = new THREE.Group();
+  private focusMarker = new THREE.Group();
   private startPointer = { x: 0, y: 0 };
   readonly canvas: HTMLCanvasElement;
   constructor(
@@ -366,7 +369,7 @@ export class Battlefield {
           : "translate(10px, -135%)",
       });
     }
-    this.scene.add(this.effects, this.marker);
+    this.scene.add(this.effects, this.marker, this.focusMarker);
     for (let j = 0; j < 4; j++)
       box(
         this.marker,
@@ -380,6 +383,26 @@ export class Battlefield {
         (j * Math.PI) / 2,
       );
     this.marker.visible = false;
+    this.focusMarker.visible = false;
+    const focusRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.15, 0.12, 4, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffd788, toneMapped: false }),
+    );
+    focusRing.rotation.x = Math.PI / 2;
+    focusRing.position.y = 0.07;
+    this.focusMarker.add(focusRing);
+    for (let j = 0; j < 4; j++)
+      box(
+        this.focusMarker,
+        [0.32, 0.07, 0.1],
+        [
+          Math.cos((j * Math.PI) / 2) * 1.55,
+          0.06,
+          Math.sin((j * Math.PI) / 2) * 1.55,
+        ],
+        0xffe5a4,
+        (j * Math.PI) / 2,
+      );
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(2, 2),
       new THREE.MeshBasicMaterial({
@@ -449,11 +472,33 @@ export class Battlefield {
       Math.max(1, Math.floor(w / (this.pixel ? 2 : 1))),
       Math.max(1, Math.floor(h / (this.pixel ? 2 : 1))),
     );
-    this.resetCamera();
+    // Refit only the frustum's aspect. The controls target, orbit, pan, zoom,
+    // selection, and camera mode belong to the replay workspace and survive
+    // a host resize or tab becoming visible again.
+    this.updateFrustum(this.camera.top);
   };
   resetCamera() {
-    this.tracked = null;
-    const hasAuthoredRoutes = Boolean(this.replay.scene.routes?.length);
+    this.trackedIds = [];
+    this.cameraMode = "tactical";
+    this.focusMarker.visible = false;
+    if (this.replay.scene.routes?.length) {
+      this.fitAuthoredCamera("tactical");
+      return;
+    }
+    this.fitLegacyCamera();
+  }
+  private updateFrustum(halfHeight: number) {
+    const aspect = Math.max(
+      0.25,
+      this.host.clientWidth / Math.max(1, this.host.clientHeight),
+    );
+    this.camera.left = -halfHeight * aspect;
+    this.camera.right = halfHeight * aspect;
+    this.camera.top = halfHeight;
+    this.camera.bottom = -halfHeight;
+    this.camera.updateProjectionMatrix();
+  }
+  private fitLegacyCamera() {
     const { min, max } = this.replay.scene.bounds;
     const center = new THREE.Vector3(
       (min.x + max.x) / 2,
@@ -464,13 +509,9 @@ export class Battlefield {
     // Consume any orbit or pan delta left by damping before writing the reset
     // pose, or OrbitControls would apply that old gesture to the overview.
     this.controls.update();
-    const offset = hasAuthoredRoutes
-      ? this.mobile
-        ? new THREE.Vector3(32, 50, 0)
-        : new THREE.Vector3(0, 20, 32)
-      : this.mobile
-        ? new THREE.Vector3(10, 46, 18)
-        : new THREE.Vector3(17, 38, 31);
+    const offset = this.mobile
+      ? new THREE.Vector3(10, 46, 18)
+      : new THREE.Vector3(17, 38, 31);
     this.camera.position.copy(center).add(offset);
     this.camera.zoom = 1;
     this.controls.target.copy(center);
@@ -492,33 +533,193 @@ export class Battlefield {
           vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
         }
     const aspect = Math.max(0.25, this.host.clientWidth / this.host.clientHeight);
-    const frameMargin = hasAuthoredRoutes ? 1.05 : 1.18;
-    const halfHeight = Math.max(vertical, horizontal / aspect) * frameMargin;
-    this.camera.left = -halfHeight * aspect;
-    this.camera.right = halfHeight * aspect;
-    this.camera.top = halfHeight;
-    this.camera.bottom = -halfHeight;
-    this.camera.updateProjectionMatrix();
+    const halfHeight = Math.max(vertical, horizontal / aspect) * 1.18;
+    this.updateFrustum(halfHeight);
     this.controls.update();
     this.controls.enableDamping = true;
   }
-  setCameraMode(_mode: BattlefieldCameraMode) {
-    this.resetCamera();
+  private authoredCameraOffset() {
+    return this.mobile
+      ? new THREE.Vector3(32, 50, 0)
+      : new THREE.Vector3(0, 20, 32);
+  }
+  private authoredBattleCenter() {
+    const laneCenters = this.replay.scene.lanes.map((lane) => {
+      const point = pointAlongPath(lane.points, 0.5);
+      return new THREE.Vector3(point.x, 0, point.y);
+    });
+    const center = laneCenters.length
+      ? laneCenters.reduce(
+          (sum, point) => {
+            sum.x += point.x;
+            sum.z += point.y;
+            return sum;
+          },
+          new THREE.Vector3(),
+        )
+      : new THREE.Vector3(
+          (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
+          0,
+          (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
+        );
+    if (laneCenters.length) center.multiplyScalar(1 / laneCenters.length);
+    return center;
+  }
+  private authoredFrameHalfHeight(center: THREE.Vector3) {
+    const { min, max } = this.replay.scene.bounds;
+    const offset = this.authoredCameraOffset();
+    const position = center.clone().add(offset);
+    const direction = center.clone().sub(position).normalize();
+    const right = new THREE.Vector3()
+      .crossVectors(direction, this.camera.up)
+      .normalize();
+    const screenUp = new THREE.Vector3()
+      .crossVectors(right, direction)
+      .normalize();
+    let horizontal = 0;
+    let vertical = 0;
+    for (const x of [min.x, max.x])
+      for (const z of [min.y, max.y])
+        for (const y of [-1, 5]) {
+          const corner = new THREE.Vector3(x, y, z).sub(center);
+          horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
+          vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
+        }
+    const aspect = Math.max(
+      0.25,
+      this.host.clientWidth / Math.max(1, this.host.clientHeight),
+    );
+    return Math.max(vertical, horizontal / aspect) * 1.08;
+  }
+  private fitAuthoredCamera(mode: BattlefieldCameraMode) {
+    const target = mode === "overview"
+      ? new THREE.Vector3(
+          (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
+          0,
+          (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
+        )
+      : this.authoredBattleCenter();
+    const overviewHeight = this.authoredFrameHalfHeight(target);
+    // Tactical is intentionally a local observation of midfield. The Replay
+    // UI's map context keeps the two bases and all lane directions at hand.
+    // Overview is the explicit whole-map inspection framing.
+    const tacticalScale = this.mobile ? 0.58 : 0.54;
+    const halfHeight = mode === "overview"
+      ? overviewHeight
+      : overviewHeight * tacticalScale;
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.controls.target.copy(target);
+    this.camera.position.copy(target).add(this.authoredCameraOffset());
+    this.camera.zoom = 1;
+    this.camera.lookAt(target);
+    this.updateFrustum(halfHeight);
+    this.controls.update();
+    this.controls.enableDamping = true;
+  }
+  setCameraMode(mode: BattlefieldCameraMode) {
+    this.trackedIds = [];
+    this.focusMarker.visible = false;
+    if (!this.replay.scene.routes?.length) {
+      // G1 sample fixtures keep their original camera and picking projection.
+      this.cameraMode = "tactical";
+      this.fitLegacyCamera();
+      return;
+    }
+    this.cameraMode = mode;
+    this.fitAuthoredCamera(mode);
   }
   focusPoint(point: WorldPoint) {
-    this.tracked = null;
+    this.trackedIds = [];
+    this.focusMarker.visible = true;
+    const shouldFrameTactical =
+      Boolean(this.replay.scene.routes?.length) && this.cameraMode !== "tactical";
+    if (shouldFrameTactical) this.fitAuthoredCamera("tactical");
+    this.cameraMode = "tactical";
+    if (this.replay.scene.routes?.length) {
+      const halfHeight = this.authoredFrameHalfHeight(this.authoredBattleCenter()) *
+        (this.mobile ? 0.4 : 0.36);
+      this.updateFrustum(halfHeight);
+      this.camera.zoom = 1;
+    }
     const destination = new THREE.Vector3(point.x, 0, point.y);
     const delta = destination.clone().sub(this.controls.target);
     this.controls.target.copy(destination);
     this.camera.position.add(delta);
+    this.focusMarker.position.set(point.x, this.height(point), point.y);
     this.controls.update();
   }
   setTrackingGroup(ids: readonly string[]) {
-    this.setTracking(ids[0] ?? null);
+    const visible = ids.filter((id) => {
+      const entity = this.state?.entities[id];
+      return Boolean(entity && !entity.destroyed);
+    });
+    if (!visible.length) {
+      this.resetCamera();
+      return;
+    }
+    if (
+      visible.length === this.trackedIds.length &&
+      visible.every((id, index) => id === this.trackedIds[index])
+    )
+      return;
+    this.focusMarker.visible = false;
+    if (!this.replay.scene.routes?.length) {
+      this.trackedIds = [visible[0]];
+      return;
+    }
+    this.trackedIds = visible;
+    this.cameraMode = "tactical";
+    this.frameTracked(visible);
   }
   setTracking(id: string | null) {
-    this.tracked = id;
-    if (!id) this.resetCamera();
+    if (!id) {
+      this.resetCamera();
+      return;
+    }
+    const entity = this.state?.entities[id];
+    if (!entity || entity.destroyed) return;
+    if (this.trackedIds.length === 1 && this.trackedIds[0] === id) return;
+    this.focusMarker.visible = false;
+    if (!this.replay.scene.routes?.length) {
+      this.trackedIds = [id];
+      return;
+    }
+    this.trackedIds = [id];
+    this.cameraMode = "tactical";
+    this.frameTracked([id]);
+  }
+  private frameTracked(ids: readonly string[]) {
+    const entities = ids
+      .map((id) => this.state?.entities[id])
+      .filter((entity): entity is DisplayEntity => Boolean(entity && !entity.destroyed));
+    if (!entities.length) return;
+    const center = entities.reduce(
+      (sum, entity) => {
+        sum.x += entity.position.x;
+        sum.z += entity.position.y;
+        return sum;
+      },
+      new THREE.Vector3(),
+    ).multiplyScalar(1 / entities.length);
+    const baseHalfHeight = this.authoredFrameHalfHeight(this.authoredBattleCenter()) *
+      (this.mobile ? 0.4 : 0.36);
+    const radius = Math.max(
+      0,
+      ...entities.map((entity) =>
+        Math.hypot(entity.position.x - center.x, entity.position.y - center.z),
+      ),
+    );
+    const groupHalfHeight = Math.max(baseHalfHeight, radius * 1.45);
+    this.cameraMode = "tactical";
+    this.controls.enableDamping = false;
+    this.controls.target.copy(center);
+    this.camera.position.copy(center).add(this.authoredCameraOffset());
+    this.camera.zoom = 1;
+    this.camera.lookAt(center);
+    this.updateFrustum(groupHalfHeight);
+    this.controls.update();
+    this.controls.enableDamping = true;
   }
   zoom(factor: number) {
     this.camera.zoom = THREE.MathUtils.clamp(
@@ -841,6 +1042,28 @@ export class Battlefield {
     const heroSuffix = appearance.replace(/^senkei\.next\.hero\./, "");
     return catalogAppearance[heroSuffix] ?? appearance.replaceAll("_", "-");
   }
+  private entityLabel(e: DisplayEntity) {
+    if (e.kind === "base") return "BASE";
+    if (e.kind === "tower") return "TOWER";
+    const appearance = this.canonicalAppearance(e);
+    if (
+      e.side === "neutral" &&
+      (e.archetype === "monster" || appearance.startsWith("monster-"))
+    )
+      return "MONSTER";
+    if (e.archetype === "minion" || appearance.startsWith("minion-")) {
+      const type = appearance.replace("minion-", "").toUpperCase();
+      return `MINION · ${type}`;
+    }
+    if (e.archetype === "hero" || appearance.startsWith("hero-")) {
+      const catalogId = e.catalogId?.toUpperCase();
+      const catalogName = catalogId
+        ? HERO_CATALOG_BY_ID[catalogId as keyof typeof HERO_CATALOG_BY_ID]?.name
+        : undefined;
+      return catalogName ? `HERO · ${catalogId} ${catalogName}` : "HERO";
+    }
+    return appearance.toUpperCase();
+  }
   private heroModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const appearance = this.canonicalAppearance(e);
     const key = (Object.keys(HERO_CATALOG) as (keyof typeof HERO_CATALOG)[]).find(
@@ -1061,6 +1284,35 @@ export class Battlefield {
     const color = colors[e.side];
     const appearance = this.canonicalAppearance(e);
     if (e.destroyed) {
+      if (this.replay.scene.routes?.length && e.kind !== "unit") {
+        const isBase = e.kind === "base";
+        const spread = isBase ? 1.45 : 0.86;
+        box(g, [spread * 2.3, 0.3, spread * 1.95], [0, 0.13, 0], 0x625f52);
+        for (let j = 0; j < 7; j++) {
+          const fragment = box(
+            g,
+            [
+              0.48 + (j % 3) * 0.18,
+              0.24 + (j % 2) * 0.17,
+              0.42 + (j % 2) * 0.16,
+            ],
+            [
+              Math.cos(j * 2.1) * spread,
+              0.22 + (j % 2) * 0.09,
+              Math.sin(j * 2.1) * spread,
+            ],
+            j % 2 ? 0x8d8874 : 0x6d7266,
+            j * 0.42,
+          );
+          fragment.userData.rest = fragment.position.clone();
+          fragment.userData.fallingFrom = new THREE.Vector3(
+            fragment.position.x * 0.2,
+            2.2 + j * 0.1,
+            fragment.position.z * 0.2,
+          );
+        }
+        return g;
+      }
       for (let j = 0; j < 7; j++) {
         const fragment = box(
           g,
@@ -1133,7 +1385,12 @@ export class Battlefield {
     if (this.state === state) return;
     this.state = state;
     this.changedAt = performance.now();
-    const recentDeaths = new Set(state.cues.flatMap(c => c.type === "destroy" ? [c.entityId] : []));
+    const cues = this.replay.scene.routes?.length
+      ? state.cues.filter((cue) => cue.tick === state.tick)
+      : state.cues;
+    const recentDeaths = new Set(
+      cues.flatMap((cue) => (cue.type === "destroy" ? [cue.entityId] : [])),
+    );
     // Unit debris belongs to the death cue; permanent structure ruins remain.
     const shown = (e: DisplayEntity | undefined) => Boolean(e && (!e.destroyed || e.kind !== "unit" || recentDeaths.has(e.id)));
     for (const [id, g] of this.units)
@@ -1141,6 +1398,8 @@ export class Battlefield {
         this.scene.remove(g);
         disposeTree(g);
         this.units.delete(id);
+        this.entityLabels.get(id)?.remove();
+        this.entityLabels.delete(id);
       }
     for (const e of Object.values(state.entities)) {
       if (!shown(e)) continue;
@@ -1159,6 +1418,27 @@ export class Battlefield {
         this.units.set(e.id, g);
         this.scene.add(g);
       }
+      let label = this.entityLabels.get(e.id);
+      if (!label) {
+        label = document.createElement("span");
+        label.className = "world-label entity-world-label";
+        label.setAttribute("aria-hidden", "true");
+        Object.assign(label.style, {
+          background: "rgba(14, 27, 31, .92)",
+          border: `1px solid ${e.side === "azure" ? "#48c8d7" : e.side === "vermilion" ? "#e9845b" : "#b5b8ad"}`,
+          borderRadius: "3px",
+          color: "#f1eee2",
+          fontSize: "10px",
+          letterSpacing: ".04em",
+          padding: "3px 5px",
+          transform: "translate(-50%, -120%)",
+          whiteSpace: "nowrap",
+        });
+        this.host.appendChild(label);
+        this.entityLabels.set(e.id, label);
+      }
+      const labelName = this.entityLabel(e);
+      label.textContent = `${labelName} · ${e.hp}/${e.maxHp}`;
       g.userData.from = g.position.clone();
       g.userData.to = new THREE.Vector3(
         e.position.x,
@@ -1167,11 +1447,19 @@ export class Battlefield {
       );
       if (e.kind === "unit")
         g.rotation.y = e.side === "azure" ? Math.PI / 2 : -Math.PI / 2;
-      if (!playing || this.reducedMotion) g.position.copy(g.userData.to);
+      // Real authored movement follows the Replay graph. Interpolating a
+      // node-to-node change through arbitrary world space can draw a false
+      // shortcut, so only the original sample fixtures retain that flourish.
+      if (
+        !playing ||
+        this.reducedMotion ||
+        this.replay.scene.routes?.length
+      )
+        g.position.copy(g.userData.to);
     }
     disposeTree(this.effects);
     this.effects.clear();
-    for (const cue of state.cues) {
+    for (const cue of cues) {
       if (cue.type === "spawn") {
         const entity = state.entities[cue.entity.id];
         if (!entity) continue;
@@ -1299,16 +1587,24 @@ export class Battlefield {
       }
       if (cue.type === "destroy") {
         const e = state.entities[cue.entityId];
-        if (e)
-          for (let j = 0; j < 7; j++)
-            cone(
+        if (e) {
+          for (let j = 0; j < 7; j++) {
+            const shard = cone(
               this.effects,
               0.14 + (j % 3) * 0.05,
               0.34 + (j % 2) * 0.2,
               this.height(e.position) + 0.24 + (j % 3) * 0.22,
               j % 2 ? 0xc2a777 : 0x69766d,
               4,
-            ).position.x = e.position.x + Math.cos(j * 1.45) * 0.55;
+            );
+            shard.position.set(
+              e.position.x + Math.cos(j * 1.45) * 0.55,
+              this.height(e.position) + 0.24 + (j % 3) * 0.22,
+              e.position.y + Math.sin(j * 1.45) * 0.55,
+            );
+            shard.userData.destroyCue = true;
+          }
+        }
       }
     }
   }
@@ -1316,29 +1612,34 @@ export class Battlefield {
     if (this.destroyed) return;
     try {
       this.controls.update();
-      if (this.tracked && this.state?.entities[this.tracked]) {
-        const entity = this.state.entities[this.tracked];
-        if (!entity.destroyed) {
-          const destination = new THREE.Vector3(
-            entity.position.x,
-            this.height(entity.position),
-            entity.position.y,
-          );
-          const delta = destination
-            .sub(this.controls.target)
-            .multiplyScalar(0.12);
-          this.controls.target.add(delta);
-          this.camera.position.add(delta);
-          this.controls.update();
-        }
+      const tracked = this.trackedIds
+        .map((id) => this.state?.entities[id])
+        .filter((entity): entity is DisplayEntity => Boolean(entity && !entity.destroyed));
+      if (this.trackedIds.length && !tracked.length) this.trackedIds = [];
+      if (tracked.length) {
+        const destination = tracked.reduce(
+          (sum, entity) => {
+            sum.x += entity.position.x;
+            sum.z += this.height(entity.position);
+            return sum;
+          },
+          new THREE.Vector3(),
+        ).multiplyScalar(1 / tracked.length);
+        const delta = destination.sub(this.controls.target).multiplyScalar(0.12);
+        this.controls.target.add(delta);
+        this.camera.position.add(delta);
+        this.controls.update();
       }
       const phase =
         this.playing && !this.reducedMotion
           ? Math.min(1, (performance.now() - this.changedAt) / 300)
           : 1;
       for (const g of this.units.values()) {
-        if (g.userData.to)
-          g.position.lerpVectors(g.userData.from, g.userData.to, phase);
+        if (g.userData.to) {
+          if (this.replay.scene.routes?.length || !this.playing || this.reducedMotion)
+            g.position.copy(g.userData.to);
+          else g.position.lerpVectors(g.userData.from, g.userData.to, phase);
+        }
         if (
           this.playing &&
           !this.reducedMotion &&
@@ -1401,7 +1702,22 @@ export class Battlefield {
         const p = label.point.clone().project(this.camera);
         label.element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         label.element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
-        label.element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
+        label.element.hidden =
+          Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
+      }
+      for (const [id, element] of this.entityLabels) {
+        const entity = this.state?.entities[id];
+        const group = this.units.get(id);
+        const visible = Boolean(
+          entity && group && (this.selected === id || this.trackedIds.includes(id)),
+        );
+        element.hidden = !visible;
+        if (!visible || !group) continue;
+        const height = entity?.kind === "base" ? 4.6 : entity?.kind === "tower" ? 4 : 2.8;
+        const p = group.position.clone().add(new THREE.Vector3(0, height, 0)).project(this.camera);
+        element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
+        element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
+        element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
       }
       this.canvas.dataset.camera =
         this.camera.position
@@ -1411,6 +1727,8 @@ export class Battlefield {
         ":" +
         this.camera.zoom.toFixed(3);
       this.canvas.dataset.tick = String(this.state?.tick ?? 0);
+      this.canvas.dataset.cameraMode = this.cameraMode;
+      this.canvas.dataset.tracking = this.trackedIds.join(",");
       this.canvas.dataset.rendered = "true";
       this.frame = requestAnimationFrame(this.render);
     } catch (error) {
@@ -1431,5 +1749,6 @@ export class Battlefield {
     this.gl.dispose();
     this.canvas.remove();
     this.labels.forEach((label) => label.element.remove());
+    this.entityLabels.forEach((label) => label.remove());
   }
 }
