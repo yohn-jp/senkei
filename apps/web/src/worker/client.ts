@@ -11,7 +11,7 @@ import type {
   WorkerFailureCode,
   RulesetRef,
 } from "../contracts/core";
-import type { RulePackage, StructuredTacticsAst } from "../contracts/core-model";
+import type { MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 
@@ -78,6 +78,10 @@ export class WorkerCoreClient implements CoreClient {
 
   initialRuleset(): Promise<RulePackage> {
     return this.request("initial_ruleset", {}) as Promise<RulePackage>;
+  }
+
+  newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext> {
+    return this.request("new_match_context", { ruleset_ref, match_id }) as Promise<MatchContext>;
   }
 
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst> {

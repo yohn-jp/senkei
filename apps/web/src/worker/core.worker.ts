@@ -9,6 +9,7 @@ const MAX_IDENTIFIER_LENGTH = 128;
 
 type RequestOperation =
   | "initial_ruleset"
+  | "new_match_context"
   | "compile"
   | "parse_text"
   | "format_ast"
@@ -151,6 +152,10 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
         throw new RequestFailure("invalid_request", "initial_ruleset payload must be empty.");
       }
       return;
+    case "new_match_context":
+      requireRecord(payload.ruleset_ref, "new_match_context.ruleset_ref");
+      requireString(payload.match_id, "new_match_context.match_id");
+      return;
     case "compile":
       if (payload.kind === "text") {
         requireRecord(payload.ruleset_ref, "compile.ruleset_ref");
@@ -207,6 +212,11 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
   switch (request.operation) {
     case "initial_ruleset":
       return callCore("initial_ruleset", {}, request.request_id);
+    case "new_match_context":
+      return callCore("new_match_context", {
+        ruleset_ref: request.payload.ruleset_ref,
+        match_id: request.payload.match_id,
+      }, request.request_id);
     case "parse_text":
       return callCore("parse_text", {
         ruleset_ref: request.payload.ruleset_ref,
