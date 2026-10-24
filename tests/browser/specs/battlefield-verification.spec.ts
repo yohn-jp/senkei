@@ -30,8 +30,82 @@ function selectViewportCases(selection: string | undefined): ViewportCase[] {
 }
 
 type JsonRecord = Record<string, any>;
+type BaseSiteLabelSnapshot = {
+  siteId: string;
+  siteState: string;
+  side: "azure" | "vermilion" | null;
+  text: string;
+  datasetKeys: string[];
+};
 // Keep this tied to NEXT_WORLD_UNITS_PER_RENDER_UNIT from the replay adapter.
 const nextWorldUnitsPerRenderUnit = 25;
+
+function observedBaseSiteStateAt(replay: JsonRecord, tick: number, siteId: string): "unknown" | "visible" | "destroyed" {
+  const frame = (replay.frames as JsonRecord[] | undefined)?.find((candidate) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  const base = Object.values(entities ?? {}).find((entity) =>
+    entity.entity_type === "base" && entity.fields?.node?.kind === "string" && entity.fields.node.value === siteId,
+  );
+  if (!base) return "unknown";
+  return base.fields?.hp?.kind === "integer" && base.fields.hp.value === 0 ? "destroyed" : "visible";
+}
+
+function firstObservedBaseSiteTick(replay: JsonRecord, siteId: string): number | null {
+  return (replay.frames as JsonRecord[] | undefined)?.find((frame) => {
+    const entities = frame.visible_state?.entities as Record<string, JsonRecord> | undefined;
+    return Object.values(entities ?? {}).some((entity) =>
+      entity.entity_type === "base" && entity.fields?.node?.kind === "string" && entity.fields.node.value === siteId,
+    );
+  })?.tick ?? null;
+}
+
+function firstUnobservedBaseSiteTick(replay: JsonRecord, siteId: string, afterTick: number): number | null {
+  return (replay.frames as JsonRecord[] | undefined)?.find((frame) => {
+    if (frame.tick <= afterTick) return false;
+    const entities = frame.visible_state?.entities as Record<string, JsonRecord> | undefined;
+    return !Object.values(entities ?? {}).some((entity) =>
+      entity.entity_type === "base" && entity.fields?.node?.kind === "string" && entity.fields.node.value === siteId,
+    );
+  })?.tick ?? null;
+}
+
+function baseSiteSideFromLabel(text: string): "azure" | "vermilion" | null {
+  if (text.startsWith("AZURE BASE")) return "azure";
+  if (text.startsWith("VERMILION BASE")) return "vermilion";
+  return null;
+}
+
+async function assertBaseSiteLabelsAtTick(
+  page: import("@playwright/test").Page,
+  canvas: import("@playwright/test").Locator,
+  replay: JsonRecord,
+  tick: number,
+): Promise<BaseSiteLabelSnapshot[]> {
+  await expect(canvas).toHaveAttribute("data-tick", String(tick));
+  const labels = await page.locator(".base-site-label").evaluateAll((elements) => elements.map((element) => {
+    const label = element as HTMLElement;
+    const text = (label.textContent ?? "").replace(/\s+/g, " ").trim();
+    return {
+      siteId: label.dataset.siteId ?? "",
+      siteState: label.dataset.siteState ?? "",
+      side: text.startsWith("AZURE BASE") ? "azure" as const : text.startsWith("VERMILION BASE") ? "vermilion" as const : null,
+      text,
+      datasetKeys: Object.keys(label.dataset).sort(),
+    };
+  }));
+  expect(labels, "the map should annotate both public base sites").toHaveLength(2);
+  expect(new Set(labels.map((label) => label.siteId)).size).toBe(2);
+  for (const label of labels) {
+    expect(label.siteId).not.toBe("");
+    expect(label.datasetKeys).toContain("siteId");
+    expect(label.datasetKeys).toContain("siteState");
+    expect(label.datasetKeys.join(" ")).not.toMatch(/hp|max_hp|owner|slot|squad|cooldown|diagnostic|private|vision/i);
+    expect(["unknown", "visible", "destroyed"]).toContain(label.siteState);
+    expect(label.siteState).toBe(observedBaseSiteStateAt(replay, tick, label.siteId));
+    expect(label.text).not.toMatch(/\b(?:hp|owner|private|slot|squad|cooldown|vision)\b|\b\d{2,}\b/i);
+  }
+  return labels;
+}
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -445,6 +519,15 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const publicReplay = outcome.presentation_replay as JsonRecord;
   const sourceReplay = (simulation.owner_replay as JsonRecord | undefined) ?? publicReplay;
   const requestSnapshot = captured.request!.payload.snapshot as JsonRecord;
+  const expectBaseSites = process.env.BATTLEFIELD_EXPECT_BASE_SITES === "true";
+  const baseSiteChecks: Record<string, JsonRecord> = {};
+  let baseSiteIds: string[] = [];
+  let firstEnemyBaseSiteId: string | null = null;
+  let firstEnemyBaseVisibleTick: number | null = null;
+  if (expectBaseSites) {
+    expect(controlledScenario, "base-site checks use the ordinary real local match").toBeNull();
+    expect(["attacker", "defender"]).toContain(sourceReplay.perspective);
+  }
   expect(result.match_id).toBe(requestSnapshot.context.match_id);
   expect(sourceReplay.match_id).toBe(result.match_id);
   expect(publicReplay.match_id).toBe(result.match_id);
@@ -486,6 +569,55 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     skill: skillTick,
     end: finalTick,
   };
+
+  if (expectBaseSites) {
+    const initialBaseSites = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, 0);
+    baseSiteChecks["1440x900/t000"] = { tick: 0, labels: initialBaseSites };
+    baseSiteIds = initialBaseSites.map((site) => site.siteId).sort();
+    const ownSide = sourceReplay.perspective === "defender" ? "vermilion" : "azure";
+    const enemySide = ownSide === "azure" ? "vermilion" : "azure";
+    const enemySite = initialBaseSites.find((site) => site.side === enemySide);
+    expect(enemySite, "the map must identify the opposing public base site").toBeDefined();
+    expect(enemySite!.siteState, "an unobserved enemy base site must begin as unknown").toBe("unknown");
+    firstEnemyBaseSiteId = enemySite!.siteId;
+
+    const firstVisibleTick = firstObservedBaseSiteTick(sourceReplay, enemySite!.siteId);
+    firstEnemyBaseVisibleTick = firstVisibleTick;
+    if (firstVisibleTick !== null && firstVisibleTick > 0) {
+      const beforeVisibleTick = firstVisibleTick - 1;
+      await seekToTick(page, beforeVisibleTick);
+      const beforeVisible = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, beforeVisibleTick);
+      const stillUnknown = beforeVisible.find((site) => site.siteId === enemySite!.siteId);
+      expect(stillUnknown?.siteState, "site status must remain unknown until the current replay frame reveals it").toBe("unknown");
+      baseSiteChecks[`1440x900/enemy-before-visible-t${String(beforeVisibleTick).padStart(3, "0")}`] = {
+        tick: beforeVisibleTick,
+        labels: beforeVisible,
+      };
+
+      await seekToTick(page, firstVisibleTick);
+      const firstVisible = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, firstVisibleTick);
+      const nowVisible = firstVisible.find((site) => site.siteId === enemySite!.siteId);
+      expect(nowVisible?.siteState).toBe(observedBaseSiteStateAt(sourceReplay, firstVisibleTick, enemySite!.siteId));
+      expect(["visible", "destroyed"]).toContain(nowVisible?.siteState);
+      baseSiteChecks[`1440x900/enemy-first-visible-t${String(firstVisibleTick).padStart(3, "0")}`] = {
+        tick: firstVisibleTick,
+        labels: firstVisible,
+      };
+
+      const firstUnseenTick = firstUnobservedBaseSiteTick(sourceReplay, enemySite!.siteId, firstVisibleTick);
+      if (firstUnseenTick !== null) {
+        await seekToTick(page, firstUnseenTick);
+        const unseen = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, firstUnseenTick);
+        expect(unseen.find((site) => site.siteId === enemySite!.siteId)?.siteState,
+          "an enemy base site returns to unknown when it is absent from the current replay frame").toBe("unknown");
+        baseSiteChecks[`1440x900/enemy-unseen-t${String(firstUnseenTick).padStart(3, "0")}`] = {
+          tick: firstUnseenTick,
+          labels: unseen,
+        };
+      }
+    }
+    await seekToTick(page, 0);
+  }
 
   const replayJson = `${JSON.stringify(sourceReplay, null, 2)}\n`;
   const publicReplayJson = `${JSON.stringify(publicReplay, null, 2)}\n`;
@@ -574,6 +706,13 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     }
 
     await seekToTick(page, stateTicks.tactical ?? 0);
+    if (expectBaseSites) {
+      const labels = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, stateTicks.tactical ?? 0);
+      baseSiteChecks[`${viewport.name}/t${String(stateTicks.tactical ?? 0).padStart(3, "0")}`] = {
+        tick: stateTicks.tactical ?? 0,
+        labels,
+      };
+    }
     modeSupport.tactical = await clickCameraMode(page, "tactical");
     await waitForSettledCamera(page);
     cameraPosesByCapture[`${viewport.name}/tactical-t000.png`] = await canvas.getAttribute("data-camera");
@@ -637,6 +776,10 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await seekToTick(page, tick);
       await clickCameraMode(page, "tactical");
       await waitForSettledCamera(page);
+      if (expectBaseSites && (name === "base-destroy" || tick === firstEnemyBaseVisibleTick)) {
+        const labels = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, tick);
+        baseSiteChecks[`${viewport.name}/${name}-t${String(tick).padStart(3, "0")}`] = { tick, labels };
+      }
       const fileName = `${name}-t${String(tick).padStart(3, "0")}.png`;
       cameraPosesByCapture[`${viewport.name}/${fileName}`] = await canvas.getAttribute("data-camera");
       await page.screenshot({ path: join(directory, fileName), animations: "disabled" });
@@ -741,6 +884,12 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       finalStateDigest: result.final_state_digest,
     },
     exactTicks: stateTicks,
+    baseSiteAssertions: expectBaseSites ? {
+      immutableSiteIds: baseSiteIds,
+      enemySiteId: firstEnemyBaseSiteId,
+      firstObservedEnemyTick: firstEnemyBaseVisibleTick,
+      checks: baseSiteChecks,
+    } : null,
     heroRespawnProof,
     availableCues: {
       advance: movementTick !== null,
