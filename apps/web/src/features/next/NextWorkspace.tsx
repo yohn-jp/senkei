@@ -20,13 +20,13 @@ import {
   type SimulationOutcome,
   type SimulationResponse,
   type SimulationSnapshot,
-  type StructuredTacticsAst,
   type TacticalInput,
   type TacticalSource,
   type RulesetRef,
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { EditorFeature } from "../editor";
+import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
 import "./next-workspace.css";
 
 const SLOT_IDS = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"] as const;
@@ -140,8 +140,8 @@ function parseFormationSlots(value: unknown): readonly FormationSlot[] | null {
 function parseTacticalSource(value: unknown): TacticalSource | null {
   if (!isRecord(value)) return null;
   if (value.kind === "text" && typeof value.source === "string") return { kind: "text", source: value.source };
-  if (value.kind === "structured_ast" && isRecord(value.ast)) {
-    return { kind: "structured_ast", ast: value.ast as unknown as StructuredTacticsAst };
+  if (value.kind === "structured_ast" && isStructuredTacticsAst(value.ast)) {
+    return { kind: "structured_ast", ast: value.ast };
   }
   return null;
 }
@@ -151,15 +151,15 @@ function parseDraft(value: unknown): SenkeiDraft | null {
   const schemaVersion = parseVersion(value.schema_version);
   const ruleset = parseRulesetRef(value.ruleset);
   const source = parseTacticalSource(value.program_input);
-  if (!schemaVersion || !ruleset || !source || !isRecord(value.configuration) || !isRecord(value.initial_memory)) return null;
+  if (!schemaVersion || !ruleset || !source || !isDomainValueRecord(value.configuration) || !isDomainValueRecord(value.initial_memory)) return null;
   return {
     schema_version: schemaVersion,
     id: value.id,
     revision: value.revision,
     ruleset,
-    configuration: value.configuration as SenkeiDraft["configuration"],
+    configuration: value.configuration,
     program_input: source,
-    initial_memory: value.initial_memory as SenkeiDraft["initial_memory"],
+    initial_memory: value.initial_memory,
   };
 }
 
@@ -325,7 +325,6 @@ function skillPathPrerequisiteIssues(hero: HeroDefinition, path: string): readon
       if (!prerequisite) return [`${skill.name} requires unknown skill ${prerequisiteId}.`];
       if (prerequisiteIndex < 0) return [`${skill.name} requires ${prerequisite.name}, which is not in this path.`];
       if (prerequisiteIndex >= index) return [`${prerequisite.name} must appear before ${skill.name}.`];
-      if (prerequisite.unlock_level > skill.unlock_level) return [`${prerequisite.name} unlocks after ${skill.name} requires it.`];
       return [];
     });
   });
@@ -1165,14 +1164,19 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             </div>
             {runResult && run ? <>
               <div className="next-result-strip"><span className="next-result-mark">{runResult.outcome === "attacker_victory" ? "勝" : runResult.outcome === "defender_victory" ? "敗" : "―"}</span><div><span className="next-eyebrow">AUTHORITATIVE ENBU RESULT</span><strong>{formatId(runResult.outcome)}</strong><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks</small></div><div className="next-result-metrics"><span><small>YOUR CU</small><strong>{runResult.cu_spent.attacker}</strong></span><span><small>OBSERVED EVENTS</small><strong>{run.graphicsReplay.timeline.length}</strong></span></div><button className="next-result-analysis" onClick={() => setTab("analysis")} type="button">Analyze <b>↗</b></button></div>
-              <div className="next-replay-toolbar">
-                <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
-                <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-                <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button><button type="button" aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)}>{pixel ? "Pixel 3D" : "Smooth 3D"}</button></div>
-                <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
+              <div className="next-battle-stage">
+                <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />
+                <div className="next-stage-hud"><span><i /> {run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER VIEW" : "PUBLIC REPLAY"}</span><span>{displayState?.entities ? Object.values(displayState.entities).filter(entity => !entity.destroyed).length : 0} VISIBLE ENTITIES</span></div>
+                <div className="next-replay-controls" aria-label="Replay controls">
+                  <div className="next-replay-toolbar">
+                    <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
+                    <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+                    <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button><button type="button" aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)}>{pixel ? "Pixel 3D" : "Smooth 3D"}</button></div>
+                    <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
+                  </div>
+                  <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
+                </div>
               </div>
-              <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
-              <div className="next-battle-stage"><div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} /><div className="next-stage-hud"><span><i /> {run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER VIEW" : "PUBLIC REPLAY"}</span><span>{displayState?.entities ? Object.values(displayState.entities).filter(entity => !entity.destroyed).length : 0} VISIBLE ENTITIES</span></div></div>
               <div className="next-battle-lower">
                 <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">VISIBLE STATE · TICK {displayState?.tick ?? 0}</span><h4>{selectedEntity ? fieldString(selectedEntity.fields.catalog_id) ?? selectedEntity.entity_type : "Select a unit"}</h4></div><span className="next-owner-tag">{selectedEntity ? selectedEntity.owner ?? "neutral" : "PUBLIC"}</span></div>
                   {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "squad", "skill_path", "skills"] as const).map((field) => {

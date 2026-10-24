@@ -181,8 +181,10 @@
 .next-seekbar input { accent-color: var(--next-accent); cursor: pointer; display: block; height: 12px; margin: 0; width: 100%; }
 .next-seekbar input:disabled { cursor: default; opacity: .4; }
 .next-seekbar > div { color: #687a76; display: flex; font-family: "DM Mono",monospace; font-size: 6px; justify-content: space-between; letter-spacing: .08em; margin-top: 1px; }
-.next-battle-stage { background: #132832; border: 1px solid rgba(214,225,218,.08); min-height: 340px; position: relative; }
+.next-battle-stage { background: #132832; border: 1px solid rgba(214,225,218,.08); display:flex; flex-direction:column; min-height: 340px; position: relative; }
 .next-renderer-host { height: clamp(310px, 48vw, 490px); min-height: 310px; overflow: hidden; position: relative; width: 100%; }
+.next-renderer-host { order:1; }
+.next-replay-controls { order:0; }
 .next-renderer-host canvas { display: block; height: 100%; touch-action: none; width: 100%; }
 .next-renderer-host .world-label { color: #dce8d3; font: 9px "DM Mono",monospace; left: 0; pointer-events: none; position: absolute; top: 0; text-shadow: 0 1px 4px #08151b; }
 .next-stage-hud { align-items: center; background: linear-gradient(90deg,rgba(11,19,23,.7),transparent 75%); bottom: 0; color: rgba(230,237,226,.8); display: flex; font-family: "DM Mono",monospace; font-size: 6px; justify-content: space-between; left: 0; letter-spacing: .12em; padding: 8px 10px; pointer-events: none; position: absolute; right: 0; }
@@ -322,9 +324,12 @@
   .next-speed select { min-height: 38px; }
   .next-camera-controls { display: flex; flex-basis: 100%; justify-content: flex-end; }
   .next-tick-readout { font-size: 8px; }
-  .next-battle-stage { min-height: 54dvh; }
-  .next-renderer-host { height: 54dvh; min-height: 54dvh; }
-  .next-stage-hud { font-size: 6px; padding-bottom: 7px; }
+  .next-panel.next-battle-panel { overflow: visible; }
+  .next-battle-stage { min-height: 0; }
+  .next-renderer-host { height: 56dvh; min-height: min(56dvh,320px); order:0; }
+  .next-stage-hud { bottom:auto; font-size: 6px; padding-bottom: 7px; top: 8px; }
+  .next-replay-controls { background:rgba(9,15,19,.96); border:1px solid rgba(214,225,218,.1); bottom:env(safe-area-inset-bottom); box-shadow:0 -6px 18px rgba(0,0,0,.23); order:1; position:sticky; z-index:6; }
+  .next-replay-toolbar { bottom:auto; position:relative; z-index:auto; }
   .next-battle-lower { grid-template-columns: 1fr; }
   .next-rematch-foot { align-items: flex-start; flex-direction: column; gap: 9px; }
   .next-rematch-foot .next-secondary-button { min-height: 42px; width: 100%; }
