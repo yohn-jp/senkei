@@ -182,6 +182,24 @@ async function clickFollowRole(
   return { supported: true, target, id: value, catalogId: null };
 }
 
+async function selectVisibleHero(
+  page: import("@playwright/test").Page,
+  catalogId: string,
+): Promise<FollowTarget> {
+  const selector = page.getByRole("combobox", { name: /Observe visible entity/i });
+  const option = await selector.locator("option").evaluateAll((options, requestedCatalogId) => {
+    const pattern = new RegExp(`(?:^| · )${requestedCatalogId}(?: ·|\\s)`);
+    const selected = options.find((candidate) => {
+      const element = candidate as HTMLOptionElement;
+      return Boolean(element.value) && pattern.test(element.textContent ?? "");
+    }) as HTMLOptionElement | undefined;
+    return selected ? { value: selected.value, label: (selected.textContent ?? "").trim() } : null;
+  }, catalogId);
+  if (!option) return { supported: false, target: null, id: null, catalogId: null };
+  await selector.selectOption(option.value);
+  return { supported: true, target: option.label, id: option.value, catalogId };
+}
+
 function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarget): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
@@ -203,25 +221,135 @@ function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarg
     : null;
 }
 
-function replayVisibleRolePosition(
+function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
+  id: string;
+  catalogId: string;
+  hp: number;
+  maxHp: number;
+  x: number;
+  z: number;
+  sourceX: number;
+  sourceY: number;
+}[] {
+  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  if (!entities) return [];
+  const integerField = (entity: JsonRecord, name: string): number | null => {
+    const field = entity.fields?.[name];
+    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+  };
+  return Object.entries(entities).flatMap(([id, entity]) => {
+    if (entity.entity_type !== "hero") return [];
+    const catalogId = entity.fields?.catalog_id?.kind === "string" ? String(entity.fields.catalog_id.value) : null;
+    const hp = integerField(entity, "hp");
+    const maxHp = integerField(entity, "max_hp");
+    const sourceX = integerField(entity, "x");
+    const sourceY = integerField(entity, "y");
+    if (!catalogId || hp === null || hp <= 0 || maxHp === null || sourceX === null || sourceY === null) return [];
+    return [{
+      id,
+      catalogId,
+      hp,
+      maxHp,
+      x: sourceX / nextWorldUnitsPerRenderUnit,
+      z: sourceY / nextWorldUnitsPerRenderUnit,
+      sourceX,
+      sourceY,
+    }];
+  });
+}
+
+async function assertActualHeroRows(
+  page: import("@playwright/test").Page,
+  cluster: import("@playwright/test").Locator,
+  replay: JsonRecord,
+  tick: number,
+): Promise<JsonRecord[]> {
+  const heroes = replayVisibleHeroesAt(replay, tick);
+  expect(heroes, `the exact owner replay frame at T${tick} must contain five living visible Heroes`).toHaveLength(5);
+  const selector = page.getByRole("combobox", { name: /Observe visible entity/i });
+  const options = await selector.locator("option").evaluateAll((elements) => elements.map((element) => {
+    const option = element as HTMLOptionElement;
+    return { value: option.value, label: (option.textContent ?? "").trim() };
+  }));
+  const rows = cluster.locator(".next-visible-cluster-entities > li");
+  const summaries = await rows.evaluateAll((elements) => elements.map((element) => {
+    const row = element as HTMLElement;
+    return {
+      text: (row.textContent ?? "").replace(/\s+/g, " ").trim(),
+      identity: row.querySelector(".next-visible-entity-copy > strong")?.textContent?.trim() ?? "",
+      categoryRoleSide: row.querySelector(".next-visible-entity-copy > span")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    };
+  }));
+  const heroRows = summaries.filter((row) => row.categoryRoleSide.startsWith("Hero ·"));
+  expect(heroRows, "the selected nearby cluster must expose all five currently visible Heroes as separate rows").toHaveLength(5);
+  const byCatalogId = new Map<string, { sourceId: string; displayId: string; label: string }>();
+  for (const hero of heroes) {
+    const option = options.find((candidate) => candidate.label.split(" · ").includes(hero.catalogId));
+    expect(option, `${hero.catalogId} should have a visible current-entity selector option`).toBeDefined();
+    const optionParts = option!.label.split(" · ");
+    const catalogIndex = optionParts.indexOf(hero.catalogId);
+    const identity = `${optionParts[catalogIndex]} · ${optionParts[catalogIndex + 1] ?? ""}`;
+    const displayId = optionParts.find((part) => part.startsWith("ID "))?.slice(3) ?? "";
+    expect(displayId).not.toBe("");
+    byCatalogId.set(hero.catalogId, { sourceId: hero.id, displayId, label: identity });
+    const row = rows.filter({ hasText: `ID ${displayId}` });
+    await expect(row, `${hero.catalogId} should appear once in the selected visible cluster`).toHaveCount(1);
+    await expect(row.locator(".next-visible-entity-copy > strong")).toHaveText(identity);
+    await expect(row.locator(".next-visible-entity-copy > span")).toContainText("Hero ·");
+    await expect(row.locator(".next-visible-entity-copy > div > b")).toHaveText(`HP ${hero.hp}/${hero.maxHp}`);
+    await expect(row.locator(".next-visible-entity-copy > div > small")).toContainText(`X ${hero.sourceX.toFixed(2)} · Y ${hero.sourceY.toFixed(2)}`);
+    await expect(row).not.toContainText(/slot-|squad|cooldown|private|owner id/i);
+  }
+  expect(heroRows.map((row) => row.identity).sort()).toEqual([...byCatalogId.values()].map((hero) => hero.label).sort());
+  return heroes.map((hero) => ({
+    sourceReplayEntityId: hero.id,
+    catalogId: hero.catalogId,
+    displayEntityId: byCatalogId.get(hero.catalogId)?.displayId,
+    identity: byCatalogId.get(hero.catalogId)?.label,
+    hp: hero.hp,
+    maxHp: hero.maxHp,
+    replayWorldPosition: { x: hero.sourceX, y: hero.sourceY },
+    cameraRenderPosition: { x: hero.x, z: hero.z },
+  }));
+}
+
+function replayVisibleRolePositions(
   replay: JsonRecord,
   tick: number,
   target: FollowTarget,
   role: "monster" | "minion",
-): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
+): { id: string; x: number; z: number; sourceX: number; sourceY: number }[] {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
-  const entity = target.id ? entities?.[target.id] : undefined;
-  if (!entity || entity.entity_type !== role) return null;
-  const readInteger = (key: "x" | "y"): number | null => {
-    const field = entity.fields?.[key];
-    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
-  };
-  const x = readInteger("x");
-  const z = readInteger("y");
-  return x !== null && z !== null
-    ? { id: target.id!, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }
-    : null;
+  if (!entities) return [];
+  const direct = target.id ? entities[target.id] : undefined;
+  const displayName = (value: unknown): string => typeof value === "string"
+    ? value.split(/[_\s.:-]+/).filter(Boolean).map((word) => `${word[0]?.toUpperCase() ?? ""}${word.slice(1).toLowerCase()}`).join(" ")
+    : "";
+  const parts = target.target?.split(" · ") ?? [];
+  const selectedIdentity = parts[1] ?? "";
+  const selectedHp = target.target?.match(/\bHP\s+(\d+)\/(\d+)\b/i);
+  const candidates = direct?.entity_type === role
+    ? [[target.id!, direct] as [string, JsonRecord]]
+    : Object.entries(entities).filter(([, entity]) => {
+      if (entity.entity_type !== role || displayName(entity.fields?.catalog_id?.value) !== selectedIdentity) return false;
+      if (!selectedHp) return true;
+      const hp = entity.fields?.hp?.kind === "integer" ? String(entity.fields.hp.value) : null;
+      const maxHp = entity.fields?.max_hp?.kind === "integer" ? String(entity.fields.max_hp.value) : null;
+      return hp === selectedHp[1] && maxHp === selectedHp[2];
+    });
+  return candidates.flatMap(([id, entity]) => {
+    const readCoordinate = (key: "x" | "y"): number | null => {
+      const field = entity.fields?.[key];
+      return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+    };
+    const x = readCoordinate("x");
+    const z = readCoordinate("y");
+    return x !== null && z !== null
+      ? [{ id, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }]
+      : [];
+  });
 }
 
 function parseCameraTarget(value: string | null): { x: number; y: number; z: number } | null {
@@ -272,6 +400,120 @@ function firstDestroyTick(events: ReturnType<typeof frameEvents>, entityType: st
 
 function firstTypedTick(events: ReturnType<typeof frameEvents>, pattern: RegExp, entityType: string): number | null {
   return events.find((event) => event.entityType === entityType && pattern.test(event.event))?.tick ?? null;
+}
+
+type SemanticCueExpectation = { type: "attack" | "skill" | "destroy"; fragments: string[]; sourceEvent: string };
+
+function replayEntityCueFragment(entity: JsonRecord | undefined): string | null {
+  if (!entity) return null;
+  const catalogId = entity.fields?.catalog_id?.kind === "string"
+    ? String(entity.fields.catalog_id.value).toUpperCase()
+    : "";
+  if (entity.entity_type === "hero") return catalogId ? `HERO · ${catalogId}` : "HERO";
+  if (entity.entity_type === "monster") return "MONSTER";
+  if (entity.entity_type === "tower") return "TOWER";
+  if (entity.entity_type === "base") return "BASE";
+  if (entity.entity_type === "minion") {
+    const variant = catalogId.replace(/^MINION_?/, "");
+    return variant ? `MINION · ${variant}` : "MINION";
+  }
+  return String(entity.entity_type ?? "").toUpperCase() || null;
+}
+
+function semanticCueExpectationAt(
+  replay: JsonRecord,
+  tick: number,
+  cue: "attack" | "hero-death" | "tower-destroy" | "skill",
+): SemanticCueExpectation | null {
+  const frame = (replay.frames as JsonRecord[] | undefined)?.find((candidate) => candidate.tick === tick);
+  if (!frame) return null;
+  const entities = frame.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  const events = frame.events as JsonRecord[] | undefined;
+  if (!entities || !events) return null;
+  const reference = (value: JsonRecord | undefined): string | null =>
+    value?.kind === "entity" && typeof value.value === "string" ? value.value : null;
+  if (cue === "attack") {
+    const event = events.find((candidate) => candidate.event === "next.attack");
+    const sourceId = reference(event?.payload?.source);
+    const targetId = reference(event?.payload?.target);
+    const source = sourceId ? replayEntityCueFragment(entities[sourceId]) : null;
+    const target = targetId ? replayEntityCueFragment(entities[targetId]) : null;
+    return source && target
+      ? { type: "attack", fragments: [source, `→ ${target}`], sourceEvent: "next.attack" }
+      : null;
+  }
+  if (cue === "skill") {
+    const event = events.find((candidate) => candidate.event === "next.skill");
+    const sourceId = reference(event?.payload?.source);
+    const targetId = reference(event?.payload?.target);
+    const source = sourceId ? replayEntityCueFragment(entities[sourceId]) : null;
+    const target = targetId ? replayEntityCueFragment(entities[targetId]) : null;
+    const skill = event?.payload?.skill?.kind === "string" ? String(event.payload.skill.value).toUpperCase() : null;
+    return source && target && skill
+      ? { type: "skill", fragments: [`SKILL ${skill}`, source, `→ ${target}`], sourceEvent: "next.skill" }
+      : null;
+  }
+  if (cue === "hero-death") {
+    const event = events.find((candidate) =>
+      candidate.event === "next.death" && candidate.entity && entities[candidate.entity]?.entity_type === "hero",
+    );
+    const entity = event?.entity ? entities[event.entity] : undefined;
+    const entityFragment = replayEntityCueFragment(entity);
+    return entityFragment
+      ? { type: "destroy", fragments: ["HERO DEFEATED", entityFragment], sourceEvent: "next.death" }
+      : null;
+  }
+  const event = events.find((candidate) =>
+    candidate.event === "next.objective_destroyed" && candidate.payload?.kind?.value === "tower",
+  );
+  const entity = event?.entity ? entities[event.entity] : undefined;
+  const entityFragment = replayEntityCueFragment(entity);
+  return entityFragment === "TOWER"
+    ? { type: "destroy", fragments: ["TOWER DESTROYED", entityFragment], sourceEvent: "next.objective_destroyed" }
+    : null;
+}
+
+async function assertSemanticCueAtTick(
+  page: import("@playwright/test").Page,
+  canvas: import("@playwright/test").Locator,
+  replay: JsonRecord,
+  tick: number,
+  semantic: "attack" | "hero-death" | "tower-destroy" | "skill",
+): Promise<SemanticCueExpectation> {
+  const expected = semanticCueExpectationAt(replay, tick, semantic);
+  expect(expected, `${semantic} must be derived from the actual replay event at T${tick}`).not.toBeNull();
+  await expect(canvas).toHaveAttribute("data-tick", String(tick));
+  // The player is paused after seeking; a cue must remain tied to the exact
+  // frame after the transient animation window has elapsed.
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(canvas).toHaveAttribute("data-tick", String(tick));
+  const cues = page.locator(`.cue-world-label[data-tick="${tick}"][data-cue-type="${expected!.type}"]`);
+  await expect(cues.first(), `${expected!.sourceEvent} should have a visible ${expected!.type} cue at T${tick}`).toBeVisible();
+  const texts = await cues.allInnerTexts();
+  expect(texts.some((text) => expected!.fragments.every((fragment) => text.toLowerCase().includes(fragment.toLowerCase()))),
+    `${expected!.sourceEvent} cue at T${tick} should identify ${expected!.fragments.join(" / ")}: ${texts.join(" | ")}`,
+  ).toBe(true);
+  const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
+    elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
+      tick: (element as HTMLElement).dataset.tick,
+      text: (element as HTMLElement).textContent,
+    })), tick,
+  );
+  expect(staleTickLabels, "cue labels from an adjacent replay frame must not linger").toEqual([]);
+  const captured = { ...expected!, tick, texts };
+
+  const adjacentTick = tick < Number(replay.frames.at(-1)?.tick) ? tick + 1 : Math.max(0, tick - 1);
+  await seekToTick(page, adjacentTick);
+  await page.waitForTimeout(100);
+  await expect(page.locator(`.cue-world-label[data-tick="${tick}"]`), "seeking away must remove the prior frame's cue labels").toHaveCount(0);
+  const adjacentLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
+    elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).length, adjacentTick,
+  );
+  expect(adjacentLabels, "all surviving cue labels must match the currently displayed frame").toBe(0);
+  await seekToTick(page, tick);
+  await expect(cues.first()).toBeVisible();
+  return captured;
 }
 
 function firstOwnerHeroRespawn(replay: JsonRecord): JsonRecord | null {
@@ -380,6 +622,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const controlledSourcePath = process.env.BATTLEFIELD_CONTROLLED_SOURCE_PATH;
   const controlledExpectedPath = process.env.BATTLEFIELD_CONTROLLED_EXPECTED_RESULT_PATH;
   const skillFollowOnly = process.env.BATTLEFIELD_SKILL_FOLLOW_ONLY === "true";
+  const expectCueSemantics = process.env.BATTLEFIELD_EXPECT_CUE_SEMANTICS === "true";
+  const clusterInspectorOnly = process.env.BATTLEFIELD_CLUSTER_INSPECTOR_ONLY === "true";
   const requestedRoleFollows = [...new Set((process.env.BATTLEFIELD_ROLE_FOLLOW_ONLY ?? "")
     .split(",").map((role) => role.trim()).filter(Boolean))];
   if (requestedRoleFollows.some((role) => role !== "monster" && role !== "minion")) {
@@ -414,8 +658,24 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   if (roleFollowOnly.length && (controlledScenario !== "farm" || skillFollowOnly)) {
     throw new Error("Role-follow captures require the real farm scenario and cannot be combined with skill-follow-only mode.");
   }
+  if (expectCueSemantics && controlledScenario !== "cue" && controlledScenario !== "farm") {
+    throw new Error("Semantic cue checks require the real cue or farm snapshot scenario.");
+  }
+  if (expectCueSemantics && (skillFollowOnly || roleFollowOnly.length > 0)) {
+    throw new Error("Semantic cue checks use the standard replay capture, not focused Follow-only mode.");
+  }
+  if (clusterInspectorOnly && (controlledScenario || skillFollowOnly || roleFollowOnly.length > 0 || expectCueSemantics)) {
+    throw new Error("The visible-cluster capture uses the ordinary real Next match in its own focused run.");
+  }
   const captureProfile = controlledScenario ? `controlled-${controlledScenario}-snapshot` : tacticProfile;
   const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
+  if (clusterInspectorOnly && (
+    captureViewports.length !== 2 ||
+    !captureViewports.some((viewport) => viewport.name === "1440x900") ||
+    !captureViewports.some((viewport) => viewport.name === "390x844")
+  )) {
+    throw new Error("The visible-cluster capture requires exactly the 1440x900 desktop and 390x844 mobile viewports.");
+  }
   if (roleFollowOnly.length && (captureViewports.length !== 1 || captureViewports[0].width <= 700)) {
     throw new Error("Role-follow captures require exactly one desktop viewport.");
   }
@@ -719,6 +979,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const cameraTargetsByCapture: Record<string, { x: number; y: number; z: number } | null> = {};
   const skillFollowCaptures: Record<string, JsonRecord> = {};
   const roleFollowCaptures: Record<string, JsonRecord> = {};
+  const semanticCueAssertions: Record<string, JsonRecord> = {};
+  const clusterInspection: Record<string, JsonRecord> = {};
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
   const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
@@ -733,6 +995,69 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     const directory = join(outputDirectory, viewport.name);
     mkdirSync(directory, { recursive: true });
 
+    if (clusterInspectorOnly) {
+      const tick = followTick;
+      await seekToTick(page, tick);
+      const clusterTarget = await selectVisibleHero(page, "F03");
+      expect(clusterTarget.supported, "the current exact replay frame should offer the actual F03 Hero").toBe(true);
+      expect(clusterTarget.id).toBeTruthy();
+      const expectedFollow = replayHeroPosition(sourceReplay, tick, clusterTarget);
+      expect(expectedFollow, "F03 should resolve to its owner-replay position at the selected tick").not.toBeNull();
+
+      let container: import("@playwright/test").Locator;
+      if (viewport.width > 700) {
+        await page.getByTestId("battle-visible-roster-toggle").click();
+        container = page.getByTestId("battle-visible-roster");
+      } else {
+        const followView = page.getByRole("button", { name: "Follow view" });
+        await expect(followView).toBeVisible();
+        await followView.click();
+        container = page.locator(".next-follow-sheet");
+      }
+      await expect(container).toBeVisible();
+      await expect(canvas).toHaveAttribute("data-tick", String(tick));
+      const selectedCluster = container.locator(".next-visible-cluster.is-expanded");
+      await expect(selectedCluster, "opening Follow should show the cluster containing the actual selected Hero").toHaveCount(1);
+      const selectedClusterLabel = await selectedCluster.locator(".next-visible-cluster-toggle").getAttribute("aria-label");
+      expect(selectedClusterLabel).toMatch(/nearby visible entities|entities at the same replay position/i);
+      const verifiedHeroes = await assertActualHeroRows(page, selectedCluster, sourceReplay, tick);
+      const clusterScreenshot = "selected-visible-cluster-t050.png";
+      await page.screenshot({ path: join(directory, clusterScreenshot), animations: "disabled" });
+
+      const followAction = selectedCluster.getByRole("button", {
+        name: new RegExp(`^Follow ${clusterTarget.catalogId}, replay entity ${clusterTarget.id}$`),
+      });
+      await expect(followAction, "the selected live entity row should offer a Follow action for this exact UI entity").toHaveCount(1);
+      await followAction.click();
+      await expect(canvas).toHaveAttribute("data-tick", String(tick));
+      await waitForSettledCamera(page);
+      const trackedIds = (await canvas.getAttribute("data-tracking"))?.split(",").filter(Boolean) ?? [];
+      expect(trackedIds, "Follow must track the selected current visible entity ID").toContain(clusterTarget.id);
+      const actualTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+      expect(actualTarget).not.toBeNull();
+      expect(Math.abs(actualTarget!.x - expectedFollow!.x)).toBeLessThan(0.01);
+      expect(Math.abs(actualTarget!.z - expectedFollow!.z)).toBeLessThan(0.01);
+      await expect(canvas).toHaveAttribute("data-tick", String(tick));
+      const followScreenshot = "follow-f03-same-tick.png";
+      await page.screenshot({ path: join(directory, followScreenshot), animations: "disabled" });
+      const captureKey = `${viewport.name}/${clusterScreenshot}`;
+      cameraPosesByCapture[captureKey] = await canvas.getAttribute("data-camera");
+      cameraTargetsByCapture[captureKey] = actualTarget;
+      clusterInspection[viewport.name] = {
+        tick,
+        selectedCatalogId: clusterTarget.catalogId,
+        selectedDisplayEntityId: clusterTarget.id,
+        selectedOption: clusterTarget.target,
+        clusterLabel: selectedClusterLabel,
+        heroRows: verifiedHeroes,
+        followTarget: expectedFollow,
+        cameraTarget: actualTarget,
+        trackedIds,
+        screenshots: [clusterScreenshot, followScreenshot],
+      };
+      continue;
+    }
+
     if (roleFollowOnly.length) {
       if (viewport.width <= 700 || skillTick === null) {
         throw new Error("Focused role-follow capture requires a desktop viewport and an active-skill tick.");
@@ -741,13 +1066,15 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       for (const role of roleFollowOnly) {
         const target = await clickFollowRole(page, role);
         expect(target.supported, `the real replay selector must offer a visible ${role}`).toBe(true);
-        const expectedPosition = replayVisibleRolePosition(sourceReplay, skillTick, target, role);
-        expect(expectedPosition, `${role} Follow must use an ID visible at the selected Replay tick`).not.toBeNull();
+        const sourceCandidates = replayVisibleRolePositions(sourceReplay, skillTick, target, role);
+        expect(sourceCandidates.length, `${role} Follow must resolve to a current visible owner-replay entity using its selected identity and HP`).toBeGreaterThan(0);
         await waitForSettledCamera(page);
         const actualCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
         expect(actualCameraTarget, `${role} Follow must expose its camera target`).not.toBeNull();
-        expect(Math.abs(actualCameraTarget!.x - expectedPosition!.x)).toBeLessThan(0.01);
-        expect(Math.abs(actualCameraTarget!.z - expectedPosition!.z)).toBeLessThan(0.01);
+        const expectedPosition = sourceCandidates.find((candidate) =>
+          Math.abs(actualCameraTarget!.x - candidate.x) < 0.01 && Math.abs(actualCameraTarget!.z - candidate.z) < 0.01,
+        );
+        expect(expectedPosition, `${role} Follow camera target must match one of the selected current-replay entity's exact positions`).toBeDefined();
         const entityLabel = page.locator('.next-renderer-host .entity-world-label[data-focused="true"]');
         await expect(entityLabel).toBeVisible();
         await expect(entityLabel).toContainText(role === "monster" ? /MONSTER/i : /MINION/i);
@@ -760,6 +1087,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
           view: sourceReplay.perspective ?? "public",
           entityId: target.id,
           selectedVisibleEntity: target.target,
+          sourceReplayEntityCandidates: sourceCandidates.map(({ id, sourceX, sourceY }) => ({ id, x: sourceX, y: sourceY })),
           replayPosition: expectedPosition,
           cameraTarget: actualCameraTarget,
           screenshot: fileName,
@@ -868,6 +1196,18 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await seekToTick(page, tick);
       await clickCameraMode(page, "tactical");
       await waitForSettledCamera(page);
+      const semanticCue = expectCueSemantics
+        ? controlledScenario === "cue" && name === "clash" ? "attack"
+          : controlledScenario === "cue" && name === "hero-death" ? "hero-death"
+            : controlledScenario === "cue" && name === "tower-destroy" ? "tower-destroy"
+              : controlledScenario === "farm" && name === "skill" ? "skill"
+                : null
+        : null;
+      if (semanticCue) {
+        semanticCueAssertions[`${viewport.name}/${name}-t${String(tick).padStart(3, "0")}`] = await assertSemanticCueAtTick(
+          page, canvas, sourceReplay, tick, semanticCue,
+        );
+      }
       if (expectBaseSites && (name === "base-destroy" || tick === firstEnemyBaseVisibleTick)) {
         const labels = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, tick);
         baseSiteChecks[`${viewport.name}/${name}-t${String(tick).padStart(3, "0")}`] = { tick, labels };
@@ -1007,6 +1347,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     skillFollowCaptures,
     cameraTargetsByCapture,
     roleFollowCaptures,
+    semanticCueAssertions,
     viewports: captureViewports,
     screenshotNames: skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
       ? roleFollowOnly.map((role) => `${role}-follow`)
