@@ -573,7 +573,10 @@ function App() {
   const visibleOutcome: SimulationOutcome | null = visibleRun
     ? visibleRun.response.outcome
     : null;
-  const baseline = activeBaseline(workspaceData);
+  const persistedBaseline = activeBaseline(workspaceData);
+  const baseline = sameSnapshot(persistedBaseline.snapshot, currentSnapshot)
+    ? { snapshot: null, scenario_id: null }
+    : persistedBaseline;
 
   return (
     <main className="app-shell" data-testid="app-shell">
