@@ -286,3 +286,23 @@ fn collection_grammar_including_standalone_filter_formats_losslessly() {
     let filtered = output.intents.iter().find(|intent| intent.action_id.as_str() == "inspect_filtered").unwrap();
     assert_eq!(filtered.arguments, vec![DomainValue::List(vec![DomainValue::Entity(EntityId::new("u-a")), DomainValue::Entity(EntityId::new("u-b"))])]);
 }
+
+#[test]
+fn implicit_collection_conjunctions_have_all_runtime_cost_operations() {
+    let rules = rules(true, false);
+    let obs = observation(true, false);
+    let cases = [
+        "senkei one_filter { action a { when true, do inspect(filter u in allies.units { u.health > 0, }), }, }",
+        "senkei two_filter { action a { when true, do inspect(filter u in allies.units { u.health > 0, u.health < 10, }), }, }",
+        "senkei quantifier { action a { when any u in allies.units { u.health > 0, u.health < 10, }, do act(), }, }",
+        "senkei all_quantifier { action a { when all u in allies.units { u.health > 0, u.health < 10, }, do act(), }, }",
+        "senkei count_ops { action a { when count u in allies.units { u.health > 0, u.health < 10, } >= 2, do act(), }, }",
+        "senkei nested_filter { action a { when true, do attack(argmin u in filter u in allies.units { u.health > 0, u.health < 10, } by u.health then u.id, argmin foe in enemies.units by foe.health then foe.id), }, }",
+    ];
+    for source in cases {
+        let compiled = compile(source, &rules).unwrap();
+        let output = execute(&rules, &compiled.program, &obs, 100_000, false);
+        assert_eq!(output.status, TacticalExecutionStatus::Completed, "{source}");
+        assert!(output.required_cu.0 > 0, "{source}");
+    }
+}

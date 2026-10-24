@@ -428,7 +428,12 @@ fn collect_costs_predicate(p: &Predicate, out: &mut BTreeSet<CostKind>) {
         Predicate::Knownness { value, .. } => { out.insert(CostKind::Knownness); collect_costs_value(value, out); }
         Predicate::And(v) | Predicate::Or(v) | Predicate::OrderedAnd(v) | Predicate::OrderedOr(v) => { out.insert(CostKind::Logic); for p in v { collect_costs_predicate(p, out); } }
         Predicate::Not(v) => { out.insert(CostKind::Logic); collect_costs_predicate(v, out); }
-        Predicate::Quantified { collection, predicates, .. } => { out.insert(CostKind::CollectionIteration); collect_costs_collection(collection, out); for p in predicates { collect_costs_predicate(p, out); } }
+        Predicate::Quantified { collection, predicates, .. } => {
+            out.insert(CostKind::CollectionIteration);
+            if predicates.len() > 1 { out.insert(CostKind::Logic); }
+            collect_costs_collection(collection, out);
+            for p in predicates { collect_costs_predicate(p, out); }
+        }
         Predicate::Truth(_) => {}
     }
 }
@@ -436,12 +441,19 @@ fn collect_costs_value(v: &Value, out: &mut BTreeSet<CostKind>) {
     match v {
         Value::FilteredCollection { collection, predicates, .. } => {
             out.insert(CostKind::CollectionIteration);
+            if predicates.len() > 1 { out.insert(CostKind::Logic); }
             collect_costs_collection(collection, out);
             for predicate in predicates { collect_costs_predicate(predicate, out); }
         }
         Value::Path(_) => { out.insert(CostKind::PathRead); }
         Value::State(_) => { out.insert(CostKind::StateReference); }
-        Value::Count { collection, predicates, .. } => { out.insert(CostKind::CollectionIteration); out.insert(CostKind::Aggregate); collect_costs_collection(collection, out); for p in predicates { collect_costs_predicate(p, out); } }
+        Value::Count { collection, predicates, .. } => {
+            out.insert(CostKind::CollectionIteration);
+            out.insert(CostKind::Aggregate);
+            if predicates.len() > 1 { out.insert(CostKind::Logic); }
+            collect_costs_collection(collection, out);
+            for p in predicates { collect_costs_predicate(p, out); }
+        }
         Value::Sum { collection, expression, .. } | Value::Min { collection, expression, .. } | Value::Max { collection, expression, .. } => {
             out.insert(CostKind::CollectionIteration); out.insert(CostKind::Aggregate); collect_costs_collection(collection, out); collect_costs_value(expression, out);
             if matches!(v, Value::Sum { .. }) { out.insert(CostKind::Arithmetic); }
@@ -458,6 +470,7 @@ fn collect_costs_collection(c: &Collection, out: &mut BTreeSet<CostKind>) {
         Collection::Path { .. } => {}
         Collection::Filter { collection, predicates, .. } => {
             out.insert(CostKind::CollectionIteration);
+            if predicates.len() > 1 { out.insert(CostKind::Logic); }
             collect_costs_collection(collection, out);
             for p in predicates { collect_costs_predicate(p, out); }
         }
@@ -493,7 +506,9 @@ pub(crate) fn estimate(program: &TypedProgram, costs: &BTreeMap<CostKind, byteco
                 }
                 Predicate::Not(child) => self.charge(CostKind::Logic, 1) + self.predicate(child),
                 Predicate::Quantified { collection, predicates, .. } => {
-                    self.collection(collection) + self.charge(CostKind::CollectionIteration, 1) + predicates.iter().map(|p| self.predicate(p)).sum::<u128>()
+                    self.collection(collection) + self.charge(CostKind::CollectionIteration, 1)
+                        + if predicates.len() > 1 { self.charge(CostKind::Logic, predicates.len() as u64) } else { 0 }
+                        + predicates.iter().map(|p| self.predicate(p)).sum::<u128>()
                 }
             }
         }
@@ -510,9 +525,13 @@ pub(crate) fn estimate(program: &TypedProgram, costs: &BTreeMap<CostKind, byteco
                 }
                 Value::Literal { .. } => 0,
                 Value::FilteredCollection { collection, predicates, .. } => self.collection(collection)
-                    + self.charge(CostKind::CollectionIteration, 1) + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
+                    + self.charge(CostKind::CollectionIteration, 1)
+                    + if predicates.len() > 1 { self.charge(CostKind::Logic, predicates.len() as u64) } else { 0 }
+                    + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
                 Value::Count { collection, predicates, .. } => self.collection(collection) + self.charge(CostKind::CollectionIteration, 1)
-                    + self.charge(CostKind::Aggregate, 1) + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
+                    + self.charge(CostKind::Aggregate, 1)
+                    + if predicates.len() > 1 { self.charge(CostKind::Logic, predicates.len() as u64) } else { 0 }
+                    + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
                 Value::Sum { collection, expression, .. } => self.collection(collection) + self.charge(CostKind::CollectionIteration, 1)
                     + self.charge(CostKind::Aggregate, 1) + self.charge(CostKind::Arithmetic, 1) + self.value(expression),
                 Value::Min { collection, expression, .. } | Value::Max { collection, expression, .. } => self.collection(collection)
@@ -526,7 +545,9 @@ pub(crate) fn estimate(program: &TypedProgram, costs: &BTreeMap<CostKind, byteco
             match collection {
                 Collection::Path { .. } => 0,
                 Collection::Filter { collection, predicates, .. } => self.collection(collection)
-                    + self.charge(CostKind::CollectionIteration, 1) + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
+                    + self.charge(CostKind::CollectionIteration, 1)
+                    + if predicates.len() > 1 { self.charge(CostKind::Logic, predicates.len() as u64) } else { 0 }
+                    + predicates.iter().map(|p| self.predicate(p)).sum::<u128>(),
             }
         }
     }
