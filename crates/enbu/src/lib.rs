@@ -5,6 +5,12 @@
 
 mod validation;
 mod world;
+mod next_support;
+mod next_squads;
+mod next_navigation;
+mod next_vision;
+mod next_combat;
+mod next_tactics;
 
 pub use validation::ENGINE_VERSION;
 
@@ -83,6 +89,12 @@ pub fn simulate<P: TacticalExecutionPort>(
         rules.package_digest(),
         context.host_limits.max_entities.min(plan.world.max_entities),
     )?;
+    if let Some(next) = &plan.next {
+        next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
+        next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
+        next_combat::initialize_objectives(&mut world, next);
+        next_vision::lifecycle(&mut world, next, 0);
+    }
     for collection in plan.world.collections.keys() { world.collections.entry(collection.clone()).or_default(); }
     validation::validate_world(&world, plan, context.host_limits.max_entities)?;
     validation::validate_configuration(&attacker.configuration, plan, &world)?;
@@ -100,14 +112,16 @@ pub fn simulate<P: TacticalExecutionPort>(
     let mut diagnostics = Vec::new();
     let mut diagnostic_sequence = 0_u64;
     let mut replay_frames = Vec::new();
+    let mut owner_frames = Vec::new();
     let mut event_count = 0_u64;
 
     replay_frames.push(ReplayFrame {
         tick: 0,
         events: Vec::new(),
-        visible_state: Some(world::public_view(&world, plan)),
+        visible_state: Some(presentation_view(&world, plan)),
     });
 
+    if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick:0, events:Vec::new(), visible_state:Some(next_vision::team_view(&world,next,CombatantSide::Attacker)) }); }
     let mut final_outcome = None;
     if let Some((outcome, reason)) = evaluate_termination(plan, &world, 0, &projection_index)? {
         final_outcome = Some((outcome, reason, 0));
@@ -119,11 +133,15 @@ pub fn simulate<P: TacticalExecutionPort>(
             break;
         }
 
+        if let Some(next) = &plan.next {
+            next_combat::objective_lifecycle(&mut world, next, tick);
+            next_vision::lifecycle(&mut world, next, tick);
+        }
         // Freeze observations before calling either side. Executor call order
         // cannot expose one side's proposed actions to the other.
         let observations = [
-            world::observation(&world, plan, CombatantSide::Attacker, tick, &projection_index)?,
-            world::observation(&world, plan, CombatantSide::Defender, tick, &projection_index)?,
+            observation(&world, plan, CombatantSide::Attacker, tick, &projection_index)?,
+            observation(&world, plan, CombatantSide::Defender, tick, &projection_index)?,
         ];
         let output_attacker = call_executor(
             executor,
@@ -213,8 +231,9 @@ pub fn simulate<P: TacticalExecutionPort>(
             replay_frames.push(ReplayFrame {
                 tick,
                 events: Vec::new(),
-                visible_state: Some(world::public_view(&world, plan)),
+                visible_state: Some(presentation_view(&world, plan)),
             });
+            if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick, events:Vec::new(), visible_state:Some(next_vision::team_view(&world,next,CombatantSide::Attacker)) }); }
             break;
         }
 
@@ -268,7 +287,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         }
         let accepted_by_side = accepted;
         let mut tick_events = Vec::new();
-        let transition_outcome = apply_transitions(
+        let mut transition_outcome = apply_transitions(
             plan,
             &mut world,
             &accepted_by_side,
@@ -279,19 +298,42 @@ pub fn simulate<P: TacticalExecutionPort>(
             &context.match_id,
             &projection_index,
         )?;
+        let before_next = presentation_view(&world, plan);
+        let before_owner = plan.next.as_ref().map(|next| next_vision::team_view(&world,next,CombatantSide::Attacker));
+        let mut next_events = Vec::new();
+        if let Some(next) = &plan.next {
+            next_squads::intents(&mut world, next, &accepted_by_side, tick);
+            next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            next_navigation::advance(&mut world, next, tick);
+            next_events = next_combat::resolve(&mut world, next, &accepted_by_side, tick);
+            next_squads::lifecycle(&mut world, next, tick);
+            if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
+            event_count = event_count.checked_add(next_events.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit,"event count overflow"))?;
+            if event_count > context.host_limits.max_events.min(plan.limits.max_events) { return Err(api_error(ApiErrorCode::ResourceLimit,"event limit exceeded")); }
+        }
         validation::validate_world(&world, plan, context.host_limits.max_entities)?;
         if diagnostics.len() as u64 > context.host_limits.max_diagnostic_events {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
         }
 
-        let public_events = tick_events
+        let mut public_events: Vec<senkei_model::PresentationEvent> = tick_events
             .iter()
             .filter_map(|event| world::public_event(event, plan, &world))
             .collect();
+        if plan.next.is_some() {
+            let after = presentation_view(&world, plan);
+            let owner_after = next_vision::team_view(&world,plan.next.as_ref().unwrap(),CombatantSide::Attacker);
+            let owner_before = before_owner.as_ref().unwrap();
+            owner_frames.push(ReplayFrame { tick, events:next_events.iter().filter(|event| event_references_known(event,owner_before,&owner_after)).cloned().collect(), visible_state:Some(owner_after) });
+            public_events.extend(next_events.into_iter().filter(|event| {
+                let known = |id: &senkei_model::EntityId| before_next.entities.contains_key(id) && after.entities.contains_key(id);
+                event.entity.as_ref().is_some_and(known) && event.payload.values().all(|v| match v { DomainValue::Entity(id) => known(id), DomainValue::List(_) | DomainValue::Record(_) => false, _ => true })
+            }));
+        }
         replay_frames.push(ReplayFrame {
             tick,
             events: public_events,
-            visible_state: Some(world::public_view(&world, plan)),
+            visible_state: Some(presentation_view(&world, plan)),
         });
 
         let termination = if transition_outcome.is_some() {
@@ -323,9 +365,10 @@ pub fn simulate<P: TacticalExecutionPort>(
     };
     let result_digest = digest_json(&result)?;
     let replay = PresentationReplay {
+        perspective: None,
         schema_version: Version::new(1, 0, 0),
         match_id: context.match_id.clone(),
-        result_digest,
+        result_digest: result_digest.clone(),
         frames: replay_frames,
     };
     let diagnostics = RestrictedDiagnostics {
@@ -341,7 +384,8 @@ pub fn simulate<P: TacticalExecutionPort>(
         rule_package_digest: rules.package_digest().clone(),
         context: context.clone(),
     };
-    let artifact = SimulationArtifact { result, replay, diagnostics, reproduction };
+    let owner_replay = plan.next.as_ref().map(|_| PresentationReplay { perspective:Some(CombatantSide::Attacker),schema_version:Version::new(1,0,0),match_id:context.match_id.clone(),result_digest,frames:owner_frames });
+    let artifact = SimulationArtifact { owner_replay, result, replay, diagnostics, reproduction };
     let response_size = serde_json::to_vec(&artifact.public_response())
         .map_err(|_| api_error(ApiErrorCode::InternalError, "public simulation response could not be measured"))?
         .len() as u64;
@@ -1064,3 +1108,15 @@ fn invalid_plan(message: impl Into<String>) -> ApiError { api_error(ApiErrorCode
 fn conflict_error(message: impl Into<String>) -> ApiError { api_error(ApiErrorCode::TransitionConflict, message) }
 fn arithmetic_error(message: impl Into<String>) -> ApiError { api_error(ApiErrorCode::ArithmeticOverflow, message) }
 fn api_error(code: ApiErrorCode, message: impl Into<String>) -> ApiError { ApiError::new(code, message) }
+
+fn presentation_view(world: &WorldState, plan: &RulePlan) -> senkei_model::WorldStateView {
+    match &plan.next { Some(next) => next_vision::public_view(world,next), None => world::public_view(world,plan) }
+}
+fn observation(world: &WorldState, plan: &RulePlan, side: CombatantSide, tick:u32, index: &world::ProjectionIndex) -> Result<ObservationSnapshot,ApiError> {
+    if plan.next.is_some() { Ok(next_vision::observation(world,plan,side,tick)) } else { world::observation(world,plan,side,tick,index) }
+}
+
+fn event_references_known(event:&senkei_model::PresentationEvent,before:&senkei_model::WorldStateView,after:&senkei_model::WorldStateView)->bool {
+    let known=|id:&senkei_model::EntityId|before.entities.contains_key(id)&&after.entities.contains_key(id);
+    event.entity.as_ref().is_some_and(known) && event.payload.values().all(|v|match v { DomainValue::Entity(id)=>known(id),DomainValue::List(_)|DomainValue::Record(_)=>false,_=>true })
+}

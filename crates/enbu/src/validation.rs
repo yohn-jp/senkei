@@ -243,6 +243,14 @@ pub(crate) fn validate_intent(
             return Err(rejected("enbu.invalid_argument"));
         }
     }
+    if let Some(next) = &plan.next {
+        if let Some(actor) = normalized.actor.as_ref().and_then(|id|world.entities.get(id)) {
+            if actor.entity_type.as_str() != "hero" || !crate::next_support::alive(actor) { return Err(rejected("enbu.dead_or_invalid_hero")); }
+        }
+        if let Some(target) = normalized.target.as_ref().and_then(|id|world.entities.get(id)) {
+            if !crate::next_support::alive(target) || !crate::next_vision::visible(world,next,side,target) || !owner_allowed(capability.target_owner,target.owner,side) { return Err(rejected("enbu.target_unavailable")); }
+        }
+    }
     let allowed_phase = plan.phases.iter().any(|phase| capability.phases.contains(&phase.id) && phase.kind == senkei_model::PhaseKind::Transition);
     if !allowed_phase { return Err(rejected("enbu.capability_unavailable")); }
     for precondition in &capability.preconditions {
