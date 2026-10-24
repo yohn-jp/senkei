@@ -2112,7 +2112,8 @@ export class Battlefield {
             : undefined;
           if (
             cueLabel.type === "destroy" &&
-            (entity?.kind === "base" || entity?.kind === "tower")
+            (entity?.kind === "base" || entity?.kind === "tower" ||
+              Boolean(entity && this.isHero(entity)))
           ) return 1;
           if (
             cueLabel.type === "damage" &&
