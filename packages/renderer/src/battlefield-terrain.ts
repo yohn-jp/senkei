@@ -70,6 +70,107 @@ function pathSets(replay: Replay) {
   };
 }
 
+type InterlaneRegion = {
+  polygon: Point2[];
+  boundaries: readonly (readonly WorldPoint[])[];
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+};
+
+function interlanePolygon(
+  first: readonly WorldPoint[],
+  second: readonly WorldPoint[],
+): Point2[] | null {
+  const firstStart = first[0], firstEnd = first[first.length - 1];
+  const secondStart = second[0], secondEnd = second[second.length - 1];
+  const distance = (a: WorldPoint, b: WorldPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+  const forwardJoin = distance(firstEnd, secondStart) + distance(firstStart, secondEnd);
+  const reverseJoin = distance(firstEnd, secondEnd) + distance(firstStart, secondStart);
+  const tolerance = 1.25;
+  if (Math.min(forwardJoin, reverseJoin) > tolerance * 2) return null;
+  const returnPath = forwardJoin <= reverseJoin ? second : [...second].reverse();
+  const polygon = [
+    ...first.map(({ x, y }) => ({ x, y })),
+    ...returnPath.slice(1, -1).map(({ x, y }) => ({ x, y })),
+  ];
+  return polygon.length >= 4 ? polygon : null;
+}
+
+function buildInterlaneRegions(replay: Replay): InterlaneRegion[] {
+  const lanes = replay.scene.lanes;
+  const descriptor = (lane: typeof lanes[number]) => `${lane.id} ${lane.label}`.toLowerCase();
+  const top = lanes.find((lane) => /top/.test(descriptor(lane)));
+  const middle = lanes.find((lane) => /mid/.test(descriptor(lane)));
+  const bottom = lanes.find((lane) => /bot|bottom/.test(descriptor(lane)));
+  const ordered = top && middle && bottom ? [top, middle, bottom] : lanes;
+  if (ordered.length < 3) return [];
+
+  const regions: InterlaneRegion[] = [];
+  for (let index = 0; index < 2; index++) {
+    const first = ordered[index].points, second = ordered[index + 1].points;
+    const polygon = interlanePolygon(first, second);
+    if (!polygon) continue;
+    const xs = polygon.map((point) => point.x), ys = polygon.map((point) => point.y);
+    regions.push({
+      polygon,
+      boundaries: [first, second],
+      bounds: {
+        minX: Math.min(...xs), maxX: Math.max(...xs),
+        minY: Math.min(...ys), maxY: Math.max(...ys),
+      },
+    });
+  }
+  return regions;
+}
+
+function pointInPolygon(point: Point2, polygon: readonly Point2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i], b = polygon[j];
+    if ((a.y > point.y) !== (b.y > point.y) &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x)
+      inside = !inside;
+  }
+  return inside;
+}
+
+function interlaneForest(
+  point: Point2,
+  regions: readonly InterlaneRegion[],
+  jungle: readonly (readonly WorldPoint[])[],
+  camps: Replay["scene"]["camps"],
+): number {
+  const routeDistance = distanceToLines(point, jungle);
+  const campDistance = distanceToCamps(point, camps);
+  let forest = 0;
+  for (const region of regions) {
+    if (!pointInPolygon(point, region.polygon)) continue;
+    const laneMargin = distanceToLines(point, region.boundaries);
+    const openFloor = smoothstep(0.9, 2.7, laneMargin);
+    const routeMargin = smoothstep(1.0, 2.45, routeDistance);
+    const campMargin = smoothstep(2.7, 4.25, campDistance);
+    forest = Math.max(forest, openFloor * routeMargin * campMargin);
+  }
+  return forest;
+}
+
+function nearestAxis(
+  point: Point2,
+  lines: readonly (readonly WorldPoint[])[],
+): [number, number] {
+  let nearest = Infinity, axis: [number, number] = [1, 0];
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) {
+      const distance = distanceToSegment(point, line[i - 1], line[i]);
+      if (distance >= nearest) continue;
+      nearest = distance;
+      const dx = line[i].x - line[i - 1].x, dy = line[i].y - line[i - 1].y;
+      const length = Math.hypot(dx, dy) || 1;
+      axis = [dx / length, dy / length];
+    }
+  }
+  return axis;
+}
+
 function distanceToCamps(point: Point2, camps: Replay["scene"]["camps"]): number {
   return (camps ?? []).reduce(
     (nearest, camp) => Math.min(nearest, Math.hypot(point.x - camp.position.x, point.y - camp.position.y)),
@@ -92,14 +193,15 @@ function groveRadius(point: Point2, site: GroveSite): number {
 function groveInfluence(point: Point2, sites: readonly GroveSite[]): number {
   let influence = 0;
   for (const site of sites)
-    influence = Math.max(influence, 1 - smoothstep(0.72, 1.16, groveRadius(point, site)));
+    influence = Math.max(influence, 1 - smoothstep(0.72, 1.42, groveRadius(point, site)));
   return influence;
 }
 
 function buildGroveSites(replay: Replay): GroveSite[] {
   const { lanes, jungle, camps } = pathSets(replay);
+  const regions = buildInterlaneRegions(replay);
   const sites: GroveSite[] = [];
-  let seed = 1;
+  const interlaneCandidates: { x: number; z: number; axis: [number, number]; seed: number }[][] = [];
   const addSite = (
     x: number,
     z: number,
@@ -123,9 +225,51 @@ function buildGroveSites(replay: Replay): GroveSite[] {
     sites.push(candidate);
   };
 
-  // Each grove grows beside an authored jungle edge. Its long axis follows the
-  // real edge while the road and its endpoints stay open. These patches are
-  // scenery over the map's existing jungle regions, never new routes.
+  // Seed the actual spaces between authored lanes first. Each region samples
+  // only its polygon; safe clearings are found by exact lane, route and camp
+  // distances, with each grove's long axis following the nearest lane edge.
+  for (let regionIndex = 0; regionIndex < regions.length; regionIndex++) {
+    const region = regions[regionIndex];
+    const candidates: { x: number; z: number; axis: [number, number]; seed: number }[] = [];
+    const cellWidth = 5.8, cellDepth = 5.2;
+    for (let z0 = region.bounds.minY + 0.5; z0 < region.bounds.maxY - 0.5; z0 += cellDepth) {
+      for (let x0 = region.bounds.minX + 0.5; x0 < region.bounds.maxX - 0.5; x0 += cellWidth) {
+        let best: { x: number; z: number; axis: [number, number]; score: number; seed: number } | null = null;
+        for (let row = 0; row <= 3; row++) {
+          for (let column = 0; column <= 3; column++) {
+            const localSeed = 12000 + regionIndex * 7000 + Math.floor(x0 * 17 + z0 * 31) + row * 7 + column * 13;
+            const x = x0 + 0.35 + (cellWidth - 0.7) * column / 3 + (hash(localSeed, 29) - 0.5) * 0.72;
+            const z = z0 + 0.3 + (cellDepth - 0.6) * row / 3 + (hash(localSeed, 31) - 0.5) * 0.68;
+            const point = { x, y: z };
+            if (!pointInPolygon(point, region.polygon)) continue;
+            const laneClearance = distanceToLines(point, region.boundaries);
+            const routeClearance = distanceToLines(point, jungle);
+            const campClearance = distanceToCamps(point, camps);
+            if (laneClearance < 3.05 || routeClearance < 2.1 || campClearance < 3.8) continue;
+            const score = Math.min(laneClearance - 3.05, routeClearance - 2.1, campClearance - 3.8)
+              + hash(localSeed, 37) * 0.35;
+            if (!best || score > best.score)
+              best = { x, z, axis: nearestAxis(point, region.boundaries), score, seed: localSeed };
+          }
+        }
+        if (best) candidates.push({ x: best.x, z: best.z, axis: best.axis, seed: best.seed });
+      }
+    }
+    interlaneCandidates.push(candidates);
+  }
+  // Interleave regions so a bounded instance budget reaches both corridors.
+  const maxRegionSites = Math.max(0, ...interlaneCandidates.map((region) => region.length));
+  for (let index = 0; index < maxRegionSites; index++) {
+    for (const region of interlaneCandidates) {
+      const candidate = region[index];
+      if (!candidate) continue;
+      addSite(candidate.x, candidate.z, candidate.axis[0], candidate.axis[1], 5.0, 3.8, candidate.seed);
+    }
+  }
+
+  // Secondary edge groves follow actual jungle-route segments and remain
+  // subordinate to the two broad lane-to-lane woodland regions.
+  let edgeSeed = 1;
   for (const route of jungle) {
     for (let segment = 1; segment < route.length; segment++) {
       const start = route[segment - 1], end = route[segment];
@@ -134,60 +278,19 @@ function buildGroveSites(replay: Replay): GroveSite[] {
       if (length < 6.2) continue;
       const tx = dx / length, tz = dz / length;
       const nx = -tz, nz = tx;
-      const t = length > 12 ? 0.48 : 0.5;
-      const mx = start.x + dx * t, mz = start.y + dz * t;
+      const mx = start.x + dx * 0.5, mz = start.y + dz * 0.5;
       for (const side of [-1, 1]) {
-        const localSeed = seed++;
+        const localSeed = edgeSeed++;
         const offset = 5.0 + hash(localSeed, 13) * 1.05;
-        const x = mx + nx * offset * side;
-        const z = mz + nz * offset * side;
+        const x = mx + nx * offset * side, z = mz + nz * offset * side;
         const point = { x, y: z };
         if (
-          distanceToLines(point, lanes) < 4.1 ||
-          distanceToLines(point, jungle) < 4.35 ||
+          distanceToLines(point, lanes) < 3.2 ||
+          distanceToLines(point, jungle) < 3.4 ||
           distanceToCamps(point, camps) < 5.6
         ) continue;
-        addSite(x, z, tx, tz, 4.1, 3.55, localSeed);
+        addSite(x, z, tx, tz, 4.8, 4.1, localSeed);
       }
-    }
-  }
-
-  // Fill the broad spaces between lanes with connected woodland regions. The
-  // candidate grid is clipped by every authored lane, jungle edge and camp;
-  // it never adds a road or obstacle. Each cell chooses its safest open center
-  // so groves form masses across the whole battlefield instead of isolated
-  // trees along a perimeter.
-  const { min, max } = replay.scene.bounds;
-  const cellWidth = 7.6, cellDepth = 6.4;
-  for (let z0 = min.y + 2.8; z0 < max.y - 2.8; z0 += cellDepth) {
-    for (let x0 = min.x + 2.8; x0 < max.x - 2.8; x0 += cellWidth) {
-      let best: { x: number; z: number; angle: number; score: number } | null = null;
-      for (let row = 0; row <= 3; row++) {
-        for (let column = 0; column <= 3; column++) {
-          const localSeed = 5000 + Math.floor(x0 * 17 + z0 * 31) + row * 7 + column * 13;
-          const x = x0 + 0.7 + (cellWidth - 1.4) * column / 3 + (hash(localSeed, 29) - 0.5) * 1.15;
-          const z = z0 + 0.6 + (cellDepth - 1.2) * row / 3 + (hash(localSeed, 31) - 0.5) * 0.95;
-          const point = { x, y: z };
-          const laneClearance = distanceToLines(point, lanes);
-          const routeClearance = distanceToLines(point, jungle);
-          const campClearance = distanceToCamps(point, camps);
-          if (laneClearance < 3.9 || routeClearance < 3.35 || campClearance < 4.8) continue;
-          const score = Math.min(laneClearance - 3.3, routeClearance - 2.8, campClearance - 4.5)
-            + hash(localSeed, 37) * 0.35;
-          if (!best || score > best.score)
-            best = { x, z, angle: hash(localSeed, 41) * Math.PI, score };
-        }
-      }
-      if (best)
-        addSite(
-          best.x,
-          best.z,
-          Math.cos(best.angle),
-          Math.sin(best.angle),
-          4.25,
-          3.7,
-          Math.floor(x0 * 11 + z0 * 13),
-        );
     }
   }
 
@@ -211,7 +314,7 @@ function buildGroveSites(replay: Replay): GroveSite[] {
           : Math.min(nearest, Math.hypot(x - other.position.x, z - other.position.y)),
         Infinity,
       );
-      if (laneClearance < 4.0 || routeClearance < 4.1 || otherCampClearance < 6.2) continue;
+      if (laneClearance < 3.2 || routeClearance < 3.0 || otherCampClearance < 5.5) continue;
       candidates.push({
         x,
         z,
@@ -232,8 +335,8 @@ function buildGroveSites(replay: Replay): GroveSite[] {
         candidate.z,
         -Math.sin(candidate.angle),
         Math.cos(candidate.angle),
-        4.05,
-        3.5,
+        4.8,
+        4.1,
         candidate.seed,
       );
     }
@@ -248,14 +351,16 @@ function colorAt(
   campDistance: number,
   forest: number,
   grove: number,
+  interlane: number,
 ): THREE.Color {
   const texture = valueNoise(point.x * 0.16, point.y * 0.16);
   const moss = valueNoise(point.x * 0.052 - 5, point.y * 0.052 + 7);
   const soil = new THREE.Color(0x797d59).lerp(new THREE.Color(0x8c8963), moss * 0.58);
   soil.lerp(new THREE.Color(0x49664e), forest * 0.78);
-  soil.lerp(new THREE.Color(0x354f41), grove * 0.7);
-  soil.lerp(new THREE.Color(0x89815d), 1 - smoothstep(1.8, 4.8, laneDistance));
-  soil.lerp(new THREE.Color(0xa69a73), 1 - smoothstep(3.0, 5.8, campDistance));
+  soil.lerp(new THREE.Color(0x344e40), grove * 0.92);
+  soil.lerp(new THREE.Color(0x354d3d), interlane * 0.84);
+  soil.lerp(new THREE.Color(0x89815d), 1 - smoothstep(0.95, 1.75, laneDistance));
+  soil.lerp(new THREE.Color(0xa69a73), 1 - smoothstep(2.5, 3.8, campDistance));
   soil.offsetHSL(0, (texture - 0.5) * 0.13, (texture - 0.5) * 0.15);
   soil.lerp(new THREE.Color(0xa5a074), smoothstep(0.24, 0.85, elevation) * 0.16);
   return soil;
@@ -273,18 +378,20 @@ function buildGround(
   const segmentsX = Math.ceil(width / 1.8), segmentsZ = Math.ceil(depth / 1.8);
   const position: number[] = [], colors: number[] = [], indices: number[] = [];
   const { lanes, jungle, camps } = pathSets(replay);
+  const regions = buildInterlaneRegions(replay);
   const terrainAt = (x: number, z: number): number => {
     const point = { x, y: z };
     const routeDistance = Math.min(distanceToLines(point, lanes), distanceToLines(point, jungle));
     const campDistance = distanceToCamps(point, camps);
-    const forest = smoothstep(2.6, 6.6, distanceToLines(point, lanes));
+    const forest = smoothstep(1.6, 3.2, distanceToLines(point, lanes));
     const grove = groveInfluence(point, sites);
-    const relief = -0.14 + terrainNoise(x, z) * 0.56 + forest * 0.18 + grove * 0.58;
+    const interlane = interlaneForest(point, regions, jungle, camps);
+    const relief = -0.14 + terrainNoise(x, z) * 0.5 + forest * 0.24 + interlane * 0.12 + grove * 0.86;
     // Flatten the whole authored campsite glade before terrain relief starts;
     // otherwise the colored glade surface can sink beneath a surrounding hill.
-    const campsiteRimDistance = Math.max(0, campDistance - 5.8);
+    const campsiteRimDistance = Math.max(0, campDistance - 3.9);
     const nearbyPath = Math.min(routeDistance, campsiteRimDistance);
-    const approach = smoothstep(2.15, 7.2, nearbyPath);
+    const approach = smoothstep(1.8, 6.2, nearbyPath);
     return THREE.MathUtils.lerp(-0.045, THREE.MathUtils.clamp(relief, -0.58, 1.02), approach);
   };
 
@@ -295,11 +402,12 @@ function buildGround(
       const point = { x, y: z };
       const laneDistance = distanceToLines(point, lanes);
       const campDistance = distanceToCamps(point, camps);
-      const forest = smoothstep(2.6, 6.6, laneDistance);
+      const forest = smoothstep(1.6, 3.2, laneDistance);
       const grove = groveInfluence(point, sites);
+      const interlane = interlaneForest(point, regions, jungle, camps);
       const elevation = terrainAt(x, z);
       position.push(x, elevation, z);
-      const color = colorAt(point, elevation, laneDistance, campDistance, forest, grove);
+      const color = colorAt(point, elevation, laneDistance, campDistance, forest, grove, interlane);
       colors.push(color.r, color.g, color.b);
       if (ix < segmentsX && iz < segmentsZ) {
         const a = iz * (segmentsX + 1) + ix;
@@ -376,15 +484,15 @@ function addRoads(scene: THREE.Scene, replay: Replay): void {
   const laneShoulders: { points: readonly WorldPoint[]; width: number; y: number }[] = [];
   const laneTracks: typeof laneShoulders = [];
   for (const lane of replay.scene.lanes) {
-    laneShoulders.push({ points: lane.points, width: 2.95, y: Math.max(-0.005, lane.elevation - 0.09) });
-    laneTracks.push({ points: lane.points, width: 2.05, y: lane.elevation - 0.045 });
+    laneShoulders.push({ points: lane.points, width: 2.55, y: Math.max(-0.005, lane.elevation - 0.09) });
+    laneTracks.push({ points: lane.points, width: 1.95, y: lane.elevation - 0.045 });
   }
   const routeShoulders: typeof laneShoulders = [];
   const routeTracks: typeof laneShoulders = [];
   for (const route of replay.scene.routes ?? []) {
     if (route.region !== "jungle") continue;
-    routeShoulders.push({ points: route.points, width: 2.25, y: 0.008 });
-    routeTracks.push({ points: route.points, width: 1.18, y: 0.037 });
+    routeShoulders.push({ points: route.points, width: 1.2, y: 0.008 });
+    routeTracks.push({ points: route.points, width: 0.8, y: 0.037 });
   }
   const batches = [
     ["lane-earth-banks", laneShoulders, 0x64684f, 1],
@@ -474,9 +582,9 @@ function addJungleMasses(
         const z = site.z + u * site.axisZ + v * site.axisX;
         const point = { x, y: z };
         if (
-          distanceToLines(point, lanes) < 2.85 ||
-          distanceToLines(point, jungle) < 2.55 ||
-          distanceToCamps(point, camps) < 5.0 ||
+          distanceToLines(point, lanes) < 2.45 ||
+          distanceToLines(point, jungle) < 1.75 ||
+          distanceToCamps(point, camps) < 5.4 ||
           roots.some((root) => Math.hypot(root.x - x, root.y - z) < 1.28)
         ) continue;
         roots.push(point);

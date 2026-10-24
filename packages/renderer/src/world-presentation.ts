@@ -37,10 +37,10 @@ export function buildWorldCamp(
 ): void {
   const scale = replay.scene.routes?.length ? 1.22 : 1;
   const campHue = campId.includes("center")
-    ? 0x898b6d
+    ? 0x9aa481
     : campId.includes("se")
-      ? 0x987e66
-      : 0x9a8d69;
+      ? 0xa08065
+      : 0xa69873;
   const clearing = new THREE.MeshStandardMaterial({
     color: campHue,
     roughness: 1,
@@ -57,7 +57,7 @@ export function buildWorldCamp(
   const gladeSegments = 15;
   for (let i = 0; i < gladeSegments; i++) {
     const angle = (i / gladeSegments) * Math.PI * 2;
-    const radius = 4.55 * scale * (
+    const radius = 3.1 * scale * (
       0.86 + Math.sin(angle * 3 + phase) * 0.085 + Math.sin(angle * 5 - phase * 0.6) * 0.055
     );
     const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius;
