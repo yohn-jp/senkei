@@ -31,7 +31,7 @@ test("production Worker runs the seven local NPC regression cases through real W
 
   const cases = page.locator(".benchmark-case-list .benchmark-case");
   await expect(cases).toHaveCount(7, { timeout: 120_000 });
-  for (const scenarioId of [
+  await expect(cases.locator("small")).toHaveText([
     "first-march",
     "core-pressure",
     "intercept-visible",
@@ -39,9 +39,7 @@ test("production Worker runs the seven local NPC regression cases through real W
     "hold-under-pressure",
     "medic-support",
     "deploy-reserve",
-  ]) {
-    await expect(page.getByText(scenarioId, { exact: true })).toBeVisible();
-  }
+  ]);
 
   expect(wasmStatuses.some((status) => status === 200)).toBe(true);
   expect(externalRequests).toEqual([]);
