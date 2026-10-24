@@ -47,6 +47,7 @@ measurable.
 | `structure_base_xp` | 0 | The base ends the match, so no post-victory progression reward is needed. |
 | `squad_maturation_ticks` | 40 | A short, observable delay before a maintained formation reaches full coordination. |
 | `squad_merge_distance` | 30 world units | Requires Heroes to rendezvous closely relative to W1's edge lengths. |
+| `squad_shield_per_ally` | 2 shield | At full maturity, each other living Squad member contributes two shield points to a Hero; the contribution scales with the contributor's maturity and `maturity_effect_milli`. |
 | `max_match_ticks` | 600 | A finite package-level runtime ceiling for the first implementation; it is not a claim that 600 ticks is the ideal match length. |
 | `tick_duration_ms` | 100 | Gives replay and UI consumers a first wall-clock interpretation of one simulation tick. |
 
@@ -129,10 +130,14 @@ Reveal uses a nonzero marker power and the skill's range/duration fields.
 | R06 | Rear Guard — Defense +4 | Escape Drill — Haste 80‰ |
 
 The `synergy` map is finite, typed numeric metadata with two shared keys:
-`maturity_effect_milli` multiplies only the Hero's mature-squad contribution
-(1000 for the baseline, 1150 for the two command Heroes); it does not change
-ordinary attacks. `ally_skill_effect_milli` scales only the outgoing magnitude
-of effects aimed at allies (1000 baseline, 1100 for support Heroes).
+`maturity_effect_milli` multiplies only the Hero's contribution to the
+renewable mature-Squad shield pool (1000 for the baseline, 1150 for the two
+command Heroes); it does not change ordinary attacks. At full maturity, each
+other living squad member contributes `squad_shield_per_ally` shield points to
+the receiving Hero. Each contribution scales by that contributing Hero's
+maturity over `squad_maturation_ticks` and by their `maturity_effect_milli`.
+`ally_skill_effect_milli` scales only the outgoing magnitude of effects aimed
+at allies (1000 baseline, 1100 for support Heroes).
 
 | Hero | Path A active: target / effect / power / duration / range / cooldown / cost | Path B active: target / effect / power / duration / range / cooldown / cost |
 | --- | --- | --- |

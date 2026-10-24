@@ -112,6 +112,7 @@ fn parameters() -> BTreeMap<String, i64> {
         // units and ticks respectively.
         ("squad_maturation_ticks".into(), 40),
         ("squad_merge_distance".into(), 30),
+        ("squad_shield_per_ally".into(), 2),
         // Objective combat values apply uniformly to W1's tower placements.
         ("structure_tower_hp".into(), 1_200),
         ("structure_tower_attack".into(), 60),
@@ -598,6 +599,7 @@ mod tests {
         assert_eq!(rules.parameters["minion_vision_speed_milli"], 1_200);
         assert_eq!(rules.parameters["squad_5_speed_milli"], 800);
         assert_eq!(rules.parameters["hero_max_level"], 6);
+        assert_eq!(rules.parameters["squad_shield_per_ally"], 2);
         assert_eq!(rules.minions.len(), 2);
         assert_eq!(rules.monsters.len(), 3);
     }
