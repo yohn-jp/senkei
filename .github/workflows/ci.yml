@@ -80,4 +80,5 @@ jobs:
           name: next-local-browser-evidence
           path: |
             docs/evidence/next/
+            docs/evidence/battlefield/
             tests/browser/test-results/
