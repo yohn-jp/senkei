@@ -91,3 +91,7 @@ GPU未対応等で描画できない場合は**NOT_CHECKED/BLOCKED_BY_ENVIRONMEN
 ## 7. G1のスコープ外
 
 Jinreiの文法・VM、Senritsuの戦闘値やCapability、Enbu本体、公式非同期PvP、認証、ランキング、Cloudflare API、チケット、広告、未許諾アセット、完全なNo-code／Code編集UI。戦闘を実行するふりをするデモ、偽の分析数値、描画結果を戦術計算へフィードバックする構造も対象外。
+
+## 8. G2の追加デザイン契約
+
+G2 Art Foundationは [HERO-ATELIER.md](HERO-ATELIER.md) の共通Stylized 3Dを対象とし、Hero Collection／Detail／Skill Tree／Squad Assemblyの品質基準も同時に考慮する。戦場用LODと展示用Heroモデルは同一アセット系列であること。大規模Senritsu実装が並行している場合はその共有契約・作業所有者を確認し、競合するコードを無断変更しない。G1の完成範囲や既存の段階的受入を改変しない。

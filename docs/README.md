@@ -27,6 +27,7 @@
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
 | [EXECUTION.md](EXECUTION.md) | コンパイル方式、論理CU、物理最適化、戦闘エンジンの入出力・秘匿境界 |
 | [GRAPHICS.md](GRAPHICS.md) | **グラフィックの正本**：Pixel 3D、3D制作、画風、レンダラー |
+| [HERO-ATELIER.md](HERO-ATELIER.md) | **G2 Hero専用画面・Stylized 3D共通アート**：Collection／Detail／Skill Tree／Squad |
 | [REPLAY.md](REPLAY.md) | **Enbu/Renderer表示契約**：Schema、Tick、投影・秘匿性 |
 | [UI-DESIGN.md](UI-DESIGN.md) | Desktop/Mobile別のUI・操作・状態設計 |
 | [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |

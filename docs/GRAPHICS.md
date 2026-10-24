@@ -103,3 +103,7 @@
 現行のGraphics G1はコンパクトな三レーンの固定Fixtureであり、最新のゲームマップそのものではない。[WORLD.md](WORLD.md) で合意した次期Senritsuの戦場は、対角側に本拠地を置く**広いMOBA型のTOP/MID/BOT三レーン**と、レーン間の**複数の中立モンスター地点**を持つ。新規Fixture／Enbu Adapterでこれを表示できるようにするが、Rendererから通行権、敵位置、XP、移動倍率を計算し直さない。
 
 Pixel 3DとSmooth 3Dの選択は描画品質の問題であり、会話ではSmooth 3Dも許容可能との評価がある。比較は表示用オプション・アートディレクションの範囲に留め、ゲーム規則の変更を伴わない。既存のPixel 3D実装をドキュメント修正だけで置き換えたことにはしない。
+
+## 10. G2 Hero Atelierと画風の統一
+
+[HERO-ATELIER.md](HERO-ATELIER.md) をHero画面と戦場で共有するStylized 3Dアートディレクションの正本とする。G1のPixel 3Dは任意の描画パスとして保持し、Smooth 3Dを同等に評価する。Hero Detail用モデルと戦場LODは同じHero identity／装備／材質系列から生成する。写実寄りモックとG1ローポリを無条件に混在させない。
