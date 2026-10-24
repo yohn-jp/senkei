@@ -157,6 +157,7 @@
 .next-speed select { appearance: none; background: #202c32; border: 1px solid rgba(214,225,218,.12); border-radius: 3px; color: #c9d5ca; cursor: pointer; font-size: 8px; min-height: 28px; padding: 0 19px 0 7px; }
 .next-camera-controls { display: flex; gap: 4px; }
 .next-camera-controls button { font-size: 8px; padding: 0 8px; }
+.next-camera-controls button:disabled { cursor: default; opacity: .4; }
 .next-tick-readout { color: #85948c; font-family: "DM Mono",monospace; font-size: 7px; letter-spacing: .09em; margin-left: auto; white-space: nowrap; }
 .next-tick-readout strong { color: var(--next-accent); font-size: 11px; }
 .next-tick-readout small { color: #73817e; }
@@ -300,7 +301,7 @@
   .next-play-controls .next-play-button { flex: 1; }
   .next-speed { min-height: 40px; }
   .next-speed select { min-height: 38px; }
-  .next-camera-controls { display: none; }
+  .next-camera-controls { display: flex; flex-basis: 100%; justify-content: flex-end; }
   .next-tick-readout { font-size: 8px; }
   .next-battle-stage { min-height: 54dvh; }
   .next-renderer-host { height: 54dvh; min-height: 54dvh; }
