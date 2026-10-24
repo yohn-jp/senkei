@@ -1,5 +1,5 @@
 import { CORE_API_VERSION, WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
-import type { CoreVersion, WorkerFailureCode } from "../contracts/core";
+import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts/core";
 import { WasmRuntime } from "./wasm-runtime";
 
 const MAX_WORKER_REQUEST_BYTES = 16 * 1024 * 1024;
@@ -35,7 +35,7 @@ interface FailureResponse {
   readonly error: {
     readonly code: WorkerFailureCode;
     readonly message: string;
-    readonly details?: unknown;
+    readonly details?: CoreJsonValue;
   };
 }
 
@@ -50,7 +50,7 @@ class RequestFailure extends Error {
   constructor(
     readonly code: WorkerFailureCode,
     message: string,
-    readonly details?: unknown,
+    readonly details?: CoreJsonValue,
   ) {
     super(message);
     this.name = "RequestFailure";
@@ -121,6 +121,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
   const operation = record.operation;
   if (
     operation !== "initial_ruleset" &&
+    operation !== "new_match_context" &&
     operation !== "compile" &&
     operation !== "parse_text" &&
     operation !== "format_ast" &&
@@ -309,7 +310,7 @@ async function runBenchmark(
           "core_error",
           `Benchmark case ${String(benchmarkCase.case_id)} failed: ${error.message}`,
           {
-            case_id: benchmarkCase.case_id,
+            case_id: String(benchmarkCase.case_id),
             core_error: apiErrorDetails(error.error),
           },
         );
@@ -388,7 +389,7 @@ function parseCoreError(value: unknown): CoreApiErrorValue {
   };
 }
 
-function apiErrorDetails(error: CoreApiErrorValue): Record<string, unknown> {
+function apiErrorDetails(error: CoreApiErrorValue): Record<string, CoreJsonValue> {
   return {
     code: error.code,
     message: error.message,
