@@ -2,12 +2,29 @@
 
 This file records executable evidence for the local PvE delivery criteria. It
 does not replace the API or product contracts. `tests/conformance/matrix.json`
-has the same twelve checks in machine-readable form. `verified` means the
-current source has a real test for the property; `partial` identifies coverage
-that still needs a dedicated oracle; `pending-final-run` is waiting for the
-current integrated browser test to run.
+contains both the twelve user ordered release checks and the supplemental
+engineering matrix. `VERIFIED` means the current source has a real test for the
+property; `PARTIAL` identifies coverage that still needs a dedicated oracle;
+`NOT_CHECKED` means the final required execution has not run yet.
 
-## Twelve conformance conditions
+## User ordered 12 release checks
+
+| Order | Check | Status | Evidence and remaining coverage |
+| --- | --- | --- | --- |
+| 1 | Jinrei grammar and text parsing | VERIFIED | Jinrei parser/formatter tests and compilation of all seven evaluated NPC sources through the real native dispatcher. |
+| 2 | Unknown values | VERIFIED | Model wire and Jinrei semantics tests distinguish unknown values from known null; observation schema rejects hidden reads. |
+| 3 | Simultaneous resolution and ordered logic | VERIFIED | Enbu tests verify reciprocal/simultaneous attacks and damage; Jinrei tests verify ordered short-circuit cost and declaration-order behavior. |
+| 4 | Sets, vectors, matrices, and CU | VERIFIED | Jinrei semantics tests exercise finite collections, vector/matrix/record bounds, collection order invariance, comparison tariffs, and CU overrun. |
+| 5 | Private-data rejection | PARTIAL | Enbu public-response tests exclude bytecode/private markers; Senritsu rejects hidden observation reads. A complete serialized-field leakage audit remains unchecked. |
+| 6 | Determinism | VERIFIED | Workspace tests plus seven real campaign requests run twice natively and compare the full ordered response. |
+| 7 | Native/WASM parity | VERIFIED | Seven current campaign simulations compare complete envelopes between the native dispatcher and the compiled WASM ABI; compact goldens pin canonical response hashes. |
+| 8 | GUI/text equivalence | VERIFIED | A structured starter AST and equivalent text compile to equal program/CU and full simulation responses; production UI journey exercises both no-code and text editing. |
+| 9 | Browser local loop | VERIFIED | On root source `96504e444dbc83a3ffb24e9131dcf54f623be846`, `bash tests/browser/run-nix.sh` passed 3/3: local navigation, seven real Worker/WASM NPC benchmarks, and the full compile/battle/replay/save/reload/rematch journey. |
+| 10 | No online API/auth dependency | VERIFIED | The production browser journey and seven-scenario Worker benchmark passed while asserting there were no cross-origin requests. No API or auth setup is used. |
+| 11 | Offline after caching | VERIFIED | Production Chromium journey on `96504e444dbc83a3ffb24e9131dcf54f623be846` passed offline IndexedDB reload, semantic edit/compile, rematch, resave, and another reload. |
+| 12 | GitHub Actions CI | VERIFIED | GitHub Actions run [40078738258](https://github.com/yohn-jp/senkei/actions/runs/40078738258) on root source `96504e444dbc83a3ffb24e9131dcf54f623be846` completed successfully: native build/tests, native/real-WASM conformance, web build, and production Chromium smoke. |
+
+## Supplemental engineering conformance matrix
 
 | ID | Status | Evidence and remaining coverage |
 | --- | --- | --- |
@@ -22,7 +39,7 @@ current integrated browser test to run.
 | `observation.unknown-null-and-visibility` | Partial | Model tests distinguish unknown from known null; Senritsu rejects hidden-field and derived hidden reads. A dedicated Enbu runtime probe for opponent hidden-field reads remains unchecked. |
 | `output.public-replay-no-private-data` | Partial | Enbu tests the explicit public response projection and excludes bytecode/private markers; the browser passes restricted diagnostics separately. An exhaustive secret-field denylist over every response shape remains unchecked. |
 | `rules.data-extension-vs-new-primitive` | Verified | The runner integration test accepts a compatible unit-class extension and rejects an unavailable transition primitive. |
-| `browser.local-loop-offline-real-wasm` | Pending final run | The production Chromium journey exercises no-code, semantic edit/compile, real WASM battle/diagnostics, IndexedDB revisions, offline reload, rematch, and resave. Its latest accepted-row assertion awaits the integrated final run. |
+| `browser.local-loop-offline-real-wasm` | Verified | `bash tests/browser/run-nix.sh` on root source `96504e444dbc83a3ffb24e9131dcf54f623be846`: 3/3 tests passed, including seven real Worker NPC benchmark cases and the full offline persistence journey. |
 
 ## Delivery A–D
 
@@ -47,24 +64,24 @@ transition primitive still requires its own validator and execution tests.
 
 ### C — Browser developer experience
 
-**Awaiting final integrated run.** The application branch includes Worker to
-WASM compilation and simulation, replay and restricted diagnostics views,
-IndexedDB revisions, and service-worker asset caching. Playwright runs against
-the production build with the generated WASM file. The current strict test
-scopes the Tick 4 `deploy_ready_reserve` diagnostic to an accepted row and
-checks its side and tick; record the final integrated result here after it
-passes.
+**Verified.** On root source `96504e444dbc83a3ffb24e9131dcf54f623be846`,
+the production Playwright suite passed all three tests. The application includes
+Worker to WASM compilation and simulation, replay and restricted diagnostics
+views, IndexedDB revisions, and service-worker asset caching. Playwright runs
+against the production build with the generated WASM file. The strict assertion
+scopes the Tick 4 `deploy_ready_reserve` diagnostic to an accepted row and checks
+its side and tick. The Worker benchmark runs all seven NPC cases in the browser.
 
 ### D — Playable local product
 
-**Scenario data verified; final browser evidence pending.** The catalog contains
+**Verified.** The catalog contains
 seven beginner/standard/expert NPC recipes with objectives and criteria; the
 starter draft comes from the active ruleset's defaults and needs no handwritten
 code. Native gameplay checks cover all seven, including tower destruction,
 withdrawal, healing, reserve deployment, and different tactical outcomes. The
 production browser journey checks semantic edits, exact saved source/config,
-offline reload, rematch, and another saved revision; its final integrated run
-is pending.
+offline reload, rematch, and another saved revision; all three production
+Chromium tests passed on source `96504e444dbc83a3ffb24e9131dcf54f623be846`.
 
 ## Current local verification commands
 

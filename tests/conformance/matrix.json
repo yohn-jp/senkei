@@ -10,6 +10,128 @@
     "docs/COMPONENTS.md",
     "docs/ONLINE.md"
   ],
+  "user_ordered_checks": [
+    {
+      "order": 1,
+      "id": "user.grammar-and-text-parsing",
+      "check": "Jinrei grammar and text parsing",
+      "status": "VERIFIED",
+      "evidence": [
+        "Jinrei parser/formatter tests",
+        "tests/conformance/generate-scenario-inputs.mjs compiles all seven evaluated campaign sources through the real native dispatcher"
+      ]
+    },
+    {
+      "order": 2,
+      "id": "user.unknown-values",
+      "check": "Unknown values remain distinct from known null",
+      "status": "VERIFIED",
+      "evidence": [
+        "senkei-model wire_contract distinguishes Observed::Unknown from a known DomainValue::Null",
+        "Jinrei state-knownness semantics distinguish unknown comparison"
+      ]
+    },
+    {
+      "order": 3,
+      "id": "user.simultaneous-and-ordered-resolution",
+      "check": "Simultaneous damage and ordered tactics resolve deterministically",
+      "status": "VERIFIED",
+      "evidence": [
+        "Enbu simulation tests cover reciprocal and concurrent attacks",
+        "Jinrei tests cover ordered-logic short-circuit and declaration-order semantics"
+      ]
+    },
+    {
+      "order": 4,
+      "id": "user.sets-vectors-matrices-cu",
+      "check": "Finite sets/vectors/matrices and CU tariffs are bounded and deterministic",
+      "status": "VERIFIED",
+      "evidence": [
+        "Jinrei semantics tests cover collection ordering, vector/matrix/record bounds, comparison tariffs, and CU exhaustion"
+      ]
+    },
+    {
+      "order": 5,
+      "id": "user.private-data-rejection",
+      "check": "Private tactical data is excluded from public output and hidden reads reject",
+      "status": "PARTIAL",
+      "evidence": [
+        "Enbu public_response test excludes bytecode and private input markers",
+        "Senritsu rejects hidden observation access",
+        "not checked: exhaustive public-output secret-field denylist across every response shape"
+      ]
+    },
+    {
+      "order": 6,
+      "id": "user.determinism",
+      "check": "The same input produces identical ordered results and diagnostics",
+      "status": "VERIFIED",
+      "evidence": [
+        "cargo test --workspace --locked",
+        "the native adapter comparator executes every campaign request twice and compares complete envelopes"
+      ]
+    },
+    {
+      "order": 7,
+      "id": "user.native-wasm-parity",
+      "check": "Real native and compiled WASM adapters match on the same battles",
+      "status": "VERIFIED",
+      "evidence": [
+        "seven campaign requests compare complete native/WASM response envelopes and compact canonical response hashes"
+      ]
+    },
+    {
+      "order": 8,
+      "id": "user.gui-text-equivalence",
+      "check": "No-code and text tactics use the same core semantics",
+      "status": "VERIFIED",
+      "evidence": [
+        "native generator compares structured-AST and equivalent text compile outputs and full simulation responses",
+        "production browser journey compiles no-code and semantic text edits"
+      ]
+    },
+    {
+      "order": 9,
+      "id": "user.browser-local-loop",
+      "check": "Production browser supports compile, NPC battle, replay, save, reload, and rematch",
+      "status": "VERIFIED",
+      "evidence": [
+        "tests/browser/specs/local-pve-offline.spec.ts",
+        "tests/browser/specs/worker-benchmark.spec.ts covers seven real Worker NPC regression cases",
+        "bash tests/browser/run-nix.sh on root source 96504e444dbc83a3ffb24e9131dcf54f623be846 passed 3/3 tests"
+      ]
+    },
+    {
+      "order": 10,
+      "id": "user.no-online-api",
+      "check": "Local PvE requires no server API, account, or authentication",
+      "status": "VERIFIED",
+      "evidence": [
+        "production browser journey and Worker benchmark assert there are no cross-origin requests",
+        "bash tests/browser/run-nix.sh on root source 96504e444dbc83a3ffb24e9131dcf54f623be846 passed"
+      ]
+    },
+    {
+      "order": 11,
+      "id": "user.offline-after-cache",
+      "check": "Main local features work offline after assets are cached",
+      "status": "VERIFIED",
+      "evidence": [
+        "production journey exercises offline IndexedDB reload, semantic edit/compile, rematch, resave, and reload",
+        "bash tests/browser/run-nix.sh on root source 96504e444dbc83a3ffb24e9131dcf54f623be846 passed"
+      ]
+    },
+    {
+      "order": 12,
+      "id": "user.github-actions-ci",
+      "check": "GitHub Actions completes native, WASM, web, conformance, and browser jobs",
+      "status": "VERIFIED",
+      "evidence": [
+        "workflow .github/workflows/ci.yml defines native build/test, real WASM conformance, production web build, and Chromium browser jobs",
+        "GitHub Actions run https://github.com/yohn-jp/senkei/actions/runs/40078738258 passed all jobs on source 96504e444dbc83a3ffb24e9131dcf54f623be846"
+      ]
+    }
+  ],
   "cases": [
     {
       "id": "core.determinism.repeated-input",
@@ -128,11 +250,11 @@
     {
       "id": "browser.local-loop-offline-real-wasm",
       "property": "no-code preset, edit/compile, NPC battle, analysis, IndexedDB save/reload, semantic rematch, and offline journey use the real compiled WASM",
-      "status": "pending-final-run",
+      "status": "verified",
       "required_oracle": ["playwright-browser", "real-web-worker", "compiled-wasm-adapter", "indexeddb"],
       "evidence": [
-        "0B production Chromium suite passed on integration SHA 7024fa1 before the final accepted-diagnostic-row locator was added",
-        "tests/browser/specs/local-pve-offline.spec.ts at 2f739d1 scopes the tick-4 action ID to its accepted row and awaits the final integrated run"
+        "bash tests/browser/run-nix.sh on root source 96504e444dbc83a3ffb24e9131dcf54f623be846 passed 3/3 tests",
+        "The suite includes the accepted-row Tick 4 action diagnostic and seven real Worker NPC benchmark cases"
       ]
     }
   ]
