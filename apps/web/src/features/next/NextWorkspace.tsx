@@ -1263,6 +1263,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     setBattleMobileView(view);
     if (view === "timeline") player?.pause();
     if (view === "battle" || view === "overview") {
+      setBattleRosterOpen(false);
       const nextMode = view === "overview" ? "overview" : "tactical";
       setCameraMode(nextMode);
       setFollowedEntityId(null);
