@@ -54,16 +54,14 @@ export class PersistenceError extends Error {
 }
 
 const EMPTY_WORKSPACE_DATA: LocalSenkeiWorkspaceData = Object.freeze({
-  bundle_version: 1,
+  bundle_version: 2,
   compiled_program: null,
   compilation: null,
   rulesets: Object.freeze([]),
   component_versions: null,
   scenarios: Object.freeze([]),
-  simulation_snapshots: Object.freeze([]),
-  simulation_scenario_ids: Object.freeze([]),
-  baseline_scenario_id: null,
-  simulation_outcomes: Object.freeze([]),
+  latest_run: null,
+  baseline: null,
   benchmark: null,
   benchmark_history: Object.freeze([]),
   extensions: Object.freeze({}),
@@ -371,29 +369,33 @@ function assertSimulationSnapshot(value: unknown, path: string): void {
   assertMatchContext(value.context, `${path}.context`);
 }
 
+function assertMatchResult(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new PersistenceError("invalid_data", `${path} is malformed.`);
+  if (
+    typeof value.match_id !== "string" ||
+    !["attacker_victory", "defender_victory", "draw", "aborted"].includes(String(value.outcome)) ||
+    typeof value.termination_reason !== "string" ||
+    typeof value.final_tick !== "number" || !Number.isSafeInteger(value.final_tick) || value.final_tick < 0 ||
+    !isRecord(value.statistics) ||
+    !isRecord(value.cu_spent) ||
+    typeof value.final_state_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.final_state_digest)
+  ) {
+    throw new PersistenceError("invalid_data", `${path} is malformed.`);
+  }
+  assertDomainRecord(value.statistics, `${path}.statistics`);
+  for (const side of ["attacker", "defender"]) {
+    const cu = value.cu_spent[side];
+    if (typeof cu !== "number" || !Number.isSafeInteger(cu) || cu < 0) {
+      throw new PersistenceError("invalid_data", `${path}.cu_spent.${side} is invalid.`);
+    }
+  }
+}
+
 function assertSimulationOutcome(value: unknown, path: string): void {
   if (!isRecord(value) || !isRecord(value.result) || !isRecord(value.presentation_replay)) {
     throw new PersistenceError("invalid_data", `${path} must contain a public result and presentation replay.`);
   }
-  const result = value.result;
-  if (
-    typeof result.match_id !== "string" ||
-    !["attacker_victory", "defender_victory", "draw", "aborted"].includes(String(result.outcome)) ||
-    typeof result.termination_reason !== "string" ||
-    typeof result.final_tick !== "number" || !Number.isSafeInteger(result.final_tick) || result.final_tick < 0 ||
-    !isRecord(result.statistics) ||
-    !isRecord(result.cu_spent) ||
-    typeof result.final_state_digest !== "string" || !/^[0-9a-f]{64}$/.test(result.final_state_digest)
-  ) {
-    throw new PersistenceError("invalid_data", `${path}.result is malformed.`);
-  }
-  assertDomainRecord(result.statistics, `${path}.result.statistics`);
-  for (const side of ["attacker", "defender"]) {
-    const cu = result.cu_spent[side];
-    if (typeof cu !== "number" || !Number.isSafeInteger(cu) || cu < 0) {
-      throw new PersistenceError("invalid_data", `${path}.result.cu_spent.${side} is invalid.`);
-    }
-  }
+  assertMatchResult(value.result, `${path}.result`);
   const replay = value.presentation_replay;
   if (
     typeof replay.match_id !== "string" ||
@@ -433,7 +435,7 @@ function assertSimulationResponse(value: unknown, path: string): void {
   }
 }
 
-function assertBenchmarkOutcome(value: unknown, path: string): void {
+function assertBenchmarkSummary(value: unknown, path: string): void {
   if (!isRecord(value) || !Array.isArray(value.cases)) {
     throw new PersistenceError("invalid_data", `${path} must contain benchmark cases.`);
   }
@@ -444,7 +446,8 @@ function assertBenchmarkOutcome(value: unknown, path: string): void {
     if (entry.case_role !== undefined && entry.case_role !== "before" && entry.case_role !== "current") {
       throw new PersistenceError("invalid_data", `${path}.cases[${index}].case_role is unsupported.`);
     }
-    assertSimulationOutcome(entry.outcome, `${path}.cases[${index}].outcome`);
+    assertSimulationSnapshot(entry.snapshot, `${path}.cases[${index}].snapshot`);
+    assertMatchResult(entry.result, `${path}.cases[${index}].result`);
   });
 }
 
@@ -623,25 +626,13 @@ function assertDocument(value: unknown): asserts value is LocalSenkeiDocument {
 
 function assertWorkspaceData(value: unknown): asserts value is LocalSenkeiWorkspaceData {
   if (!isRecord(value)) throw new PersistenceError("invalid_data", "Workspace data must be an object.");
-  if (value.bundle_version !== 1) {
+  if (value.bundle_version !== 2) {
     throw new PersistenceError("unsupported_version", `Workspace bundle version ${String(value.bundle_version)} is not supported.`);
   }
-  for (const key of ["rulesets", "scenarios", "simulation_snapshots", "simulation_scenario_ids", "simulation_outcomes", "benchmark_history"]) {
+  for (const key of ["rulesets", "scenarios", "benchmark_history"]) {
     if (!Array.isArray(value[key])) throw new PersistenceError("invalid_data", `Workspace data ${key} must be an array.`);
   }
-  const simulationSnapshots = value.simulation_snapshots as unknown[];
-  const simulationScenarioIds = value.simulation_scenario_ids as unknown[];
-  if (simulationScenarioIds.length !== simulationSnapshots.length) {
-    throw new PersistenceError("invalid_data", "Workspace simulation scenario IDs must align with saved simulation snapshots.");
-  }
-  if (simulationScenarioIds.some((id) => id !== null && typeof id !== "string")) {
-    throw new PersistenceError("invalid_data", "Workspace simulation scenario IDs must be strings or null.");
-  }
-  if (value.baseline_scenario_id !== null && typeof value.baseline_scenario_id !== "string") {
-    throw new PersistenceError("invalid_data", "Workspace baseline scenario ID must be a string or null.");
-  }
   (value.rulesets as unknown[]).forEach((item, index) => assertRulePackage(item, `Workspace rulesets[${index}]`));
-  (value.simulation_snapshots as unknown[]).forEach((item, index) => assertSimulationSnapshot(item, `Workspace simulation_snapshots[${index}]`));
   (value.scenarios as unknown[]).forEach((item, index) => {
     if (
       !isRecord(item) ||
@@ -663,11 +654,22 @@ function assertWorkspaceData(value: unknown): asserts value is LocalSenkeiWorksp
     }
     assertDraft(item.npc);
   });
-  (value.simulation_outcomes as unknown[]).forEach((item, index) => {
-    assertSimulationResponse(item, `Workspace simulation_outcomes[${index}]`);
-  });
+  if (value.latest_run !== null) {
+    if (!isRecord(value.latest_run) || (value.latest_run.scenario_id !== null && typeof value.latest_run.scenario_id !== "string")) {
+      throw new PersistenceError("invalid_data", "Workspace latest_run is malformed.");
+    }
+    assertSimulationSnapshot(value.latest_run.snapshot, "Workspace latest_run.snapshot");
+    assertSimulationResponse(value.latest_run.response, "Workspace latest_run.response");
+  }
+  if (value.baseline !== null) {
+    if (!isRecord(value.baseline) || (value.baseline.scenario_id !== null && typeof value.baseline.scenario_id !== "string")) {
+      throw new PersistenceError("invalid_data", "Workspace baseline is malformed.");
+    }
+    assertSimulationSnapshot(value.baseline.snapshot, "Workspace baseline.snapshot");
+    assertMatchResult(value.baseline.result, "Workspace baseline.result");
+  }
   (value.benchmark_history as unknown[]).forEach((item, index) => {
-    assertBenchmarkOutcome(item, `Workspace benchmark_history[${index}]`);
+    assertBenchmarkSummary(item, `Workspace benchmark_history[${index}]`);
   });
   if (value.compiled_program !== null && !isRecord(value.compiled_program)) {
     throw new PersistenceError("invalid_data", "Workspace compiled_program must be a core program or null.");
@@ -696,10 +698,10 @@ function assertWorkspaceData(value: unknown): asserts value is LocalSenkeiWorksp
   if (value.component_versions !== null) {
     assertComponentVersions(value.component_versions, "Workspace component_versions");
   }
-  if (value.benchmark !== null && !isRecord(value.benchmark)) {
-    throw new PersistenceError("invalid_data", "Workspace benchmark must be a benchmark result or null.");
+  if (value.benchmark !== null) assertBenchmarkSummary(value.benchmark, "Workspace benchmark");
+  if (!Object.hasOwn(value, "latest_run") || !Object.hasOwn(value, "baseline") || !Object.hasOwn(value, "benchmark")) {
+    throw new PersistenceError("invalid_data", "Workspace latest_run, baseline, and benchmark fields are required.");
   }
-  if (value.benchmark !== null) assertBenchmarkOutcome(value.benchmark, "Workspace benchmark");
   assertJsonValue(value, "Workspace data");
   const encoded = JSON.stringify(value);
   if (encoded === undefined || utf8ByteLength(encoded) > MAX_JSON_BYTES) {
@@ -1150,7 +1152,7 @@ function assertExportBundle(value: unknown): asserts value is LocalSenkeiExportB
   if (!isRecord(value) || value.format !== "senkei.local-workspace") {
     throw new PersistenceError("unsupported_version", "This file is not a Senkei library export.");
   }
-  if (value.bundle_version !== 1) {
+  if (value.bundle_version !== 2) {
     throw new PersistenceError("unsupported_version", `Export bundle version ${String(value.bundle_version)} is not supported.`);
   }
   if (!Array.isArray(value.history) || value.history.length === 0) {
@@ -1188,11 +1190,12 @@ export async function exportDocumentJson(documentId: string): Promise<string> {
   }
   const bundle: LocalSenkeiExportBundle = {
     format: "senkei.local-workspace",
-    bundle_version: 1,
+    bundle_version: 2,
     active_document_id: documentId,
     active_revision: history[history.length - 1].document.revision,
     history,
   };
+  assertJsonValue(bundle, "Local export bundle", MAX_EXPORT_NODES);
   const json = JSON.stringify(bundle, null, 2);
   if (utf8ByteLength(json) > MAX_EXPORT_BYTES) {
     throw new PersistenceError("too_large", "This document history exceeds the 64 MiB JSON export limit.");
