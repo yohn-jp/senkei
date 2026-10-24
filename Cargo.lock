@@ -47,6 +47,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "enbu"
+version = "0.1.0"
+dependencies = [
+ "senkei-model",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -61,6 +71,16 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "jinrei"
+version = "0.1.0"
+dependencies = [
+ "senkei-model",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "libc"
@@ -97,6 +117,40 @@ name = "senkei-model"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "senkei-runner"
+version = "0.1.0"
+dependencies = [
+ "enbu",
+ "jinrei",
+ "senkei-model",
+ "senritsu",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "senkei-wasm"
+version = "0.1.0"
+dependencies = [
+ "enbu",
+ "jinrei",
+ "senkei-model",
+ "senritsu",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "senritsu"
+version = "0.1.0"
+dependencies = [
+ "senkei-model",
  "serde_json",
  "sha2",
 ]
@@ -164,6 +218,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

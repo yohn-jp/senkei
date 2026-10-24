@@ -1,0 +1,35 @@
+{
+  "schema_version": { "major": 1, "minor": 0, "patch": 0 },
+  "match_id": "local-example-001",
+  "ruleset_ref": {
+    "id": "senkei.initial",
+    "version": { "major": 1, "minor": 0, "patch": 0 },
+    "digest": "5c5befc5579abd08b90a1ee2919664ef7ae734148600e82602aea117a6d00cb7"
+  },
+  "attacker": {
+    "id": "attacker-demo",
+    "revision": "1",
+    "configuration": {
+      "initial_deployments": {
+        "kind": "list",
+        "value": [
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": { "kind": "string", "value": "cavalry-front" },
+              "unit_class": { "kind": "enum", "value": "cavalry" },
+              "lane": { "kind": "enum", "value": "top" },
+              "position": { "kind": "integer", "value": 18 }
+            }
+          }
+        ]
+      }
+    },
+    "tactics": "senkei core_pressure { action strike_core { when true, do attack_core(argmin unit in allies.units by unit.position then unit.id, argmin core in enemies.visible_cores by core.position then core.id), }, }"
+  },
+  "defender": {
+    "id": "defender-demo",
+    "revision": "1",
+    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.id), }, }"
+  }
+}
