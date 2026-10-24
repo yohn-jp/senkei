@@ -35,3 +35,5 @@ The final-build farm screenshots are in [controlled-farm-993ef56](controlled-far
 ## Privacy and reproducibility
 
 Each bundle stores the actual worker input, owner-only replay, public presentation replay, and compiled Jinrei source. The JSON replay/input artifacts are deterministic gzip files; metadata hashes refer to their canonical uncompressed JSON. Owner replay and owner-state respawn evidence are explicitly labeled `local-owner-only`; public presentation replay is labeled `public-presentation`.
+
+The final farm [c9 → 993 comparison](comparison-controlled-farm-c9-to-993ef56.json) also matches canonical input, match, owner/public replay digests, final state, ticks and viewports. The [final cue comparison](comparison-controlled-cue-c9-to-993ef56.json) verifies the same identity fields.
