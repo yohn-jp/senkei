@@ -93,3 +93,7 @@ Desktopを縦積みするだけのレイアウトは禁止。同じドメイン�
 - スクリーンショットを縮小しても戦場が主役であること、兵科と陣営がわかること、主要操作が隠れないことを目視判定。
 - 実機のタッチ／IMEはエミュレーションによる検証とは区別し、未実施ならNOT_CHECKEDと報告。
 - 自動visual regressionはレイアウト回帰の検出手段であり、完成度の高いデザインであることの証明ではない。
+
+## 8. Hero専用ワークスペース
+
+Hero Collection、Hero Detail、Skill Tree、Squad Assemblyは [HERO-ATELIER.md](HERO-ATELIER.md) の専用デザイン契約に従う。DesktopのHero展示・成長経路・Squad構成は別々の主役を持ち、Mobileでは独立した操作画面を用いる。戦闘前に設定するスキル取得予定と、戦闘中の取得済みスキルを混同しない。Heroのモデルは戦場と同じidentityを用いる。
