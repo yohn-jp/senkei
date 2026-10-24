@@ -105,3 +105,24 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* Next is a game workspace: let its active task use the available screen. */
+.page-content[data-view="next"] { max-width: none; padding: 20px 24px 28px; }
+.page-content[data-view="next"] > .page-heading { display: none; }
+.app-shell:has(.page-content[data-view="next"]) { grid-template-columns: 190px minmax(0, 1fr); }
+.app-shell:has(.page-content[data-view="next"]) > .sidebar { padding-inline: 14px; }
+.page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+.page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) > .next-tabs { align-items: center; display: flex; position: static; padding: 5px; }
+.page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) .next-tabs-title,
+.page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) .next-ruleset-stamp { display: none; }
+.page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) .next-tab { flex: 1; min-height: 40px; }
+.page-content[data-view="next"] .next-renderer-host { height: max(520px, 65dvh); }
+.page-content[data-view="next"] .next-renderer-host .world-label { font-size: 12px; font-weight: 600; letter-spacing: .1em; }
+
+@media (max-width: 760px) {
+  .app-shell:has(.page-content[data-view="next"]) { grid-template-columns: minmax(0, 1fr); }
+  .page-content[data-view="next"] { padding: 14px 10px calc(20px + env(safe-area-inset-bottom)); }
+  .page-content[data-view="next"] .next-renderer-host { height: 56dvh; min-height: 320px; }
+  .page-content[data-view="next"] .next-layout:has(.next-battle-panel:not([hidden])) .next-tab { min-width: 0; padding-inline: 4px; }
+  .page-content[data-view="next"] .next-renderer-host .world-label { font-size: 10px; }
+}
