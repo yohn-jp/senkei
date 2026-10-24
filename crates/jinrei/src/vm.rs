@@ -242,7 +242,7 @@ impl<'a> Eval<'a> {
             Predicate::Compare { left, operator, right } => {
                 let left = self.eval_value(left, bindings)?;
                 let right = self.eval_value(right, bindings)?;
-                self.charge_kind(CostKind::Compare, 1)?;
+                self.charge_repeated_kind(CostKind::Compare, comparison_units(&left, &right))?;
                 compare_runtime(left, right, *operator)?
             }
             Predicate::Knownness { value, test } => {
@@ -489,6 +489,14 @@ impl<'a> Eval<'a> {
             .ok_or_else(|| runtime_error(ApiErrorCode::ResourceLimit, "CU arithmetic overflow"))?;
         self.charge_amount(&quote.operation, amount)
     }
+    fn charge_repeated_kind(&mut self, kind: CostKind, units: u64) -> Result<(), TacticalExecutionError> {
+        let quote = self.module.costs.get(&kind).ok_or_else(|| runtime_error(ApiErrorCode::InvalidProgram, "bytecode lacks a logical cost operation"))?;
+        let unit_amount = quote.amount.base.checked_add(quote.amount.per_item)
+            .ok_or_else(|| runtime_error(ApiErrorCode::ResourceLimit, "CU arithmetic overflow"))?;
+        let amount = unit_amount.checked_mul(units)
+            .ok_or_else(|| runtime_error(ApiErrorCode::ResourceLimit, "CU arithmetic overflow"))?;
+        self.charge_amount(&quote.operation, amount)
+    }
     fn charge_base(&mut self, kind: CostKind) -> Result<(), TacticalExecutionError> {
         let quote = self.module.costs.get(&kind).ok_or_else(|| runtime_error(ApiErrorCode::InvalidProgram, "bytecode lacks a logical cost operation"))?;
         self.charge_amount(&quote.operation, quote.amount.base)
@@ -553,6 +561,32 @@ fn compare_runtime(left: RuntimeValue, right: RuntimeValue, operator: senkei_mod
     };
     let pass = match operator { Op::Equal => order.is_eq(), Op::NotEqual => !order.is_eq(), Op::LessThan => order.is_lt(), Op::LessThanOrEqual => !order.is_gt(), Op::GreaterThan => order.is_gt(), Op::GreaterThanOrEqual => !order.is_lt() };
     Ok(if pass { Truth::True } else { Truth::False })
+}
+
+/// Charge for every element/field that a deep equality comparison can visit.
+/// Use the larger known operand so unequal shapes and early host-level
+/// inequality checks cannot make the logical work free. Unknown comparisons
+/// do not traverse either value and still pay for the comparison operation.
+fn comparison_units(left: &RuntimeValue, right: &RuntimeValue) -> u64 {
+    let contained_work = match (left, right) {
+        (RuntimeValue::Known(left), RuntimeValue::Known(right)) => {
+            container_work(left).max(container_work(right))
+        }
+        _ => 0,
+    };
+    1u64.saturating_add(contained_work)
+}
+
+fn container_work(value: &DomainValue) -> u64 {
+    match value {
+        DomainValue::List(values) => values.iter().fold(values.len() as u64, |work, value| {
+            work.saturating_add(container_work(value))
+        }),
+        DomainValue::Record(fields) => fields.values().fold(fields.len() as u64, |work, value| {
+            work.saturating_add(container_work(value))
+        }),
+        _ => 0,
+    }
 }
 
 fn numeric_coefficient(value: &DomainValue) -> Option<i128> { match value { DomainValue::Integer(v) => Some(*v as i128), DomainValue::Fixed { coefficient, .. } => Some(*coefficient as i128), _ => None } }

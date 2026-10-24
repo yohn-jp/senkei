@@ -457,6 +457,37 @@ fn compatible(expected: &DomainType, actual: &DomainType) -> bool {
 
 fn is_numeric(ty: &DomainType) -> bool { matches!(ty, DomainType::Integer { .. } | DomainType::Fixed { .. }) }
 fn is_orderable(ty: &DomainType) -> bool { is_numeric(ty) || matches!(ty, DomainType::String { .. }) }
+/// The logical comparison work bound represented by a schema. The top-level
+/// comparison itself is one unit; every contained list item/record field adds
+/// one more unit, recursively. Optional values use the maximum known-value
+/// shape because they may be null at runtime. Each unit is charged as a
+/// comparison operation, so a package with a base-only comparison tariff
+/// still accounts for deep values.
+pub(crate) fn comparison_units_bound(ty: &DomainType) -> u128 {
+    1u128.saturating_add(comparison_container_work_bound(ty))
+}
+
+fn comparison_container_work_bound(ty: &DomainType) -> u128 {
+    match ty {
+        DomainType::Optional(inner) => comparison_container_work_bound(inner),
+        DomainType::List { element, max_items } | DomainType::Vector { element, max_items } => {
+            let items = *max_items as u128;
+            items.saturating_add(items.saturating_mul(comparison_container_work_bound(element)))
+        }
+        DomainType::Matrix { element, max_rows, max_columns } => {
+            let rows = *max_rows as u128;
+            let cells = rows.saturating_mul(*max_columns as u128);
+            rows.saturating_add(cells).saturating_add(cells.saturating_mul(comparison_container_work_bound(element)))
+        }
+        DomainType::Record { fields } => {
+            fields.values().fold(fields.len() as u128, |work, field| {
+                work.saturating_add(comparison_container_work_bound(field))
+            })
+        }
+        _ => 0,
+    }
+}
+
 fn type_error(message: impl Into<String>) -> crate::CompileError {
     crate::CompileError::new(ApiErrorCode::ValidationFailed, message)
 }

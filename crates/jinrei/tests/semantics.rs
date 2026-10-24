@@ -6,6 +6,14 @@ fn version() -> Version { Version::new(1, 0, 0) }
 
 fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
     let int = DomainType::Integer { min: Some(0), max: Some(100) };
+    let integer_vector = DomainType::Vector { element: Box::new(int.clone()), max_items: 8 };
+    let integer_list = DomainType::List { element: Box::new(int.clone()), max_items: 8 };
+    let integer_matrix = DomainType::Matrix { element: Box::new(int.clone()), max_rows: 4, max_columns: 4 };
+    let nested_record = DomainType::Record { fields: [(FieldId::new("rank"), int.clone())].into_iter().collect() };
+    let deep_record = DomainType::Record { fields: [
+        (FieldId::new("samples"), integer_vector.clone()),
+        (FieldId::new("metadata"), nested_record),
+    ].into_iter().collect() };
     let unit_type = TypeId::new("unit");
     let mut observations = BTreeMap::new();
     observations.insert(ObservationPath::new("flag"), ObservationFieldSchema {
@@ -14,6 +22,16 @@ fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
     observations.insert(ObservationPath::new("score"), ObservationFieldSchema {
         value_type: int.clone(), visibility: Visibility::Public, source: ObservationSource::Tick,
     });
+    for (path, value_type) in [
+        ("vector_left", integer_vector.clone()), ("vector_right", integer_vector),
+        ("list_left", integer_list.clone()), ("list_right", integer_list),
+        ("matrix_left", integer_matrix.clone()), ("matrix_right", integer_matrix),
+        ("record_left", deep_record.clone()), ("record_right", deep_record),
+    ] {
+        observations.insert(ObservationPath::new(path), ObservationFieldSchema {
+            value_type, visibility: Visibility::Public, source: ObservationSource::Tick,
+        });
+    }
     let mut collections = BTreeMap::new();
     if with_units {
         for (name, owner) in [("allies.units", EntityOwnerSelector::OwnSide), ("enemies.units", EntityOwnerSelector::OtherSide)] {
@@ -120,14 +138,70 @@ fn observation(with_units: bool, with_score: bool) -> ObservationSnapshot {
     ObservationSnapshot { tick: 4, side: CombatantSide::Attacker, fields, collections }
 }
 
-fn execute(rules: &VerifiedRulePlan, program: &TacticalProgram, observation: &ObservationSnapshot, budget: u64, optimize: bool) -> TacticalExecutionOutput {
+fn rules_with_comparison_tariff(per_item: u64) -> VerifiedRulePlan {
+    with_comparison_tariff(rules(false, false), per_item)
+}
+
+fn with_comparison_tariff(base: VerifiedRulePlan, per_item: u64) -> VerifiedRulePlan {
+    let mut plan = base.plan().clone();
+    plan.cost_schedule.operations.get_mut(&CostOperationId::new(COST_COMPARISON)).unwrap().per_item = per_item;
+    VerifiedRulePlan::from_validation(base.ruleset().clone(), base.package_digest().clone(), plan)
+}
+
+fn execute_result(rules: &VerifiedRulePlan, program: &TacticalProgram, observation: &ObservationSnapshot, budget: u64, optimize: bool)
+    -> Result<TacticalExecutionOutput, TacticalExecutionError> {
     let allowed = [CapabilityId::new("act"), CapabilityId::new("inspect"), CapabilityId::new("attack")].into_iter().collect();
     let memory = TacticalMemory::new();
     let mut vm = Vm::with_options(rules, VmOptions { optimize });
     vm.execute(TacticalExecutionRequest { side: observation.side, tick: observation.tick,
         program, observation, memory: &memory, allowed_capabilities: &allowed,
         budget: ExecutionBudget { available_cu: LogicalCu(budget), max_intents: 32 },
-    }).expect("VM execution succeeds")
+    })
+}
+
+fn execute(rules: &VerifiedRulePlan, program: &TacticalProgram, observation: &ObservationSnapshot, budget: u64, optimize: bool) -> TacticalExecutionOutput {
+    execute_result(rules, program, observation, budget, optimize).expect("VM execution succeeds")
+}
+
+fn number_list(count: usize) -> DomainValue {
+    DomainValue::List((0..count).map(|value| DomainValue::Integer(value as i64)).collect())
+}
+
+fn number_matrix(rows: usize, columns: usize) -> DomainValue {
+    DomainValue::List((0..rows).map(|_| number_list(columns)).collect())
+}
+
+fn shaped_record(sample_count: usize) -> DomainValue {
+    DomainValue::Record([
+        (FieldId::new("samples"), number_list(sample_count)),
+        (FieldId::new("metadata"), DomainValue::Record([
+            (FieldId::new("rank"), DomainValue::Integer(7)),
+        ].into_iter().collect())),
+    ].into_iter().collect())
+}
+
+fn container_observation(vector_len: usize, matrix_rows: usize, matrix_columns: usize, list_len: usize, record_samples: usize) -> ObservationSnapshot {
+    let mut snapshot = observation(false, false);
+    for (path, value) in [
+        ("vector_left", number_list(vector_len)), ("vector_right", number_list(vector_len)),
+        ("matrix_left", number_matrix(matrix_rows, matrix_columns)), ("matrix_right", number_matrix(matrix_rows, matrix_columns)),
+        ("list_left", number_list(list_len)), ("list_right", number_list(list_len)),
+        ("record_left", shaped_record(record_samples)), ("record_right", shaped_record(record_samples)),
+    ] {
+        snapshot.fields.insert(ObservationPath::new(path), Observed::Known(value));
+    }
+    snapshot
+}
+
+fn charged_for(output: &TacticalExecutionOutput, operation: &str) -> u64 {
+    charged_amounts_for(output, operation).into_iter().sum()
+}
+
+fn charged_amounts_for(output: &TacticalExecutionOutput, operation: &str) -> Vec<u64> {
+    output.diagnostics.iter().filter_map(|event| match event {
+        TacticalDiagnostic::CostCharged { operation: id, amount } if id.as_str() == operation => Some(amount.0),
+        _ => None,
+    }).collect()
 }
 
 #[test]
@@ -188,6 +262,143 @@ fn state_knownness_is_distinct_from_unknown_comparison() {
     let TacticalDeclaration::Action { when: TacticalPredicate::Compare { left, .. }, .. } = &mut ast.declarations[0] else { panic!("expected comparison"); };
     *left = TacticalValue::Literal(DomainValue::Null);
     assert!(compile_ast(&ast, &rules).is_err());
+}
+
+#[test]
+fn deep_container_comparisons_are_tariffed_per_element() {
+    let rules = rules_with_comparison_tariff(0);
+    let source = r#"senkei containers {
+        action equal { when and {
+            vector_left == vector_right,
+            matrix_left == matrix_right,
+            list_left == list_right,
+            record_left == record_right,
+        }, do act(), },
+    }"#;
+    for comparison in [
+        "vector_left == vector_right",
+        "matrix_left == matrix_right",
+        "list_left == list_right",
+        "record_left == record_right",
+    ] {
+        let source = format!("senkei t {{ action a {{ when {comparison}, do act(), }}, }}");
+        assert!(compile(&source, &rules).is_ok(), "base-only comparison tariff must support {comparison}");
+    }
+    assert!(compile("senkei t { action scalar { when score == 7, do act(), }, }", &rules).is_ok());
+
+    let compiled = compile(source, &rules).unwrap();
+    let small = execute(&rules, &compiled.program, &container_observation(2, 1, 1, 2, 1), 100_000, false);
+    let large_observation = container_observation(5, 3, 2, 4, 4);
+    let large = execute(&rules, &compiled.program, &large_observation, 100_000, false);
+    let large_optimized = execute(&rules, &compiled.program, &large_observation, 100_000, true);
+
+    assert_eq!(small.intents.iter().map(|intent| intent.action_id.as_str()).collect::<Vec<_>>(), vec!["equal"]);
+    assert_eq!(large.intents, small.intents);
+    assert_eq!(large, large_optimized);
+    assert_eq!(charged_for(&small, COST_COMPARISON), 14);
+    assert_eq!(charged_for(&large, COST_COMPARISON), 29);
+    assert_eq!(large.required_cu.0 - small.required_cu.0, 15);
+    assert_eq!(large.required_cu, large.charged_cu);
+
+    let positive_tariff = rules_with_comparison_tariff(2);
+    let with_surcharge = compile(source, &positive_tariff).unwrap();
+    let positive_output = execute(&positive_tariff, &with_surcharge.program, &large_observation, 100_000, false);
+    assert_eq!(charged_for(&positive_output, COST_COMPARISON), 87);
+}
+
+#[test]
+fn empty_and_unknown_vector_values_remain_distinct() {
+    let rules = rules_with_comparison_tariff(2);
+    let compiled = compile(r#"senkei containers {
+        action equal { when vector_left == vector_right, do act(), },
+        action left_unknown { when vector_left is unknown, do act(), },
+    }"#, &rules).unwrap();
+
+    let mut empty = observation(false, false);
+    empty.fields.insert(ObservationPath::new("vector_left"), Observed::Known(DomainValue::List(Vec::new())));
+    empty.fields.insert(ObservationPath::new("vector_right"), Observed::Known(DomainValue::List(Vec::new())));
+    let empty_output = execute(&rules, &compiled.program, &empty, 100_000, false);
+    assert_eq!(empty_output.intents.iter().map(|intent| intent.action_id.as_str()).collect::<Vec<_>>(), vec!["equal"]);
+    assert_eq!(charged_amounts_for(&empty_output, COST_COMPARISON), vec![3, 3]);
+
+    let mut unknown = observation(false, false);
+    unknown.fields.insert(ObservationPath::new("vector_left"), Observed::Unknown);
+    unknown.fields.insert(ObservationPath::new("vector_right"), Observed::Known(DomainValue::List(Vec::new())));
+    let unknown_output = execute(&rules, &compiled.program, &unknown, 100_000, false);
+    assert_eq!(unknown_output.intents.iter().map(|intent| intent.action_id.as_str()).collect::<Vec<_>>(), vec!["left_unknown"]);
+    assert_eq!(charged_amounts_for(&unknown_output, COST_COMPARISON), vec![3, 3]);
+    assert!(unknown_output.diagnostics.iter().any(|event| matches!(event,
+        TacticalDiagnostic::RuntimeNotice { code, .. } if code.as_str() == "when_unknown")));
+}
+
+#[test]
+fn vector_matrix_and_record_observations_obey_schema_bounds() {
+    let rules = rules_with_comparison_tariff(1);
+    let compiled = compile("senkei t { action idle { when true, do act(), }, }", &rules).unwrap();
+    let invalid_values = [
+        ("vector_left", number_list(9)),
+        ("vector_left", DomainValue::List(vec![DomainValue::Integer(101)])),
+        ("matrix_left", number_matrix(5, 1)),
+        ("matrix_left", number_matrix(1, 5)),
+        ("matrix_left", DomainValue::List(vec![DomainValue::Integer(1)])),
+        ("matrix_left", DomainValue::List(vec![DomainValue::List(vec![DomainValue::Integer(101)])])),
+        ("record_left", DomainValue::Record([
+            (FieldId::new("samples"), number_list(1)),
+        ].into_iter().collect())),
+        ("record_right", DomainValue::Record([
+            (FieldId::new("samples"), number_list(1)),
+            (FieldId::new("metadata"), DomainValue::Record([
+                (FieldId::new("rank"), DomainValue::Integer(101)),
+            ].into_iter().collect())),
+        ].into_iter().collect())),
+    ];
+    for (path, value) in invalid_values {
+        let mut snapshot = observation(false, false);
+        snapshot.fields.insert(ObservationPath::new(path), Observed::Known(value));
+        let error = execute_result(&rules, &compiled.program, &snapshot, 100_000, false).unwrap_err();
+        assert_eq!(error.code, ApiErrorCode::InvalidSnapshot, "invalid value for {path}");
+    }
+}
+
+#[test]
+fn finite_collection_results_and_cu_ignore_input_item_order() {
+    let rules = with_comparison_tariff(rules(true, false), 0);
+    let compiled = compile(r#"senkei collections {
+        action some_positive { when any unit in allies.units { unit.health > 0, }, do act(), },
+        action all_positive { when all unit in allies.units { unit.health > 0, }, do act(), },
+        action same_positive_set { when filter left in allies.units { left.health > 0, }
+            == filter right in allies.units { right.health > 0, }, do act(), },
+    }"#, &rules).unwrap();
+    let make_unit = |id: &str, health: i64| EntityObservation {
+        id: EntityId::new(id), entity_type: TypeId::new("unit"),
+        fields: [(FieldId::new("health"), Observed::Known(DomainValue::Integer(health)))].into_iter().collect(),
+    };
+    let mut forward = observation(false, false);
+    forward.collections.insert(CollectionId::new("allies.units"), Observed::Known(vec![make_unit("a", 2), make_unit("b", 4)]));
+    let mut reverse = observation(false, false);
+    reverse.collections.insert(CollectionId::new("allies.units"), Observed::Known(vec![make_unit("b", 4), make_unit("a", 2)]));
+    let first = execute(&rules, &compiled.program, &forward, 100_000, false);
+    let second = execute(&rules, &compiled.program, &reverse, 100_000, true);
+    assert_eq!(first, second);
+    assert_eq!(first.intents.iter().map(|intent| intent.action_id.as_str()).collect::<Vec<_>>(),
+        vec!["all_positive", "same_positive_set", "some_positive"]);
+    let comparison_amounts = charged_amounts_for(&first, COST_COMPARISON);
+    assert_eq!(comparison_amounts.len(), 9);
+    assert_eq!(comparison_amounts.iter().filter(|&&amount| amount == 3).count(), 1);
+    assert_eq!(comparison_amounts.into_iter().sum::<u64>(), 11);
+
+    let mut empty = observation(false, false);
+    empty.collections.insert(CollectionId::new("allies.units"), Observed::Known(Vec::new()));
+    let empty_output = execute(&rules, &compiled.program, &empty, 100_000, false);
+    assert_eq!(empty_output.intents.iter().map(|intent| intent.action_id.as_str()).collect::<Vec<_>>(),
+        vec!["all_positive", "same_positive_set"]);
+
+    let mut unknown = observation(false, false);
+    unknown.collections.insert(CollectionId::new("allies.units"), Observed::Unknown);
+    let unknown_output = execute(&rules, &compiled.program, &unknown, 100_000, false);
+    assert!(unknown_output.intents.is_empty());
+    assert_eq!(unknown_output.diagnostics.iter().filter(|event| matches!(event,
+        TacticalDiagnostic::RuntimeNotice { code, .. } if code.as_str() == "when_unknown")).count(), 3);
 }
 
 #[test]

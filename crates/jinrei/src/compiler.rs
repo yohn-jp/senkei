@@ -3,7 +3,7 @@ use crate::{
     error::CompileError,
     parser,
     types::{
-        value_type, Collection, Predicate, TypeChecker, TypedAction, TypedProgram,
+        comparison_units_bound, value_type, Collection, Predicate, TypeChecker, TypedAction, TypedProgram,
         TypedState, Value,
     },
     AST_SCHEMA_VERSION, BYTECODE_VERSION, LANGUAGE_VERSION, MAX_AST_DEPTH, MAX_BYTECODE_BYTES, MAX_STATE_REF_DEPTH, MAX_TOKENS, TYPED_IR_VERSION,
@@ -486,7 +486,14 @@ pub(crate) fn estimate(program: &TypedProgram, costs: &BTreeMap<CostKind, byteco
     }
     impl Estimate<'_> {
         fn charge(&self, kind: CostKind, items: u64) -> u128 {
-            self.costs.get(&kind).map(|q| q.amount.base as u128 + q.amount.per_item as u128 * items as u128).unwrap_or(0)
+            self.costs.get(&kind).map(|q| {
+                (q.amount.base as u128 + q.amount.per_item as u128 * items as u128).min(u64::MAX as u128)
+            }).unwrap_or(0)
+        }
+        fn charge_repeated(&self, kind: CostKind, units: u64) -> u128 {
+            self.costs.get(&kind).map(|q| {
+                ((q.amount.base as u128 + q.amount.per_item as u128) * units as u128).min(u64::MAX as u128)
+            }).unwrap_or(0)
         }
         fn predicate(&mut self, predicate: &Predicate) -> u128 {
             match predicate {
@@ -499,7 +506,12 @@ pub(crate) fn estimate(program: &TypedProgram, costs: &BTreeMap<CostKind, byteco
                     }
                     total
                 }
-                Predicate::Compare { left, right, .. } => self.charge(CostKind::Compare, 1) + self.value(left) + self.value(right),
+                Predicate::Compare { left, right, .. } => {
+                    let units = comparison_units_bound(value_type(left))
+                        .max(comparison_units_bound(value_type(right)))
+                        .min(u64::MAX as u128) as u64;
+                    self.charge_repeated(CostKind::Compare, units) + self.value(left) + self.value(right)
+                }
                 Predicate::Knownness { value, .. } => self.charge(CostKind::Knownness, 1) + self.value(value),
                 Predicate::And(children) | Predicate::Or(children) | Predicate::OrderedAnd(children) | Predicate::OrderedOr(children) => {
                     self.charge(CostKind::Logic, children.len() as u64) + children.iter().map(|p| self.predicate(p)).sum::<u128>()
