@@ -1,7 +1,9 @@
 //! Deterministic graph navigation for the finite `senkei.next` world.
 
-use crate::next_support::{alive, int, param, place, set_int, set_string, string};
-use senkei_model::{BattleMap, CombatantSide, EntityState, MapEdge, NextRules, WorldState};
+use crate::next_support::{alive, int, param, set_int, set_string, string};
+use senkei_model::{
+    BattleMap, CombatantSide, EntityId, EntityState, MapEdge, NextRules, WorldState,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 const RATE_SCALE: i128 = 1_000;
@@ -9,13 +11,20 @@ const RATE_SCALE: i128 = 1_000;
 // minion vision, squad size, haste, and slow.
 const CAPACITY_SCALE: i128 = RATE_SCALE * RATE_SCALE * RATE_SCALE * RATE_SCALE;
 
+struct MovementIntent {
+    goal: String,
+    budget: i128,
+}
+
 /// Advance every living mobile entity with a valid node goal by one tick.
 ///
 /// Movement factors are sampled from the same start-of-movement world for all
-/// entities. Hero speed combines the configured terrain, friendly minion
-/// vision, squad-size, and active haste/slow factors. The world-unit result
-/// floors fractional progress; movement through multiple edges keeps the
-/// unused fixed-point budget for the next edge in that tick.
+/// entities. A Hero squad uses its lowest living member's effective base
+/// speed, the lowest-ID living member's movement goal, and that member's
+/// minion-vision sample. All members keep their own graph position and edge
+/// progress; the shared movement intent never snaps their coordinates. The
+/// world-unit result floors fractional progress, carrying unused fixed-point
+/// budget over multiple edges in the same tick.
 pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
     // Vision and squad membership are both sampled before any entity moves.
     let start_world = world.clone();
@@ -34,7 +43,8 @@ pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
             continue;
         };
         let mut next = start.clone();
-        advance_entity(&mut next, &start_world, rules, tick);
+        let movement = movement_intent(&id, start, &start_world, rules, tick);
+        advance_entity(&mut next, rules, &movement);
         *entity = next;
     }
 }
@@ -89,17 +99,17 @@ fn is_mobile(entity_type: &str) -> bool {
     matches!(entity_type, "hero" | "minion" | "monster")
 }
 
-fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRules, tick: u32) {
-    let goal = string(entity, "goal");
+fn advance_entity(entity: &mut EntityState, rules: &NextRules, movement: &MovementIntent) {
+    let goal = &movement.goal;
     let mut node = string(entity, "node");
     if node.is_empty() || !rules.map.nodes.contains_key(&node) {
         return;
     }
 
-    let mut remaining = if goal.is_empty() || !rules.map.nodes.contains_key(&goal) {
+    let mut remaining = if goal.is_empty() || !rules.map.nodes.contains_key(goal) {
         0
     } else {
-        movement_budget(entity, world, rules, tick)
+        movement.budget
     };
 
     // Normalize a pre-existing edge state, or leave it untouched if it names
@@ -111,19 +121,26 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
             return;
         };
         let progress = int(entity, "edge_progress").clamp(0, edge.length);
+        let offset = edge_offset(entity, &node, &edge_to, progress, edge, &rules.map);
         if progress == edge.length {
+            set_edge_position(entity, &node, &edge_to, progress, edge, &rules.map, offset);
             node = edge_to.clone();
             edge_to.clear();
-            place(entity, &node, rules);
+            set_string(entity, "node", &node);
+            set_string(entity, "edge_to", "");
+            set_int(entity, "edge_progress", 0);
         } else {
             set_int(entity, "edge_progress", progress);
-            set_edge_position(entity, &node, &edge_to, progress, edge, &rules.map);
+            set_edge_position(entity, &node, &edge_to, progress, edge, &rules.map, offset);
         }
     } else {
-        place(entity, &node, rules);
+        set_string(entity, "node", &node);
+        set_string(entity, "edge_to", "");
+        set_int(entity, "edge_progress", 0);
+        ensure_node_position(entity, &node, &rules.map);
     }
 
-    if goal.is_empty() || !rules.map.nodes.contains_key(&goal) || remaining <= 0 {
+    if goal.is_empty() || !rules.map.nodes.contains_key(goal) || remaining <= 0 {
         return;
     }
 
@@ -137,10 +154,10 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
         }
 
         if edge_to.is_empty() {
-            if node == goal {
+            if node == goal.as_str() {
                 break;
             }
-            let Some(route) = route_for_entity(entity, &rules.map, &node, &goal) else {
+            let Some(route) = route_for_entity(entity, &rules.map, &node, goal) else {
                 break;
             };
             let Some(next_node) = route.get(1) else {
@@ -150,8 +167,14 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
                 break;
             }
             edge_to = next_node.clone();
-            place(entity, &node, rules);
+            let Some(edge) = edge_for_nodes(&rules.map, &node, &edge_to) else {
+                break;
+            };
+            let offset = node_offset(entity, &node, &rules.map);
+            set_string(entity, "node", &node);
             set_string(entity, "edge_to", &edge_to);
+            set_int(entity, "edge_progress", 0);
+            set_edge_position(entity, &node, &edge_to, 0, edge, &rules.map, offset);
         }
 
         let Some(edge) = edge_for_nodes(&rules.map, &node, &edge_to) else {
@@ -161,6 +184,7 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
         };
         let progress = int(entity, "edge_progress").clamp(0, edge.length);
         let left_on_edge = edge.length - progress;
+        let offset = edge_offset(entity, &node, &edge_to, progress, edge, &rules.map);
         let terrain_milli = terrain_speed_milli(rules, edge);
         if left_on_edge <= 0 || terrain_milli <= 0 {
             break;
@@ -169,11 +193,22 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
         let edge_cost = units_to_base_budget(left_on_edge, terrain_milli);
         if remaining >= edge_cost {
             remaining -= edge_cost;
+            set_edge_position(
+                entity,
+                &node,
+                &edge_to,
+                edge.length,
+                edge,
+                &rules.map,
+                offset,
+            );
             node = edge_to.clone();
             edge_to.clear();
-            place(entity, &node, rules);
+            set_string(entity, "node", &node);
+            set_string(entity, "edge_to", "");
+            set_int(entity, "edge_progress", 0);
             traversed_edges += 1;
-            if remaining == 0 || node == goal {
+            if remaining == 0 || node == goal.as_str() {
                 break;
             }
             continue;
@@ -183,7 +218,15 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
         if step > 0 {
             let next_progress = progress.saturating_add(step).min(edge.length);
             set_int(entity, "edge_progress", next_progress);
-            set_edge_position(entity, &node, &edge_to, next_progress, edge, &rules.map);
+            set_edge_position(
+                entity,
+                &node,
+                &edge_to,
+                next_progress,
+                edge,
+                &rules.map,
+                offset,
+            );
         }
         break;
     }
@@ -192,23 +235,88 @@ fn advance_entity(entity: &mut EntityState, world: &WorldState, rules: &NextRule
 /// Movement budget uses one-trillionth world-unit precision for the product
 /// of per-mille vision, squad, haste, and slow multipliers. Terrain is applied
 /// per edge below. Integer edge progress floors fractional world units.
-fn movement_budget(entity: &EntityState, world: &WorldState, rules: &NextRules, tick: u32) -> i128 {
-    let base_speed = int(entity, "speed").max(0);
-    if base_speed == 0 {
-        return 0;
+fn movement_intent(
+    entity_id: &EntityId,
+    entity: &EntityState,
+    world: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+) -> MovementIntent {
+    if entity.entity_type.as_str() != "hero" {
+        let speed = i128::from(int(entity, "speed").max(0));
+        return MovementIntent {
+            goal: string(entity, "goal"),
+            budget: speed.checked_mul(CAPACITY_SCALE).unwrap_or(0),
+        };
     }
 
-    let (vision_milli, squad_milli) = if entity.entity_type.as_str() == "hero" {
-        let vision = entity
-            .owner
-            .filter(|side| crate::next_vision::minion_vision(world, *side, entity))
-            .map(|_| param(rules, "minion_vision_speed_milli", 1_200))
-            .unwrap_or(1_000);
-        (vision, hero_squad_speed_milli(entity, world, rules))
+    let members = hero_cohort(entity_id, entity, world);
+    let Some((_, leader)) = members.first() else {
+        return MovementIntent {
+            goal: string(entity, "goal"),
+            budget: 0,
+        };
+    };
+    let goal = string(leader, "goal");
+    let size = members.len().clamp(1, 5);
+    let base_budget = members
+        .iter()
+        .map(|(_, member)| hero_base_speed_budget(member, tick))
+        .min()
+        .unwrap_or(0);
+    let vision_milli = leader
+        .owner
+        .filter(|side| crate::next_vision::minion_vision(world, *side, leader))
+        .map(|_| param(rules, "minion_vision_speed_milli", 1_200))
+        .unwrap_or(1_000);
+    let squad_milli = squad_speed_milli(size, rules);
+    let budget = if vision_milli <= 0 || squad_milli <= 0 {
+        0
     } else {
-        (1_000, 1_000)
+        base_budget
+            .checked_mul(i128::from(vision_milli))
+            .and_then(|value| value.checked_mul(i128::from(squad_milli)))
+            .unwrap_or(0)
     };
 
+    MovementIntent { goal, budget }
+}
+
+fn hero_cohort(
+    actor_id: &EntityId,
+    actor: &EntityState,
+    world: &WorldState,
+) -> Vec<(EntityId, EntityState)> {
+    // WorldState's BTreeMap order makes the first living member the stable
+    // cohort leader for goal and vision sampling.
+    let squad = string(actor, "squad");
+    let Some(side) = actor.owner.filter(|_| !squad.is_empty()) else {
+        return vec![(actor_id.clone(), actor.clone())];
+    };
+
+    let members = world
+        .entities
+        .iter()
+        .filter(|(_, candidate)| {
+            candidate.entity_type.as_str() == "hero"
+                && candidate.owner == Some(side)
+                && alive(candidate)
+                && string(candidate, "squad") == squad
+        })
+        .map(|(id, candidate)| (id.clone(), candidate.clone()))
+        .collect::<Vec<_>>();
+    if members.is_empty() {
+        vec![(actor_id.clone(), actor.clone())]
+    } else {
+        members
+    }
+}
+
+fn hero_base_speed_budget(entity: &EntityState, tick: u32) -> i128 {
+    let speed = i128::from(int(entity, "speed").max(0));
+    if speed == 0 {
+        return 0;
+    }
     let haste_milli = if int(entity, "haste_until") > i64::from(tick) {
         1_000_i128 + i128::from(int(entity, "haste").max(0))
     } else {
@@ -219,44 +327,13 @@ fn movement_budget(entity: &EntityState, world: &WorldState, rules: &NextRules, 
     } else {
         1_000
     };
-
-    let rates = [vision_milli, squad_milli];
-    if rates.iter().any(|rate| *rate <= 0) || haste_milli <= 0 || slow_milli <= 0 {
-        return 0;
-    }
-
-    let mut budget = i128::from(base_speed);
-    for factor in [
-        i128::from(vision_milli),
-        i128::from(squad_milli),
-        haste_milli,
-        slow_milli,
-    ] {
-        let Some(next) = budget.checked_mul(factor) else {
-            return 0;
-        };
-        budget = next;
-    }
-    budget
+    speed
+        .checked_mul(haste_milli)
+        .and_then(|value| value.checked_mul(slow_milli))
+        .unwrap_or(0)
 }
 
-fn hero_squad_speed_milli(entity: &EntityState, world: &WorldState, rules: &NextRules) -> i64 {
-    let squad = string(entity, "squad");
-    let size = if squad.is_empty() {
-        1
-    } else {
-        world
-            .entities
-            .values()
-            .filter(|other| {
-                other.entity_type.as_str() == "hero"
-                    && other.owner == entity.owner
-                    && alive(other)
-                    && string(other, "squad") == squad
-            })
-            .count()
-            .clamp(1, 5) as usize
-    };
+fn squad_speed_milli(size: usize, rules: &NextRules) -> i64 {
     let (parameter, fallback) = match size {
         1 => ("squad_1_speed_milli", 1_000),
         2 => ("squad_2_speed_milli", 950),
@@ -396,29 +473,88 @@ fn set_edge_position(
     progress: i64,
     edge: &MapEdge,
     map: &BattleMap,
+    offset: (i128, i128),
 ) {
-    let (Some(start), Some(end)) = (map.nodes.get(from), map.nodes.get(to)) else {
+    let Some((x, y)) = interpolated_position(from, to, progress, edge, map) else {
         return;
     };
+    set_int(entity, "x", world_coordinate(x + offset.0));
+    set_int(entity, "y", world_coordinate(y + offset.1));
+}
+
+fn edge_offset(
+    entity: &EntityState,
+    from: &str,
+    to: &str,
+    progress: i64,
+    edge: &MapEdge,
+    map: &BattleMap,
+) -> (i128, i128) {
+    let Some((expected_x, expected_y)) = interpolated_position(from, to, progress, edge, map)
+    else {
+        return (0, 0);
+    };
+    let offset_x = has_integer_field(entity, "x")
+        .then(|| i128::from(int(entity, "x")) - expected_x)
+        .unwrap_or(0);
+    let offset_y = has_integer_field(entity, "y")
+        .then(|| i128::from(int(entity, "y")) - expected_y)
+        .unwrap_or(0);
+    (offset_x, offset_y)
+}
+
+fn node_offset(entity: &EntityState, node: &str, map: &BattleMap) -> (i128, i128) {
+    let Some(position) = map.nodes.get(node) else {
+        return (0, 0);
+    };
+    let offset_x = has_integer_field(entity, "x")
+        .then(|| i128::from(int(entity, "x")) - i128::from(position.x))
+        .unwrap_or(0);
+    let offset_y = has_integer_field(entity, "y")
+        .then(|| i128::from(int(entity, "y")) - i128::from(position.y))
+        .unwrap_or(0);
+    (offset_x, offset_y)
+}
+
+fn interpolated_position(
+    from: &str,
+    to: &str,
+    progress: i64,
+    edge: &MapEdge,
+    map: &BattleMap,
+) -> Option<(i128, i128)> {
+    let (start, end) = (map.nodes.get(from)?, map.nodes.get(to)?);
     if edge.length <= 0 {
-        return;
+        return None;
     }
     let progress = i128::from(progress.clamp(0, edge.length));
     let length = i128::from(edge.length);
     let x = i128::from(start.x) + (i128::from(end.x) - i128::from(start.x)) * progress / length;
     let y = i128::from(start.y) + (i128::from(end.y) - i128::from(start.y)) * progress / length;
-    set_int(
-        entity,
-        "x",
-        i64::try_from(x)
-            .unwrap_or_else(|_| x.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64),
-    );
-    set_int(
-        entity,
-        "y",
-        i64::try_from(y)
-            .unwrap_or_else(|_| y.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64),
-    );
+    Some((x, y))
+}
+
+fn ensure_node_position(entity: &mut EntityState, node: &str, map: &BattleMap) {
+    let Some(position) = map.nodes.get(node) else {
+        return;
+    };
+    if !has_integer_field(entity, "x") {
+        set_int(entity, "x", position.x);
+    }
+    if !has_integer_field(entity, "y") {
+        set_int(entity, "y", position.y);
+    }
+}
+
+fn has_integer_field(entity: &EntityState, key: &str) -> bool {
+    matches!(
+        entity.fields.get(&key.into()),
+        Some(senkei_model::DomainValue::Integer(_))
+    )
+}
+
+fn world_coordinate(value: i128) -> i64 {
+    value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
 }
 
 #[cfg(test)]
@@ -645,6 +781,87 @@ mod tests {
         advance(&mut duo, &config, 1);
         assert_eq!(int(&duo.entities[&id("h1")], "edge_progress"), 95);
         assert_eq!(int(&duo.entities[&id("h2")], "edge_progress"), 95);
+    }
+
+    #[test]
+    fn mixed_speed_squad_uses_slowest_living_speed_and_stays_coherent() {
+        let map = test_map(vec![
+            edge("a", "b", 1_000, "lane", false),
+            edge("d", "b", 1_000, "lane", false),
+            edge("b", "c", 1_000, "lane", false),
+        ]);
+        let rules = rules(map);
+        let mut world = WorldState::default();
+        world.entities.insert(
+            id("a_slow"),
+            entity("hero", Some(CombatantSide::Attacker), 48, "a", "c"),
+        );
+        let mut fast = entity("hero", Some(CombatantSide::Attacker), 65, "d", "c");
+        set_int(&mut fast, "x", 10);
+        world.entities.insert(id("b_fast"), fast);
+        let mut dead = entity("hero", Some(CombatantSide::Attacker), 1, "a", "b");
+        set_int(&mut dead, "hp", 0);
+        world.entities.insert(id("z_dead"), dead);
+        let mut vision_source = entity("minion", Some(CombatantSide::Attacker), 0, "a", "");
+        set_int(&mut vision_source, "vision", 5);
+        world.entities.insert(id("m_vision"), vision_source);
+
+        advance(&mut world, &rules, 1);
+
+        let slow = &world.entities[&id("a_slow")];
+        let fast = &world.entities[&id("b_fast")];
+        assert_eq!(int(slow, "edge_progress"), 54);
+        assert_eq!(int(fast, "edge_progress"), 54);
+        assert_eq!(string(slow, "node"), "a");
+        assert_eq!(string(fast, "node"), "d");
+        assert_eq!(string(slow, "edge_to"), string(fast, "edge_to"));
+        assert_eq!(string(slow, "edge_to"), "b");
+        assert_eq!((int(slow, "x"), int(slow, "y")), (0, 0));
+        assert_eq!((int(fast, "x"), int(fast, "y")), (10, 0));
+    }
+
+    #[test]
+    fn cohort_uses_one_stable_movement_goal() {
+        let map = test_map(vec![
+            edge("a", "b", 1_000, "lane", false),
+            edge("b", "c", 1_000, "lane", false),
+        ]);
+        let rules = rules(map);
+        let mut world = WorldState::default();
+        world.entities.insert(
+            id("a_leader"),
+            entity("hero", Some(CombatantSide::Attacker), 50, "a", "b"),
+        );
+        world.entities.insert(
+            id("z_member"),
+            entity("hero", Some(CombatantSide::Attacker), 50, "a", "c"),
+        );
+
+        advance(&mut world, &rules, 1);
+
+        for hero_id in [id("a_leader"), id("z_member")] {
+            let hero = &world.entities[&hero_id];
+            assert_eq!(string(hero, "node"), "a");
+            assert_eq!(string(hero, "edge_to"), "b");
+            assert_eq!(int(hero, "edge_progress"), 47);
+        }
+    }
+
+    #[test]
+    fn movement_preserves_formation_offsets_through_node_arrival() {
+        let map = test_map(vec![edge("a", "b", 100, "lane", false)]);
+        let rules = rules(map);
+        let mut world = WorldState::default();
+        let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_int(&mut hero, "x", 3);
+        set_int(&mut hero, "y", 4);
+        world.entities.insert(id("h"), hero);
+
+        advance(&mut world, &rules, 1);
+
+        let hero = &world.entities[&id("h")];
+        assert_eq!(string(hero, "node"), "b");
+        assert_eq!((int(hero, "x"), int(hero, "y")), (13, 4));
     }
 
     #[test]
