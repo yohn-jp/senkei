@@ -1,0 +1,87 @@
+{
+  "matrix_version": 1,
+  "source_contracts": [
+    "docs/implementation/CORE-API.md",
+    "docs/implementation/WEB-API.md",
+    "docs/DELIVERY.md",
+    "docs/SIMULATION.md",
+    "docs/SENRITSU.md",
+    "docs/JINREI-GRAMMAR.md",
+    "docs/COMPONENTS.md",
+    "docs/ONLINE.md"
+  ],
+  "cases": [
+    {
+      "id": "core.determinism.repeated-input",
+      "property": "same validated input produces identical result, replay, logical CU and ordered diagnostics",
+      "status": "pending-core-implementation",
+      "required_oracle": ["native-enbu"]
+    },
+    {
+      "id": "core.parity.native-wasm-goldens",
+      "property": "same snapshots compare equal through native and real compiled WASM adapters",
+      "status": "pending-wasm-adapter",
+      "required_oracle": ["native-enbu", "compiled-wasm-adapter"]
+    },
+    {
+      "id": "jinrei.equivalence.text-and-ast",
+      "property": "equivalent text and structured AST compile and execute with equal intents and CU",
+      "status": "pending-jinrei-implementation",
+      "required_oracle": ["jinrei-compiler", "native-enbu"]
+    },
+    {
+      "id": "enbu.symmetry.no-implicit-first-mover",
+      "property": "swapping sides in a symmetric case introduces no undeclared first-mover effect",
+      "status": "pending-enbu-implementation",
+      "required_oracle": ["native-enbu"]
+    },
+    {
+      "id": "rules.arbitration.stable-contested-actions",
+      "property": "contested actions and target ties follow explicit stable ordering",
+      "status": "pending-senritsu-and-enbu",
+      "required_oracle": ["senritsu-validator", "native-enbu"]
+    },
+    {
+      "id": "runtime.boundaries-and-exhaustion",
+      "property": "tick, intent, numeric and CU boundaries terminate according to declared rules",
+      "status": "pending-core-implementation",
+      "required_oracle": ["native-enbu"]
+    },
+    {
+      "id": "validation.reject-invalid-inputs",
+      "property": "malformed tactics, versions, digest, limits and incompatible snapshots reject before simulation",
+      "status": "pending-core-implementation",
+      "required_oracle": ["senritsu-validator", "jinrei-compiler", "native-enbu"]
+    },
+    {
+      "id": "validation.reject-unknown-capabilities-and-primitives",
+      "property": "unknown capabilities, illegal arguments, unsupported primitives and incomplete ordering reject",
+      "status": "pending-core-implementation",
+      "required_oracle": ["senritsu-validator", "jinrei-compiler"]
+    },
+    {
+      "id": "observation.unknown-null-and-visibility",
+      "property": "unknown differs from known null and observations exclude hidden values",
+      "status": "pending-core-implementation",
+      "required_oracle": ["senritsu-validator", "native-enbu"]
+    },
+    {
+      "id": "output.public-replay-no-private-data",
+      "property": "public result and replay exclude restricted diagnostics and reproduction inputs",
+      "status": "pending-enbu-implementation",
+      "required_oracle": ["native-enbu", "wasm-adapter"]
+    },
+    {
+      "id": "rules.data-extension-vs-new-primitive",
+      "property": "supported data-only ruleset edits validate while unimplemented primitives reject",
+      "status": "pending-senritsu-and-enbu",
+      "required_oracle": ["senritsu-validator"]
+    },
+    {
+      "id": "browser.local-loop-offline-real-wasm",
+      "property": "preset through compile, NPC battle, analysis, save, reload, rematch works in browser without network after install",
+      "status": "pending-web-features",
+      "required_oracle": ["playwright-browser", "real-web-worker", "compiled-wasm-adapter", "indexeddb"]
+    }
+  ]
+}
