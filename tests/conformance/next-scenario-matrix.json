@@ -108,7 +108,7 @@
     {
       "id": "deterministic-native-and-wasm-parity",
       "kind": "adapter-parity",
-      "assertions": ["distinct scenarios are run once per adapter", "repeated native result and replay are byte-equivalent", "native and real WASM public envelopes are structurally equivalent"]
+      "assertions": ["distinct deterministic and negative scenarios are compared", "identical native repeats have structurally equal public responses", "native and real WASM public and rejection envelopes are structurally equivalent"]
     },
     {
       "id": "orientation-and-simultaneous-resolution",

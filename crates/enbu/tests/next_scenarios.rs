@@ -269,6 +269,11 @@ fn run_movement_case(
         None,
     );
     attacker.program = compiled.program;
+    // Keep base speed constant so this factorial isolates squad, terrain, and
+    // vision modifiers rather than the catalog's per-Hero speed differences.
+    for slot in 0..5 {
+        set_catalog(&mut attacker, slot, "F01", rules);
+    }
     for index in 0..friendly_minions {
         context.initial_world.entities.insert(
             EntityId::new(format!("w9-friendly-minion-{match_id}-{index}")),
@@ -306,19 +311,6 @@ fn accepted_actors(artifact: &SimulationArtifact, side: CombatantSide, capabilit
     actors
 }
 
-fn owner_entity_at<'a>(artifact: &'a SimulationArtifact, tick: u32, id: &EntityId) -> &'a EntityStateView {
-    artifact
-        .owner_replay
-        .as_ref()
-        .expect("Next match has local owner replay")
-        .frames
-        .iter()
-        .find(|frame| frame.tick == tick)
-        .and_then(|frame| frame.visible_state.as_ref())
-        .and_then(|view| view.entities.get(id))
-        .unwrap_or_else(|| panic!("owner replay includes {id} at tick {tick}"))
-}
-
 fn entity_integer(entity: &EntityStateView, field: &str) -> i64 {
     match entity.fields.get(&FieldId::new(field)) {
         Some(DomainValue::Integer(value)) => *value,
@@ -346,8 +338,27 @@ fn owner_hero_by_slot<'a>(state: &'a WorldStateView, slot: &str) -> &'a EntitySt
         .unwrap_or_else(|| panic!("owner replay includes attacker Hero {slot}"))
 }
 
+fn owner_hero_at<'a>(artifact: &'a SimulationArtifact, tick: u32, slot: &str) -> &'a EntityStateView {
+    owner_hero_by_slot(owner_state_at(artifact, tick), slot)
+}
+
+fn owner_monster_at<'a>(artifact: &'a SimulationArtifact, tick: u32, camp: &str) -> &'a EntityStateView {
+    owner_state_at(artifact, tick).entities.values().find(|entity| {
+        entity.entity_type.as_str() == "monster"
+            && entity.fields.get(&FieldId::new("camp")) == Some(&DomainValue::String(camp.to_owned()))
+    }).unwrap_or_else(|| panic!("owner replay observes monster at camp {camp} at tick {tick}"))
+}
+
 fn squad_reform_case(rules: &VerifiedRulePlan) -> serde_json::Value {
     let next = rules.plan().next.as_ref().unwrap();
+    let (prepared_attacker, prepared_defender, prepared_context) =
+        build_match(rules, &[5], "prepared-quintet-maturation", 45, None, None);
+    let mut prepared_vm = Vm::new(rules);
+    let prepared = simulate(&prepared_attacker, &prepared_defender, rules, &prepared_context, &mut prepared_vm)
+        .unwrap_or_else(|error| panic!("prepared Quintet maturation scenario executes: {error:?}"));
+    let prepared_at_start = entity_integer(owner_hero_at(&prepared, 0, "slot-1"), "maturity");
+    let prepared_at_tick_40 = entity_integer(owner_hero_at(&prepared, 40, "slot-1"), "maturity");
+
     let compiled = compile(&squad_reform_tactics(), rules)
         .unwrap_or_else(|error| panic!("squad reformation tactics compile: {error:?}"));
     let (mut attacker, defender, context) =
@@ -366,6 +377,8 @@ fn squad_reform_case(rules: &VerifiedRulePlan) -> serde_json::Value {
     let fresh_regroup_maturity = entity_integer(owner_hero_by_slot(owner_state_at(&artifact, 3), "slot-1"), "maturity");
     let matured_again = entity_integer(owner_hero_by_slot(owner_state_at(&artifact, 45), "slot-1"), "maturity");
 
+    assert_eq!(prepared_at_start, 0, "an initially assembled Quintet starts without earned maturity");
+    assert_eq!(prepared_at_tick_40, cap, "an initially assembled Quintet matures with elapsed ticks");
     assert_eq!(initial_sizes, vec![3, 2]);
     assert_eq!(merged_sizes, vec![5], "accepted merge joins both initial squads");
     assert_eq!(split_sizes, vec![4, 1], "accepted split creates one Solo and leaves four members");
@@ -376,6 +389,8 @@ fn squad_reform_case(rules: &VerifiedRulePlan) -> serde_json::Value {
 
     serde_json::json!({
         "case_id": "squad-merge-split-regroup-maturation",
+        "prepared_quintet_maturity_at_start": prepared_at_start,
+        "prepared_quintet_maturity_at_tick_40": prepared_at_tick_40,
         "partition_by_tick": { "0": initial_sizes, "1": merged_sizes, "2": split_sizes, "3": regrouped_sizes },
         "maturity_cap": cap,
         "fresh_merge_maturity": fresh_merge_maturity,
@@ -408,7 +423,8 @@ fn xp_share_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             .unwrap_or_else(|error| panic!("XP share case with {eligible_count} eligible Hero executes: {error:?}"));
         let before = owner_state_at(&artifact, 0);
         let after = owner_state_at(&artifact, 1);
-        let expected_share = i128::from(monster.xp) * 60 / eligible_count as i128;
+        let xp_scale = next.parameters["xp_scale"];
+        let expected_share = i128::from(monster.xp) * i128::from(xp_scale) / eligible_count as i128;
         let mut shares = Vec::new();
         for slot in 1..=5 {
             let hero = format!("slot-{slot}");
@@ -421,7 +437,7 @@ fn xp_share_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             }
             shares.push(delta);
         }
-        assert_eq!(entity_integer(owner_entity_at(&artifact, 1, &monster_id), "hp"), 0,
+        assert_eq!(entity_integer(owner_monster_at(&artifact, 1, &camp.id), "hp"), 0,
             "the controlled low-HP camp monster is killed in the combat phase");
         cases.push(serde_json::json!({
             "case_id": format!("xp-equal-share-{eligible_count}"),
@@ -429,7 +445,8 @@ fn xp_share_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             "monster_catalog_id": monster.id,
             "reward_xp": monster.xp,
             "eligible_heroes": eligible_count,
-            "hero_xp_delta_scaled_by_60": shares,
+            "xp_scale": xp_scale,
+            "hero_xp_delta_scaled": shares,
             "termination_tick": artifact.result.final_tick
         }));
     }
@@ -464,9 +481,9 @@ fn jungle_respawn_case(rules: &VerifiedRulePlan) -> serde_json::Value {
     let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
         .unwrap_or_else(|error| panic!("jungle objective lifecycle executes: {error:?}"));
 
-    let dead_hp = entity_integer(owner_entity_at(&artifact, 1, &monster_id), "hp");
-    let before_respawn_hp = entity_integer(owner_entity_at(&artifact, respawn_tick - 1, &monster_id), "hp");
-    let restored_hp = entity_integer(owner_entity_at(&artifact, respawn_tick, &monster_id), "hp");
+    let dead_hp = entity_integer(owner_monster_at(&artifact, 1, &camp.id), "hp");
+    let before_respawn_hp = entity_integer(owner_monster_at(&artifact, respawn_tick - 1, &camp.id), "hp");
+    let restored_hp = entity_integer(owner_monster_at(&artifact, respawn_tick, &camp.id), "hp");
     assert_eq!(dead_hp, 0);
     assert_eq!(before_respawn_hp, 0, "the camp remains defeated through the tick before respawn");
     assert_eq!(restored_hp, monster.stats.hp, "camp monster returns at its catalog HP on the configured tick");
@@ -693,6 +710,49 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     ]
 }
 
+fn catalog_scenario_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
+    let next = rules.plan().next.as_ref().unwrap();
+    let mut cases = Vec::new();
+    for (hero_index, selected_hero) in next.heroes.iter().enumerate() {
+        let (mut attacker, mut defender, context) = build_match(
+            rules,
+            &[1, 1, 1, 1, 1],
+            &format!("w9-catalog-{}", selected_hero.id),
+            1,
+            None,
+            None,
+        );
+        for snapshot in [&mut attacker, &mut defender] {
+            let Some(DomainValue::List(heroes)) = snapshot.configuration.get_mut(&FieldId::new("heroes")) else {
+                panic!("fixture has the catalog Hero list");
+            };
+            for (slot, record) in heroes.iter_mut().enumerate() {
+                let definition = &next.heroes[(hero_index + slot) % next.heroes.len()];
+                let DomainValue::Record(fields) = record else { panic!("fixture has Hero records"); };
+                fields.insert(FieldId::new("catalog_id"), DomainValue::String(definition.id.clone()));
+                let path = definition.skill_paths.keys().next().expect("catalog Hero has a prepared path");
+                fields.insert(FieldId::new("skill_path"), DomainValue::String(path.clone()));
+            }
+        }
+        let mut vm = Vm::new(rules);
+        let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+            .unwrap_or_else(|error| panic!("catalog Hero {} participates in a valid match: {error:?}", selected_hero.id));
+        let lineup = (0..5).map(|slot| next.heroes[(hero_index + slot) % next.heroes.len()].id.clone())
+            .collect::<Vec<_>>();
+        cases.push(serde_json::json!({
+            "case_id": format!("catalog-selection-{}", selected_hero.id),
+            "selected_catalog_hero": selected_hero.id,
+            "attacker_lineup": lineup,
+            "defender_lineup": lineup,
+            "partition": [1, 1, 1, 1, 1],
+            "outcome": format!("{:?}", artifact.result.outcome),
+            "final_tick": artifact.result.final_tick,
+            "final_state_digest": artifact.result.final_state_digest.as_str()
+        }));
+    }
+    cases
+}
+
 fn write_next_adapter_fixtures(rules: &VerifiedRulePlan) {
     let Some(directory) = std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(PathBuf::from) else {
         return;
@@ -784,7 +844,7 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
                     &["slot-1"][..]
                 };
                 let case_id = format!("move-{terrain}-vision-{minion_vision}-squad-{squad_size}");
-                let (artifact, actors) = run_movement_case(
+                let (artifact, _) = run_movement_case(
                     rules,
                     &partition,
                     start,
@@ -794,14 +854,14 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
                     moves,
                     &case_id,
                 );
-                let actor = actors[0].clone();
+                let slot = moves[0];
                 assert_eq!(
-                    entity_string(owner_entity_at(&artifact, 1, &actor), "edge_to"),
+                    entity_string(owner_hero_at(&artifact, 1, slot), "edge_to"),
                     destination,
                     "the movement intent traverses the expected {terrain} edge",
                 );
-                let actual = entity_integer(owner_entity_at(&artifact, 1, &actor), "edge_progress");
-                let hero_speed = entity_integer(owner_entity_at(&artifact, 0, &actor), "speed");
+                let actual = entity_integer(owner_hero_at(&artifact, 1, slot), "edge_progress");
+                let hero_speed = entity_integer(owner_hero_at(&artifact, 0, slot), "speed");
                 let squad_factor = next.parameters[&format!("squad_{squad_size}_speed_milli")];
                 let vision_factor = if minion_vision {
                     next.parameters["minion_vision_speed_milli"]
@@ -817,6 +877,7 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
                 report.push(serde_json::json!({
                     "case_id": case_id,
                     "squad_size": squad_size,
+                    "catalog_id": "F01",
                     "terrain": terrain,
                     "friendly_minion_vision": minion_vision,
                     "speed_units_after_one_tick": actual
@@ -830,7 +891,7 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
         ("move-vision-overlap-no-stack", 2, 0),
         ("move-enemy-minion-no-bonus", 0, 1),
     ] {
-        let (artifact, actors) = run_movement_case(
+        let (artifact, _) = run_movement_case(
             rules,
             &partition,
             "jungle_center",
@@ -840,8 +901,8 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
             &["slot-1"],
             case_id,
         );
-        let actual = entity_integer(owner_entity_at(&artifact, 1, &actors[0]), "edge_progress");
-        let hero_speed = entity_integer(owner_entity_at(&artifact, 0, &actors[0]), "speed");
+        let actual = entity_integer(owner_hero_at(&artifact, 1, "slot-1"), "edge_progress");
+        let hero_speed = entity_integer(owner_hero_at(&artifact, 0, "slot-1"), "speed");
         let applicable_vision_factor = if friendly_minions == 2 { 1_200 } else { 1_000 };
         let expected = i128::from(hero_speed) * 800 * applicable_vision_factor * 1_000
             / 1_000_000_000;
@@ -882,14 +943,14 @@ fn five_solo_move_case(rules: &VerifiedRulePlan) -> serde_json::Value {
         .unwrap_or_else(|error| panic!("five Solo move scenario executes through Enbu: {error:?}"));
     let actors = accepted_actors(&artifact, CombatantSide::Attacker, "move");
     assert_eq!(actors.len(), 5, "five independent Solo move actions are accepted in one frozen tick");
-    for actor in &actors {
-        let before = owner_entity_at(&artifact, 0, actor);
-        let after = owner_entity_at(&artifact, 1, actor);
+    for slot in 1..=5 {
+        let before = owner_hero_at(&artifact, 0, &format!("slot-{slot}"));
+        let after = owner_hero_at(&artifact, 1, &format!("slot-{slot}"));
         let moved = entity_integer(before, "x") != entity_integer(after, "x")
             || entity_integer(before, "y") != entity_integer(after, "y")
             || entity_string(before, "node") != entity_string(after, "node")
             || entity_integer(before, "edge_progress") != entity_integer(after, "edge_progress");
-        assert!(moved, "each of the five Solo Heroes advances after its accepted move intent: {actor}");
+        assert!(moved, "each of the five Solo Heroes advances after its accepted move intent: slot-{slot}");
     }
     serde_json::json!({
         "case_id": "five-solo-nonidle-moves",
@@ -999,6 +1060,7 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
 
     results.extend(run_movement_factor_grid(&rules));
     results.push(five_solo_move_case(&rules));
+    results.extend(catalog_scenario_cases(&rules));
     results.push(squad_reform_case(&rules));
     results.extend(xp_share_cases(&rules));
     results.push(jungle_respawn_case(&rules));
@@ -1087,28 +1149,5 @@ fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
 #[test]
 fn every_catalog_hero_can_be_selected_and_simulated() {
     let rules = rules();
-    let next = rules.plan().next.as_ref().unwrap();
-    for (hero_index, selected_hero) in next.heroes.iter().enumerate() {
-        let (mut attacker, mut defender, context) =
-            build_match(&rules, &[1, 1, 1, 1, 1], &format!("w9-catalog-{}", selected_hero.id), 1, None, None);
-        for snapshot in [&mut attacker, &mut defender] {
-            let DomainValue::List(heroes) = snapshot
-                .configuration
-                .get_mut(&FieldId::new("heroes"))
-                .expect("fixture has hero configuration")
-            else {
-                panic!("hero configuration is a list");
-            };
-            for (slot, record) in heroes.iter_mut().enumerate() {
-                let definition = &next.heroes[(hero_index + slot) % next.heroes.len()];
-                let DomainValue::Record(fields) = record else { panic!("hero record expected") };
-                fields.insert(FieldId::new("catalog_id"), DomainValue::String(definition.id.clone()));
-                let path = definition.skill_paths.keys().next().expect("catalog Hero has a skill path");
-                fields.insert(FieldId::new("skill_path"), DomainValue::String(path.clone()));
-            }
-        }
-        let mut vm = Vm::new(&rules);
-        simulate(&attacker, &defender, &rules, &context, &mut vm)
-            .unwrap_or_else(|error| panic!("catalog Hero {} must participate in a valid five-Hero match: {error:?}", selected_hero.id));
-    }
+    assert_eq!(catalog_scenario_cases(&rules).len(), 12);
 }
