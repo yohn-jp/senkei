@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   decodeReplay,
@@ -221,7 +221,9 @@ function App() {
   const [selected, setSelected] = useState<string | null>(null),
     [cameraEpoch, setCameraEpoch] = useState(0);
   const [tracking, setTracking] = useState(false);
-  useEffect(() => {
+  // Install the replacement cursor and its UI subscription before accepting input.
+  // A passive effect leaves a window where a new player seeks without a listener.
+  useLayoutEffect(() => {
     setSelected(null);
     setTracking(false);
     setPlaying(false);
@@ -240,7 +242,7 @@ function App() {
   useEffect(() => {
     if (!selected && tracking) setTracking(false);
   }, [selected, tracking]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!player) return;
     const sync = () => {
       setState(player.state);

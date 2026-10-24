@@ -325,3 +325,31 @@ test("existing workspace links to the independent sample page", async ({
   await expect(page).toHaveURL(/\/graphics\/$/);
   await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
 });
+
+test("390px: immediate keyboard seek survives repeated replay replacement", async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+  });
+  const page = await context.newPage();
+  // Slow rendering widens the passive-effect gap seen in Graphics G1 CI.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await page.goto("/graphics/");
+  await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
+  const slider = page.getByRole("slider", { name: "Tickシーク" });
+  for (let index = 0; index < 8; index++) {
+    await page.getByLabel("モバイルFixture選択", { exact: true }).selectOption(
+      index % 2 ? "clash-and-loss" : "basic-three-lane",
+    );
+    // Deliberately do not wait for the renderer or a Tick assertion after switching.
+    await slider.press("Home");
+    await slider.press("ArrowRight");
+    await slider.press("ArrowRight");
+    await expect(slider).toHaveValue("2");
+    await expect(page.getByLabel("現在Tick")).toContainText("02");
+    await expect(page.locator("canvas")).toHaveAttribute("data-tick", "2");
+    await slider.press("ArrowLeft");
+    await expect(page.getByLabel("現在Tick")).toContainText("01");
+  }
+  await context.close();
+});
