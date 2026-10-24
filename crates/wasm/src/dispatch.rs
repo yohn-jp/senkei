@@ -44,12 +44,6 @@ pub fn dispatch_json(request_json: &str) -> String {
             );
         }
     };
-    let request_id = request_value
-        .get("request_id")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-
     match dispatch_value(request_value) {
         Ok((request_id, result, max_output_bytes)) => {
             encode_success(request_id, result, max_output_bytes)
