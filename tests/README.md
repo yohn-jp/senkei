@@ -68,8 +68,10 @@ combat model in TypeScript, Python, or test-only Rust.
 
 Browser runner setup is isolated under `tests/browser/`. It owns Playwright
 and browser binaries; the application package remains owned by `apps/web`.
-The browser suite must load the production-built app and actual WASM artifact.
-It must not stub `CoreClient`, Workers, IndexedDB, compilation, or simulation.
+The current browser smoke loads the production build, checks the workspace
+navigation, and fails on any external request or page error. The full local-PvE
+journey test must additionally require a real compiled WASM response and must
+not stub `CoreClient`, Workers, IndexedDB, compilation, or simulation.
 
 After scenarios and the WASM adapter are present, compare the same committed
 `*.request.json` simulation envelopes like this:

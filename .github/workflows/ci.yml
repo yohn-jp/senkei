@@ -41,3 +41,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  browser:
+    name: Production browser smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci --prefix tests/browser
+      - run: npx --prefix tests/browser playwright install --with-deps chromium
+      - run: npm run test:e2e --prefix tests/browser
