@@ -259,6 +259,38 @@ function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
   });
 }
 
+function replayOwnSquadMembersAt(replay: JsonRecord, tick: number, catalogId: string): {
+  squadId: string;
+  members: { id: string; catalogId: string; sourceX: number; sourceY: number }[];
+} | null {
+  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  if (!entities) return null;
+  const fieldString = (entity: JsonRecord | undefined, name: string): string | null => {
+    const field = entity?.fields?.[name];
+    return field?.kind === "string" && typeof field.value === "string" ? field.value : null;
+  };
+  const fieldInteger = (entity: JsonRecord | undefined, name: string): number | null => {
+    const field = entity?.fields?.[name];
+    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+  };
+  const selected = Object.values(entities).find((entity) =>
+    entity.entity_type === "hero" && fieldString(entity, "catalog_id") === catalogId,
+  );
+  const squadId = fieldString(selected, "squad");
+  if (!squadId) return null;
+  const members = Object.entries(entities).flatMap(([id, entity]) => {
+    if (entity.entity_type !== "hero" || fieldString(entity, "squad") !== squadId) return [];
+    const hp = fieldInteger(entity, "hp");
+    const memberCatalogId = fieldString(entity, "catalog_id");
+    const sourceX = fieldInteger(entity, "x");
+    const sourceY = fieldInteger(entity, "y");
+    if (!memberCatalogId || hp === null || hp <= 0 || sourceX === null || sourceY === null) return [];
+    return [{ id, catalogId: memberCatalogId, sourceX, sourceY }];
+  });
+  return members.length ? { squadId, members } : null;
+}
+
 async function assertActualHeroRows(
   cluster: import("@playwright/test").Locator,
   replay: JsonRecord,
@@ -1095,6 +1127,74 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       const followCaptureKey = `${viewport.name}/${followScreenshot}`;
       cameraPosesByCapture[followCaptureKey] = await canvas.getAttribute("data-camera");
       cameraTargetsByCapture[followCaptureKey] = actualTarget;
+
+      const ownerSquad = replayOwnSquadMembersAt(sourceReplay, tick, clusterTarget.catalogId);
+      expect(ownerSquad, "the selected current owner Hero must have a confirmed Squad in this Replay frame").not.toBeNull();
+      expect(ownerSquad!.members, "the current owner Squad must have five living visible members at T50").toHaveLength(5);
+      const verifiedHeroByReplayId = new Map(verifiedHeroes.map((hero) => [hero.sourceReplayEntityId, hero]));
+      const squadMembers = ownerSquad!.members.map((member) => {
+        const verifiedHero = verifiedHeroByReplayId.get(member.id);
+        expect(verifiedHero, `${member.catalogId} Squad member must match a current visible Hero row`).toBeDefined();
+        expect(verifiedHero!.catalogId).toBe(member.catalogId);
+        expect(verifiedHero!.replayWorldPosition).toEqual({ x: member.sourceX, y: member.sourceY });
+        const displayEntityId = verifiedHero!.displayEntityId;
+        expect(displayEntityId, `${member.catalogId} must map to its exact visible renderer entity`).toBeTruthy();
+        return {
+          sourceReplayEntityId: member.id,
+          catalogId: member.catalogId,
+          displayEntityId,
+          sourceWorldPosition: { x: member.sourceX, y: member.sourceY },
+        };
+      });
+      const expectedSquadTarget = {
+        x: ownerSquad!.members.reduce((sum, member) => sum + member.sourceX / nextWorldUnitsPerRenderUnit, 0) / ownerSquad!.members.length,
+        z: ownerSquad!.members.reduce((sum, member) => sum + member.sourceY / nextWorldUnitsPerRenderUnit, 0) / ownerSquad!.members.length,
+      };
+      const expectedSquadLabel = ownerSquad!.squadId
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+      let squadFollowControl: string;
+      if (viewport.width <= 700) {
+        // Mobile presents owner Squads as buttons in the Follow sheet, while
+        // desktop uses the actual Squad selector option.
+        const expectedButtonText = `${expectedSquadLabel} · ${squadMembers.length} visible Heroes`;
+        const followSquadButton = page.locator(".next-follow-sheet .next-follow-list > button")
+          .filter({ hasText: expectedButtonText });
+        await expect(followSquadButton, "mobile Follow should expose the current owner-replay Squad group").toHaveCount(1);
+        await expect(followSquadButton).toContainText("Follow Squad");
+        await followSquadButton.click();
+        squadFollowControl = "owner-squad-follow-button";
+      } else {
+        const squadSelector = page.getByRole("combobox", { name: /Follow own visible Squad/i });
+        await expect(squadSelector, "desktop owner view should expose the actual visible Squad selector").toBeVisible();
+        const squadOptions = await squadSelector.locator("option").evaluateAll((elements) =>
+          elements.map((element) => {
+            const option = element as HTMLOptionElement;
+            return { value: option.value, label: (option.textContent ?? "").trim() };
+          }),
+        );
+        const ownSquadOption = squadOptions.find((option) => option.value === ownerSquad!.squadId);
+        expect(ownSquadOption, "the selected Hero's actual owner-replay Squad must be an available selector option").toBeDefined();
+        await squadSelector.selectOption(ownerSquad!.squadId);
+        squadFollowControl = "owner-squad-selector-option";
+      }
+      await expect(canvas).toHaveAttribute("data-tick", String(tick));
+      await waitForSettledCamera(page);
+      if (viewport.width <= 700) await expect(page.locator(".next-follow-sheet")).toBeHidden();
+      const squadTrackedIds = (await canvas.getAttribute("data-tracking"))?.split(",").filter(Boolean) ?? [];
+      const expectedSquadDisplayIds = squadMembers.map((member) => member.displayEntityId).sort();
+      expect([...squadTrackedIds].sort(), "Squad Follow must track exactly its current visible member IDs").toEqual(expectedSquadDisplayIds);
+      const actualSquadTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+      expect(actualSquadTarget, "Squad Follow must expose its current-group camera target").not.toBeNull();
+      expect(Math.abs(actualSquadTarget!.x - expectedSquadTarget.x)).toBeLessThan(0.01);
+      expect(Math.abs(actualSquadTarget!.z - expectedSquadTarget.z)).toBeLessThan(0.01);
+      await expect(canvas).toHaveAttribute("data-tick", String(tick));
+      const squadFollowScreenshot = "squad-follow-same-tick.png";
+      await page.screenshot({ path: join(directory, squadFollowScreenshot), animations: "disabled" });
+      const squadFollowCaptureKey = `${viewport.name}/${squadFollowScreenshot}`;
+      cameraPosesByCapture[squadFollowCaptureKey] = await canvas.getAttribute("data-camera");
+      cameraTargetsByCapture[squadFollowCaptureKey] = actualSquadTarget;
       clusterInspection[viewport.name] = {
         tick,
         selectedCatalogId: clusterTarget.catalogId,
@@ -1105,7 +1205,18 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
         followTarget: expectedFollow,
         cameraTarget: actualTarget,
         trackedIds,
-        screenshots: [clusterScreenshot, followScreenshot],
+        squadFollow: {
+          tick,
+          verificationPrivacy: "local-owner-squad-membership-only",
+          control: squadFollowControl,
+          visibleMemberCount: squadMembers.length,
+          members: squadMembers,
+          trackedDisplayEntityIds: squadTrackedIds,
+          expectedMeanRenderPosition: expectedSquadTarget,
+          cameraTarget: actualSquadTarget,
+          screenshot: squadFollowScreenshot,
+        },
+        screenshots: [clusterScreenshot, followScreenshot, squadFollowScreenshot],
       };
       continue;
     }
@@ -1402,7 +1513,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     clusterInspection: clusterInspectorOnly ? clusterInspection : null,
     semanticCueAssertions,
     viewports: captureViewports,
-    screenshotNames: clusterInspectorOnly ? ["selected-visible-cluster", "follow-f03-same-tick"]
+    screenshotNames: clusterInspectorOnly ? ["selected-visible-cluster", "follow-f03-same-tick", "squad-follow-same-tick"]
       : skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
         ? roleFollowOnly.map((role) => `${role}-follow`)
       : [
