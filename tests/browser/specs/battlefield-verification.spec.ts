@@ -298,7 +298,7 @@ async function assertActualHeroRows(
     await expect(row.locator(".next-visible-entity-copy > strong")).toHaveText(identity);
     await expect(row.locator(".next-visible-entity-copy > span")).toContainText("Hero ·");
     await expect(row.locator(".next-visible-entity-copy > div > b")).toHaveText(`HP ${hero.hp}/${hero.maxHp}`);
-    await expect(row.locator(".next-visible-entity-copy > div > small")).toContainText(`X ${hero.sourceX.toFixed(2)} · Y ${hero.sourceY.toFixed(2)}`);
+    await expect(row.locator(".next-visible-entity-copy > div > small")).toContainText(`X ${hero.sourceX} · Y ${hero.sourceY}`);
     await expect(row).not.toContainText(/slot-|squad|cooldown|private|owner id/i);
   }
   expect(heroRows.map((row) => row.identity).sort()).toEqual([...byCatalogId.values()].map((hero) => hero.label).sort());
