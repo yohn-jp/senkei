@@ -1574,9 +1574,11 @@ export class Battlefield {
           color: "#f1eee2",
           fontSize: "10px",
           letterSpacing: ".04em",
+          maxWidth: "min(360px, calc(100vw - 32px))",
           padding: "3px 5px",
+          textAlign: "center",
           transform: "translate(-50%, -120%)",
-          whiteSpace: "nowrap",
+          whiteSpace: "normal",
         });
         this.host.appendChild(label);
         this.entityLabels.set(e.id, label);
@@ -1888,9 +1890,12 @@ export class Battlefield {
         );
         element.hidden = !visible;
         if (!visible || !group) continue;
-        element.textContent = groupedHeroes
-          ? `${heroStack.length} visible Heroes`
-          : `${focused ? "◆ " : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
+        const identity = this.entityLabel(entity!).replace(/^HERO · /, "");
+        element.textContent = groupedHeroes && focused
+          ? `${heroStack.length} visible Heroes · ◆ ${identity} · ${entity!.hp}/${entity!.maxHp}`
+          : groupedHeroes
+            ? `${heroStack.length} visible Heroes`
+            : `${focused ? "◆ " : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
         const height = entity?.kind === "base" ? 4.6 : entity?.kind === "tower" ? 4 : 2.8;
         const p = group.position.clone().add(new THREE.Vector3(0, height, 0)).project(this.camera);
         element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
