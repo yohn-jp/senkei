@@ -1,0 +1,4 @@
+senkei battlefield_skill_observation {
+ action stay_near_camp { when true, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-02", } by hero.hp then hero.slot_id, "jungle_nw"), },
+ action active_farm { when true, do activate(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-02", } by hero.hp then hero.slot_id, "f03_a_active", argmin monster in neutrals.visible_monsters by monster.hp then monster.id), },
+}

@@ -1,0 +1,13 @@
+senkei battlefield_observation {
+action advance_1 { when count tower in enemies.visible_towers { tower.hp > 0, } == 0, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-01", } by hero.hp then hero.slot_id, "defender_base"), },
+action tower_1 { when count tower in enemies.visible_towers { tower.hp > 0, } > 0, do pursue(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-01", } by hero.hp then hero.slot_id, argmin tower in enemies.visible_towers by tower.hp then tower.id), },
+action advance_2 { when count tower in enemies.visible_towers { tower.hp > 0, } == 0, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-02", } by hero.hp then hero.slot_id, "defender_base"), },
+action tower_2 { when count tower in enemies.visible_towers { tower.hp > 0, } > 0, do pursue(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-02", } by hero.hp then hero.slot_id, argmin tower in enemies.visible_towers by tower.hp then tower.id), },
+action advance_3 { when count tower in enemies.visible_towers { tower.hp > 0, } == 0, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-03", } by hero.hp then hero.slot_id, "defender_base"), },
+action tower_3 { when count tower in enemies.visible_towers { tower.hp > 0, } > 0, do pursue(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-03", } by hero.hp then hero.slot_id, argmin tower in enemies.visible_towers by tower.hp then tower.id), },
+action advance_4 { when count tower in enemies.visible_towers { tower.hp > 0, } == 0, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-04", } by hero.hp then hero.slot_id, "defender_base"), },
+action tower_4 { when count tower in enemies.visible_towers { tower.hp > 0, } > 0, do pursue(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-04", } by hero.hp then hero.slot_id, argmin tower in enemies.visible_towers by tower.hp then tower.id), },
+action advance_5 { when count tower in enemies.visible_towers { tower.hp > 0, } == 0, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-05", } by hero.hp then hero.slot_id, "defender_base"), },
+action tower_5 { when count tower in enemies.visible_towers { tower.hp > 0, } > 0, do pursue(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-05", } by hero.hp then hero.slot_id, argmin tower in enemies.visible_towers by tower.hp then tower.id), },
+action skill { when true, do activate(argmin hero in filter hero in allies.heroes { hero.slot_id == "slot-04", } by hero.hp then hero.slot_id, "r02_a_active", argmin enemy in enemies.visible_heroes by enemy.hp then enemy.id), },
+}
