@@ -38,7 +38,7 @@ if ! command -v wasm-ld >/dev/null 2>&1; then
 fi
 
 export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-cargo build --locked --release --target "$target" -p "$crate"
+cargo build --locked --release --target "$target" -p "$crate" --lib
 
 wasm_dir="$repo_root/apps/web/public/wasm"
 mkdir -p "$wasm_dir"

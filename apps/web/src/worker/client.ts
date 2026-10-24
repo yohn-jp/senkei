@@ -57,10 +57,6 @@ export class WorkerCoreClient implements CoreClient {
   private readonly pending = new Map<string, PendingRequest>();
 
   constructor(options: CoreClientOptions = {}) {
-    this.worker = options.worker ?? new Worker(
-      new URL("./core.worker.ts", import.meta.url),
-      { type: "module", name: "senkei-core" },
-    );
     this.maxPendingRequests = positiveLimit(
       options.max_pending_requests ?? DEFAULT_MAX_PENDING,
       "max_pending_requests",
@@ -68,6 +64,10 @@ export class WorkerCoreClient implements CoreClient {
     this.maxRequestBytes = positiveLimit(
       options.max_request_bytes ?? DEFAULT_MAX_REQUEST_BYTES,
       "max_request_bytes",
+    );
+    this.worker = options.worker ?? new Worker(
+      new URL("./core.worker.ts", import.meta.url),
+      { type: "module", name: "senkei-core" },
     );
     this.clientId = ++clientSequence;
 

@@ -275,6 +275,12 @@ async function runSimulation(
       "The core returned restricted diagnostics when they were not requested.",
     );
   }
+  if (includeDiagnostics && diagnostics === null) {
+    throw new RequestFailure(
+      "core_error",
+      "The core omitted restricted diagnostics that were requested.",
+    );
+  }
 
   return {
     outcome: { result, presentation_replay: replay },
