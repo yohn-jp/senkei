@@ -44,7 +44,7 @@ interface Recipe {
 }
 
 const firstUnit = (field: string): string =>
-  `argmin unit in allies.units by unit.${field} then unit.id`;
+  `argmin unit in allies.units by unit.${field} then unit.slot_id`;
 
 const coreStrikeAction = `action strike_core {
     when true,
@@ -78,16 +78,16 @@ function attackLaneUnitAction(
     ? `argmin target in filter target in enemies.visible_units {
             target.lane == ${lane},
             target.hp > 0,
-        } by target.hp then target.id`
+        } by target.hp then target.slot_id`
     : `argmax target in filter target in enemies.visible_units {
             target.lane == ${lane},
             target.hp > 0,
-        } by target.position then target.id`;
+    } by target.position then target.slot_id`;
   return `action ${actionName} {
     when true,
     do attack_unit(
         argmin unit in filter unit in allies.units { unit.lane == ${lane} }
-            by unit.position then unit.id,
+            by unit.position then unit.slot_id,
         ${targetSelection},
     ),
 }`;
@@ -117,7 +117,7 @@ const towerPressureDeclarations = [
             unit.lane == top,
             unit.position >= 13,
             unit.position <= 17,
-        } by actor.position then actor.id,
+        } by actor.position then actor.slot_id,
         argmin target in filter tower in enemies.visible_towers {
             tower.lane == top,
             tower.hp > 0,
@@ -261,11 +261,11 @@ const recipes: readonly Recipe[] = [
         argmin medic in filter unit in allies.units {
             unit.lane == top,
             unit.unit_class == medic,
-        } by medic.hp then medic.id,
+        } by medic.hp then medic.slot_id,
         argmin ally in filter unit in allies.units {
             unit.lane == top,
             unit.hp < unit.max_hp,
-        } by ally.hp then ally.id,
+        } by ally.hp then ally.slot_id,
     ),
 }`]),
     configuration: {
@@ -296,7 +296,7 @@ const recipes: readonly Recipe[] = [
             argmin barracks in allies.barracks by barracks.resources then barracks.id,
             argmin reserve in filter reserve in allies.reserves {
                 reserve.available_tick <= match.tick,
-            } by reserve.available_tick then reserve.id,
+            } by reserve.available_tick then reserve.slot_id,
             mid,
         ),
     }`]),
@@ -488,7 +488,7 @@ function minEntity(binding: string, collectionPath: readonly string[], fields: r
       binding,
       collection: { kind: "path", value: collectionPath },
       expression: { kind: "path", value: [binding, ...fields] },
-      unique_key: [binding, "id"],
+      unique_key: [binding, "slot_id"],
     },
   };
 }

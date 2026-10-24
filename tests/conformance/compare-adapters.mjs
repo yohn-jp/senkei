@@ -41,9 +41,10 @@ function canonical(value) {
 
 function runNative(requests) {
   return new Promise((resolvePromise, reject) => {
+    const dispatcher = process.env.SENKEI_NATIVE_DISPATCHER;
     const child = spawn(
-      "cargo",
-      ["run", "--quiet", "--locked", "-p", "senkei-wasm", "--bin", "senkei-wasm-dispatch"],
+      dispatcher ?? "cargo",
+      dispatcher ? [] : ["run", "--quiet", "--locked", "-p", "senkei-wasm", "--bin", "senkei-wasm-dispatch"],
       { cwd: repositoryRoot, stdio: ["pipe", "pipe", "inherit"] },
     );
     let stdout = "";
