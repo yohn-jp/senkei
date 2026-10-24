@@ -14,6 +14,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const HERO_COUNT: usize = 5;
 const HEROES_FIELD: &str = "heroes";
+const MAX_WORLD_INT: i64 = 1_000_000_000;
+const MAX_SAFE_JSON_INT: i64 = 9_007_199_254_740_991;
 
 #[derive(Clone)]
 struct HeroSeed {
@@ -45,8 +47,22 @@ pub fn initialize(
     let starting_level = support::param(rules, "hero_start_level", 1);
     let starting_xp = support::param(rules, "hero_start_xp", 0).saturating_mul(2520);
     let starting_energy = support::param(rules, "hero_initial_energy", 100);
-    if starting_level < 1 || starting_xp < 0 || starting_energy < 0 {
-        return Err(invalid("Hero starting level, XP, and energy must be non-negative (level at least one)"));
+    let max_level = support::param(rules, "hero_max_level", 6);
+    if max_level < 1
+        || max_level > MAX_WORLD_INT
+        || starting_level < 1
+        || starting_level > max_level
+        || starting_level > MAX_WORLD_INT
+    {
+        return Err(invalid("Hero starting level must be between one and the configured maximum"));
+    }
+    if starting_xp < 0 || starting_xp > MAX_SAFE_JSON_INT || starting_energy < 0 || starting_energy > MAX_WORLD_INT {
+        return Err(invalid("Hero starting XP and energy are outside the supported range"));
+    }
+    let formation_spacing = support::param(rules, "formation_spacing", 8);
+    let merge_distance = support::param(rules, "squad_merge_distance", 30);
+    if formation_spacing <= 0 || merge_distance < 0 || formation_spacing > merge_distance / 2 {
+        return Err(invalid("formation spacing must be positive and fit inside the squad merge distance"));
     }
     let home = base_node(side, rules);
     if !rules.map.nodes.contains_key(home) {
@@ -61,7 +77,8 @@ pub fn initialize(
     for members in groups.values_mut() {
         members.sort_by(|left, right| formation_seed_order(left, right));
         for (rank, seed) in members.iter().enumerate() {
-            formation_by_slot.insert(seed.slot_id.clone(), rank as i64);
+            let (x, y) = formation_offset(rank, members.len(), formation_spacing, side);
+            formation_by_slot.insert(seed.slot_id.clone(), (rank as i64, x, y));
         }
     }
 
@@ -71,22 +88,38 @@ pub fn initialize(
         if world.entities.contains_key(&id) {
             return Err(invalid(format!("Hero entity ID `{id}` is already present")));
         }
-        let mut entity = support::unit("hero", Some(side), &seed.definition.stats, &seed.node, rules);
+        let level_stats = stats_at_level(&seed.definition, starting_level)?;
+        let mut entity = support::unit("hero", Some(side), &level_stats, &seed.node, rules);
+        let (rank, offset_x, offset_y) = formation_by_slot
+            .get(&seed.slot_id)
+            .copied()
+            .unwrap_or((0, 0, 0));
+        let node = &rules.map.nodes[&seed.node];
+        let x = node.x.checked_add(offset_x).filter(|value| (-MAX_WORLD_INT..=MAX_WORLD_INT).contains(value))
+            .ok_or_else(|| invalid("Hero formation position exceeds the supported coordinate range"))?;
+        let y = node.y.checked_add(offset_y).filter(|value| (-MAX_WORLD_INT..=MAX_WORLD_INT).contains(value))
+            .ok_or_else(|| invalid("Hero formation position exceeds the supported coordinate range"))?;
+        support::set_int(&mut entity, "x", x);
+        support::set_int(&mut entity, "y", y);
+        support::set_string(&mut entity, "goal", "");
+        support::set_string(&mut entity, "lane", "");
         support::set_string(&mut entity, "slot_id", &seed.slot_id);
         support::set_string(&mut entity, "catalog_id", &seed.catalog_id);
         support::set_string(&mut entity, "squad", &seed.squad_id);
         support::set_string(&mut entity, "skill_path", &seed.skill_path);
         support::set_int(&mut entity, "xp", starting_xp);
         support::set_int(&mut entity, "level", starting_level);
+        // W4 uses these generation markers to reapply one-time passive effects
+        // once per life without repeating their initial-life application.
+        support::set_int(&mut entity, "life_generation", 0);
+        support::set_int(&mut entity, "passive_generation", 0);
         support::set_int(&mut entity, "maturity", 0);
-        support::set_int(
-            &mut entity,
-            "formation",
-            formation_by_slot.get(&seed.slot_id).copied().unwrap_or(0),
-        );
+        support::set_int(&mut entity, "formation", rank);
         support::set_int(&mut entity, "respawn_at", 0);
+        support::set_int(&mut entity, "death_tick", 0);
         support::set_int(&mut entity, "energy", starting_energy);
         entity.fields.insert(FieldId::from("skills"), DomainValue::List(Vec::new()));
+        entity.fields.insert(FieldId::from("target"), DomainValue::Null);
         let cooldowns = rules
             .heroes
             .iter()
@@ -174,7 +207,8 @@ pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
             let base = support::param(rules, "hero_respawn_base_ticks", 20).max(0);
             let per_level = support::param(rules, "hero_respawn_per_level_ticks", 5).max(0);
             let cooldown = base.saturating_add(per_level.saturating_mul(level.saturating_sub(1)));
-            support::set_int(entity, "respawn_at", death_tick.saturating_add(cooldown));
+            let respawn_at = death_tick.saturating_add(cooldown).min(i64::from(u32::MAX));
+            support::set_int(entity, "respawn_at", respawn_at);
         }
         if !prior_squad.is_empty() {
             support::set_string(entity, "squad", "");
@@ -214,6 +248,13 @@ pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
         let max_hp = support::int(entity, "max_hp");
         support::set_int(entity, "hp", max_hp);
         support::set_int(entity, "attack_ready", i64::from(tick));
+        let generation = integer_field(entity, "life_generation")
+            .unwrap_or(0)
+            .clamp(0, MAX_WORLD_INT - 1)
+            .saturating_add(1);
+        support::set_int(entity, "life_generation", generation);
+        // Keep the last applied passive generation; W4 observes the mismatch
+        // and reapplies a passive shield exactly once for this new life.
         support::set_string(entity, "goal", "");
         entity.fields.insert("target".into(), DomainValue::Null);
         support::set_string(entity, "lane", "");
@@ -362,6 +403,76 @@ fn validate_hero_stats(definition: &senkei_model::HeroDefinition) -> Result<(), 
     Ok(())
 }
 
+fn stats_at_level(
+    definition: &senkei_model::HeroDefinition,
+    level: i64,
+) -> Result<senkei_model::UnitStats, ApiError> {
+    let levels_gained = level.saturating_sub(1);
+    let grow = |base: i64, increase: i64| {
+        increase
+            .checked_mul(levels_gained)
+            .and_then(|bonus| base.checked_add(bonus))
+            .filter(|value| *value >= 0 && *value <= MAX_WORLD_INT)
+    };
+    let base = &definition.stats;
+    let growth = &definition.growth;
+    let stat = |base: i64, increase: i64| {
+        grow(base, increase).ok_or_else(|| {
+            invalid(format!("Hero `{}` level {level} exceeds the supported stat range", definition.id))
+        })
+    };
+    let attack_interval = stat(base.attack_interval, growth.attack_interval)?;
+    if attack_interval < 1 {
+        return Err(invalid(format!("Hero `{}` has an invalid attack interval at level {level}", definition.id)));
+    }
+    Ok(senkei_model::UnitStats {
+        hp: stat(base.hp, growth.hp)?,
+        attack: stat(base.attack, growth.attack)?,
+        defense: stat(base.defense, growth.defense)?,
+        speed: stat(base.speed, growth.speed)?,
+        range: stat(base.range, growth.range)?,
+        attack_interval,
+        vision: stat(base.vision, growth.vision)?,
+    })
+}
+
+fn formation_offset(rank: usize, squad_size: usize, spacing: i64, side: CombatantSide) -> (i64, i64) {
+    if squad_size <= 1 || rank >= HERO_COUNT {
+        return (0, 0);
+    }
+    let layout = [
+        (spacing, 0),
+        (0, spacing),
+        (0, 0),
+        (-spacing, 0),
+        (0, -spacing),
+    ];
+    let (sum_x, sum_y) = layout[..squad_size.min(HERO_COUNT)]
+        .iter()
+        .fold((0_i128, 0_i128), |(sum_x, sum_y), (x, y)| {
+            (sum_x + i128::from(*x), sum_y + i128::from(*y))
+        });
+    let count = i128::try_from(squad_size).unwrap_or(1).max(1);
+    let center_x = rounded_division(sum_x, count);
+    let center_y = rounded_division(sum_y, count);
+    let (mut x, mut y) = layout[rank];
+    x = (i128::from(x) - center_x) as i64;
+    y = (i128::from(y) - center_y) as i64;
+    if side == CombatantSide::Defender {
+        x = -x;
+        y = -y;
+    }
+    (x, y)
+}
+
+fn rounded_division(value: i128, divisor: i128) -> i128 {
+    if value >= 0 {
+        (value + divisor / 2) / divisor
+    } else {
+        -((-value + divisor / 2) / divisor)
+    }
+}
+
 fn formation_seed_order(left: &HeroSeed, right: &HeroSeed) -> Ordering {
     placement_rank(&left.definition.placement)
         .cmp(&placement_rank(&right.definition.placement))
@@ -470,9 +581,23 @@ fn merge(
         return;
     }
 
+    // The target Hero anchors the merged squad. All members receive its
+    // current route and target so old cohort orders cannot immediately split
+    // the new squad into multiple directions before this tick's tactics run.
+    let target_goal = support::string(target, "goal");
+    let target_lane = support::string(target, "lane");
+    let target_order = target
+        .fields
+        .get(&FieldId::from("target"))
+        .cloned()
+        .unwrap_or(DomainValue::Null);
+
     for member_id in &members {
         if let Some(member) = world.entities.get_mut(member_id) {
             support::set_string(member, "squad", &target_squad_id);
+            support::set_string(member, "goal", &target_goal);
+            support::set_string(member, "lane", &target_lane);
+            member.fields.insert(FieldId::from("target"), target_order.clone());
         }
     }
     refresh_squad(world, side, &target_squad_id, rules, true);
@@ -586,7 +711,7 @@ fn advance_maturity(
     rules: &NextRules,
     changed_squads: &BTreeSet<(CombatantSide, String)>,
 ) {
-    let cap = support::param(rules, "squad_maturation_ticks", 40).max(1);
+    let cap = support::param(rules, "squad_maturation_ticks", 40).clamp(1, MAX_WORLD_INT);
     let mut groups: BTreeMap<(CombatantSide, String), Vec<EntityId>> = BTreeMap::new();
     for (id, entity) in &world.entities {
         if entity.entity_type.as_str() != "hero" || !support::alive(entity) {
@@ -764,8 +889,10 @@ mod tests {
             camps: Vec::new(),
             parameters: BTreeMap::from([
                 ("hero_start_level".to_owned(), 1),
+                ("hero_max_level".to_owned(), 6),
                 ("hero_start_xp".to_owned(), 0),
                 ("hero_initial_energy".to_owned(), 100),
+                ("formation_spacing".to_owned(), 8),
                 ("hero_respawn_base_ticks".to_owned(), 20),
                 ("hero_respawn_per_level_ticks".to_owned(), 5),
                 ("squad_maturation_ticks".to_owned(), 40),
@@ -858,6 +985,14 @@ mod tests {
         assert_eq!(field_int(&world, &hero_id("h2"), "formation"), 0);
         assert_eq!(field_int(&world, &hero_id("h1"), "formation"), 1);
         assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
+        assert_eq!(field_int(&world, &hero_id("h1"), "life_generation"), 0);
+        assert_eq!(field_int(&world, &hero_id("h1"), "passive_generation"), 0);
+        assert_eq!(field_int(&world, &hero_id("h1"), "x"), 6);
+        assert_eq!(field_int(&world, &hero_id("h1"), "y"), 14);
+        assert_eq!(field_int(&world, &hero_id("h2"), "x"), 14);
+        assert_eq!(field_int(&world, &hero_id("h2"), "y"), 6);
+        assert_eq!(field_int(&world, &hero_id("h5"), "x"), 10);
+        assert_eq!(field_int(&world, &hero_id("h5"), "y"), 10);
         assert_eq!(field_string(&world, &hero_id("h1"), "skill_path"), "path_a");
         let DomainValue::Record(cooldowns) = &world.entities[&hero_id("h1")].fields[&FieldId::from("cooldowns")] else {
             panic!("cooldowns must be a finite record");
@@ -874,6 +1009,68 @@ mod tests {
         let before = world.clone();
         assert!(initialize(&mut world, &invalid_loadout, CombatantSide::Defender, &rules).is_err());
         assert_eq!(world, before, "failed preparation must not partially create Heroes");
+    }
+
+    #[test]
+    fn five_hero_formation_offsets_are_ranked_distinct_and_side_reversed() {
+        let rules = rules();
+        let quintet = snapshot(&[
+            ("h1", "back", "quintet", "field", "path_a"),
+            ("h2", "front", "quintet", "field", "path_a"),
+            ("h3", "front", "quintet", "field", "path_a"),
+            ("h4", "back", "quintet", "field", "path_a"),
+            ("h5", "front", "quintet", "field", "path_a"),
+        ]);
+        let mut attacker = WorldState::default();
+        initialize(&mut attacker, &quintet, CombatantSide::Attacker, &rules).unwrap();
+        let expected = [
+            ("h2", 18, 10),
+            ("h3", 10, 18),
+            ("h5", 10, 10),
+            ("h1", 2, 10),
+            ("h4", 10, 2),
+        ];
+        for (slot, x, y) in expected {
+            assert_eq!(field_int(&attacker, &hero_id(slot), "x"), x);
+            assert_eq!(field_int(&attacker, &hero_id(slot), "y"), y);
+        }
+
+        let mut defender = WorldState::default();
+        initialize(&mut defender, &quintet, CombatantSide::Defender, &rules).unwrap();
+        assert_eq!(support::int(&defender.entities[&hero_entity_id(CombatantSide::Defender, "h2")], "x"), 2);
+        assert_eq!(support::int(&defender.entities[&hero_entity_id(CombatantSide::Defender, "h2")], "y"), 10);
+        assert_eq!(support::int(&defender.entities[&hero_entity_id(CombatantSide::Defender, "h4")], "x"), 10);
+        assert_eq!(support::int(&defender.entities[&hero_entity_id(CombatantSide::Defender, "h4")], "y"), 18);
+    }
+
+    #[test]
+    fn initial_level_scales_base_stats_and_respects_max_level() {
+        let mut rules = rules();
+        rules.parameters.insert("hero_start_level".to_owned(), 3);
+        rules.parameters.insert("hero_start_xp".to_owned(), 2);
+        rules.heroes[0].growth = UnitStats {
+            hp: 5,
+            attack: 2,
+            defense: 1,
+            speed: 1,
+            range: 1,
+            attack_interval: 0,
+            vision: 2,
+        };
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        let front = &world.entities[&hero_id("h2")];
+        assert_eq!(support::int(front, "level"), 3);
+        assert_eq!(support::int(front, "xp"), 5_040);
+        assert_eq!(support::int(front, "max_hp"), 110);
+        assert_eq!(support::int(front, "hp"), 110);
+        assert_eq!(support::int(front, "attack"), 14);
+        assert_eq!(support::int(front, "speed"), 7);
+
+        rules.parameters.insert("hero_max_level".to_owned(), 2);
+        let mut invalid_world = WorldState::default();
+        assert!(initialize(&mut invalid_world, &loadout(), CombatantSide::Attacker, &rules).is_err());
+        assert!(invalid_world.entities.is_empty());
     }
 
     #[test]
@@ -954,6 +1151,33 @@ mod tests {
     }
 
     #[test]
+    fn merge_propagates_target_squads_route_to_prevent_divergence() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        for slot in ["h1", "h2"] {
+            let hero = world.entities.get_mut(&hero_id(slot)).unwrap();
+            support::set_string(hero, "goal", "far");
+            hero.fields.insert("target".into(), DomainValue::Entity("old_target".into()));
+        }
+        for slot in ["h3", "h4"] {
+            support::set_string(world.entities.get_mut(&hero_id(slot)).unwrap(), "goal", "field");
+        }
+
+        intents(
+            &mut world,
+            &rules,
+            &[(CombatantSide::Attacker, intent("merge", "h1", Some("h3"), "merge-a"))],
+            1,
+        );
+        for slot in ["h1", "h2", "h3", "h4"] {
+            let hero = &world.entities[&hero_id(slot)];
+            assert_eq!(support::string(hero, "goal"), "field");
+            assert_eq!(hero.fields[&FieldId::from("target")], DomainValue::Null);
+        }
+    }
+
+    #[test]
     fn competing_intents_resolve_independently_of_input_order() {
         let rules = rules();
         let mut first = WorldState::default();
@@ -1007,6 +1231,8 @@ mod tests {
         assert_eq!(field_int(&world, &hero_id("h1"), "hp"), 0);
         lifecycle(&mut world, &rules, 23);
         assert_eq!(field_int(&world, &hero_id("h1"), "hp"), 100);
+        assert_eq!(field_int(&world, &hero_id("h1"), "life_generation"), 1);
+        assert_eq!(field_int(&world, &hero_id("h1"), "passive_generation"), 0);
         assert_eq!(field_string(&world, &hero_id("h1"), "node"), "home");
         assert_eq!(field_int(&world, &hero_id("h1"), "xp"), 77);
         assert_ne!(field_string(&world, &hero_id("h1"), "squad"), "attacker:alpha");
