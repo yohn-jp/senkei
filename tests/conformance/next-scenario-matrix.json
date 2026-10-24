@@ -4,7 +4,8 @@
   "notes": [
     "Cases are deterministic inputs and invariant checks, not repeated samples for a win-rate estimate.",
     "The runner must record the ruleset version and package digest with every result.",
-    "Values left unresolved by the Next design docs are reported as observations, not pass thresholds."
+    "Values left unresolved by the Next design docs are reported as observations, not pass thresholds.",
+    "Compare public native and WASM envelopes structurally, preserving ordered arrays; do not require adapter-specific JSON serialization bytes."
   ],
   "cases": [
     {
@@ -65,12 +66,12 @@
       "id": "maturation-and-reformation",
       "kind": "differential-scenario",
       "arms": ["initially-assembled", "joined-during-match"],
-      "assertions": ["freshly joined squad does not start fully mature", "maturation changes only through elapsed eligible ticks", "split and merge resolve through accepted intents"]
+      "assertions": ["freshly joined squad does not start fully mature", "maturity progresses only as match ticks elapse", "split and merge resolve through accepted intents"]
     },
     {
       "id": "vision-unknown-and-reveal",
       "kind": "observation-boundary",
-      "assertions": ["an unseen enemy remains Unknown", "friendly minion vision is shared across lanes", "removing the last relevant vision source removes current visibility", "reveal effects follow their duration"]
+      "assertions": ["an unseen enemy remains Unknown", "friendly minion vision is shared across lanes", "removing the sole relevant vision source removes current visibility", "reveal effects follow their duration"]
     },
     {
       "id": "jungle-objective-and-respawn",
@@ -107,7 +108,7 @@
     {
       "id": "deterministic-native-and-wasm-parity",
       "kind": "adapter-parity",
-      "assertions": ["changed scenarios are run once per adapter", "repeated native output is byte-equivalent", "native and real WASM public envelopes are byte-equivalent"]
+      "assertions": ["distinct scenarios are run once per adapter", "repeated native result and replay are byte-equivalent", "native and real WASM public envelopes are structurally equivalent"]
     },
     {
       "id": "orientation-and-simultaneous-resolution",
