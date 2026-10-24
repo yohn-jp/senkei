@@ -1,4 +1,6 @@
-# F01 Blender Hero production PoC
+# F01 original production PoC — rejected v1
+
+**これは旧版 `04c7a84` の記録です。造形品質はレビューで不採用となりました。現行の対応と出典・ライセンスは [F01-REVIEW.md](F01-REVIEW.md) を参照してください。以下の自作素材・材質数・ボーン数などの記述は旧版に関するものです。**
 
 F01（前衛 × 防御 × 指揮）のモデル、共通リグの5動作、Detail/Battle GLB、独立したThree.jsプレビューを制作した。名前は **Aegis Marshal / 不退の旗手**（制作仮称）。青の外套、銀甲、金の階級章、三段シェブロンの大盾、銀髪と頬の傷を持つ。制作PoCとして鑑賞・再生成可能な成果物であり、最終AAA品質の達成判定ではない。
 

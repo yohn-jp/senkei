@@ -5,7 +5,7 @@
   "displayName": "Aegis Marshal (制作仮称)",
   "generator": {
     "entry": "tools/assets/build_hero.py",
-    "version": 1,
+    "version": 2,
     "blender": "5.2.2 LTS"
   },
   "coordinates": {
@@ -13,7 +13,7 @@
     "front": "+Z",
     "unit": "metre"
   },
-  "rig": "senkei.humanoid.v1",
+  "rig": "senkei.humanoid.v2",
   "animations": [
     {
       "name": "Idle",
@@ -52,23 +52,24 @@
     }
   ],
   "materials": [
-    "Joint • graphite",
-    "Silver • tempered steel",
-    "Azure • enamel",
-    "Gold • officer insignia",
-    "Silver • polished edges",
-    "Leather • oxblood",
-    "Azure • woven wool",
-    "Skin • warm bronze",
-    "Eyes • ivory",
-    "Eyes • slate blue",
-    "Hair • ash silver",
-    "Face • warm shadow"
+    "Skin • warm tan",
+    "Hair • silver ash",
+    "Eyes • painted iris",
+    "Leather • graphite straps",
+    "Azure • heavy wool",
+    "Steel • satin forged plate",
+    "Gold • brass officer trim",
+    "Azure • shield enamel"
   ],
-  "license": "Apache-2.0",
+  "license": "CC-BY-4.0 AND Apache-2.0",
+  "attribution": "Snow Rig (CC) Blender Foundation | studio.blender.org; adapted for Senkei",
+  "provenance": "assets/sources/vendor/snow-v4.2/provenance.json",
   "sources": [
     "assets/sources/heroes/common.py",
+    "assets/sources/heroes/snow_base.py",
     "assets/sources/heroes/f01.py",
+    "assets/sources/vendor/snow-v4.2/snow_v4.2.blend",
+    "assets/sources/vendor/snow-v4.2/provenance.json",
     "tools/assets/build_hero.py"
   ],
   "lods": [
@@ -76,22 +77,25 @@
       "level": "detail",
       "url": "/assets/heroes/f01/f01-detail.glb",
       "file": "assets/generated/f01/f01-detail.glb",
-      "triangles": 25535,
-      "bytes": 1542968,
-      "sha256": "7afc3ae1ec7545b76958f234549b3a1b3d2b73cc63af53d9b7c02abefd8abd38"
+      "triangles": 91268,
+      "bytes": 5475524,
+      "sha256": "da8ddfbcf0c6435e74771778eb76062fc90f8c87213d178a5d71526394029cc0"
     },
     {
       "level": "battle",
       "url": "/assets/heroes/f01/f01-battle.glb",
       "file": "assets/generated/f01/f01-battle.glb",
-      "triangles": 8937,
-      "bytes": 537876,
-      "sha256": "53143c3a61cf5128dd410457a54ee9c032f9cf891e4c3fa98fdcc81bc6867d98"
+      "triangles": 10952,
+      "bytes": 824568,
+      "sha256": "7900bbc164c40a8882c82171bd9de0e04a9fb0f076804de1f1b80e676f6d2257"
     }
   ],
   "sourceHashes": {
     "assets/sources/heroes/common.py": "2606bad503a0c873c7de7067a616ca2671098d21db4aca4717c8d0ca68846225",
-    "assets/sources/heroes/f01.py": "0587f858b9d60f42cdce9222915de137674525d2240185e2a12952a45a4f7eb5",
-    "tools/assets/build_hero.py": "ac17e1be60bbf1a29d784a201b195847c5035c1abb6ecf90e76ffdb2d969bb21"
+    "assets/sources/heroes/snow_base.py": "023835c56c81e29663f20b4d3ac6a7890b98b0876713359744c791759acfcedc",
+    "assets/sources/heroes/f01.py": "3a75db334a7aba192bdb9a09fe47ba252cfd8a8a5949627145255226d1901978",
+    "assets/sources/vendor/snow-v4.2/snow_v4.2.blend": "80fd0a81bca90f0efdcdcb98422df0e198ae57f4a1c239e13fb795922779b1fc",
+    "assets/sources/vendor/snow-v4.2/provenance.json": "a8e201984089300d087d58027cdb94c7c9584b2c15848063150061d8d0c29b0e",
+    "tools/assets/build_hero.py": "f9ae6bf8ab6a773ac59d0b79e9f19977ab0e6f54ebf8471305aca40a2028af34"
   }
 }

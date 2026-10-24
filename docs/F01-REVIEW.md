@@ -20,7 +20,7 @@ SnowはCC-BY 4.0。[原配布.blendとライセンス証拠](../assets/sources/v
 ![Source body inspection](evidence/f01/review/source-snow-body.png)
 ![Source face inspection](evidence/f01/review/source-snow-face.png)
 
-これは採用前の形状確認用の簡易材質レンダーであり、F01完成画像ではない。目のviewport用コレクションが原ファイルでrender非表示のため、この画像では眼球が出ていない。抽出工程で表示・材質を修復してから顔の最終評価を行う。
+これは採用前の形状確認用の簡易材質レンダーであり、F01完成画像ではない。最初の調査では原ファイルの目のviewportコレクションがrender非表示だったため眼球が出ていなかった。その表示設定を直し、`tools/assets/inspect_source.py` で調査画像を再生成した。
 
 ## Remaining checkpoints
 
@@ -31,3 +31,16 @@ SnowはCC-BY 4.0。[原配布.blendとライセンス証拠](../assets/sources/v
 - GLB検証、再生成照合、TypeScript/build、ブラウザ動作テストを再実行し、残る欠点を報告する。
 
 このcheckpointでは、改訂モデル・動作の完成や造形品質の受入は宣言しない。既存パイプライン・プレビューは維持する。PR #3との統合やmainへのmergeはしない。
+
+## Checkpoint 2 — intermediate mesh replacement (work in progress)
+
+Snow由来の顔・髪・人体・衣服のメッシュとウェイトを取り込み、Senkei共通リグへ適合した。旧人体生成は差替えた。肩は積層形状から一枚の成形装甲へ変更し、外套は立体的なドレープと2本の追加ボーン／ウェイトを持つ形状へ変更した。原Tシャツの胴体が胸甲を突き抜ける箇所を除去し、袖を残した。材質数は12から8へ削減した。
+
+- 現在のDetail: 91,268 triangles / 5,475,524 bytes。
+- 現在のBattle: 10,952 triangles / 824,568 bytes。
+- 現在のGLBは両方ともValidatorエラー0・警告0。5クリップと埋込テクスチャ、生成元／GLBハッシュの検証は成功。
+- 正面・側面・背面・顔の4画像を再生成済み。造形の受入は未判定。
+- **五動作の修正、接地／重心／武器保持の画像確認、改訂モデルでのChromium検証、再生成照合、旧版との比較提出は未完了。**
+- `docs/evidence/f01/` は現時点では混在している。`blender-front.png`、`blender-side.png`、`blender-back.png`、`blender-close-up.png`、`gltf-validation.json` がこの改訂に対応する。他の旧レンダー、ブラウザ画像／動画、再生成照合は旧版の証拠であり、改訂の検証成功として扱わない。
+
+本コミットはユーザーの「現時点ですべてcommit/push」の指示による途中保存。改訂の完成・画質受入・ブラウザ試験完了を宣言するものではない。

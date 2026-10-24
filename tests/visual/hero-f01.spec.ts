@@ -15,7 +15,7 @@ test('F01 loads both GLBs, renders five rigged motions and supports inspection c
   await page.goto('/hero/');
   const inspection = page.getByTestId('hero-inspection');
   await expect(inspection).toContainText('5 motions');
-  await expect(inspection).toContainText('12 skinned meshes');
+  await expect(inspection).toContainText(`${manifest.materials.length} skinned meshes`);
   const canvas = page.getByTestId('hero-viewport').locator('canvas');
   await expect.poll(async () => Number(await canvas.getAttribute('data-frame'))).toBeGreaterThan(5);
   const initial = Number(await canvas.getAttribute('data-time'));

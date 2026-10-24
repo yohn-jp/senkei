@@ -5,7 +5,7 @@ from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'assets/sources/heroes'))
 import common, importlib, re
-p=argparse.ArgumentParser(); p.add_argument('--render',action='store_true'); p.add_argument('--hero',default='f01')
+p=argparse.ArgumentParser(); p.add_argument('--render',action='store_true'); p.add_argument('--hero',default='f01'); p.add_argument('--views',default='all')
 args=p.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 HERO=args.hero
 if not re.fullmatch(r'[fr]0[1-6]', HERO): raise ValueError('Expected hero key f01–f06 / r01–r06')
@@ -15,11 +15,13 @@ EVIDENCE=ROOT/'docs/evidence'/HERO; EVIDENCE.mkdir(parents=True,exist_ok=True)
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
 scene=bpy.context.scene; scene.render.fps=30
 meta=definition.build(); common.recalc_normals()
-# Shared humanoid v1 skeleton; local Y follows bone, consistent across hero definitions.
-bones=[('root',(0,0,0),(0,0,.35),None),('pelvis',(0,0,1.63),(0,0,1.85),'root'),('spine',(0,0,1.85),(0,0,2.48),'pelvis'),('head',(0,0,2.55),(0,0,3.12),'spine')]
-for s,side in [(-1,'L'),(1,'R')]:
-    bones += [('upper_arm.'+side,(s*.53,0,2.42),(s*.8,0,1.99),'spine'),('forearm.'+side,(s*.8,0,1.99),(s*.89,-.04,1.59),'upper_arm.'+side),('hand.'+side,(s*.89,-.04,1.59),(s*.89,-.04,1.4),'forearm.'+side),('thigh.'+side,(s*.23,0,1.63),(s*.23,0,1.04),'pelvis'),('shin.'+side,(s*.23,0,1.04),(s*.23,0,.35),'thigh.'+side),('foot.'+side,(s*.23,0,.35),(s*.23,-.3,.15),'shin.'+side)]
-data=bpy.data.armatures.new('Senkei humanoid v1'); rig=bpy.data.objects.new('Senkei humanoid v1',data); scene.collection.objects.link(rig)
+# Shared v2 skeleton fitted to the inspected anatomical base.
+parents={'pelvis':'root','spine':'pelvis','head':'spine'}
+for side in ['L','R']:
+    parents.update({'upper_arm.'+side:'spine','forearm.'+side:'upper_arm.'+side,'hand.'+side:'forearm.'+side,'thigh.'+side:'pelvis','shin.'+side:'thigh.'+side,'foot.'+side:'shin.'+side})
+bones=[('root',(0,0,0),(0,0,.35),None)]+[(name,head,tail,parents[name]) for name,(head,tail) in definition.JOINTS.items()]
+bones += [('cape.upper',(0,.32,2.40),(0,.55,1.60),'spine'),('cape.lower',(0,.55,1.60),(0,.65,.60),'cape.upper')]
+data=bpy.data.armatures.new('Senkei humanoid v2'); rig=bpy.data.objects.new('Senkei humanoid v2',data); scene.collection.objects.link(rig)
 bpy.context.view_layer.objects.active=rig; rig.select_set(True); bpy.ops.object.mode_set(mode='EDIT')
 for name,head,tail,parent in bones:
     b=data.edit_bones.new(name); b.head=head; b.tail=tail
@@ -88,9 +90,9 @@ for action in actions:
 scene.frame_set(1)
 # Save source with neutral pose and all actions, before setting up photographic stage.
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/f'{HERO}.blend'))
-manifest={'schemaVersion':1,'appearanceKey':spec['appearanceKey'],'heroId':spec['heroId'],'displayName':meta['title'],'generator':{'entry':'tools/assets/build_hero.py','version':1,'blender':bpy.app.version_string},'coordinates':{'gltfUp':'Y','front':'+Z','unit':'metre'},'rig':'senkei.humanoid.v1','animations':[{'name':n,'loop':l,'duration':(e-1)/30,'start':'guard','end':'guard' if n!='Death' else 'fallen; clamp last frame'} for n,e,l in clips],'materials':[m.name for m in hero.data.materials],'license':'Apache-2.0','sources':['assets/sources/heroes/common.py',f'assets/sources/heroes/{HERO}.py','tools/assets/build_hero.py'],'lods':[]}
+manifest={'schemaVersion':1,'appearanceKey':spec['appearanceKey'],'heroId':spec['heroId'],'displayName':meta['title'],'generator':{'entry':'tools/assets/build_hero.py','version':2,'blender':bpy.app.version_string},'coordinates':{'gltfUp':'Y','front':'+Z','unit':'metre'},'rig':'senkei.humanoid.v2','animations':[{'name':n,'loop':l,'duration':(e-1)/30,'start':'guard','end':'guard' if n!='Death' else 'fallen; clamp last frame'} for n,e,l in clips],'materials':[m.name for m in hero.data.materials],'license':'CC-BY-4.0 AND Apache-2.0','attribution':'Snow Rig (CC) Blender Foundation | studio.blender.org; adapted for Senkei','provenance':'assets/sources/vendor/snow-v4.2/provenance.json','sources':['assets/sources/heroes/common.py','assets/sources/heroes/snow_base.py',f'assets/sources/heroes/{HERO}.py','assets/sources/vendor/snow-v4.2/snow_v4.2.blend','assets/sources/vendor/snow-v4.2/provenance.json','tools/assets/build_hero.py'],'lods':[]}
 manifest['sourceHashes']={path:hashlib.sha256((ROOT/path).read_bytes()).hexdigest() for path in manifest['sources']}
-for lod,ratio in [('detail',1),('battle',.35)]:
+for lod,ratio in [('detail',1),('battle',.12)]:
     bpy.context.view_layer.objects.active=hero
     if lod=='battle':
         dec=hero.modifiers.new('Battle silhouette reduction','DECIMATE'); dec.ratio=ratio
@@ -104,7 +106,7 @@ for lod,ratio in [('detail',1),('battle',.35)]:
 # Render the original detail model, rather than the destructively decimated LOD.
 if args.render:
     bpy.ops.wm.open_mainfile(filepath=str(OUT/f'{HERO}.blend'))
-    scene=bpy.context.scene; rig=bpy.data.objects['Senkei humanoid v1']
+    scene=bpy.context.scene; rig=bpy.data.objects['Senkei humanoid v2']
     for tr in rig.animation_data.nla_tracks: tr.mute=True
     rig.animation_data.action=bpy.data.actions['Idle']; scene.frame_set(1)
     scene.render.engine='CYCLES'; scene.cycles.samples=32; scene.cycles.use_denoising=True
@@ -126,10 +128,12 @@ if args.render:
     views=[('front',(0,-7,2.9),(0,0,1.65),4.25),('side',(7,0,2.9),(0,0,1.65),4.25),('back',(0,7,2.9),(0,0,1.65),4.25),('three-quarter',(5,-7,4),(0,0,1.65),4.4),('close-up',(2.6,-6,3.3),(0,0,2.65),1.65),('hero-detail',(4.4,-8,3.5),(0,0,1.66),3.9),('battlefield',(7,-9,10),(0,0,1.2),13)]
     d.type='ORTHO'
     for name,loc,target,scale in views:
+        if args.views!='all' and name not in args.views.split(','): continue
         cam.location=loc; aim(cam,target); d.ortho_scale=scale
         scene.render.filepath=str(EVIDENCE/f'blender-{name}.png'); bpy.ops.render.render(write_still=True)
     # Pose review, using maximum gesture / terminal death frames.
-    for name,frame in [('Walk',8),('Attack',16),('Skill',30),('Death',66)]:
+    for name,frame in [('Idle',23),('Walk',8),('Attack',16),('Skill',30),('Death',66)]:
+        if args.views!='all' and name.lower() not in args.views.split(','): continue
         rig.animation_data.action=bpy.data.actions[name]; scene.frame_set(frame)
         cam.location=(4,-7,4); aim(cam,(0,0,1.5)); d.ortho_scale=4.8
         scene.render.filepath=str(EVIDENCE/f'blender-pose-{name.lower()}.png'); bpy.ops.render.render(write_still=True)

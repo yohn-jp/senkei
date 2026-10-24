@@ -53,7 +53,7 @@ cargo run --locked -p senkei-runner -- run examples/local-match.json
 - [独自言語・共通IR・CUモデル](docs/TACTICS.md)
 - [コンパイル・論理CU・戦闘エンジンの入出力境界](docs/EXECUTION.md)
 - [Pixel 3D・プロシージャルアセット・描画設計](docs/GRAPHICS.md)
-- [F01 Blender制作PoC・GLB・Heroプレビュー](docs/F01-PRODUCTION.md)（`/hero/`）
+- [F01 Hero・レビュー対応と素材出典](docs/F01-REVIEW.md)（`/hero/`）
 - [EnbuとRendererのPresentationReplay契約](docs/REPLAY.md)
 - [デスクトップ／モバイルUIの情報設計](docs/UI-DESIGN.md)
 - [グラフィック実装の分割と検証](docs/GRAPHICS-DELIVERY.md)

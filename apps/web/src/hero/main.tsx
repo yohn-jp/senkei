@@ -53,7 +53,7 @@ function Atelier() {
         <output className="inspection" data-testid="hero-inspection" aria-live="polite">{inspection?`${Math.round(inspection.triangles).toLocaleString('en-US')} triangles · ${inspection.clips.length} motions · ${inspection.skinnedMeshes} skinned meshes`:'—'}</output>
         <p className="hint">ドラッグで回転 / スクロール・ピンチでズーム<br/>ボタンからも回転・拡大できます。</p>
       </aside>
-    </div><footer><span>STYLIZED TACTICAL FANTASY</span><span>{manifest.appearanceKey}</span><span>ORIGINAL ASSET / APACHE-2.0</span></footer>
+    </div><footer><span>STYLIZED TACTICAL FANTASY</span><span>{manifest.appearanceKey}</span><a href="https://studio.blender.org/characters/snow/v4/" target="_blank" rel="noreferrer">Snow base © Blender Foundation · CC BY 4.0 / Senkei armor</a></footer>
   </main>;
 }
 createRoot(document.getElementById('root')!).render(<Atelier/>);
