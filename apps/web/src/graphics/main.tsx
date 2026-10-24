@@ -51,6 +51,8 @@ function CameraIcon() {
 }
 function eventLabel(event: Event) {
   const types = {
+    vitals: "回復・成長",
+    skill: "スキル",
     spawn: "援軍が出現",
     move: "進軍",
     attack: "攻撃",

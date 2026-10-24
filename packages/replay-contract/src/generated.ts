@@ -45,12 +45,28 @@ export type Event =
       tick: number;
       order: number;
       result: Result;
+    }
+  | {
+      type: "vitals";
+      tick: number;
+      order: number;
+      entityId: string;
+      hp: number;
+      maxHp: number;
+    }
+  | {
+      type: "skill";
+      tick: number;
+      order: number;
+      entityId: string;
+      targetId: string;
+      skillKey: string;
     };
 
 export interface PresentationReplay {
-  schemaVersion: "0.1";
+  schemaVersion: "0.1" | "0.2";
   header: {
-    origin: "sample" | "official";
+    origin: "sample" | "official" | "local";
     title: string;
     enbuVersion: string | null;
     senritsu: {
@@ -74,6 +90,13 @@ export interface PresentationReplay {
      * @maxItems 32
      */
     lanes: [Lane, ...Lane[]];
+    /**
+     * @maxItems 32
+     */
+    camps?: {
+      id: string;
+      position: WorldPoint;
+    }[];
   };
   /**
    * @minItems 1
@@ -82,7 +105,7 @@ export interface PresentationReplay {
   initialView: [Entity, ...Entity[]];
   /**
    * @minItems 1
-   * @maxItems 20000
+   * @maxItems 500000
    */
   timeline: [Event, ...Event[]];
   result: Result;
@@ -110,6 +133,7 @@ export interface Entity {
   position: WorldPoint;
   hp: number;
   maxHp: number;
+  catalogId?: string;
 }
 export interface Result {
   winner: "azure" | "vermilion" | "draw";
