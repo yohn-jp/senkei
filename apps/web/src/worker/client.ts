@@ -76,6 +76,10 @@ export class WorkerCoreClient implements CoreClient {
     this.worker.addEventListener("messageerror", this.onMessageError);
   }
 
+  nextRuleset(): Promise<RulePackage> {
+    return this.request("next_ruleset", {}) as Promise<RulePackage>;
+  }
+
   initialRuleset(): Promise<RulePackage> {
     return this.request("initial_ruleset", {}) as Promise<RulePackage>;
   }

@@ -138,6 +138,7 @@ export interface WorkerFailure {
 
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
+  nextRuleset(): Promise<RulePackage>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
   formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;

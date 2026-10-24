@@ -20,7 +20,7 @@ interface WorkerRequestBase {
 
 export type WebWorkerRequest =
   | (WorkerRequestBase & {
-      readonly operation: "initial_ruleset";
+      readonly operation: "initial_ruleset" | "next_ruleset";
       readonly payload: Record<string, never>;
     })
   | (WorkerRequestBase & {
@@ -62,7 +62,7 @@ interface WorkerResponseBase {
 
 export type WebWorkerResponse =
   | (WorkerResponseBase & {
-      readonly operation: "initial_ruleset";
+      readonly operation: "initial_ruleset" | "next_ruleset";
       readonly ok: true;
       readonly result: RulePackage;
     })
@@ -108,7 +108,7 @@ interface WebCoreApiRequestBase {
 
 export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
-      readonly operation: "initial_ruleset";
+      readonly operation: "initial_ruleset" | "next_ruleset";
       readonly payload: Record<string, never>;
     })
   | (WebCoreApiRequestBase & {

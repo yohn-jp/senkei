@@ -9,6 +9,7 @@ const MAX_IDENTIFIER_LENGTH = 128;
 
 type RequestOperation =
   | "initial_ruleset"
+  | "next_ruleset"
   | "new_match_context"
   | "compile"
   | "parse_text"
@@ -121,6 +122,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
   const operation = record.operation;
   if (
     operation !== "initial_ruleset" &&
+    operation !== "next_ruleset" &&
     operation !== "new_match_context" &&
     operation !== "compile" &&
     operation !== "parse_text" &&
@@ -149,6 +151,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
 function validatePayload(operation: RequestOperation, payload: Record<string, unknown>): void {
   switch (operation) {
     case "initial_ruleset":
+    case "next_ruleset":
       if (Object.keys(payload).length !== 0) {
         throw new RequestFailure("invalid_request", "initial_ruleset payload must be empty.");
       }
@@ -212,7 +215,8 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
 async function runOperation(request: WorkerRequest): Promise<unknown> {
   switch (request.operation) {
     case "initial_ruleset":
-      return callCore("initial_ruleset", {}, request.request_id);
+    case "next_ruleset":
+      return callCore(request.operation, {}, request.request_id);
     case "new_match_context":
       return callCore("new_match_context", {
         ruleset_ref: request.payload.ruleset_ref,
