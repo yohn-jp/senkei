@@ -31,6 +31,7 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 - 論理的なWorldPoint（戦場平面上の位置）を、Renderer側のScene AdapterがThree.jsの3D座標・高度へ変換する。戦律の射程や命中をRendererで再計算しない。
 - 3レーンは最初のSenritsuのScene内容であり、Replay Schema自体へ「3本しかない」をハードコードしない。
 - Nextの `scene.routes` はSenritsuの通行可能なMap edgeと実World node座標の投影である。Rendererはこのグラフを移動ルールとして再計算せず、存在しない橋・近道・経路をSceneへ追加しない。旧Replayでは任意項目として省略できる。
+- 任意の `scene.baseSites` は公開Worldの本拠地所在地（id・陣営・座標）だけを投影する。所在地の既知性は施設の生存・HP・視認を意味しない。未観測時は状態不明の地図注記に限り、施設の現在状態・破壊確認は観測可能なReplayの事実から表示する。旧Replayは省略でき、非公開の敵状態をこの項目に入れない。
 - 時刻は**整数Tick＋同一Tick内の規範的順序**。描画FPS、演出ミリ秒、再生速度と切り離す。
 - 再生、巻き戻し、直接シークは同じ確定状態へ戻る。Checkpointの使用有無によって結果を変えない。
 - 出現・移動・攻撃Cue・被害による確定状態変化・破壊・非表示化・終局を意味イベントとして提供する。
