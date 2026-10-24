@@ -731,7 +731,7 @@ export interface HeroDefinition {
 export interface SkillDefinition {
   readonly id:string; readonly name:string; readonly passive:boolean; readonly unlock_level:number;
   readonly prerequisites:readonly string[]; readonly cooldown:number; readonly cost:number;
-  readonly range:number; readonly target:string; readonly effect:"damage"|"heal"|"shield"|"haste"|"slow"|"reveal"|"empower"|"defense";
+  readonly range:number; readonly target:string; readonly effect:"area_damage"|"damage"|"heal"|"shield"|"haste"|"slow"|"reveal"|"empower"|"defense";
   readonly power:number; readonly duration:number;
 }
 export interface UnitDefinition { readonly id:string; readonly stats:UnitStats; readonly xp:number }

@@ -51,7 +51,7 @@ pub struct SkillDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SkillEffect { Damage, Heal, Shield, Haste, Slow, Reveal, Empower, Defense }
+pub enum SkillEffect { AreaDamage, Damage, Heal, Shield, Haste, Slow, Reveal, Empower, Defense }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDefinition { pub id: String, pub stats: UnitStats, pub xp: i64 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
