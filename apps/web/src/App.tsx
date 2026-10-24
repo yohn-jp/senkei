@@ -74,7 +74,7 @@ interface PreparedRun {
   readonly snapshot: SimulationSnapshot;
 }
 
-const MAX_BENCHMARK_HISTORY = 20;
+const MAX_BENCHMARK_HISTORY = 5;
 
 function draftKey(draft: EditorDraft): string | null {
   return draft === null ? null : JSON.stringify(draft);
