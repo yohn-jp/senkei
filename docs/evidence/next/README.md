@@ -12,7 +12,10 @@ The diagnostics option is enabled. They are distinct from the synthetic
 - [Workbench video](next-workbench.webm): selection/edit/compile, real match,
   visible playback and pause, seek, revised rematch, offline restoration, and
   an offline compile/simulate pass.
-- [52-case balance report](balance.json): exact package digest and case data.
+- [56-case balance report](balance.json): exact package digest, outcomes,
+  termination classes, and scenario data. Eight strategic cases run to the
+  600-tick cap or base destruction; six time out and two mirrored assaults
+  destroy bases for opposite sides.
 
 Chromium 155 ran with SwiftShader. Images were inspected; the tests check
 actual canvas creation, visible entities, replay advancement/pause, and state

@@ -667,7 +667,7 @@ fn strategic_match_case(
 }
 
 fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
-    vec![
+    let cases = vec![
         strategic_match_case(
             rules,
             "balanced-solos-vs-quintet",
@@ -720,7 +720,46 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
         strategic_match_case(rules, "base-assault-trio-duo-vs-duos-mirrored", &[3,2], &[2,2,1],
             &["F01","F02","F05","R04","R06"], &["F03","F04","R01","R02","R05"],
             &["defender_base";5], &["attacker_base";5]),
-    ]
+    ];
+
+    let case = |id: &str| cases.iter().find(|case| case["case_id"] == id)
+        .unwrap_or_else(|| panic!("strategic case {id} is included"));
+    let structure_hp = |case: &serde_json::Value, catalog_id: &str| {
+        case["visible_structure_state"].as_array()
+            .and_then(|structures| structures.iter().find(|structure| {
+                structure["catalog_id"]["value"] == catalog_id
+            }))
+            .and_then(|structure| structure["hp"]["value"].as_i64())
+            .unwrap_or_else(|| panic!("{catalog_id} is visible in the terminal base-destruction frame for {}", case["case_id"]))
+    };
+
+    // A paired setup swaps both roster and squad partition. Both orientations
+    // must be capable of destroying the opposing base, with the same result
+    // fields that the replay exposes to a spectator.
+    let attacker_win = case("base-assault-duos-vs-trio-duo");
+    assert_eq!(attacker_win["outcome"], "AttackerVictory");
+    assert_eq!(attacker_win["termination_class"], "victory");
+    assert_eq!(attacker_win["termination_reason"], "base_destroyed");
+    assert!(attacker_win["final_tick"].as_u64().unwrap() < attacker_win["max_ticks"].as_u64().unwrap());
+    assert_eq!(structure_hp(attacker_win, "base.defender"), 0);
+    assert!(structure_hp(attacker_win, "base.attacker") > 0);
+
+    let defender_win = case("base-assault-trio-duo-vs-duos-mirrored");
+    assert_eq!(defender_win["outcome"], "DefenderVictory");
+    assert_eq!(defender_win["termination_class"], "victory");
+    assert_eq!(defender_win["termination_reason"], "base_destroyed");
+    assert!(defender_win["final_tick"].as_u64().unwrap() < defender_win["max_ticks"].as_u64().unwrap());
+    assert_eq!(structure_hp(defender_win, "base.attacker"), 0);
+    assert!(structure_hp(defender_win, "base.defender") > 0);
+
+    let timeouts = cases.iter().filter(|case| case["termination_class"] == "timeout").collect::<Vec<_>>();
+    assert_eq!(timeouts.len(), 6, "the report retains capped draws as timeout observations");
+    assert!(timeouts.iter().all(|case| {
+        case["outcome"] == "Draw"
+            && case["termination_reason"] == "time_limit"
+            && case["final_tick"] == case["max_ticks"]
+    }));
+    cases
 }
 
 fn catalog_scenario_cases(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
@@ -1009,8 +1048,23 @@ fn report_path() -> Option<PathBuf> {
 }
 
 fn write_report(path: &Path, report: &serde_json::Value) {
-    let bytes = serde_json::to_vec_pretty(report).expect("scenario report serializes as JSON");
+    let mut bytes = serde_json::to_vec_pretty(report).expect("scenario report serializes as JSON");
+    bytes.push(b'\n');
     fs::write(path, bytes).unwrap_or_else(|error| panic!("could not write {}: {error}", path.display()));
+}
+
+fn report_fixture_path() -> Option<String> {
+    std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(|value| {
+        let path = PathBuf::from(value);
+        let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("Enbu manifest lives two levels below the repository root");
+        path.strip_prefix(repository_root)
+            .unwrap_or(&path)
+            .display()
+            .to_string()
+    })
 }
 
 #[test]
@@ -1078,7 +1132,8 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
     results.extend(xp_share_cases(&rules));
     results.push(jungle_respawn_case(&rules));
     results.push(death_respawn_case());
-    results.extend(strategic_case_set(&rules));
+    let strategic_cases = strategic_case_set(&rules);
+    results.extend(strategic_cases);
     write_next_adapter_fixtures(&rules);
 
     if let Some(path) = report_path() {
@@ -1090,14 +1145,13 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
             "package_digest": package_digest,
             "case_count": results.len(),
             "cases": results,
-            "adapter_fixture_dir": std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR")
-                .map(|path| PathBuf::from(path).display().to_string()),
+            "adapter_fixture_dir": report_fixture_path(),
             "limits": [
-                "The seven initial partition cases run for one tick; eight lineup and objective cases run to the ruleset tick cap or base destruction with five opening move intents per side.",
+                "The seven initial partition cases run for one tick; eight lineup and objective cases run to the 600-tick ruleset cap or base destruction with five opening move intents per side.",
                 "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
                 "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
                 "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
-                "Strategic results that end at the configured tick limit are time-limited observations, including any draw outcome."
+                "The eight full-length strategic cases contain six 600-tick timeouts and two mirrored base-destruction victories; timeout draws remain time-limited observations."
             ]
         }));
     }

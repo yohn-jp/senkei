@@ -31,7 +31,7 @@ not claim completion of that newer presentation track.
 | W6 | Existing Jinrei grammar/VM, typed Hero/Minion/monster/objective collections, move/pursue/retreat/activate/split/merge/regroup, deterministic goal conflicts and registered logical CU costs. |
 | W7 | Procedural silhouettes, towers/bases/monsters/minions, map/camps, formations, movement/combat cues, overview/zoom/tracking, Smooth/Pixel rendering, instanced scenery and disposal. |
 | W8 | Catalog filters, five slots, Squad grouping/formation preview, skill-path selection, existing editor, real local launch, synchronized 3D replay, player diagnostics/progression, revise/rematch, versioned save/restore/import/export, mobile layout. |
-| W9 | Reproducible 52-case headless report, package/roster rejection, movement factorial, lifecycle/XP/maturation cases, diverse lineups, public confidentiality and native/WASM parity. |
+| W9 | Reproducible 56-case headless report, package/roster rejection, movement factorial, lifecycle/XP/maturation cases, diverse lineups, public confidentiality and native/WASM parity. |
 
 The production path is selection → configuration → skill path → Jinrei →
 Next validation → existing Enbu simulation loop → PresentationReplay → graphics
@@ -77,7 +77,7 @@ for contested neutrals. See [parameter policies](NEXT-PARAMETERS.md).
 | Real compiled WASM build | PASS |
 | Initial scenario generation `--check` | PASS |
 | Seven initial native/WASM golden comparisons | PASS, complete responses and repeated-input equality |
-| `bash scripts/balance/run-next.sh` | PASS, 52 cases plus public Next native/WASM comparison and three matching invalid-request rejections |
+| `bash scripts/balance/run-next.sh` | PASS, 56 cases plus public Next native/WASM comparison and three matching invalid-request rejections |
 | `npm run typecheck`, production build | PASS |
 | `npm test` | PASS, 26 Replay Contract/Player tests |
 | `npm run contract:types` generated-file check | PASS |
@@ -111,11 +111,13 @@ Desktop and mobile images were inspected after those corrections.
 - [Twelve-model graphics showcase and four viewport captures](../evidence/w7/README.md).
   That fixture is explicitly synthetic and does not represent a legal match.
 
-All four strategic 120-tick balance lineups reached their time cap as Draws.
-They provide movement/progression/visibility/CU observations, not win-rate
-estimates or evidence of achieved balance. The CLI and browser victories prove
-base-destruction termination in separate full matches; they do not make those
-four time-limited scenarios a larger statistical sample.
+The eight strategic cases now run to the 600-tick ruleset cap or base
+destruction. Six cases end as explicit timeouts; two swapped `2+2+1` vs `3+2`
+base assaults end in victories for opposite sides at ticks 146 and 143. The
+Solo-versus-Quintet and jungle-versus-lane cases remain timeouts. These fixed
+opening policies provide mechanical and scenario observations, not win-rate
+estimates or evidence of achieved balance. The separate CLI and browser
+victories add integration evidence, not a broader balance sample.
 
 ## Unimplemented or unverified boundaries
 
@@ -125,8 +127,9 @@ four time-limited scenarios a larger statistical sample.
   not represented as those dedicated screens.
 - Hardware GPU FPS/thermal/memory measurements, physical mobile devices,
   physical touch/IME/safe-area behavior and cross-browser coverage are NOT_CHECKED.
-- Exhaustive composition balance and longer-term balance beyond the four
-  120-tick strategic cases are NOT_CHECKED. No dominance-free balance claim.
+- Exhaustive composition balance, adaptive tactics, and long-term behavior
+  beyond the six time-limited 600-tick strategic cases are NOT_CHECKED. No
+  dominance-free balance claim.
 - W9 does not contain a separate observation-boundary/reveal-expiry scenario;
   current visibility, Unknown propagation and reveal expiry have W2 unit tests.
 - Circular vision without terrain occlusion, integer movement rounding and the

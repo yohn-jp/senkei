@@ -36,10 +36,11 @@ cover:
   vision on or off, and squad sizes one through five; separate controls check
   that overlapping friendly vision does not stack and enemy minion vision
   grants no movement bonus;
-- five independent Solo movement actions in one tick, plus four distinct
-  lineups and opening policies run for up to 120 ticks, including Solo against
-  Quintet, 2+2+1 against 3+2, a jungle push against lane defense, and a
-  mirrored jungle and lane setup;
+- five independent Solo movement actions in one tick, plus eight full-length
+  lineups and opening policies run to the 600-tick ruleset cap or base
+  destruction. The set includes Solo against Quintet, 2+2+1 against 3+2, a
+  jungle push against lane defense, a mirrored jungle and lane setup, and four
+  base-assault cases that swap attacker/defender orientation;
 - real Enbu merge, split, and regroup intents, followed by maturity checks;
 - catalog-derived neutral monster XP rewards with one, two, and five eligible
   Heroes, equal fixed-point shares, and no XP for Heroes outside the eligibility
@@ -59,17 +60,21 @@ where needed; public adapter comparisons use only public responses.
 
 ## Observations and limits
 
-The four current 120-tick lineup scenarios all reach their configured tick cap
-with `Draw`. The report marks these as time-limited observations and records
-each setup's visible event counts, final digest, hero state, and CU. They do
-not establish a win rate, general balance, or a balance threshold. The repeated
+The current eight-case strategic set has six draws at the 600-tick time limit
+and two mirrored base-destruction victories: the `2+2+1` attacker defeats the
+`3+2` defender at tick 146, and the swapped `3+2` attacker defeats the `2+2+1`
+defender at tick 143. The base-assault victories verify both outcome
+orientations; the Solo-versus-Quintet and jungle-versus-lane cases still time
+out. The report records each setup's visible event counts, final digest, hero
+state, CU, outcome and termination class. These fixed opening policies do not
+establish a win rate, general balance, or a balance threshold. The repeated
 determinism run is the same input and is not a separate matchup sample.
 
 The fragile-Hero derivative is a lifecycle fixture, not a canonical tuning
 claim. Camp respawn observes the neutral's HP before and on the configured
 respawn tick; hidden neutral lifecycle fields are not read from the owner
-projection. The full-match set ends at 120 ticks, so longer-term objectives,
-high-level progression, and victory rates remain unmeasured.
+projection. The six time-limited matches end at 600 ticks, so longer-term
+objectives, broader composition coverage, and victory rates remain unmeasured.
 
 W9 currently covers minion vision as a movement modifier and checks that the
 initial public fog view does not reveal distant enemies. It does not yet run a
