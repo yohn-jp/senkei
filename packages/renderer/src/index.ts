@@ -118,24 +118,26 @@ function ribbon(
   return { geometry, curve };
 }
 
-function segmentIntersection(
-  a: WorldPoint,
-  b: WorldPoint,
-  c: WorldPoint,
-  d: WorldPoint,
-) {
-  const rx = b.x - a.x,
-    ry = b.y - a.y,
-    sx = d.x - c.x,
-    sy = d.y - c.y,
-    denominator = rx * sy - ry * sx;
-  if (Math.abs(denominator) < 0.0001) return null;
-  const qx = c.x - a.x,
-    qy = c.y - a.y,
-    t = (qx * sy - qy * sx) / denominator,
-    u = (qx * ry - qy * rx) / denominator;
-  if (t < 0.02 || t > 0.98 || u < 0.02 || u > 0.98) return null;
-  return { x: a.x + t * rx, y: a.y + t * ry };
+function pointAlongPath(points: readonly WorldPoint[], progress: number) {
+  const lengths = points.slice(1).map((point, index) =>
+    Math.hypot(point.x - points[index].x, point.y - points[index].y),
+  );
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let remaining = total * progress;
+  for (let index = 0; index < lengths.length; index++) {
+    const length = lengths[index];
+    if (remaining <= length || index === lengths.length - 1) {
+      const start = points[index];
+      const end = points[index + 1];
+      const t = length > 0 ? THREE.MathUtils.clamp(remaining / length, 0, 1) : 0;
+      return {
+        x: THREE.MathUtils.lerp(start.x, end.x, t),
+        y: THREE.MathUtils.lerp(start.y, end.y, t),
+      };
+    }
+    remaining -= length;
+  }
+  return points[0];
 }
 function box(
   parent: THREE.Object3D,
@@ -330,7 +332,9 @@ export class Battlefield {
       element.className = "world-label";
       element.textContent = lane.label;
       host.appendChild(element);
-      const p = lane.points[Math.min(1, lane.points.length - 1)];
+      // Put each name near the middle of its own route. The first waypoint is
+      // often the shared base, where three labels collapse into one cluster.
+      const p = pointAlongPath(lane.points, 0.48);
       this.labels.push({
         element,
         point: new THREE.Vector3(p.x, lane.elevation + 0.15, p.y),
@@ -508,47 +512,20 @@ export class Battlefield {
       cx = (max.x + min.x) / 2,
       cz = (max.y + min.y) / 2;
     box(this.scene, [200, 0.1, 200], [0, -2, 0], 0x263f4e);
-    box(this.scene, [w + 2, 1.3, d + 2], [cx, -1, cz], 0x34494b);
-    box(this.scene, [w + 0.3, 0.5, d + 0.3], [cx, -0.32, cz], 0x566957);
-    box(this.scene, [w, 0.24, d], [cx, -0.08, cz], 0x77846c);
+    // Keep a restrained ground edge for depth, while letting the map read as
+    // open terrain instead of a tall display plinth.
+    box(this.scene, [w + 1.4, 0.5, d + 1.4], [cx, -0.35, cz], 0x4d604f);
+    box(this.scene, [w, 0.14, d], [cx, -0.09, cz], 0x77846c);
 
-    // A winding river runs against the diagonal battle routes, giving the
-    // center of the map three visible crossings and separating the jungle.
-    const stream: WorldPoint[] = [
-      { x: cx - w * 0.22, y: min.y - 0.4 },
-      { x: cx - w * 0.15, y: cz - d * 0.28 },
-      { x: cx - w * 0.04, y: cz - d * 0.09 },
-      { x: cx + w * 0.06, y: cz + d * 0.1 },
-      { x: cx + w * 0.14, y: cz + d * 0.28 },
-      { x: cx + w * 0.21, y: max.y + 0.4 },
-    ];
-    const bank = ribbon(stream, 2.2, -0.15);
-    const bankMesh = new THREE.Mesh(
-      bank.geometry,
-      new THREE.MeshStandardMaterial({
-        color: 0x526b61,
-        roughness: 1,
-        flatShading: true,
-      }),
-    );
-    bankMesh.receiveShadow = true;
-    this.scene.add(bankMesh);
-    const water = ribbon(stream, 1.45, -0.08, 0.02);
-    const waterMesh = new THREE.Mesh(
-      water.geometry,
-      new THREE.MeshStandardMaterial({
-        color: 0x4c8990,
-        roughness: 0.34,
-        metalness: 0.08,
-        flatShading: true,
-      }),
-    );
-    waterMesh.receiveShadow = true;
-    this.scene.add(waterMesh);
-
-    const crossings: { point: WorldPoint; angle: number; elevation: number }[] = [];
+    // Lane ribbons follow the exact points carried by the Replay. Their labels
+    // and their separate, wider shoulders keep the three combat corridors
+    // readable at overview scale.
     for (const lane of this.replay.scene.lanes) {
-      const shoulder = ribbon(lane.points, 4.2, lane.elevation - 0.14);
+      const shoulder = ribbon(
+        lane.points,
+        4.2,
+        Math.max(lane.elevation - 0.14, 0.015),
+      );
       const shoulderMesh = new THREE.Mesh(
         shoulder.geometry,
         new THREE.MeshStandardMaterial({
@@ -580,34 +557,31 @@ export class Battlefield {
         }),
       );
       this.scene.add(centerMesh);
-      for (let i = 1; i < lane.points.length; i++) {
-        const a = lane.points[i - 1],
-          b = lane.points[i];
-        const found = stream
-          .slice(1)
-          .map((end, j) => segmentIntersection(a, b, stream[j], end))
-          .find((point) => point !== null);
-        if (found) {
-          crossings.push({
-            point: found,
-            angle: -Math.atan2(b.y - a.y, b.x - a.x),
-            elevation: lane.elevation,
-          });
-          break;
-        }
-      }
     }
-    for (const crossing of crossings) {
-      const bridge = new THREE.Group();
-      bridge.position.set(crossing.point.x, crossing.elevation + 0.13, crossing.point.y);
-      bridge.rotation.y = crossing.angle;
-      box(bridge, [4.4, 0.28, 2.15], [0, 0, 0], 0x897452);
-      for (const x of [-1.7, -0.85, 0, 0.85, 1.7])
-        box(bridge, [0.09, 0.025, 1.9], [x, 0.16, 0], 0xc0a574);
-      for (const side of [-1, 1])
-        for (const x of [-1.75, 1.75])
-          box(bridge, [0.14, 0.52, 0.14], [x, 0.3, side * 0.9], 0x635f4b);
-      this.scene.add(bridge);
+
+    // Jungle movement corridors come from the versioned logical map through
+    // PresentationReplay. Drawing those explicit edges preserves the actual
+    // connections between lanes and camps without adding visual-only routes.
+    const jungleRoutes = (this.replay.scene.routes ?? []).filter(
+      (route) => route.region === "jungle",
+    );
+    for (const route of jungleRoutes) {
+      const shoulder = ribbon(route.points, 2.35, 0.055);
+      const shoulderMesh = new THREE.Mesh(
+        shoulder.geometry,
+        new THREE.MeshStandardMaterial({ color: 0x53664f, roughness: 1, flatShading: true }),
+      );
+      shoulderMesh.receiveShadow = true;
+      shoulderMesh.name = `jungle-route-edge-${route.id}`;
+      this.scene.add(shoulderMesh);
+      const path = ribbon(route.points, 1.35, 0.075);
+      const pathMesh = new THREE.Mesh(
+        path.geometry,
+        new THREE.MeshStandardMaterial({ color: 0x99866a, roughness: 1, flatShading: true }),
+      );
+      pathMesh.receiveShadow = true;
+      pathMesh.name = `jungle-route-${route.id}`;
+      this.scene.add(pathMesh);
     }
 
     // Reproducible low-poly groves frame open jungle clearings between lanes.
@@ -619,15 +593,24 @@ export class Battlefield {
     for (let i = 0; i < 58; i++) {
       const x = min.x + 0.8 + ((i * 7.13) % (w - 1.8)),
         z = min.y + 0.6 + ((i * 3.17) % (d - 1.2));
-      const near = this.replay.scene.lanes.some((l) =>
+      const nearLane = this.replay.scene.lanes.some((l) =>
         l.points
           .slice(1)
           .some((b, j) => distanceToSegment({ x, y: z }, l.points[j], b) < 2.55),
       );
-      const inRiver = stream
-        .slice(1)
-        .some((b, j) => distanceToSegment({ x, y: z }, stream[j], b) < 1.5);
-      if (near || inRiver) continue;
+      const routeDistances = jungleRoutes.flatMap((route) =>
+        route.points.slice(1).map((end, j) =>
+          distanceToSegment({ x, y: z }, route.points[j], end),
+        ),
+      );
+      const nearestRoute = Math.min(...routeDistances);
+      const hasRoutes = routeDistances.length > 0;
+      const nearRoute = hasRoutes && nearestRoute < 5.5;
+      const onRoute = hasRoutes && nearestRoute < 1.7;
+      const nearCamp = (this.replay.scene.camps ?? []).some(
+        (camp) => Math.hypot(x - camp.position.x, z - camp.position.y) < 3.6,
+      );
+      if (nearLane || nearCamp || onRoute || (hasRoutes && !nearRoute)) continue;
       const h = 0.35 + (i % 4) * 0.26;
       if (i % 5 === 0) {
         rocks.push({
