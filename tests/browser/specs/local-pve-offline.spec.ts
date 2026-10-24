@@ -5,7 +5,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   const firstRevisionSource = `senkei careful_march {
     action advance_until_tick_40 {
         when match.tick < 40,
-        do move_forward(argmin unit in allies.units by unit.position then unit.id),
+        do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
     },
     action deploy_ready_reserve {
         when match.tick >= 4,
@@ -13,7 +13,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
             argmin barracks in allies.barracks by barracks.resources then barracks.id,
             argmin reserve in filter reserve in allies.reserves {
                 reserve.available_tick <= match.tick,
-            } by reserve.available_tick then reserve.id,
+            } by reserve.available_tick then reserve.slot_id,
             mid,
         ),
     },
@@ -92,6 +92,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await expect.poll(() => page.locator(".editor-digest").innerText()).not.toBe(firstRevisionProgram);
   await navigation.getByRole("button", { name: /Battle lab/ }).click();
   await expect(page.getByText("No battle result")).toBeVisible();
+  await page.getByLabel("Include tactical diagnostics").check();
   await expect(run).toBeEnabled({ timeout: 30_000 });
   await run.click();
   await expect(page.getByText("ENBU MATCH RESULT")).toBeVisible({ timeout: 60_000 });
