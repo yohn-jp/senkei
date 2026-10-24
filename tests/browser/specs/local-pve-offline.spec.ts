@@ -103,7 +103,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   for (let tick = 0; tick < 4; tick += 1) await replayTick.press("ArrowRight");
   await expect(page.getByRole("heading", { name: "Tick 4 activity" })).toBeVisible();
   await expect(page.getByText("Unit Deployed", { exact: true })).toBeVisible();
-  await expect(page.getByText("Deploy Ready Reserve", { exact: true })).toBeVisible();
+  await expect(page.getByText("deploy_ready_reserve", { exact: true })).toBeVisible();
   await navigation.getByRole("button", { name: /Library/ }).click();
   await page.getByRole("button", { name: "Save revision" }).click();
   await expect(page.getByText("REV 3")).toBeVisible();
