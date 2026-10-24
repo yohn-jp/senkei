@@ -8,6 +8,15 @@ type ScenicInstance = {
   scale?: [number, number, number];
   rotation?: [number, number, number];
 };
+type GroveSite = {
+  x: number;
+  z: number;
+  axisX: number;
+  axisZ: number;
+  longRadius: number;
+  shortRadius: number;
+  seed: number;
+};
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const smoothstep = (a: number, b: number, value: number) => {
@@ -31,9 +40,9 @@ function valueNoise(x: number, y: number): number {
 
 function terrainNoise(x: number, z: number): number {
   return (
-    (valueNoise(x * 0.045 + 8, z * 0.045 - 3) - 0.5) * 1.36 +
-    (valueNoise(x * 0.13 - 2, z * 0.13 + 12) - 0.5) * 0.58 +
-    (valueNoise(x * 0.34 + 19, z * 0.34 + 4) - 0.5) * 0.16
+    (valueNoise(x * 0.045 + 8, z * 0.045 - 3) - 0.5) * 1.12 +
+    (valueNoise(x * 0.13 - 2, z * 0.13 + 12) - 0.5) * 0.46 +
+    (valueNoise(x * 0.34 + 19, z * 0.34 + 4) - 0.5) * 0.12
   );
 }
 
@@ -51,70 +60,250 @@ function distanceToLines(point: Point2, lines: readonly (readonly WorldPoint[])[
   return nearest;
 }
 
-function colorAt(
-  x: number,
-  z: number,
-  elevation: number,
-  laneDistance: number,
-  jungleDistance: number,
-  campDistance: number,
-): THREE.Color {
-  const texture = valueNoise(x * 0.22, z * 0.22);
-  const moss = valueNoise(x * 0.075 - 5, z * 0.075 + 7);
-  const color = new THREE.Color(0x878661).lerp(new THREE.Color(0x99936a), moss * 0.62);
-  const jungleRegion = smoothstep(2.5, 5.8, laneDistance);
-  color.lerp(new THREE.Color(0x506850), jungleRegion * 0.9);
-  color.lerp(new THREE.Color(0x617855), (1 - smoothstep(1.4, 10, jungleDistance)) * 0.3);
-  color.lerp(new THREE.Color(0x85815c), 1 - smoothstep(1.8, 5.2, laneDistance));
-  color.lerp(new THREE.Color(0xa49972), 1 - smoothstep(2.8, 5.1, campDistance));
-  color.offsetHSL(0, (texture - 0.5) * 0.12, (texture - 0.5) * 0.14);
-  color.lerp(new THREE.Color(0xa09c70), smoothstep(0.18, 0.82, elevation) * 0.14);
-  color.offsetHSL((hash(Math.floor(x * 2), Math.floor(z * 2)) - 0.5) * 0.018, 0, 0);
-  return color;
+function pathSets(replay: Replay) {
+  return {
+    lanes: replay.scene.lanes.map((lane) => lane.points),
+    jungle: (replay.scene.routes ?? [])
+      .filter((route) => route.region === "jungle")
+      .map((route) => route.points),
+    camps: replay.scene.camps ?? [],
+  };
 }
 
-function buildGround(scene: THREE.Scene, replay: Replay): (x: number, z: number) => number {
+function distanceToCamps(point: Point2, camps: Replay["scene"]["camps"]): number {
+  return (camps ?? []).reduce(
+    (nearest, camp) => Math.min(nearest, Math.hypot(point.x - camp.position.x, point.y - camp.position.y)),
+    Infinity,
+  );
+}
+
+function groveCoordinates(point: Point2, site: GroveSite): [number, number] {
+  const dx = point.x - site.x, dz = point.y - site.z;
+  return [dx * site.axisX + dz * site.axisZ, -dx * site.axisZ + dz * site.axisX];
+}
+
+function groveRadius(point: Point2, site: GroveSite): number {
+  const [along, across] = groveCoordinates(point, site);
+  const angle = Math.atan2(across / site.shortRadius, along / site.longRadius);
+  const warp = 1 + Math.sin(angle * 3 + site.seed * 0.071) * 0.085 + Math.sin(angle * 5 - site.seed * 0.037) * 0.045;
+  return Math.hypot(along / site.longRadius, across / site.shortRadius) / warp;
+}
+
+function groveInfluence(point: Point2, sites: readonly GroveSite[]): number {
+  let influence = 0;
+  for (const site of sites)
+    influence = Math.max(influence, 1 - smoothstep(0.72, 1.16, groveRadius(point, site)));
+  return influence;
+}
+
+function buildGroveSites(replay: Replay): GroveSite[] {
+  const { lanes, jungle, camps } = pathSets(replay);
+  const sites: GroveSite[] = [];
+  let seed = 1;
+  const addSite = (
+    x: number,
+    z: number,
+    axisX: number,
+    axisZ: number,
+    longRadius: number,
+    shortRadius: number,
+    sourceSeed: number,
+  ) => {
+    const axisLength = Math.hypot(axisX, axisZ) || 1;
+    const candidate: GroveSite = {
+      x,
+      z,
+      axisX: axisX / axisLength,
+      axisZ: axisZ / axisLength,
+      longRadius,
+      shortRadius,
+      seed: sourceSeed,
+    };
+    if (sites.some((site) => Math.hypot(site.x - x, site.z - z) < 5.2)) return;
+    sites.push(candidate);
+  };
+
+  // Each grove grows beside an authored jungle edge. Its long axis follows the
+  // real edge while the road and its endpoints stay open. These patches are
+  // scenery over the map's existing jungle regions, never new routes.
+  for (const route of jungle) {
+    for (let segment = 1; segment < route.length; segment++) {
+      const start = route[segment - 1], end = route[segment];
+      const dx = end.x - start.x, dz = end.y - start.y;
+      const length = Math.hypot(dx, dz);
+      if (length < 6.2) continue;
+      const tx = dx / length, tz = dz / length;
+      const nx = -tz, nz = tx;
+      const t = length > 12 ? 0.48 : 0.5;
+      const mx = start.x + dx * t, mz = start.y + dz * t;
+      for (const side of [-1, 1]) {
+        const localSeed = seed++;
+        const offset = 5.0 + hash(localSeed, 13) * 1.05;
+        const x = mx + nx * offset * side;
+        const z = mz + nz * offset * side;
+        const point = { x, y: z };
+        if (
+          distanceToLines(point, lanes) < 4.1 ||
+          distanceToLines(point, jungle) < 4.35 ||
+          distanceToCamps(point, camps) < 5.6
+        ) continue;
+        addSite(x, z, tx, tz, 4.1, 3.55, localSeed);
+      }
+    }
+  }
+
+  // Fill the broad spaces between lanes with connected woodland regions. The
+  // candidate grid is clipped by every authored lane, jungle edge and camp;
+  // it never adds a road or obstacle. Each cell chooses its safest open center
+  // so groves form masses across the whole battlefield instead of isolated
+  // trees along a perimeter.
+  const { min, max } = replay.scene.bounds;
+  const cellWidth = 7.6, cellDepth = 6.4;
+  for (let z0 = min.y + 2.8; z0 < max.y - 2.8; z0 += cellDepth) {
+    for (let x0 = min.x + 2.8; x0 < max.x - 2.8; x0 += cellWidth) {
+      let best: { x: number; z: number; angle: number; score: number } | null = null;
+      for (let row = 0; row <= 3; row++) {
+        for (let column = 0; column <= 3; column++) {
+          const localSeed = 5000 + Math.floor(x0 * 17 + z0 * 31) + row * 7 + column * 13;
+          const x = x0 + 0.7 + (cellWidth - 1.4) * column / 3 + (hash(localSeed, 29) - 0.5) * 1.15;
+          const z = z0 + 0.6 + (cellDepth - 1.2) * row / 3 + (hash(localSeed, 31) - 0.5) * 0.95;
+          const point = { x, y: z };
+          const laneClearance = distanceToLines(point, lanes);
+          const routeClearance = distanceToLines(point, jungle);
+          const campClearance = distanceToCamps(point, camps);
+          if (laneClearance < 3.9 || routeClearance < 3.35 || campClearance < 4.8) continue;
+          const score = Math.min(laneClearance - 3.3, routeClearance - 2.8, campClearance - 4.5)
+            + hash(localSeed, 37) * 0.35;
+          if (!best || score > best.score)
+            best = { x, z, angle: hash(localSeed, 41) * Math.PI, score };
+        }
+      }
+      if (best)
+        addSite(
+          best.x,
+          best.z,
+          Math.cos(best.angle),
+          Math.sin(best.angle),
+          4.25,
+          3.7,
+          Math.floor(x0 * 11 + z0 * 13),
+        );
+    }
+  }
+
+  // Select up to two open flanks around each true camp. This leaves a broad
+  // neutral clearing at the authored node and gives the space a forest edge.
+  for (let campIndex = 0; campIndex < (camps?.length ?? 0); campIndex++) {
+    const camp = camps![campIndex];
+    const candidates: { x: number; z: number; angle: number; score: number; seed: number }[] = [];
+    for (let spoke = 0; spoke < 36; spoke++) {
+      const localSeed = 3000 + campIndex * 97 + spoke;
+      const angle = (spoke / 36) * Math.PI * 2 + hash(localSeed, 17) * 0.08;
+      const radius = 6.15 + hash(localSeed, 19) * 0.75;
+      const x = camp.position.x + Math.cos(angle) * radius;
+      const z = camp.position.y + Math.sin(angle) * radius;
+      const point = { x, y: z };
+      const laneClearance = distanceToLines(point, lanes);
+      const routeClearance = distanceToLines(point, jungle);
+      const otherCampClearance = camps!.reduce(
+        (nearest, other, otherIndex) => otherIndex === campIndex
+          ? nearest
+          : Math.min(nearest, Math.hypot(x - other.position.x, z - other.position.y)),
+        Infinity,
+      );
+      if (laneClearance < 4.0 || routeClearance < 4.1 || otherCampClearance < 6.2) continue;
+      candidates.push({
+        x,
+        z,
+        angle,
+        score: Math.min(laneClearance, routeClearance) + hash(localSeed, 23) * 1.1,
+        seed: localSeed,
+      });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const selected: typeof candidates = [];
+    for (const candidate of candidates) {
+      if (selected.length >= 2) break;
+      if (selected.some((site) => Math.hypot(site.x - candidate.x, site.z - candidate.z) < 6.4)) continue;
+      if (sites.some((site) => Math.hypot(site.x - candidate.x, site.z - candidate.z) < 5.2)) continue;
+      selected.push(candidate);
+      addSite(
+        candidate.x,
+        candidate.z,
+        -Math.sin(candidate.angle),
+        Math.cos(candidate.angle),
+        4.05,
+        3.5,
+        candidate.seed,
+      );
+    }
+  }
+  return sites;
+}
+
+function colorAt(
+  point: Point2,
+  elevation: number,
+  laneDistance: number,
+  campDistance: number,
+  forest: number,
+  grove: number,
+): THREE.Color {
+  const texture = valueNoise(point.x * 0.16, point.y * 0.16);
+  const moss = valueNoise(point.x * 0.052 - 5, point.y * 0.052 + 7);
+  const soil = new THREE.Color(0x797d59).lerp(new THREE.Color(0x8c8963), moss * 0.58);
+  soil.lerp(new THREE.Color(0x49664e), forest * 0.78);
+  soil.lerp(new THREE.Color(0x354f41), grove * 0.7);
+  soil.lerp(new THREE.Color(0x89815d), 1 - smoothstep(1.8, 4.8, laneDistance));
+  soil.lerp(new THREE.Color(0xa69a73), 1 - smoothstep(3.0, 5.8, campDistance));
+  soil.offsetHSL(0, (texture - 0.5) * 0.13, (texture - 0.5) * 0.15);
+  soil.lerp(new THREE.Color(0xa5a074), smoothstep(0.24, 0.85, elevation) * 0.16);
+  return soil;
+}
+
+function buildGround(
+  scene: THREE.Scene,
+  replay: Replay,
+  sites: readonly GroveSite[],
+): (x: number, z: number) => number {
   const { min, max } = replay.scene.bounds;
   const minX = min.x - 54, maxX = max.x + 54;
   const minZ = min.y - 54, maxZ = max.y + 54;
   const width = maxX - minX, depth = maxZ - minZ;
-  const segmentsX = Math.ceil(width / 1.7), segmentsZ = Math.ceil(depth / 1.7);
+  const segmentsX = Math.ceil(width / 1.8), segmentsZ = Math.ceil(depth / 1.8);
   const position: number[] = [], colors: number[] = [], indices: number[] = [];
-  const lanes = replay.scene.lanes.map((lane) => lane.points);
-  const routes = (replay.scene.routes ?? []).filter((route) => route.region === "jungle").map((route) => route.points);
-  const camps = replay.scene.camps ?? [];
-  const heightAt = (x: number, z: number): number => {
-    const routeDistance = Math.min(
-      distanceToLines({ x, y: z }, lanes),
-      distanceToLines({ x, y: z }, routes),
-    );
-    const campDistance = camps.reduce(
-      (nearest, camp) => Math.min(nearest, Math.hypot(x - camp.position.x, z - camp.position.y)),
-      Infinity,
-    );
-    const relief = THREE.MathUtils.clamp(-0.08 + terrainNoise(x, z), -0.62, 0.92);
-    const approach = smoothstep(2.3, 8.4, Math.min(routeDistance, campDistance * 0.94));
-    return THREE.MathUtils.lerp(-0.045, relief, approach);
+  const { lanes, jungle, camps } = pathSets(replay);
+  const terrainAt = (x: number, z: number): number => {
+    const point = { x, y: z };
+    const routeDistance = Math.min(distanceToLines(point, lanes), distanceToLines(point, jungle));
+    const campDistance = distanceToCamps(point, camps);
+    const forest = smoothstep(2.6, 6.6, distanceToLines(point, lanes));
+    const grove = groveInfluence(point, sites);
+    const relief = -0.14 + terrainNoise(x, z) * 0.56 + forest * 0.18 + grove * 0.58;
+    // Flatten the whole authored campsite glade before terrain relief starts;
+    // otherwise the colored glade surface can sink beneath a surrounding hill.
+    const campsiteRimDistance = Math.max(0, campDistance - 5.8);
+    const nearbyPath = Math.min(routeDistance, campsiteRimDistance);
+    const approach = smoothstep(2.15, 7.2, nearbyPath);
+    return THREE.MathUtils.lerp(-0.045, THREE.MathUtils.clamp(relief, -0.58, 1.02), approach);
   };
 
   for (let iz = 0; iz <= segmentsZ; iz++) {
     const z = minZ + (depth * iz) / segmentsZ;
     for (let ix = 0; ix <= segmentsX; ix++) {
       const x = minX + (width * ix) / segmentsX;
-      const laneDistance = distanceToLines({ x, y: z }, lanes);
-      const jungleDistance = distanceToLines({ x, y: z }, routes);
-      const campDistance = camps.reduce(
-        (nearest, camp) => Math.min(nearest, Math.hypot(x - camp.position.x, z - camp.position.y)),
-        Infinity,
-      );
-      const elevation = heightAt(x, z);
+      const point = { x, y: z };
+      const laneDistance = distanceToLines(point, lanes);
+      const campDistance = distanceToCamps(point, camps);
+      const forest = smoothstep(2.6, 6.6, laneDistance);
+      const grove = groveInfluence(point, sites);
+      const elevation = terrainAt(x, z);
       position.push(x, elevation, z);
-      const color = colorAt(x, z, elevation, laneDistance, jungleDistance, campDistance);
+      const color = colorAt(point, elevation, laneDistance, campDistance, forest, grove);
       colors.push(color.r, color.g, color.b);
       if (ix < segmentsX && iz < segmentsZ) {
         const a = iz * (segmentsX + 1) + ix;
         const b = a + segmentsX + 1;
-        // Alternate the diagonal to keep a uniform grid from reading as a tile.
         if ((ix + iz) % 2 === 0) indices.push(a, b, a + 1, b, b + 1, a + 1);
         else indices.push(a, b, b + 1, a, b + 1, a + 1);
       }
@@ -127,17 +316,12 @@ function buildGround(scene: THREE.Scene, replay: Replay): (x: number, z: number)
   geometry.computeVertexNormals();
   const ground = new THREE.Mesh(
     geometry,
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      vertexColors: true,
-      roughness: 1,
-      flatShading: true,
-    }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1, flatShading: true }),
   );
   ground.name = "continuous-battlefield-ground";
   ground.receiveShadow = true;
   scene.add(ground);
-  return heightAt;
+  return terrainAt;
 }
 
 function bandGeometry(points: readonly WorldPoint[], width: number, y: number): THREE.BufferGeometry {
@@ -162,7 +346,6 @@ function bandGeometry(points: readonly WorldPoint[], width: number, y: number): 
     positions.push(current.x - nx * miter, y, current.y - ny * miter);
     if (i < points.length - 1) {
       const a = i * 2;
-      // Quads terminate on every authored point; the road never cuts a corner.
       indices.push(a, a + 2, a + 3, a, a + 3, a + 1);
     }
   }
@@ -203,7 +386,6 @@ function addRoads(scene: THREE.Scene, replay: Replay): void {
     routeShoulders.push({ points: route.points, width: 2.25, y: 0.008 });
     routeTracks.push({ points: route.points, width: 1.18, y: 0.037 });
   }
-
   const batches = [
     ["lane-earth-banks", laneShoulders, 0x64684f, 1],
     ["lane-earth-tracks", laneTracks, 0xa3956e, 0.96],
@@ -258,265 +440,106 @@ function addSceneryInstances(
   parent.add(mesh);
 }
 
-function addNaturalPerimeter(
+function addJungleMasses(
   scene: THREE.Scene,
   replay: Replay,
-  heightAt: (x: number, z: number) => number,
+  sites: readonly GroveSite[],
+  terrainAt: (x: number, z: number) => number,
 ): void {
-  const { min, max } = replay.scene.bounds;
-  const lanes = replay.scene.lanes.map((lane) => lane.points);
-  const routes = (replay.scene.routes ?? []).filter((route) => route.region === "jungle").map((route) => route.points);
-  const lines = [...lanes, ...routes];
-  const camps = replay.scene.camps ?? [];
+  const { lanes, jungle, camps } = pathSets(replay);
   const trunks: ScenicInstance[] = [];
-  const crowns: ScenicInstance[] = [];
-  const crownsUp: ScenicInstance[] = [];
-  const shrubs: ScenicInstance[] = [];
-  const ridges: ScenicInstance[] = [];
-  const stones: ScenicInstance[] = [];
-  const treeRoots: Point2[] = [];
+  const canopies: ScenicInstance[] = [];
+  const canopyTops: ScenicInstance[] = [];
+  const understory: ScenicInstance[] = [];
+  const roots: Point2[] = [];
+  const spacing = 1.72;
+  const cap = 260;
 
-  // A loose, seeded forest matrix forms wooded pockets around the clearings.
-  // Broad excluded margins follow actual road geometry, so canopies never sit
-  // on top of a playable route. No scenery is given collision or LOS meaning.
-  let index = 0;
-  const stepX = 3.15, stepZ = 3.0;
-  for (let row = 0, z = min.y - 10; z <= max.y + 10; row++, z = min.y - 10 + row * stepZ) {
-    for (let column = 0, x = min.x - 10; x <= max.x + 10; column++, x = min.x - 10 + column * stepX) {
-      const seed = index++;
-      const jitterX = (hash(seed, 7) - 0.5) * 1.45;
-      const jitterZ = (hash(seed, 19) - 0.5) * 1.3;
-      const px = x + jitterX + (row % 2) * 0.7;
-      const pz = z + jitterZ;
-      const point = { x: px, y: pz };
-      const laneDistance = distanceToLines(point, lanes);
-      const routeDistance = distanceToLines(point, routes);
-      const campDistance = camps.reduce(
-        (nearest, camp) => Math.min(nearest, Math.hypot(px - camp.position.x, pz - camp.position.y)),
-        Infinity,
-      );
-      if (laneDistance < 3.0 || routeDistance < 2.55 || campDistance < 3.7) continue;
-      const cluster = valueNoise(px * 0.105 + 14, pz * 0.105 - 8);
-      const perimeter = px < min.x - 1 || px > max.x + 1 || pz < min.y - 1 || pz > max.y + 1;
-      const chance = perimeter ? 0.35 : 0.43;
-      if (cluster < chance || hash(seed, 27) < 0.24) continue;
-      const ground = heightAt(px, pz);
-      const size = 0.73 + hash(seed, 13) * 0.51;
-      const green = hash(seed, 31);
-      if (hash(seed, 41) > 0.17) {
-        treeRoots.push(point);
-        trunks.push({
-          position: [px, ground + 0.48 * size, pz],
-          scale: [0.26 * size, 0.9 * size, 0.28 * size],
-          color: green > 0.53 ? 0x655d47 : 0x75664b,
-        });
-        crowns.push({
-          position: [px, ground + 1.15 * size, pz],
-          scale: [1.04 * size, 0.93 * size, 0.98 * size],
-          color: green > 0.68 ? 0x587258 : green > 0.35 ? 0x496850 : 0x3f604f,
-          rotation: [0, hash(seed, 47) * Math.PI, 0],
-        });
-        if (hash(seed, 53) > 0.26)
-          crownsUp.push({
-            position: [px + (hash(seed, 59) - 0.5) * 0.35, ground + 1.79 * size, pz + (hash(seed, 67) - 0.5) * 0.25],
-            scale: [0.71 * size, 0.68 * size, 0.72 * size],
-            color: green > 0.47 ? 0x617d59 : 0x516f54,
-          });
-      } else if (hash(seed, 61) > 0.42) {
-        shrubs.push({
-          position: [px, ground + 0.31 * size, pz],
-          scale: [0.61 * size, 0.42 * size, 0.58 * size],
-          color: green > 0.5 ? 0x6d8058 : 0x5c7355,
-          rotation: [0, hash(seed, 71) * Math.PI, 0],
-        });
-      } else {
-        stones.push({
-          position: [px, ground + 0.2 * size, pz],
-          scale: [0.62 * size, 0.4 * size, 0.5 * size],
-          color: hash(seed, 73) > 0.5 ? 0x82836a : 0x747b68,
-          rotation: [0.05, hash(seed, 79) * Math.PI, 0.12],
-        });
-      }
-    }
-  }
-
-  // The sanctioned jungle edges have a visible understory, not an invented
-  // road network: foliage follows their actual segments, leaving a clean gap
-  // around every edge and lane. A fixed cap keeps this vegetation bounded.
-  let routeGroveTrees = 0;
-  for (let routeIndex = 0; routeIndex < routes.length && routeGroveTrees < 64; routeIndex++) {
-    const route = routes[routeIndex];
-    for (let segment = 1; segment < route.length && routeGroveTrees < 64; segment++) {
-      const start = route[segment - 1], end = route[segment];
-      const dx = end.x - start.x, dz = end.y - start.y;
-      const length = Math.hypot(dx, dz);
-      if (length < 8) continue;
-      const tangentX = dx / length, tangentZ = dz / length;
-      const normalX = -tangentZ, normalZ = tangentX;
-      const samples = Math.max(1, Math.ceil(length / 3.8));
-      for (let sample = 0; sample < samples && routeGroveTrees < 64; sample++) {
-        const along = 1.9 + ((length - 3.8) * (sample + 0.5)) / samples;
-        for (const side of [-1, 1]) {
-          if (routeGroveTrees >= 64) break;
-          const seed = 1100 + routeIndex * 131 + segment * 29 + sample * 7 + (side + 1) * 3;
-          if (hash(seed, 181) < 0.22) continue;
-          const offset = 3.55 + hash(seed, 191) * 0.65;
-          // Three nearby trunks make a small grove cluster instead of a lone
-          // marker tree. Their centres stay beyond the actual path shoulder.
-          for (const clusterOffset of [-0.95, 0, 0.95]) {
-            if (routeGroveTrees >= 64) break;
-            const x = start.x + tangentX * (along + clusterOffset) + normalX * offset * side;
-            const z = start.y + tangentZ * (along + clusterOffset) + normalZ * offset * side;
-            const point = { x, y: z };
-            if (
-              distanceToLines(point, lanes) < 2.9 ||
-              distanceToLines(point, routes) < 2.7 ||
-              camps.some((camp) => Math.hypot(x - camp.position.x, z - camp.position.y) < 3.9) ||
-              treeRoots.some((root) => Math.hypot(x - root.x, z - root.y) < 1.7)
-            ) continue;
-            treeRoots.push(point);
-            routeGroveTrees++;
-            const ground = heightAt(x, z);
-            const size = 0.9 + hash(seed + clusterOffset * 2, 197) * 0.35;
-            const green = hash(seed + clusterOffset * 3, 199);
-            trunks.push({
-              position: [x, ground + 0.5 * size, z],
-              scale: [0.28 * size, 0.98 * size, 0.3 * size],
-              color: green > 0.5 ? 0x655d47 : 0x75664b,
-            });
-            crowns.push({
-              position: [x, ground + 1.22 * size, z],
-              scale: [1.13 * size, 1.03 * size, 1.1 * size],
-              color: green > 0.68 ? 0x587258 : green > 0.35 ? 0x496850 : 0x3f604f,
-              rotation: [0, hash(seed, 211) * Math.PI, 0],
-            });
-            if (hash(seed, 223) > 0.32)
-              crownsUp.push({
-                position: [x + (hash(seed, 227) - 0.5) * 0.44, ground + 1.97 * size, z + (hash(seed, 229) - 0.5) * 0.36],
-                scale: [0.76 * size, 0.73 * size, 0.78 * size],
-                color: green > 0.47 ? 0x617d59 : 0x516f54,
-              });
-          }
-        }
-      }
-    }
-  }
-
-  // Camp clearings sit inside broken rings of larger trees, with the real
-  // route approaches left open. This puts the terrain's visual emphasis on
-  // the actual neutral sites rather than sprinkling trees uniformly.
-  for (let campIndex = 0; campIndex < camps.length; campIndex++) {
-    const camp = camps[campIndex];
-    for (let ring = 0; ring < 2; ring++) {
-      const spokes = ring === 0 ? 18 : 23;
-      for (let spoke = 0; spoke < spokes; spoke++) {
-        const seed = 700 + campIndex * 97 + ring * 31 + spoke;
-        if (hash(seed, 131) < 0.14) continue;
-        const angle = (spoke / spokes) * Math.PI * 2 + ring * 0.18 + (hash(seed, 137) - 0.5) * 0.23;
-        const radius = 4.7 + ring * 2.05 + (hash(seed, 139) - 0.5) * 1.2;
-        const x = camp.position.x + Math.cos(angle) * radius;
-        const z = camp.position.y + Math.sin(angle) * radius;
+  for (const site of sites) {
+    const stepsLong = Math.ceil((site.longRadius * 2) / spacing);
+    const stepsShort = Math.ceil((site.shortRadius * 2) / spacing);
+    for (let row = 0; row <= stepsShort && roots.length < cap; row++) {
+      const across = -site.shortRadius + (2 * site.shortRadius * row) / stepsShort;
+      for (let column = 0; column <= stepsLong && roots.length < cap; column++) {
+        const along = -site.longRadius + (2 * site.longRadius * column) / stepsLong;
+        const localSeed = site.seed * 101 + row * 37 + column * 17;
+        const jitterAlong = (hash(localSeed, 31) - 0.5) * 0.7;
+        const jitterAcross = (hash(localSeed, 37) - 0.5) * 0.7;
+        const u = along + jitterAlong, v = across + jitterAcross;
+        const angle = Math.atan2(v / site.shortRadius, u / site.longRadius);
+        const edgeWarp = 1 + Math.sin(angle * 3 + site.seed * 0.071) * 0.09 + Math.sin(angle * 5 - site.seed * 0.037) * 0.045;
+        if (Math.hypot(u / site.longRadius, v / site.shortRadius) > edgeWarp) continue;
+        if (hash(localSeed, 41) < 0.11) continue;
+        const x = site.x + u * site.axisX - v * site.axisZ;
+        const z = site.z + u * site.axisZ + v * site.axisX;
         const point = { x, y: z };
         if (
-          distanceToLines(point, lanes) < 3.4 ||
-          distanceToLines(point, routes) < 2.7 ||
-          camps.some((other, otherIndex) => otherIndex !== campIndex && Math.hypot(x - other.position.x, z - other.position.y) < 4.1) ||
-          treeRoots.some((root) => Math.hypot(x - root.x, z - root.y) < 1.8)
+          distanceToLines(point, lanes) < 2.85 ||
+          distanceToLines(point, jungle) < 2.55 ||
+          distanceToCamps(point, camps) < 5.0 ||
+          roots.some((root) => Math.hypot(root.x - x, root.y - z) < 1.28)
         ) continue;
-        treeRoots.push(point);
-        const ground = heightAt(x, z);
-        const size = 0.92 + hash(seed, 149) * 0.38;
-        const green = hash(seed, 151);
+        roots.push(point);
+        const ground = terrainAt(x, z);
+        const size = 0.9 + hash(localSeed, 43) * 0.3;
+        const green = hash(localSeed, 47);
+        const darkLeaf = green > 0.7 ? 0x587158 : green > 0.34 ? 0x45624b : 0x395943;
         trunks.push({
-          position: [x, ground + 0.49 * size, z],
-          scale: [0.27 * size, 0.95 * size, 0.29 * size],
-          color: green > 0.5 ? 0x655d47 : 0x75664b,
+          position: [x, ground + 0.51 * size, z],
+          scale: [0.24 * size, 0.98 * size, 0.27 * size],
+          color: hash(localSeed, 53) > 0.48 ? 0x665e46 : 0x76694d,
         });
-        crowns.push({
-          position: [x, ground + 1.2 * size, z],
-          scale: [1.08 * size, 0.98 * size, 1.02 * size],
-          color: green > 0.68 ? 0x587258 : green > 0.35 ? 0x496850 : 0x3f604f,
-          rotation: [0, hash(seed, 157) * Math.PI, 0],
+        canopies.push({
+          position: [x, ground + 1.11 * size, z],
+          scale: [1.42 * size, 1.02 * size, 1.32 * size],
+          color: darkLeaf,
+          rotation: [0, hash(localSeed, 59) * Math.PI, 0],
         });
-        if (hash(seed, 163) > 0.29)
-          crownsUp.push({
-            position: [x + (hash(seed, 167) - 0.5) * 0.34, ground + 1.9 * size, z + (hash(seed, 173) - 0.5) * 0.3],
-            scale: [0.73 * size, 0.71 * size, 0.74 * size],
-            color: green > 0.47 ? 0x617d59 : 0x516f54,
+        if (hash(localSeed, 61) > 0.18)
+          canopyTops.push({
+            position: [x + (hash(localSeed, 67) - 0.5) * 0.5, ground + 1.89 * size, z + (hash(localSeed, 71) - 0.5) * 0.42],
+            scale: [0.89 * size, 0.82 * size, 0.9 * size],
+            color: green > 0.47 ? 0x62805b : 0x527353,
+          });
+        if (hash(localSeed, 73) > 0.66)
+          understory.push({
+            position: [x + (hash(localSeed, 79) - 0.5) * 0.55, ground + 0.34 * size, z + (hash(localSeed, 83) - 0.5) * 0.55],
+            scale: [0.92 * size, 0.49 * size, 0.84 * size],
+            color: green > 0.5 ? 0x637751 : 0x536d50,
           });
       }
     }
   }
 
-  // Broken low ridges occupy the broader spaces between travel corridors.
-  // Their 2–4 unit footprints sit beyond the road shoulders and leave large
-  // openings between formations, so they shape the terrain without drawing a
-  // wall or suggesting a new rule.
-  let ridgeCount = 0;
-  let ridgeSeed = 1800;
-  for (let row = 0, z = min.y - 3; z <= max.y + 3 && ridgeCount < 48; row++, z = min.y - 3 + row * 4.7) {
-    for (let column = 0, x = min.x - 3; x <= max.x + 3 && ridgeCount < 48; column++, x = min.x - 3 + column * 5.3) {
-      const seed = ridgeSeed++;
-      const px = x + (hash(seed, 233) - 0.5) * 2.5;
-      const pz = z + (hash(seed, 239) - 0.5) * 2.2;
-      const point = { x: px, y: pz };
-      const laneDistance = distanceToLines(point, lanes);
-      const routeDistance = distanceToLines(point, routes);
-      const campDistance = camps.reduce(
-        (nearest, camp) => Math.min(nearest, Math.hypot(px - camp.position.x, pz - camp.position.y)),
-        Infinity,
-      );
-      if (laneDistance < 3.75 || routeDistance < 3.1 || campDistance < 4.8 || hash(seed, 241) < 0.38) continue;
-      const ground = heightAt(px, pz);
-      const size = 0.85 + hash(seed, 251) * 0.32;
-      const angle = hash(seed, 257) * Math.PI;
-      ridges.push({
-        position: [px, ground + 0.48 * size, pz],
-        scale: [1.85 * size, 0.72 * size, 0.92 * size],
-        rotation: [0.04 + hash(seed, 269) * 0.08, angle, 0.08 + hash(seed, 271) * 0.09],
-        color: hash(seed, 263) > 0.48 ? 0x5e7058 : 0x717b61,
-      });
-      const lobeOffset = 1.0 * size;
-      ridges.push({
-        position: [px + Math.cos(angle) * lobeOffset, ground + 0.31 * size, pz + Math.sin(angle) * lobeOffset],
-        scale: [1.08 * size, 0.51 * size, 0.78 * size],
-        rotation: [0.04, angle + 0.27, 0.06],
-        color: hash(seed, 277) > 0.5 ? 0x65765b : 0x778065,
-      });
-      ridgeCount++;
+  addSceneryInstances(scene, "jungle-grove-trunks", new THREE.CylinderGeometry(0.18, 0.25, 1, 5), trunks);
+  addSceneryInstances(scene, "jungle-canopy-masses", new THREE.IcosahedronGeometry(0.72, 0), canopies);
+  addSceneryInstances(scene, "jungle-upper-canopy-masses", new THREE.IcosahedronGeometry(0.68, 0), canopyTops);
+  addSceneryInstances(scene, "jungle-understory-masses", new THREE.IcosahedronGeometry(0.7, 0), understory);
+
+  // Natural vegetation continues beyond the authored bounds. This sparse
+  // perimeter softens the distant edge; it is kept away from all actual paths.
+  const { min, max } = replay.scene.bounds;
+  const perimeterTrunks: ScenicInstance[] = [], perimeterCanopies: ScenicInstance[] = [];
+  let perimeterSeed = 9000;
+  for (let row = 0, z = min.y - 15; z <= max.y + 15; row++, z = min.y - 15 + row * 5.4) {
+    for (let column = 0, x = min.x - 15; x <= max.x + 15; column++, x = min.x - 15 + column * 5.7) {
+      const seed = perimeterSeed++;
+      if (x > min.x - 4 && x < max.x + 4 && z > min.y - 4 && z < max.y + 4) continue;
+      const px = x + (hash(seed, 89) - 0.5) * 1.8, pz = z + (hash(seed, 97) - 0.5) * 1.8;
+      if (hash(seed, 101) < 0.46 || distanceToLines({ x: px, y: pz }, [...lanes, ...jungle]) < 6.2) continue;
+      const ground = terrainAt(px, pz), size = 0.8 + hash(seed, 103) * 0.45;
+      perimeterTrunks.push({ position: [px, ground + 0.49 * size, pz], scale: [0.23 * size, 0.92 * size, 0.25 * size], color: 0x6e654b });
+      perimeterCanopies.push({ position: [px, ground + 1.15 * size, pz], scale: [1.12 * size, 0.91 * size, 1.08 * size], color: hash(seed, 107) > 0.5 ? 0x526d53 : 0x425f4b });
     }
   }
-
-  // Low, broken rock shelves sit well outside any authored corridor. Their
-  // uneven spacing suggests the hills continuing beyond the map, not a rim.
-  const centerX = (min.x + max.x) / 2, centerZ = (min.y + max.y) / 2;
-  for (let i = 0; i < 46; i++) {
-    const angle = (i / 46) * Math.PI * 2 + (hash(i, 101) - 0.5) * 0.16;
-    const x = centerX + Math.cos(angle) * ((max.x - min.x) * 0.5 + 10 + hash(i, 103) * 5);
-    const z = centerZ + Math.sin(angle) * ((max.y - min.y) * 0.5 + 9 + hash(i, 107) * 4);
-    if (distanceToLines({ x, y: z }, lines) < 7.1) continue;
-    if (hash(i, 109) < 0.48) continue;
-    const ground = heightAt(x, z);
-    const scale = 0.8 + hash(i, 113) * 1.2;
-    stones.push({
-      position: [x, ground + 0.24 * scale, z],
-      scale: [1.5 * scale, 0.48 * scale, 0.84 * scale],
-      rotation: [0, angle + 0.7, 0.06],
-      color: hash(i, 127) > 0.5 ? 0x7c806d : 0x696f61,
-    });
-  }
-
-  addSceneryInstances(scene, "perimeter-grove-trunks", new THREE.CylinderGeometry(0.19, 0.27, 1, 5), trunks);
-  addSceneryInstances(scene, "perimeter-grove-canopies", new THREE.IcosahedronGeometry(0.72, 0), crowns);
-  addSceneryInstances(scene, "perimeter-upper-canopies", new THREE.IcosahedronGeometry(0.7, 0), crownsUp);
-  addSceneryInstances(scene, "jungle-understory", new THREE.IcosahedronGeometry(0.72, 0), shrubs);
-  addSceneryInstances(scene, "off-route-broken-ridges", new THREE.DodecahedronGeometry(1, 0), ridges);
-  addSceneryInstances(scene, "natural-rock-shelves", new THREE.DodecahedronGeometry(0.7, 0), stones);
+  addSceneryInstances(scene, "natural-perimeter-trunks", new THREE.CylinderGeometry(0.18, 0.24, 1, 5), perimeterTrunks);
+  addSceneryInstances(scene, "natural-perimeter-canopy", new THREE.IcosahedronGeometry(0.72, 0), perimeterCanopies);
 }
 
-/** Procedural low-poly land around the authored map; no navigation is inferred. */
+/** Procedural terrain follows the Replay's real lanes, camps and traversable edges. */
 export function buildBattlefieldTerrain(scene: THREE.Scene, replay: Replay): void {
-  const heightAt = buildGround(scene, replay);
+  const sites = buildGroveSites(replay);
+  const terrainAt = buildGround(scene, replay, sites);
   addRoads(scene, replay);
-  addNaturalPerimeter(scene, replay, heightAt);
+  addJungleMasses(scene, replay, sites, terrainAt);
 }

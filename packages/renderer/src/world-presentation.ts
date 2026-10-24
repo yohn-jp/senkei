@@ -37,10 +37,10 @@ export function buildWorldCamp(
 ): void {
   const scale = replay.scene.routes?.length ? 1.22 : 1;
   const campHue = campId.includes("center")
-    ? 0x807e62
+    ? 0x898b6d
     : campId.includes("se")
-      ? 0x92735e
-      : 0x96885f;
+      ? 0x987e66
+      : 0x9a8d69;
   const clearing = new THREE.MeshStandardMaterial({
     color: campHue,
     roughness: 1,
@@ -57,8 +57,8 @@ export function buildWorldCamp(
   const gladeSegments = 15;
   for (let i = 0; i < gladeSegments; i++) {
     const angle = (i / gladeSegments) * Math.PI * 2;
-    const radius = 3.0 * scale * (
-      0.88 + Math.sin(angle * 3 + phase) * 0.075 + Math.sin(angle * 5 - phase * 0.6) * 0.045
+    const radius = 4.55 * scale * (
+      0.86 + Math.sin(angle * 3 + phase) * 0.085 + Math.sin(angle * 5 - phase * 0.6) * 0.055
     );
     const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius;
     if (i === 0) gladeShape.moveTo(x, y);
@@ -71,21 +71,23 @@ export function buildWorldCamp(
   clearingMesh.receiveShadow = true;
   camp.add(clearingMesh);
 
-  // Candidate landmark sites sit outside the central monster area. Search
-  // against the actual paths so the static ruin never covers an authored edge.
+  // The enlarged open glade marks the real neutral site. Static stones sit on
+  // its outer shelf; the center is kept clear for the actual neutral entity.
+  // Candidate sites are checked against authored paths and carry no live
+  // occupancy, reward or buff state.
   const landmarkSites: { x: number; z: number; score: number; angle: number }[] = [];
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2 + phase;
-    const radius = 2.1 + ((i * 7) % 5) * 0.13;
+  for (let i = 0; i < 36; i++) {
+    const angle = (i / 36) * Math.PI * 2 + phase;
+    const radius = 3.05 + ((i * 7) % 5) * 0.17;
     const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
-    if (distanceToAuthoredPaths({ x: position.x + x, y: position.y + z }, replay) < 1.9) continue;
+    if (distanceToAuthoredPaths({ x: position.x + x, y: position.y + z }, replay) < 2.35) continue;
     landmarkSites.push({ x, z, score: radius + Math.sin(angle * 2.4 + phase) * 0.25, angle });
   }
   landmarkSites.sort((a, b) => b.score - a.score);
   const chosen: typeof landmarkSites = [];
   for (const site of landmarkSites) {
     if (chosen.length >= 3) break;
-    if (chosen.some((other) => Math.hypot(site.x - other.x, site.z - other.z) < 1.5)) continue;
+    if (chosen.some((other) => Math.hypot(site.x - other.x, site.z - other.z) < 2.0)) continue;
     chosen.push(site);
   }
   const landmarkMaterial = new THREE.MeshStandardMaterial({
@@ -94,10 +96,10 @@ export function buildWorldCamp(
     flatShading: true,
   });
   chosen.forEach((site, index) => {
-    const height = index === 0 ? 1.18 : 0.56 + (index % 2) * 0.18;
-    const landmark = new THREE.Mesh(new THREE.DodecahedronGeometry(index === 0 ? 0.54 : 0.37, 0), landmarkMaterial);
+    const height = index === 0 ? 1.62 : 0.78 + (index % 2) * 0.16;
+    const landmark = new THREE.Mesh(new THREE.DodecahedronGeometry(index === 0 ? 0.7 : 0.43, 0), landmarkMaterial);
     landmark.position.set(site.x, height * 0.5, site.z);
-    landmark.scale.set(0.78, height, 0.66);
+    landmark.scale.set(0.86, height, 0.7);
     landmark.rotation.set(0.05, site.angle + 0.21, 0.07);
     landmark.castShadow = true;
     landmark.receiveShadow = true;
