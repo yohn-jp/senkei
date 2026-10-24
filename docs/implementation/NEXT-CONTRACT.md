@@ -32,7 +32,7 @@ Sol integrates tick order: minion spawn/neutral respawn → frozen observations 
 
 ## Published replay extension
 
-Graphics Replay 0.2 adds confirmed `vitals` (HP/maxHP growth or healing), `skill` cues, local execution origin, optional catalogId and camp presentation points. Decoder retains 0.1 compatibility and rejects 0.2 events in 0.1. `presentationToGraphics(coreReplay, rulePackage, matchResult)` receives only public snapshots and confirmed result; allocates per-replay opaque incarnation IDs (visibility re-entry/respawn gets a fresh ID), emits disappearance for loss of visibility, and never infers death from absence. Source core schema remains 1.0.0. World positions are scaled by 100 for graphics only. Hidden source identities never become render IDs.
+Graphics Replay 0.2 adds confirmed `vitals` (HP/maxHP growth or healing), `skill` cues, local execution origin, optional catalogId and camp presentation points. Decoder retains 0.1 compatibility and rejects 0.2 events in 0.1. `presentationToGraphics(coreReplay, rulePackage, matchResult)` receives only public snapshots and confirmed result; allocates per-replay opaque incarnation IDs (visibility re-entry/respawn gets a fresh ID), emits disappearance for loss of visibility, and never infers death from absence. Source core schema remains 1.0.0. World positions are scaled by 25 for graphics only. Hidden source identities never become render IDs.
 
 Local simulation requests with diagnostics enabled may additionally receive
 `owner_replay`, an attacker-perspective PresentationReplay marked with

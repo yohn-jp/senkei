@@ -135,4 +135,4 @@ export function decodeReplay(input: unknown): Replay {
   if (!ended) fail("Missing match-end");
   return freeze(r);
 }
-export { presentationToGraphics } from "./next-adapter";
+export { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT } from "./next-adapter";

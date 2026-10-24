@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
 import { Battlefield } from "@senkei/renderer";
-import { presentationToGraphics, type Replay, type DisplayState } from "@senkei/replay-contract";
+import { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT, type Replay, type DisplayState } from "@senkei/replay-contract";
 import { ReplayPlayer } from "@senkei/replay-player";
 import {
   type CoreClient,
@@ -551,8 +551,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       .filter((entity) => entity.entity_type === selectedDisplayEntity.archetype && entity.owner === owner &&
         (!catalogId || fieldString(entity.fields.catalog_id) === catalogId))
       .map((entity) => ({ entity, distance: Math.hypot(
-        (fieldInteger(entity.fields.x) ?? Number.NaN) / 100 - position.x,
-        (fieldInteger(entity.fields.y) ?? Number.NaN) / 100 - position.y,
+        (fieldInteger(entity.fields.x) ?? Number.NaN) / NEXT_WORLD_UNITS_PER_RENDER_UNIT - position.x,
+        (fieldInteger(entity.fields.y) ?? Number.NaN) / NEXT_WORLD_UNITS_PER_RENDER_UNIT - position.y,
       ) }))
       .sort((left, right) => left.distance - right.distance)[0]?.entity ?? null;
   }, [publicEntities, selectedDisplayEntity]);

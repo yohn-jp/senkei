@@ -1,6 +1,8 @@
 import { decodeReplay, ReplayError, type Replay, type Entity, type Event, type Result } from "./index";
 import type { PresentationReplay as CoreReplay, RulePackage, MatchResult, EntityStateView, DomainValue } from "../../../apps/web/src/contracts/core-model";
 
+export const NEXT_WORLD_UNITS_PER_RENDER_UNIT = 25;
+
 const scalar = (v: DomainValue | undefined): string | number | null =>
   v?.kind === "integer" || v?.kind === "string" || v?.kind === "enum" ? v.value : null;
 const num = (e: EntityStateView, k: string): number => {
@@ -14,7 +16,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
     throw new ReplayError("Unsupported core replay version");
   if (source.match_id !== match.match_id || !ruleset.next) throw new ReplayError("Replay context mismatch");
   const next = ruleset.next;
-  const scale = 100;
+  const scale = NEXT_WORLD_UNITS_PER_RENDER_UNIT;
   const nodes = Object.values(next.map.nodes);
   const point = (e: EntityStateView) => ({ x: num(e, "x") / scale, y: num(e, "y") / scale });
   let serial = 0;
