@@ -161,3 +161,13 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar { display: none; }
   .app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .workspace > .topbar { padding-inline: 10px; }
 }
+
+/* A selected target stays readable beside the mobile map context. The 3D
+   selection marker retains the actual world position. */
+@media (max-width: 760px) {
+  .page-content[data-view="next"] .is-battle-workspace .entity-world-label[data-focused="true"] {
+    bottom: 8px; font-size: 12px !important; left: 8px !important;
+    max-width: calc(100% - 16px); top: auto !important;
+    transform: none !important; z-index: 2;
+  }
+}

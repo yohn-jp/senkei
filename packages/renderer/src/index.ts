@@ -1986,6 +1986,7 @@ export class Battlefield {
             (focused || groupedHeroes || individualHero),
         );
         element.hidden = !visible;
+        element.dataset.focused = String(focused);
         if (!visible || !group) continue;
         const identity = this.entityLabel(entity!).replace(/^HERO · /, "");
         const sideMarker = this.sideMarker(entity!.side);

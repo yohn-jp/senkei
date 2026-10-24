@@ -65,12 +65,12 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.locator("#next-tab-analysis").click();
   await expect(page.getByRole("heading", {name:"Read the result"})).toBeVisible();
   await page.screenshot({path:resolve(evidenceDirectory,"analysis-1440.png")});
-  const analysisEvent = page.locator(".next-timeline li button").nth(8);
+  const analysisEvent = page.locator(".next-analysis-panel .next-timeline li button").nth(8);
   await expect(analysisEvent).toBeVisible();
   const analysisTick = (await analysisEvent.locator(".next-timeline-tick").innerText()).replace(/\D/g, "");
   await analysisEvent.click();
   await expect(page.locator("#next-tab-battle")).toHaveAttribute("aria-selected","true");
-  await expect(page.locator(".next-tick-readout")).toContainText(analysisTick);
+  await expect(page.locator(".next-tick-readout")).toContainText(`TICK ${Number(analysisTick)} /`);
 
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
   await slider.focus();
@@ -120,7 +120,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   });
   await expect(follow).toBeEnabled();
   await follow.click();
-  await expect.poll(() => canvas.getAttribute("data-camera-mode")).toBe("follow");
+  await expect.poll(() => canvas.getAttribute("data-tracking")).toBe(selectedTarget);
   await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(overviewCamera);
   const followedCamera = await canvas.getAttribute("data-camera");
   for (let zoom = 0; zoom < 3; zoom += 1) await page.getByRole("button", {name:"Zoom in"}).click();
@@ -206,7 +206,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
       cameraControls: getComputedStyle(document.querySelector(".next-camera-controls")!).display,
     }));
     expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.width);
-    expect(mobileLayout.cameraControls).not.toBe("none");
+    expect(mobileLayout.cameraControls).toBe("none");
+    await expect(page.getByRole("button", {name:"Follow view", exact:true})).toBeInViewport();
     await expect(page.locator(".next-renderer-host")).toBeVisible();
     await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
     await expect(page.locator(".next-replay-controls")).toBeInViewport();

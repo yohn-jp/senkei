@@ -74,6 +74,9 @@ jobs:
       - run: npm run build
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - run: npm run test:e2e --prefix tests/browser
+        env:
+          BATTLEFIELD_EXPECT_BUILD_REVISION: "true"
+          BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE: "true"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
