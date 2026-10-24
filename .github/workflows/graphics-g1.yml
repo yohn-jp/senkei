@@ -1,7 +1,6 @@
 name: Graphics G1
 on:
   push:
-    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -27,5 +26,6 @@ jobs:
           name: graphics-g1-browser-evidence
           path: |
             docs/evidence/g1/*.png
+            docs/evidence/g1/*.webm
             playwright-report/
             test-results/

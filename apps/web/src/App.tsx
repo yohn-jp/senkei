@@ -628,10 +628,10 @@ function App() {
               <span className="nav-arrow" aria-hidden="true">↗</span>
             </button>
           ))}
-        <a className="nav-item" href="/graphics/">
+          <a className="nav-item" href="/graphics/">
             <span className="nav-number">G1</span><span>サンプル演武</span><span className="nav-arrow">↗</span>
           </a>
-          </nav>
+        </nav>
 
         <div className="sidebar-bottom">
           <div className="local-status"><span /> RUNNING LOCALLY</div>

@@ -232,7 +232,7 @@ export class Battlefield {
       Math.max(1, Math.floor(w / (this.pixel ? 2 : 1))),
       Math.max(1, Math.floor(h / (this.pixel ? 2 : 1))),
     );
-    const span = mobile ? 18.5 : 13;
+    const span = mobile ? Math.max(18.5, (14 * h) / w) : 13;
     const aspect = w / h;
     this.camera.left = -span * aspect;
     this.camera.right = span * aspect;

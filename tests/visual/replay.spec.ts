@@ -35,6 +35,10 @@ for (const [width, height] of [
     const page = await context.newPage(),
       errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    const engineRequests: string[] = [];
+    page.on("request", (r) => {
+      if (/core\.worker|\/wasm\//.test(r.url())) engineRequests.push(r.url());
+    });
     await page.goto("/graphics/");
     await expect(page.locator("canvas")).toHaveAttribute(
       "data-rendered",
@@ -51,7 +55,9 @@ for (const [width, height] of [
     };
     await shot("initial");
     const bounds = await page.locator("canvas").boundingBox();
-    const span = mobile ? 18.5 : 13,
+    const span = mobile
+        ? Math.max(18.5, (14 * bounds!.height) / bounds!.width)
+        : 13,
       aspect = bounds!.width / bounds!.height;
     const pickCamera = new OrthographicCamera(
       -span * aspect,
@@ -164,6 +170,7 @@ for (const [width, height] of [
       .boundingBox();
     expect(controls!.y + controls!.height).toBeLessThanOrEqual(height);
     expect(errors).toEqual([]);
+    expect(engineRequests).toEqual([]);
     await context.close();
   });
 }
@@ -259,4 +266,16 @@ test("animated playback reaches the authored result (video evidence)", async ({
   const video = page.video()!;
   await context.close();
   await video.saveAs(`${evidence}/animated-replay.webm`);
+});
+
+test("existing workspace links to the independent sample page", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("link", { name: /サンプル演武/ })
+    .click();
+  await expect(page).toHaveURL(/\/graphics\/$/);
+  await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
 });
