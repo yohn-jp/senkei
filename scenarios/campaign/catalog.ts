@@ -1,4 +1,3 @@
-import { STRUCTURED_AST_VERSION } from "../../apps/web/src/contracts/core";
 import type {
   DomainType,
   DomainValue,
@@ -315,7 +314,7 @@ export function createCampaignScenarios(ruleset: RulePackage): readonly Campaign
 export function createBeginnerPreset(ruleset: RulePackage): SenkeiDraft {
   assertInitialRuleset(ruleset);
   const ast: StructuredTacticsAst = {
-    schema_version: STRUCTURED_AST_VERSION,
+    schema_version: ruleset.structured_ast_version,
     program_name: "first_march",
     declarations: [
       {

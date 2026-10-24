@@ -83,10 +83,14 @@ node tests/conformance/compare-adapters.mjs scenarios/campaign/<case>.request.js
 
 The comparator also accepts multiple request files. With no arguments it
 recursively finds `*.request.json` under `scenarios/`; it errors when none are
-found. It sends every envelope to the real native dispatcher and invokes the
-same exported JSON dispatcher in the compiled WASM module. It compares the
-complete response envelope after sorting object keys, while preserving array
-order.
+found. It sends every envelope twice to the real native dispatcher and once to
+the compiled WASM module, then compares the complete response envelopes while
+preserving array order. Checked-in `*.golden.json` files store the canonical
+request hash, complete response hash, and a compact result/event/CU summary;
+the full response is still recomputed and compared directly across both native
+runs and WASM. Intentional ruleset changes can update goldens with
+`node tests/conformance/compare-adapters.mjs --update-goldens`; that mode still
+requires native/WASM parity before writing files.
 
 Browser smoke uses the production preview and the cached public WASM artifact:
 
@@ -98,6 +102,11 @@ npm ci --prefix tests/browser
 npx --prefix tests/browser playwright install --with-deps chromium
 npm run test:e2e --prefix tests/browser
 ```
+
+The GitHub Actions workflow builds the native workspace, builds the real WASM
+adapter, checks generated campaign requests, runs exact native/WASM parity,
+builds the web app, and runs both production Chromium tests against a build
+that contains the generated WASM module.
 
 On NixOS, the bundled Playwright Chromium may lack the dynamically linked
 libraries it expects. After building the production app, run

@@ -13,75 +13,127 @@
   "cases": [
     {
       "id": "core.determinism.repeated-input",
-      "property": "same validated input produces identical result, replay, logical CU and ordered diagnostics",
-      "status": "pending-core-implementation",
-      "required_oracle": ["native-enbu"]
+      "property": "same validated inputs produce identical result, replay, logical CU, and ordered diagnostics",
+      "status": "verified",
+      "required_oracle": ["native-enbu"],
+      "evidence": [
+        "cargo test --workspace --locked",
+        "tests/conformance/compare-adapters.mjs runs each of seven campaign requests twice through the native dispatcher and compares the complete envelopes"
+      ]
     },
     {
       "id": "core.parity.native-wasm-goldens",
-      "property": "same snapshots compare equal through native and real compiled WASM adapters",
-      "status": "pending-wasm-adapter",
-      "required_oracle": ["native-enbu", "compiled-wasm-adapter"]
+      "property": "same snapshots compare equal through native Rust and the real compiled WASM adapter",
+      "status": "verified",
+      "required_oracle": ["native-enbu", "compiled-wasm-adapter"],
+      "evidence": [
+        "bash scripts/wasm/build.sh",
+        "node tests/conformance/compare-adapters.mjs",
+        "seven compact goldens include the canonical complete-response SHA-256 and result/replay/event/CU summaries"
+      ]
     },
     {
       "id": "jinrei.equivalence.text-and-ast",
-      "property": "equivalent text and structured AST compile and execute with equal intents and CU",
-      "status": "pending-jinrei-implementation",
-      "required_oracle": ["jinrei-compiler", "native-enbu"]
+      "property": "equivalent text and structured AST tactics compile and execute with equal intents, result, and CU",
+      "status": "verified",
+      "required_oracle": ["jinrei-compiler", "native-enbu"],
+      "evidence": [
+        "tests/conformance/generate-scenario-inputs.mjs compiles the starter AST and equivalent text through the native dispatcher, compares AST/program/estimated CU, and compares full simulation responses"
+      ]
     },
     {
       "id": "enbu.symmetry.no-implicit-first-mover",
-      "property": "swapping sides in a symmetric case introduces no undeclared first-mover effect",
-      "status": "pending-enbu-implementation",
-      "required_oracle": ["native-enbu"]
+      "property": "swapping sides in symmetric one-unit and three-unit cases introduces no undeclared first-mover effect",
+      "status": "verified",
+      "required_oracle": ["native-enbu"],
+      "evidence": [
+        "tests/conformance/generate-scenario-inputs.mjs compares swapped tactic results, identical tactic controls, and accepted actor class/lane/pre-tick-position histories",
+        "one-unit controls draw at tick 44; three-unit controls draw at tick 70; each side deals 300 core damage"
+      ]
     },
     {
       "id": "rules.arbitration.stable-contested-actions",
-      "property": "contested actions and target ties follow explicit stable ordering",
-      "status": "pending-senritsu-and-enbu",
-      "required_oracle": ["senritsu-validator", "native-enbu"]
+      "property": "contested actions and target ties follow explicit stable ordering independent of input collection order",
+      "status": "partial",
+      "required_oracle": ["senritsu-validator", "native-enbu"],
+      "evidence": [
+        "Jinrei semantics tests verify finite collection results and CU ignore input item order",
+        "Senritsu validates stable slot_id keys; native three-unit mirrored cases verify equal-position actor selection on both sides",
+        "not checked: a live multi-target contested-action golden with permuted same-lane enemy roster order"
+      ]
     },
     {
       "id": "runtime.boundaries-and-exhaustion",
-      "property": "tick, intent, numeric and CU boundaries terminate according to declared rules",
-      "status": "pending-core-implementation",
-      "required_oracle": ["native-enbu"]
+      "property": "tick and CU exhaustion follow declared deterministic rules",
+      "status": "partial",
+      "required_oracle": ["native-enbu"],
+      "evidence": [
+        "Enbu tests cover timeout, simultaneous damage, current-tick rules, and CU reject/abort policies",
+        "Jinrei tests cover CU overrun and container bounds",
+        "not checked: dedicated runtime max-intents-per-side and integer-overflow boundary goldens"
+      ]
     },
     {
       "id": "validation.reject-invalid-inputs",
-      "property": "malformed tactics, versions, digest, limits and incompatible snapshots reject before simulation",
-      "status": "pending-core-implementation",
-      "required_oracle": ["senritsu-validator", "jinrei-compiler", "native-enbu"]
+      "property": "malformed tactics, unsupported versions, bad digests, oversized values, and incompatible snapshots reject explicitly",
+      "status": "partial",
+      "required_oracle": ["senritsu-validator", "jinrei-compiler", "native-enbu"],
+      "evidence": [
+        "Senritsu tests reject digest mismatches, invalid numeric schemas, duplicate roster keys, and incompatible hidden-field rules",
+        "Jinrei tests reject malformed syntax, unsupported container bounds, and over-budget programs",
+        "not checked: full oversized core-envelope and incompatible snapshot rejection matrix"
+      ]
     },
     {
       "id": "validation.reject-unknown-capabilities-and-primitives",
-      "property": "unknown capabilities, illegal arguments, unsupported primitives and incomplete ordering reject",
-      "status": "pending-core-implementation",
-      "required_oracle": ["senritsu-validator", "jinrei-compiler"]
+      "property": "unknown capabilities, illegal actor/target arguments, unsupported primitives, and incomplete arbitration order reject",
+      "status": "verified",
+      "required_oracle": ["senritsu-validator", "jinrei-compiler"],
+      "evidence": [
+        "Senritsu arbitration-signature and primitive-compatibility tests",
+        "Jinrei actor/target type and ownership conformance tests"
+      ]
     },
     {
       "id": "observation.unknown-null-and-visibility",
-      "property": "unknown differs from known null and observations exclude hidden values",
-      "status": "pending-core-implementation",
-      "required_oracle": ["senritsu-validator", "native-enbu"]
+      "property": "unknown differs from known null and hidden values are excluded from opponent observations",
+      "status": "partial",
+      "required_oracle": ["senritsu-validator", "native-enbu"],
+      "evidence": [
+        "model wire test distinguishes unknown from known null",
+        "Senritsu rejects hidden-field observation access and derived hidden reads",
+        "not checked: an Enbu runtime probe proving an opponent cannot read a hidden live-world field"
+      ]
     },
     {
       "id": "output.public-replay-no-private-data",
-      "property": "public result and replay exclude restricted diagnostics and reproduction inputs",
-      "status": "pending-enbu-implementation",
-      "required_oracle": ["native-enbu", "wasm-adapter"]
+      "property": "public results and replay exclude restricted diagnostics, private tactic input, and reproduction context",
+      "status": "partial",
+      "required_oracle": ["native-enbu", "wasm-adapter"],
+      "evidence": [
+        "Enbu public_response test verifies its explicit DTO omits bytecode and private input markers",
+        "browser diagnostics are requested separately from the public replay",
+        "not checked: exhaustive serialized-output secret-field denylist across native and WASM payloads"
+      ]
     },
     {
       "id": "rules.data-extension-vs-new-primitive",
-      "property": "supported data-only ruleset edits validate while unimplemented primitives reject",
-      "status": "pending-senritsu-and-enbu",
-      "required_oracle": ["senritsu-validator"]
+      "property": "compatible data-only Senritsu extensions validate while unsupported transition primitives reject",
+      "status": "verified",
+      "required_oracle": ["senritsu-validator"],
+      "evidence": [
+        "senkei-runner integration test extends the unit-class domain and rejects an unavailable AddInteger primitive"
+      ]
     },
     {
       "id": "browser.local-loop-offline-real-wasm",
-      "property": "preset through compile, NPC battle, analysis, save, reload, rematch works in browser without network after install",
-      "status": "pending-web-features",
-      "required_oracle": ["playwright-browser", "real-web-worker", "compiled-wasm-adapter", "indexeddb"]
+      "property": "no-code preset, edit/compile, NPC battle, analysis, IndexedDB save/reload, semantic rematch, and offline journey use the real compiled WASM",
+      "status": "pending-final-run",
+      "required_oracle": ["playwright-browser", "real-web-worker", "compiled-wasm-adapter", "indexeddb"],
+      "evidence": [
+        "0B production Chromium suite passed on integration SHA 7024fa1 before the final accepted-diagnostic-row locator was added",
+        "tests/browser/specs/local-pve-offline.spec.ts at 2f739d1 scopes the tick-4 action ID to its accepted row and awaits the final integrated run"
+      ]
     }
   ]
 }

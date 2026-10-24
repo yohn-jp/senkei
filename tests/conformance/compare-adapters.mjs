@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,6 +38,69 @@ function canonical(value) {
     );
   }
   return value;
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonical(value));
+}
+
+function sha256(value) {
+  const bytes = typeof value === "string" ? value : canonicalJson(value);
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function summarizeResponse(response) {
+  const simulation = response.result;
+  const eventsByType = {};
+  const coreDamageByOwner = {};
+  let eventCount = 0;
+  for (const frame of simulation.replay.frames) {
+    for (const event of frame.events) {
+      eventCount += 1;
+      eventsByType[event.event] = (eventsByType[event.event] ?? 0) + 1;
+      if (event.event === "core_attacked") {
+        const targetId = event.payload.target?.value;
+        const owner = frame.visible_state?.entities?.[targetId]?.owner ?? "unknown";
+        coreDamageByOwner[owner] = (coreDamageByOwner[owner] ?? 0) + (event.payload.damage?.value ?? 0);
+      }
+    }
+  }
+
+  const diagnosticsByKind = {};
+  const acceptedBySideCapability = {};
+  for (const event of simulation.diagnostics?.events ?? []) {
+    const kind = event.record.kind;
+    diagnosticsByKind[kind] = (diagnosticsByKind[kind] ?? 0) + 1;
+    if (kind !== "intent_accepted") continue;
+    const capability = event.record.value.intent.capability;
+    const key = `${event.side}:${capability}`;
+    acceptedBySideCapability[key] = (acceptedBySideCapability[key] ?? 0) + 1;
+  }
+
+  return {
+    outcome: simulation.result.outcome,
+    termination_reason: simulation.result.termination_reason,
+    final_tick: simulation.result.final_tick,
+    final_state_digest: simulation.result.final_state_digest,
+    cu_by_side: simulation.diagnostics?.cu_by_side ?? {},
+    replay_frames: simulation.replay.frames.length,
+    event_count: eventCount,
+    events_by_type: eventsByType,
+    core_damage_by_owner: coreDamageByOwner,
+    diagnostic_event_count: simulation.diagnostics?.events?.length ?? 0,
+    diagnostics_by_kind: diagnosticsByKind,
+    accepted_by_side_capability: acceptedBySideCapability,
+  };
+}
+
+function makeCompactGolden(request, response) {
+  return {
+    golden_schema: "senkei-conformance/v1",
+    request_id: request.request_id,
+    request_sha256: sha256(request),
+    response_sha256: sha256(response),
+    summary: summarizeResponse(response),
+  };
 }
 
 function runNative(requests) {
@@ -88,7 +152,11 @@ async function createWasmDispatcher() {
   };
 }
 
-const requestPaths = process.argv.slice(2).map((path) => resolve(repositoryRoot, path));
+const argumentsWithoutUpdate = process.argv.slice(2);
+const updateGoldens = argumentsWithoutUpdate.includes("--update-goldens");
+const requestPaths = argumentsWithoutUpdate
+  .filter((path) => path !== "--update-goldens")
+  .map((path) => resolve(repositoryRoot, path));
 if (requestPaths.length === 0) {
   requestPaths.push(...(await collectFiles(resolve(repositoryRoot, "scenarios"))));
 }
@@ -112,10 +180,16 @@ try {
 } catch (error) {
   fail(`native run failed: ${error instanceof Error ? error.message : String(error)}`);
 }
+let repeatedNativeResponses;
+try {
+  repeatedNativeResponses = await runNative(requests);
+} catch (error) {
+  fail(`repeated native run failed: ${error instanceof Error ? error.message : String(error)}`);
+}
 const dispatchWasm = await createWasmDispatcher();
 const wasmResponses = requests.map(dispatchWasm);
-if (nativeResponses.length !== requests.length) {
-  fail(`native returned ${nativeResponses.length} responses for ${requests.length} requests`);
+if (nativeResponses.length !== requests.length || repeatedNativeResponses.length !== requests.length) {
+  fail(`native returned ${nativeResponses.length} and ${repeatedNativeResponses.length} responses for ${requests.length} requests`);
 }
 
 for (let index = 0; index < requests.length; index += 1) {
@@ -127,8 +201,29 @@ for (let index = 0; index < requests.length; index += 1) {
   if (!native.ok || !wasm.ok) {
     fail(`${requests[index].request_id} did not produce a successful simulation (native=${native.ok}, wasm=${wasm.ok})`);
   }
-  if (JSON.stringify(canonical(native)) !== JSON.stringify(canonical(wasm))) {
+  const expected = resolve(requestPaths[index].replace(/\.request\.json$/, ".golden.json"));
+  if (!updateGoldens) {
+    const golden = await readFile(expected, "utf8").then(JSON.parse).catch(() => {
+      fail(`missing ${expected}; run with --update-goldens to generate it from the real native dispatcher`);
+    });
+    if (golden.golden_schema === "senkei-conformance/v1") {
+      const generated = makeCompactGolden(requests[index], native);
+      if (canonicalJson(generated) !== canonicalJson(golden)) {
+        fail(`canonical request/response digest or summary differs from golden for ${requests[index].request_id}`);
+      }
+    } else if (canonicalJson(native) !== canonicalJson(golden)) {
+      fail(`native response differs from full-response golden for ${requests[index].request_id}`);
+    }
+  }
+  if (canonicalJson(native) !== canonicalJson(repeatedNativeResponses[index])) {
+    fail(`repeated native result differs for ${requests[index].request_id}`);
+  }
+  if (canonicalJson(native) !== canonicalJson(wasm)) {
     fail(`response mismatch for ${requests[index].request_id}`);
+  }
+  if (updateGoldens) {
+    const golden = makeCompactGolden(requests[index], native);
+    await writeFile(expected, `${JSON.stringify(golden, null, 2)}\n`);
   }
   console.log(`PASS ${requests[index].request_id}`);
 }
