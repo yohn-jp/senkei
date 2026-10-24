@@ -160,6 +160,28 @@ async function clickFollow(page: import("@playwright/test").Page): Promise<Follo
   return { supported: true, target, id: value, catalogId };
 }
 
+async function clickFollowRole(
+  page: import("@playwright/test").Page,
+  role: "monster" | "minion",
+): Promise<FollowTarget> {
+  const selector = page.getByRole("combobox", { name: /Observe visible entity/i });
+  if (!(await selector.count())) return { supported: false, target: null, id: null, catalogId: null };
+  const value = await selector.locator("option").evaluateAll((options, selectedRole) => {
+    const rolePattern = new RegExp(`\\b${selectedRole}\\b`, "i");
+    const option = options.find((candidate) =>
+      Boolean((candidate as HTMLOptionElement).value) && rolePattern.test(candidate.textContent ?? ""),
+    ) as HTMLOptionElement | undefined;
+    return option?.value ?? null;
+  }, role);
+  if (!value) return { supported: false, target: null, id: null, catalogId: null };
+  await selector.selectOption(value);
+  const target = await selector.locator("option:checked").innerText();
+  const followButton = page.getByRole("button", { name: /^(Follow selected unit|Follow)$/i });
+  if (!(await followButton.count())) return { supported: false, target, id: value, catalogId: null };
+  await followButton.first().click();
+  return { supported: true, target, id: value, catalogId: null };
+}
+
 function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarget): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
@@ -178,6 +200,27 @@ function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarg
   const z = readInteger(entity, "y");
   return id && x !== null && z !== null
     ? { id, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }
+    : null;
+}
+
+function replayVisibleRolePosition(
+  replay: JsonRecord,
+  tick: number,
+  target: FollowTarget,
+  role: "monster" | "minion",
+): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
+  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  const entity = target.id ? entities?.[target.id] : undefined;
+  if (!entity || entity.entity_type !== role) return null;
+  const readInteger = (key: "x" | "y"): number | null => {
+    const field = entity.fields?.[key];
+    return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
+  };
+  const x = readInteger("x");
+  const z = readInteger("y");
+  return x !== null && z !== null
+    ? { id: target.id!, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }
     : null;
 }
 
@@ -337,6 +380,12 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const controlledSourcePath = process.env.BATTLEFIELD_CONTROLLED_SOURCE_PATH;
   const controlledExpectedPath = process.env.BATTLEFIELD_CONTROLLED_EXPECTED_RESULT_PATH;
   const skillFollowOnly = process.env.BATTLEFIELD_SKILL_FOLLOW_ONLY === "true";
+  const requestedRoleFollows = [...new Set((process.env.BATTLEFIELD_ROLE_FOLLOW_ONLY ?? "")
+    .split(",").map((role) => role.trim()).filter(Boolean))];
+  if (requestedRoleFollows.some((role) => role !== "monster" && role !== "minion")) {
+    throw new Error("BATTLEFIELD_ROLE_FOLLOW_ONLY accepts only monster and minion.");
+  }
+  const roleFollowOnly = requestedRoleFollows as ("monster" | "minion")[];
   const controlledSnapshot = controlledScenario && controlledSnapshotPath
     ? JSON.parse(readFileSync(resolve(controlledSnapshotPath), "utf8")) as JsonRecord
     : null;
@@ -362,8 +411,14 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   if (skillFollowOnly && controlledScenario !== "farm") {
     throw new Error("Focused skill-follow capture requires the real farm scenario.");
   }
+  if (roleFollowOnly.length && (controlledScenario !== "farm" || skillFollowOnly)) {
+    throw new Error("Role-follow captures require the real farm scenario and cannot be combined with skill-follow-only mode.");
+  }
   const captureProfile = controlledScenario ? `controlled-${controlledScenario}-snapshot` : tacticProfile;
   const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
+  if (roleFollowOnly.length && (captureViewports.length !== 1 || captureViewports[0].width <= 700)) {
+    throw new Error("Role-follow captures require exactly one desktop viewport.");
+  }
   const appSha = process.env.BATTLEFIELD_APP_SHA ?? execFileSync("git", ["-C", repoRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const wasmPath = join(repoRoot, "apps/web/public/wasm/senkei_wasm.wasm");
   const wasmSha = sha256(readFileSync(wasmPath));
@@ -525,7 +580,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   let firstEnemyBaseSiteId: string | null = null;
   let firstEnemyBaseVisibleTick: number | null = null;
   if (expectBaseSites) {
-    expect(controlledScenario, "base-site checks use the ordinary real local match").toBeNull();
+    expect(controlledScenario ?? null, "base-site checks use the ordinary real local match").toBeNull();
     expect(["attacker", "defender"]).toContain(sourceReplay.perspective);
   }
   expect(result.match_id).toBe(requestSnapshot.context.match_id);
@@ -663,6 +718,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const cameraPosesByCapture: Record<string, string | null> = {};
   const cameraTargetsByCapture: Record<string, { x: number; y: number; z: number } | null> = {};
   const skillFollowCaptures: Record<string, JsonRecord> = {};
+  const roleFollowCaptures: Record<string, JsonRecord> = {};
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
   const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
@@ -676,6 +732,42 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     await expect(canvas).toHaveAttribute("data-rendered", "true");
     const directory = join(outputDirectory, viewport.name);
     mkdirSync(directory, { recursive: true });
+
+    if (roleFollowOnly.length) {
+      if (viewport.width <= 700 || skillTick === null) {
+        throw new Error("Focused role-follow capture requires a desktop viewport and an active-skill tick.");
+      }
+      await seekToTick(page, skillTick);
+      for (const role of roleFollowOnly) {
+        const target = await clickFollowRole(page, role);
+        expect(target.supported, `the real replay selector must offer a visible ${role}`).toBe(true);
+        const expectedPosition = replayVisibleRolePosition(sourceReplay, skillTick, target, role);
+        expect(expectedPosition, `${role} Follow must use an ID visible at the selected Replay tick`).not.toBeNull();
+        await waitForSettledCamera(page);
+        const actualCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+        expect(actualCameraTarget, `${role} Follow must expose its camera target`).not.toBeNull();
+        expect(Math.abs(actualCameraTarget!.x - expectedPosition!.x)).toBeLessThan(0.01);
+        expect(Math.abs(actualCameraTarget!.z - expectedPosition!.z)).toBeLessThan(0.01);
+        const entityLabel = page.locator('.next-renderer-host .entity-world-label[data-focused="true"]');
+        await expect(entityLabel).toBeVisible();
+        await expect(entityLabel).toContainText(role === "monster" ? /MONSTER/i : /MINION/i);
+        const fileName = `${role}-follow-t${String(skillTick).padStart(3, "0")}.png`;
+        cameraPosesByCapture[`${viewport.name}/${fileName}`] = await canvas.getAttribute("data-camera");
+        cameraTargetsByCapture[`${viewport.name}/${fileName}`] = actualCameraTarget;
+        roleFollowCaptures[role] = {
+          tick: skillTick,
+          role,
+          view: sourceReplay.perspective ?? "public",
+          entityId: target.id,
+          selectedVisibleEntity: target.target,
+          replayPosition: expectedPosition,
+          cameraTarget: actualCameraTarget,
+          screenshot: fileName,
+        };
+        await page.screenshot({ path: join(directory, fileName), animations: "disabled" });
+      }
+      continue;
+    }
 
     if (skillFollowOnly) {
       if (viewport.width <= 700 || skillTick === null) {
@@ -914,8 +1006,11 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     followTargetPosition: expectedFollowPosition,
     skillFollowCaptures,
     cameraTargetsByCapture,
+    roleFollowCaptures,
     viewports: captureViewports,
-    screenshotNames: skillFollowOnly ? ["skill-follow"] : [
+    screenshotNames: skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
+      ? roleFollowOnly.map((role) => `${role}-follow`)
+      : [
       "tactical", "overview", "follow", "advance", "clash", "tower-destroy", "base-destroy",
       "hero-death", "hero-respawn", "monster-respawn", "skill", "end",
     ].filter((name) => stateTicks[name.replaceAll("-", "_") as keyof typeof stateTicks] !== null),
