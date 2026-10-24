@@ -538,10 +538,14 @@ export class Battlefield {
     this.controls.update();
     this.controls.enableDamping = true;
   }
-  private authoredCameraOffset() {
-    return this.mobile
-      ? new THREE.Vector3(32, 50, 0)
-      : new THREE.Vector3(0, 20, 32);
+  private authoredCameraOffset(purpose: "strategic" | "follow" = "strategic") {
+    if (this.mobile)
+      return purpose === "follow"
+        ? new THREE.Vector3(32, 34, 0)
+        : new THREE.Vector3(32, 50, 0);
+    return purpose === "follow"
+      ? new THREE.Vector3(0, 30, 32)
+      : new THREE.Vector3(0, 55, 32);
   }
   private authoredBattleCenter() {
     const laneCenters = this.replay.scene.lanes.map((lane) => {
@@ -568,8 +572,9 @@ export class Battlefield {
   private projectedFrameHalfHeight(
     center: THREE.Vector3,
     points: readonly THREE.Vector3[],
+    purpose: "strategic" | "follow" = "strategic",
   ) {
-    const offset = this.authoredCameraOffset();
+    const offset = this.authoredCameraOffset(purpose);
     const position = center.clone().add(offset);
     const direction = center.clone().sub(position).normalize();
     const right = new THREE.Vector3()
@@ -848,12 +853,12 @@ export class Battlefield {
     );
     const groupHalfHeight = Math.max(
       this.authoredCloseHalfHeight(),
-      this.projectedFrameHalfHeight(center, groupPoints),
+      this.projectedFrameHalfHeight(center, groupPoints, "follow"),
     );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
     this.controls.target.copy(center);
-    this.camera.position.copy(center).add(this.authoredCameraOffset());
+    this.camera.position.copy(center).add(this.authoredCameraOffset("follow"));
     this.camera.zoom = 1;
     this.camera.lookAt(center);
     this.updateFrustum(groupHalfHeight);
@@ -1425,7 +1430,10 @@ export class Battlefield {
   }
   private structureModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const base = e.kind === "base";
-    if (this.replay.scene.routes?.length) g.scale.setScalar(base ? 1.08 : 1.14);
+    if (this.replay.scene.routes?.length) {
+      g.scale.setScalar(base ? 1.08 : 1.14);
+      if (base && e.side === "vermilion") g.rotation.y = Math.PI;
+    }
     if (base && this.replay.scene.routes?.length) {
       // Keep the Replay base anchor in the open center of a small courtyard.
       // Heroes can occupy and fight at that exact coordinate without a solid
@@ -1464,7 +1472,7 @@ export class Battlefield {
       // reads as the objective without covering a unit on the center tile.
       box(g, [0.82, 0.24, 0.72], [0.74, 0.43, -0.78], 0x646b60);
       box(g, [0.52, 0.52, 0.48], [0.74, 0.8, -0.78], stone);
-      cone(g, 0.38, 0.78, 1.45, color, 5).position.x = 0.74;
+      cone(g, 0.38, 0.78, 1.45, color, 5).position.set(0.74, 1.45, -0.78);
       this.healthBar(g, e, 2.15);
       return;
     }
@@ -1847,12 +1855,8 @@ export class Battlefield {
         const destination = tracked.reduce(
           (sum, entity) => {
             sum.x += entity.position.x;
-            if (this.replay.scene.routes?.length) {
-              sum.y += this.height(entity.position);
-              sum.z += entity.position.y;
-            } else {
-              sum.z += this.height(entity.position);
-            }
+            sum.y += this.height(entity.position);
+            sum.z += entity.position.y;
             return sum;
           },
           new THREE.Vector3(),
