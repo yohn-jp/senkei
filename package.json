@@ -12,7 +12,8 @@
     "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "contract:types": "json2ts packages/replay-contract/replay.schema.json packages/replay-contract/src/generated.ts --bannerComment '/* Generated from replay.schema.json. Run npm run contract:types. */'"
+    "contract:types": "json2ts packages/replay-contract/replay.schema.json packages/replay-contract/src/generated.ts --bannerComment '/* Generated from replay.schema.json. Run npm run contract:types. */'",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@senkei/renderer": "*",
