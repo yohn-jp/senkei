@@ -28,7 +28,7 @@ export class KnownBaseSites {
         position: "absolute", pointerEvents: "none", zIndex: "1", padding: "3px 6px",
         color: site.side === "azure" ? "#b0f2f7" : "#ffd1b5", background: "#101d20ed",
         borderLeft: `3px solid #${color.toString(16)}`, font: "600 11px/1.35 system-ui",
-        textAlign: "center", whiteSpace: "nowrap", transform: "translate(-50%, 12px)",
+        width: "144px", boxSizing: "border-box", textAlign: "center", whiteSpace: "nowrap", transform: "translate(-50%, 12px)",
       });
       host.appendChild(label);
       this.entries.push({ site, label, marker });
@@ -42,13 +42,13 @@ export class KnownBaseSites {
       );
       const status = base ? base.destroyed ? "Destroyed · confirmed" : "Visible base" : "State unknown";
       const siteState = base ? base.destroyed ? "destroyed" : "visible" : "unknown";
-      const title = site.side === "azure" ? "AZURE BASE" : "VERMILION BASE";
+      const title = (site.side === "azure" ? "AZURE BASE" : "VERMILION BASE") + (base ? "" : " SITE");
       if (label.dataset.siteState !== siteState) {
         label.dataset.siteState = siteState;
         label.replaceChildren(document.createTextNode(title), document.createElement("br"), document.createTextNode(status));
       }
       const point = marker.position.clone().project(camera);
-      label.style.left = `${(point.x + 1) * width / 2}px`;
+      label.style.left = `${Math.min(width - 74, Math.max(74, (point.x + 1) * width / 2))}px`;
       label.style.top = `${(1 - point.y) * height / 2}px`;
       label.hidden = Math.abs(point.x) > 1 || Math.abs(point.y) > 1 || point.z < -1 || point.z > 1;
     }
