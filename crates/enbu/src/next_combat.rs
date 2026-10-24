@@ -132,7 +132,9 @@ pub fn resolve(
 
     // Mature squads offer a capped, member-to-member protective shield. It is
     // a support effect with quadratic group contribution, not a blanket stat
-    // multiplier; solo Heroes receive no squad contribution.
+    // multiplier; solo Heroes receive no squad contribution. Each contributor
+    // is independently rounded up to a whole shield point after applying its
+    // maturity and catalog modifier.
     apply_mature_squad_shields(world, rules);
 
     let (mut skill_damage, activations) = collect_skill_activations(world, &start, rules, accepted, tick, &mut events);
@@ -215,6 +217,7 @@ pub fn resolve(
         if let Some(source) = sources_by_target.get(&target).and_then(|sources| sources.iter().next()) {
             payload.insert("source".into(), DomainValue::Entity(source.clone()));
         }
+        payload.insert("target".into(), DomainValue::Entity(target.clone()));
         payload.insert("amount".into(), DomainValue::Integer(
             damage_by_target.get(&target).copied().unwrap_or_default(),
         ));
