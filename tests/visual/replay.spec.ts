@@ -35,7 +35,7 @@ for (const [width, height] of [
     const page = await context.newPage(),
       errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("/");
+    await page.goto("/graphics/");
     await expect(page.locator("canvas")).toHaveAttribute(
       "data-rendered",
       "true",
@@ -171,7 +171,7 @@ test("WebGL context loss stops playback and retry recreates renderer", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
+  await page.goto("/graphics/");
   await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
   await page.getByRole("button", { name: "再生", exact: true }).click();
   await page
@@ -205,7 +205,7 @@ test("WebGL unavailable shows a recoverable error", async ({ page }) => {
       >);
     } as typeof original;
   });
-  await page.goto("/");
+  await page.goto("/graphics/");
   await expect(page.getByRole("alert")).toContainText("戦場を描画できません");
   await expect(
     page.getByRole("button", { name: "描画を再試行" }),
@@ -219,7 +219,7 @@ test("320px and landscape keep primary playback controls accessible", async ({
     [844, 390],
   ]) {
     await page.setViewportSize({ width, height });
-    await page.goto("/");
+    await page.goto("/graphics/");
     await expect(page.locator("canvas")).toHaveAttribute(
       "data-rendered",
       "true",
@@ -247,7 +247,7 @@ test("animated playback reaches the authored result (video evidence)", async ({
   const page = await context.newPage(),
     errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await page.goto("/graphics/");
   await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
   await page.getByRole("button", { name: "再生", exact: true }).click();
   await expect(page.getByRole("status", { name: "終局結果" })).toContainText(

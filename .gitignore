@@ -1,4 +1,7 @@
 node_modules/
 dist/
+/target/
+*.tsbuildinfo
+apps/web/public/wasm/
 test-results/
 playwright-report/

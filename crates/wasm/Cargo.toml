@@ -1,0 +1,22 @@
+[package]
+name = "senkei-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "senkei_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "senkei-wasm-dispatch"
+path = "src/bin/dispatch.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+senkei-model = { path = "../senkei-model" }
+senritsu = { path = "../senritsu" }
+jinrei = { path = "../jinrei" }
+enbu = { path = "../enbu" }

@@ -4,17 +4,36 @@
 
 Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦術プログラムを設計し、完全自動の決定論的シミュレーションで戦わせるブラウザ向けストラテジーゲームです。戦術はノーコードでもテキストでも編集でき、敗因の分析・デバッグ・最適化を繰り返すこと自体がゲームプレイになります。
 
-## プロジェクトの現在の範囲
+## 提供範囲と状態
 
-最初の製品は**ローカル完結のPvE・戦術開発環境**です。オフラインのブラウザ内で戦術を編集し、NPCに何度でも挑戦し、リプレイとCU（戦術計算資源）のプロファイルを確認できることを目指します。オンラインの公式非同期PvP、チケット、レートは将来の追加機能であり、初期段階の依存要件ではありません。
+この実装の対象は、**ローカル完結のPvE・戦術開発環境**です。ブラウザ内のエディタ、NPCキャンペーン、決定論的な戦闘、公開リプレイとローカル診断、IndexedDBへの保存、キャッシュ済みアセットを使うオフライン再戦を含みます。公式PvP、アカウント、サーバー保存はこの範囲に含みません。
 
-- Senkei（戦型）・Jinrei（陣令）・Senritsu（戦律）・Enbu（演武）に責務分離したRust製コア
-- WebAssemblyで実行するブラウザ内シミュレーション
-- TypeScriptを中心とするノーコード／テキストの戦術編集UI
-- IndexedDB等へのローカル保存と戦術バージョン管理
-- 後日、公式戦のみをサーバーで権威的に実行できる独立した境界
+この作業ブランチ `impl/phase-a-d` はまだ `main` にマージされていません。受入条件と検証状況は [コア検証手順](docs/implementation/CORE-VALIDATION.md)、[受入テスト行列](tests/README.md)、[デリバリー計画](docs/DELIVERY.md)を参照してください。ブランチ上に機能があることだけで、全受入項目の完了を示すものではありません。
 
-**本リポジトリは設計段階です。READMEや設計文書は実装済み機能を意味しません。**
+## ローカルで起動する
+
+必要な環境は Node.js 20.19以上または22.12以上、Rust stable/Cargo、Rust target `wasm32-unknown-unknown`、LLVM LLDの `wasm-ld` です。WASMビルドスクリプトは不足しているRust targetを追加し、Nix環境では不足したLLDを `nix-shell -p lld` で用意します。
+
+リポジトリのルートで、本番ビルドを作ってプレビューします。
+
+```sh
+npm ci
+bash scripts/wasm/build.sh
+npm run build
+npm run preview
+```
+
+プレビュー画面で一度アセットを読み込むと、サービスワーカーがアプリとWASMをローカルにキャッシュします。オフライン再戦の対象はこの本番プレビューです。`npm run dev` はUI開発用で、オフライン動作の検証対象ではありません。ブラウザ契約とキャッシュ境界は [WEB-API.md](docs/implementation/WEB-API.md)、WASMビルド手順は [scripts/wasm/README.md](scripts/wasm/README.md)を参照してください。
+
+## ヘッドレス実行
+
+同じ初期ルールセット、Jinreiコンパイラ、Enbuシミュレータを使うローカルCLIもあります。
+
+```sh
+cargo run --locked -p senkei-runner -- run examples/local-match.json
+```
+
+公開結果とリプレイだけを出力するには `--public-only` を追加します。入力と検証の詳細は [CORE-VALIDATION.md](docs/implementation/CORE-VALIDATION.md)を参照してください。
 
 ## 設計文書
 
@@ -50,7 +69,7 @@ npm ci
 npm run dev
 ```
 
-`http://localhost:5173`で固定Replay Fixtureを再生します。サーバーAPI、Enbu、Jinreiは実行しません。WebGL2が必要です。地形・施設・兵士はすべてコードで生成しています。
+`http://localhost:5173/graphics/`で固定Replay Fixtureを再生します。サーバーAPI、Enbu、Jinreiは実行しません。WebGL2が必要です。地形・施設・兵士はすべてコードで生成しています。
 
 ```sh
 npm run contract:types  # JSON Schemaから型を再生成

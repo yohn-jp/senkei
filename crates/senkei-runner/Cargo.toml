@@ -1,0 +1,19 @@
+[package]
+name = "senkei-runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "senkei-runner"
+path = "src/main.rs"
+
+[dependencies]
+enbu = { path = "../enbu" }
+jinrei = { path = "../jinrei" }
+senkei-model = { path = "../senkei-model" }
+senritsu = { path = "../senritsu" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

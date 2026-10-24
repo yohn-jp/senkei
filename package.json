@@ -1,5 +1,5 @@
 {
-  "name": "senkei-graphics",
+  "name": "senkei-web",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b && tsc --noEmit -p tsconfig.graphics.json",
     "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "test:browser": "playwright test",
@@ -27,13 +27,14 @@
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.0.0",
-    "@types/react": "^19.1.1",
-    "@types/react-dom": "^19.1.1",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
     "@types/three": "^0.180.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^5.0.2",
     "json-schema-to-typescript": "^15.0.4",
     "typescript": "~5.9.2",
     "vite": "^7.1.7",
     "vitest": "^4.1.12"
-  }
+  },
+  "version": "0.1.0"
 }
