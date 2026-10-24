@@ -40,6 +40,7 @@ measurable.
 | `hero_max_level` | 6 | Keeps the initial curve finite while unlocking the two catalog skill tiers. |
 | `hero_xp_per_level` | 100 | A flat first curve is easy to audit; later scenarios can justify a nonlinear curve. |
 | `xp_scale` | 2520 | Required exact XP storage scale: 2520 is the least common multiple of eligible group sizes 1 through 10, covering a contested neutral kill shared across both teams. |
+| `skill_area_radius` | 80 world units | Provisional radius for finite area-damage skills; it keeps an area hit local around its legal target while giving R01's control path a group-fight role. |
 | `hero_respawn_base_ticks` | 20 | Gives a first death a meaningful but short return delay. |
 | `hero_respawn_per_level_ticks` | 5 | Makes later deaths cost more time without removing a Hero for most of a match. |
 | `hero_kill_xp` | 80 | Rewards a Hero takedown between a Minion and a stronger neutral camp. |
@@ -125,7 +126,9 @@ its own passive at level 2 and its own active at level 4; the active requires
 that path's passive. Passives have range, cooldown, cost, and duration 0 and
 target `self`. Active powers are raw HP/attack/defense points except Haste and
 Slow, whose powers use per-mille movement units (`100` means ten percent).
-Reveal uses a nonzero marker power and the skill's range/duration fields.
+AreaDamage's serialized enum value is `area_damage`; its power applies per
+eligible enemy in the fixed-radius area. Reveal uses a nonzero marker power and
+the skill's range/duration fields.
 
 | Hero | Path A passive | Path B passive |
 | --- | --- | --- |
@@ -162,7 +165,7 @@ at allies (1000 baseline, 1100 for support Heroes).
 | F04 | enemy / Damage / 32 / 0 / 100 / 7 / 18 | enemy / Slow / 180‰ / 3 / 120 / 9 / 20 |
 | F05 | enemy / Slow / 220‰ / 3 / 130 / 10 / 22 | ally / Shield / 30 / 4 / 130 / 8 / 20 |
 | F06 | enemy / Reveal / 1 / 4 / 260 / 10 / 20 | ally / Haste / 150‰ / 3 / 220 / 9 / 20 |
-| R01 | enemy / Damage / 42 / 0 / 210 / 9 / 24 | enemy / Slow / 180‰ / 3 / 210 / 10 / 24 |
+| R01 | enemy / AreaDamage (`area_damage`) / 42 per enemy / 0 / 210 / 9 / 24 | enemy / Slow / 180‰ / 3 / 210 / 10 / 24 |
 | R02 | enemy / Damage / 56 / 0 / 340 / 11 / 30 | enemy / Damage / 42 / 0 / 300 / 8 / 22 |
 | R03 | enemy / Reveal / 1 / 4 / 420 / 10 / 20 | enemy / Damage / 35 / 0 / 390 / 8 / 20 |
 | R04 | ally / Heal / 42 / 0 / 250 / 7 / 20 | ally / Shield / 34 / 4 / 210 / 8 / 20 |
@@ -171,11 +174,13 @@ at allies (1000 baseline, 1100 for support Heroes).
 
 The branches offer different tradeoffs: direct damage, protection, recovery,
 movement, or control. R02 concentrates on long-range damage; F04 can trade
-damage for a chase slow; F06/R03 invest in scouting range and extend tracking
-of a currently visible target; R04 invests in recovery; F01/R05 improve squad
-and ally support. Reveal is a single-target marker, not an area search or a
-way to target an unseen enemy. These are initial values to compare across
-deterministic scenarios, not claims of balanced win rates.
+damage for a chase slow. R01's area hit uses `skill_area_radius=80` world units
+around its explicit legal observed target and deals power 42 to each eligible
+enemy in that radius. F06/R03 invest in scouting range and extend tracking of a
+currently visible target; R04 invests in recovery; F01/R05 improve squad and
+ally support. Reveal is a single-target marker, not an area search or a way to
+target an unseen enemy. These are initial values to compare across deterministic
+scenarios, not claims of balanced win rates.
 
 ## Minions, monsters, and camps
 

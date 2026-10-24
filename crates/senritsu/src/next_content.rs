@@ -100,6 +100,7 @@ fn parameters() -> BTreeMap<String, i64> {
         ("hero_max_level".into(), 6),
         ("hero_xp_per_level".into(), 100),
         ("xp_scale".into(), 2_520),
+        ("skill_area_radius".into(), 80),
         ("hero_respawn_base_ticks".into(), 20),
         ("hero_respawn_per_level_ticks".into(), 5),
         ("hero_kill_xp".into(), 80),
@@ -342,7 +343,7 @@ const HEROES: [HeroSpec; 12] = [
         branches: [
             BranchSpec {
                 passive: passive("Gathering Storm", SkillEffect::Empower, 4),
-                active: active("Storm Lance", SkillEffect::Damage, 42, 0, 210, "enemy", 9, 24),
+                active: active("Storm Sweep", SkillEffect::AreaDamage, 42, 0, 210, "enemy", 9, 24),
             },
             BranchSpec {
                 passive: passive("Eye of the Gale", SkillEffect::Defense, 2),
@@ -588,6 +589,18 @@ mod tests {
             }
             assert_ne!(hero.skill_paths["path_a"], hero.skill_paths["path_b"]);
         }
+    }
+
+    #[test]
+    fn r01_control_path_has_a_distinct_area_damage_skill() {
+        let rules = content(sample_map());
+        let r01 = rules.heroes.iter().find(|hero| hero.id == "R01").unwrap();
+        let path_a_active = &r01.skill_paths["path_a"][1];
+        let skill = r01.skills.iter().find(|skill| skill.id == *path_a_active).unwrap();
+        assert_eq!(skill.effect, SkillEffect::AreaDamage);
+        assert_eq!(skill.power, 42);
+        assert_eq!(skill.target, "enemy");
+        assert_eq!(rules.parameters["skill_area_radius"], 80);
     }
 
     #[test]
