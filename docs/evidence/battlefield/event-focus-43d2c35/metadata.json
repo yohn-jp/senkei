@@ -1,0 +1,23 @@
+{
+  "captureType": "actual-browser-next-workbench-journey",
+  "runtimeRevision": "43d2c35b908d0a6d08eaf049f28cde43f5190b01",
+  "test": "tests/browser/specs/next-workbench.spec.ts",
+  "testResult": "PASS",
+  "durationSeconds": 35.2,
+  "focusScreenshotViewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "assertions": [
+    "analysis event opens Battle at its exact selected tick",
+    "camera target changes from standard observation to event focus",
+    "entity tracking is cleared for point focus",
+    "real WASM editing/replay/rematch/mobile/offline draft journey passes"
+  ],
+  "note": "This full journey edits the real draft before simulation. It is separate from the canonical paired default match. The production preview remained frozen at the recorded runtime revision.",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "fileSha256": {
+    "analysis-event-focus-1440.png": "8bb41415dc8fbfdad1e723aa5b49a8bb83044d76bfc649d34b36d1f8b0e8479b",
+    "browser-journey.webm": "19e9c2e39600200dd9d417ac89fdc6bef3043b24e24ccd5d33ed9264fde7248d"
+  }
+}

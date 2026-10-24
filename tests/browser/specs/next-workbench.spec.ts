@@ -62,6 +62,10 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const confirmedResult = page.getByText(/Confirmed result/i);
   await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 90_000 });
   await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
+  const battlefieldCanvas = page.locator(".next-renderer-host canvas");
+  await expect(battlefieldCanvas).toHaveAttribute("data-rendered", "true");
+  const initialObservationTarget = await battlefieldCanvas.getAttribute("data-camera-target");
+  expect(initialObservationTarget).toBeTruthy();
   await page.locator("#next-tab-analysis").click();
   await expect(page.getByRole("heading", {name:"Read the result"})).toBeVisible();
   await page.screenshot({path:resolve(evidenceDirectory,"analysis-1440.png")});
@@ -71,6 +75,10 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await analysisEvent.click();
   await expect(page.locator("#next-tab-battle")).toHaveAttribute("aria-selected","true");
   await expect(page.locator(".next-tick-readout")).toContainText(`TICK ${Number(analysisTick)} /`);
+  await expect(battlefieldCanvas).toHaveAttribute("data-tick", String(Number(analysisTick)));
+  await expect.poll(() => battlefieldCanvas.getAttribute("data-camera-target")).not.toBe(initialObservationTarget);
+  await expect(battlefieldCanvas).toHaveAttribute("data-tracking", "");
+  await page.screenshot({path:resolve(evidenceDirectory,"analysis-event-focus-1440.png")});
 
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
   await slider.focus();
