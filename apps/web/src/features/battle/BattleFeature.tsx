@@ -10,6 +10,7 @@ import type {
   DiagnosticEvent,
   DomainValue,
   EntityStateView,
+  MatchResult,
   ReplayFrame,
   RestrictedDiagnostics,
   RulePackage,
@@ -69,9 +70,25 @@ type DiagnosticEventWithLinks = DiagnosticEvent & {
   readonly entity_id?: string | null;
 };
 
-type ComparableBenchmarkCase = BenchmarkOutcome["cases"][number] & {
+interface BenchmarkDisplayCase {
+  readonly case_id: string;
   readonly case_role?: "before" | "current";
+  readonly result: MatchResult;
+}
+
+interface CompactBenchmarkSummary {
+  readonly cases: readonly (BenchmarkDisplayCase & {
+    readonly snapshot: SimulationSnapshot;
+  })[];
+}
+
+type RuntimeBenchmarkOutcome = Omit<BenchmarkOutcome, "cases"> & {
+  readonly cases: readonly (BenchmarkOutcome["cases"][number] & {
+    readonly case_role?: "before" | "current";
+  })[];
 };
+
+type BenchmarkInput = RuntimeBenchmarkOutcome | CompactBenchmarkSummary;
 
 export function BattleFeature(props: BattleFeatureProps): ReactElement {
   const battleProps = props as BattleFeaturePropsWithRules;
@@ -115,8 +132,8 @@ export function BattleFeature(props: BattleFeatureProps): ReactElement {
     ? frames[Math.min(frameIndex, frames.length - 1)]
     : null;
   const lanes = useMemo(() => discoverLanes(ruleset), [ruleset]);
-  const caseIds = benchmark?.cases.map((item) => item.case_id) ?? [];
-  const comparableCases = (benchmark?.cases ?? []) as readonly ComparableBenchmarkCase[];
+  const comparableCases = normalizeBenchmark(benchmark as BenchmarkInput | null);
+  const caseIds = comparableCases.map((item) => item.case_id);
   const beforeCurrentSnapshot = baselineSnapshot ?? (
     selected_scenario_id && localBaseline?.scenario_id === selected_scenario_id
       ? localBaseline.snapshot
@@ -819,7 +836,7 @@ function BenchmarkPanel({
   readonly afterCaseId: string;
   readonly baselineAvailable: boolean;
   readonly currentSnapshotAvailable: boolean;
-  readonly comparableCases: readonly ComparableBenchmarkCase[];
+  readonly comparableCases: readonly BenchmarkDisplayCase[];
   readonly scenarioBenchmarkReady: boolean;
   onBeforeCaseChange(caseId: string): void;
   onAfterCaseChange(caseId: string): void;
@@ -867,13 +884,13 @@ function BenchmarkPanel({
       {cases.length > 0 ? (
         <>
           <div className="benchmark-case-list">
-            {cases.map(({ case_id, outcome: caseOutcome }, index) => (
+            {cases.map(({ case_id, result }, index) => (
               <div className="benchmark-case" key={case_id}>
                 <span className="benchmark-case-number">{String(index + 1).padStart(2, "0")}</span>
                 <div><strong>{scenarioTitles.get(case_id) ?? case_id}</strong><small>{case_id}</small></div>
                 {cases[index].case_role && <span className={`benchmark-role role-${cases[index].case_role}`}>{cases[index].case_role === "before" ? "BEFORE" : "CURRENT"}</span>}
-                <span className={`benchmark-outcome outcome-${caseOutcome.result.outcome}`}>{humanize(caseOutcome.result.outcome)}</span>
-                <span className="benchmark-tick">T{caseOutcome.result.final_tick}</span>
+                <span className={`benchmark-outcome outcome-${result.outcome}`}>{humanize(result.outcome)}</span>
+                <span className="benchmark-tick">T{result.final_tick}</span>
               </div>
             ))}
           </div>
@@ -885,7 +902,7 @@ function BenchmarkPanel({
                 <span className="compare-arrow" aria-hidden="true">→</span>
                 <label><span>{hasTaggedPair ? "CURRENT SNAPSHOT" : "CASE B · COMPARISON"}</span><select value={afterCaseId} onChange={(event) => onAfterCaseChange(event.target.value)}>{cases.map((item) => <option key={item.case_id} value={item.case_id}>{item.case_role === "before" ? "Before · " : item.case_role === "current" ? "Current · " : ""}{scenarioTitles.get(item.case_id) ?? item.case_id}</option>)}</select></label>
               </div>
-              {before && after && <CompareSummary before={before.outcome} after={after.outcome} roleAware={hasTaggedPair} />}
+              {before && after && <CompareSummary before={before.result} after={after.result} roleAware={hasTaggedPair} />}
             </div>
           )}
         </>
@@ -904,12 +921,12 @@ function CompareSummary({
   after,
   roleAware,
 }: {
-  readonly before: SimulationOutcome;
-  readonly after: SimulationOutcome;
+  readonly before: MatchResult;
+  readonly after: MatchResult;
   readonly roleAware: boolean;
 }): ReactElement {
-  const beforeResult = before.result;
-  const afterResult = after.result;
+  const beforeResult = before;
+  const afterResult = after;
   const statisticIds = Array.from(new Set([
     ...Object.keys(beforeResult.statistics),
     ...Object.keys(afterResult.statistics),
@@ -943,6 +960,21 @@ function CompareSummary({
       })}
     </div>
   );
+}
+
+function normalizeBenchmark(input: BenchmarkInput | null): readonly BenchmarkDisplayCase[] {
+  if (!input) return [];
+  return input.cases.map((item) => "outcome" in item
+    ? {
+        case_id: item.case_id,
+        case_role: item.case_role,
+        result: item.outcome.result,
+      }
+    : {
+        case_id: item.case_id,
+        case_role: item.case_role,
+        result: item.result,
+      });
 }
 
 function discoverLanes(ruleset: RulePackage | null): readonly LaneDescriptor[] {
