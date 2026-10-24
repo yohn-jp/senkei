@@ -31,3 +31,22 @@ Each Luna used its assigned worktree/branch. The writable boundaries are in [BAT
 Local checks completed during integration: Rust workspace build/test (103 tests), real WASM build and initial native/WASM goldens, Next adapter parity, Replay Contract/Player unit tests (34), TypeScript typecheck and production build. The full Graphics Playwright suite passed 10/10, including legacy Follow coordinates, replay replacement, WebGL failure/retry, and 320px controls. The actual-WASM workbench browser journey passed after adapting locators to the independent mobile console; it checks editing, replay, Follow, Overview, rematch, context recovery, draft preservation and offline restore.
 
 The final production runtime was built from `993ef563325727c2c54b7f602acbb200e9240d26`. The final production browser suite passed 10/10 (2.1 minutes), including all five required Battlefield viewports. The final default before/after comparator confirms identical input, match, owner/public replay digests, final state digest, ticks and viewport set. Final CI and independent acceptance are recorded in the evidence index and completion report. Successful tests do not establish Visual/Art acceptance. Physical mobile hardware, hardware GPU, touch/IME and final user acceptance remain NOT_CHECKED. Hero Atelier and balance acceptance are outside this Wave. PR #3 remains OPEN; Issue #5 remains OPEN; PR #4 stays frozen.
+
+## Issue #5 scoped acceptance
+
+These are completion gates, not a score. A partially met requirement is FAIL, even where the implementation improves on c9. Luna D's separate visual assessment is in the evidence index.
+
+| Issue #5 condition in this Wave | Result | Evidence / remaining gap |
+| --- | --- | --- |
+| G1: authored World topology; no invented routes/state | PASS | Exact authored polylines; identical input/public/owner replay/result digests in the final comparison. |
+| G1: standard whole-front readability and local role identification | FAIL | Standard now includes all lanes and camp locations, but current-visible bases do not provide a complete world-space unknown-objective presentation; dense Heroes remain difficult to distinguish. |
+| G1: confirmed-Tick event synchronization and privacy | PASS for synchronization | Default T1/T6/T50/T211; controlled death T74, owner-confirmed respawn T94, tower T96, skill T211. Full combat meaning/readability remains a visual failure below. |
+| G1: default Pixel 3D and readable HTML controls | PASS for mode/consistency | Pixel stays default; text/UI are outside pixel post-processing. This does not accept final Hero art. |
+| G3: Battlefield Desktop/Mobile observation and replay flow | PASS for browser interactions | Final 10/10 production tests, five requested viewports; selection/Tick/draft and context recovery checked. Physical touch/IME remains NOT_CHECKED. |
+| G4: native/WASM, Replay Contract/Player and existing graphics regressions | PASS locally | Workspace/native/WASM/unit/graphics/browser checks described above. Exact final-head hosted CI is reported separately after push. |
+| G4: balance and broader gameplay acceptance | NOT_CHECKED in this Wave | No balance work or rules changes. Controlled cases are observation fixtures, not a balance claim. |
+| G5: matched real-battle screenshots and browser recording | PASS for evidence delivery | All five viewports; exact canonical identity comparison; controlled events separately labeled. |
+| G5: Visual/Art acceptance | FAIL | Jungle/camp hierarchy, dense-unit identity and complete local event readability remain short of acceptance. Images and green tests do not override these gaps. |
+| Hero Atelier and other Goal-wide conditions | NOT_CHECKED in this Wave | Existing status remains; not silently accepted by Battlefield changes. |
+
+The bounded implementation, integration and evidence delivery do not establish Goal acceptance. Remaining visual failures are reported without starting another Wave.
