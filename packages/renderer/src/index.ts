@@ -2029,6 +2029,7 @@ export class Battlefield {
         ":" +
         this.camera.zoom.toFixed(3);
       this.canvas.dataset.tick = String(this.state?.tick ?? 0);
+      this.canvas.dataset.cameraTarget = this.controls.target.toArray().map((value) => value.toFixed(3)).join(",");
       this.canvas.dataset.cameraMode = this.cameraMode;
       this.canvas.dataset.tracking = this.trackedIds.join(",");
       this.canvas.dataset.rendered = "true";
