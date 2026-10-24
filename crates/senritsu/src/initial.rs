@@ -233,7 +233,7 @@ fn world_initialization() -> WorldInitialization {
         ));
     }
     entities.push(projection(
-        "initial_unit",
+        "unit_roster",
         ProjectionSides::Both,
         EntityProjectionSource::EachConfigurationItem { field: id("initial_deployments") },
         "unit",
@@ -242,7 +242,7 @@ fn world_initialization() -> WorldInitialization {
         unit_projection_fields(true, false),
     ));
     entities.push(projection(
-        "reinforcement_unit",
+        "unit_roster",
         ProjectionSides::Both,
         EntityProjectionSource::EachConfigurationItem { field: id("reinforcements") },
         "unit",
@@ -263,6 +263,7 @@ fn world_initialization() -> WorldInitialization {
 
 fn unit_projection_fields(deployed: bool, reinforcement: bool) -> BTreeMap<FieldId, ProjectionValue> {
     let mut fields = BTreeMap::from([
+        (id("slot_id"), configuration_item_path("slot_id")),
         (id("unit_class"), configuration_item_path("unit_class")),
         (id("lane"), configuration_item_path("lane")),
         (id("position"), if reinforcement { constant_int(0) } else { configuration_item_path("position") }),
@@ -280,6 +281,7 @@ fn unit_projection_fields(deployed: bool, reinforcement: bool) -> BTreeMap<Field
 
 fn world_schema() -> WorldSchema {
     let unit_fields = BTreeMap::from([
+        (id("slot_id"), field_schema(DomainType::String { max_bytes: 48 }, Visibility::Public, false)),
         (id("unit_class"), field_schema(enum_type("unit_class", &values(&UNIT_CLASSES)), Visibility::Public, false)),
         (id("lane"), field_schema(enum_type("lane", &values(&LANES)), Visibility::Public, true)),
         (id("position"), field_schema(int_type(0, 20), Visibility::Public, true)),
@@ -376,6 +378,7 @@ fn observation_collections(
     class_type: &DomainType,
 ) -> BTreeMap<CollectionId, CollectionSchema> {
     let unit_visible = BTreeMap::from([
+        (id("slot_id"), current_entity_field(DomainType::String { max_bytes: 48 }, Visibility::Public, "slot_id")),
         (id("unit_class"), current_entity_field(class_type.clone(), Visibility::Public, "unit_class")),
         (id("lane"), current_entity_field(lane_type.clone(), Visibility::Public, "lane")),
         (id("position"), current_entity_field(int_type(0, 20), Visibility::Public, "position")),
@@ -385,6 +388,7 @@ fn observation_collections(
         (id("deployed"), current_entity_field(DomainType::Bool, Visibility::Public, "deployed")),
     ]);
     let reserve_visible = BTreeMap::from([
+        (id("slot_id"), current_entity_field(DomainType::String { max_bytes: 48 }, Visibility::Public, "slot_id")),
         (id("unit_class"), current_entity_field(class_type.clone(), Visibility::Public, "unit_class")),
         (id("lane"), current_entity_field(lane_type.clone(), Visibility::Public, "lane")),
         (id("available_tick"), current_entity_field(int_type(0, 500), Visibility::OwningSide, "available_tick")),
@@ -429,6 +433,10 @@ fn observed_collection(
     visible_fields: BTreeMap<FieldId, ObservationFieldSchema>,
     order_by: &[&str],
 ) -> CollectionSchema {
+    let mut unique_keys = [CollectionUniqueKey::EntityId].into_iter().collect::<BTreeSet<_>>();
+    if entity_type == "unit" {
+        unique_keys.insert(CollectionUniqueKey::Fields(vec![id("slot_id")]));
+    }
     CollectionSchema {
         element_type: id(entity_type),
         max_items,
@@ -440,7 +448,7 @@ fn observed_collection(
         },
         visible_fields,
         order_by: order_by.iter().map(|field| id(field)).collect(),
-        unique_keys: [CollectionUniqueKey::EntityId].into_iter().collect(),
+        unique_keys,
     }
 }
 

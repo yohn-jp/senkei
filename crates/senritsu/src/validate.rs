@@ -27,6 +27,7 @@ pub fn validate(
     validate_domain(&package, &mut issues);
     validate_world(&package, &mut issues);
     validate_world_initialization(&package, &mut issues);
+    validate_roster_identity_contract(&package, &mut issues);
     validate_phases_and_rules(&package, &mut issues);
     validate_arbitration(&package, &mut issues);
     validate_costs(&package, &mut issues);
@@ -385,6 +386,113 @@ fn validate_world_initialization(package: &RulePackage, issues: &mut Vec<Validat
                 Some(field) => validate_projection_value(value, &field.value_type, projection, &value_path, package, issues),
             }
         }
+    }
+}
+
+fn validate_roster_identity_contract(package: &RulePackage, issues: &mut Vec<ValidationIssue>) {
+    let slot_id = FieldId::new("slot_id");
+    let roster_fields = [FieldId::new("initial_deployments"), FieldId::new("reinforcements")];
+
+    // The same per-side slot namespace is used for initial units and reserves.
+    // Duplicate values would collide in the shared `unit_roster` projection.
+    let mut seen = BTreeMap::<String, FieldId>::new();
+    for roster_field in &roster_fields {
+        let Some(schema) = package.domain.senkei_configuration.get(roster_field) else { continue };
+        let Some(DomainValue::List(items)) = &schema.default else { continue };
+        for (index, item) in items.iter().enumerate() {
+            let DomainValue::Record(fields) = item else { continue };
+            let Some(DomainValue::String(value)) = fields.get(&slot_id) else { continue };
+            if seen.insert(value.clone(), roster_field.clone()).is_some() {
+                issue(
+                    issues,
+                    "duplicate_roster_slot_id",
+                    format!("domain.senkei_configuration.{roster_field}.default[{index}].slot_id"),
+                    "slot_id values must be unique across initial deployments and reinforcements",
+                );
+            }
+        }
+    }
+
+    let mut shared_projection_id: Option<ProjectionId> = None;
+    for source_field in &roster_fields {
+        let source_projections = package.world_initialization.entities.iter().filter(|projection| {
+            projection.source == EntityProjectionSource::EachConfigurationItem { field: source_field.clone() }
+        }).collect::<Vec<_>>();
+        if source_projections.len() != 1 {
+            issue(
+                issues,
+                "invalid_roster_projection",
+                format!("world_initialization.entities.{source_field}"),
+                "each roster configuration list must have exactly one unit projection",
+            );
+            continue;
+        }
+        let projection = source_projections[0];
+        let expected_slot_path = vec![slot_id.clone()];
+        if projection.entity_type != TypeId::new("unit")
+            || projection.applies_to != ProjectionSides::Both
+            || projection.owner != EntityOwnerProjection::SnapshotSide
+            || projection.entity_id != (EntityIdProjection::ConfigurationItemKey { path: expected_slot_path.clone() })
+            || projection.fields.get(&slot_id) != Some(&ProjectionValue::ConfigurationItemPath { path: expected_slot_path })
+        {
+            issue(
+                issues,
+                "invalid_roster_projection",
+                format!("world_initialization.entities.{source_field}"),
+                "roster units must project slot_id as their per-side unit key and visible unit field",
+            );
+        }
+        if let Some(existing) = &shared_projection_id {
+            if existing != &projection.projection_id {
+                issue(
+                    issues,
+                    "invalid_roster_projection",
+                    format!("world_initialization.entities.{source_field}.projection_id"),
+                    "initial units and reserves must share a projection ID so duplicate slot IDs collide",
+                );
+            }
+        } else {
+            shared_projection_id = Some(projection.projection_id.clone());
+        }
+    }
+
+    let unit_schema_field = package
+        .world
+        .entity_types
+        .get(&TypeId::new("unit"))
+        .and_then(|schema| schema.fields.get(&slot_id));
+    if !unit_schema_field.is_some_and(|field| {
+        field.value_type == (DomainType::String { max_bytes: 48 })
+            && field.visibility == Visibility::Public
+            && !field.writable
+    }) {
+        issue(issues, "invalid_roster_slot_id_field", "world.entity_types.unit.fields.slot_id", "slot_id must be a read-only public string field with a 48-byte limit");
+    }
+
+    for collection_id in ["allies.units", "allies.reserves", "enemies.visible_units"] {
+        let collection = package.domain.collections.get(&CollectionId::new(collection_id));
+        let field = collection.and_then(|collection| collection.visible_fields.get(&slot_id));
+        if !field.is_some_and(|field| {
+            field.value_type == (DomainType::String { max_bytes: 48 })
+                && field.visibility == Visibility::Public
+                && field.source == (ObservationSource::CurrentEntityField { field: slot_id.clone() })
+        }) {
+            issue(issues, "missing_roster_slot_id_observation", format!("domain.collections.{collection_id}.visible_fields.slot_id"), "unit observation must expose slot_id from the current entity");
+        }
+        if !collection.is_some_and(|collection| {
+            collection.unique_keys.contains(&CollectionUniqueKey::Fields(vec![slot_id.clone()]))
+        }) {
+            issue(issues, "missing_roster_slot_id_unique_key", format!("domain.collections.{collection_id}.unique_keys"), "unit observation must declare slot_id as a unique key for deterministic argmin/argmax");
+        }
+    }
+
+    if package
+        .presentation
+        .visible_entity_fields
+        .get(&TypeId::new("unit"))
+        .is_some_and(|fields| fields.contains(&slot_id))
+    {
+        issue(issues, "roster_slot_id_presentation_leak", "presentation.visible_entity_fields.unit.slot_id", "raw slot IDs are tactical observation keys and must not be exposed in public replay");
     }
 }
 

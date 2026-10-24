@@ -123,3 +123,50 @@ fn lane_domain_is_explicitly_three_lanes() {
     let lanes = package.domain.symbol_domains.get(&senkei_model::SymbolDomainId::new("lane")).expect("lane domain");
     assert_eq!(lanes.iter().map(|lane| lane.as_str()).collect::<Vec<_>>(), ["bot", "mid", "top"]);
 }
+
+#[test]
+fn slot_id_is_a_unique_tactical_key_but_not_a_public_replay_field() {
+    let package = initial_package();
+    let slot_id = FieldId::new("slot_id");
+    for collection_id in ["allies.units", "allies.reserves", "enemies.visible_units"] {
+        let collection = package.domain.collections.get(&senkei_model::CollectionId::new(collection_id)).expect("unit collection");
+        assert!(collection.visible_fields.contains_key(&slot_id));
+        assert!(collection.unique_keys.contains(&senkei_model::CollectionUniqueKey::Fields(vec![slot_id.clone()])));
+    }
+    assert!(!package.presentation.visible_entity_fields[&senkei_model::TypeId::new("unit")].contains(&slot_id));
+}
+
+#[test]
+fn duplicate_default_slot_id_across_rosters_is_rejected() {
+    let mut package = initial_package();
+    let reinforcements = package
+        .domain
+        .senkei_configuration
+        .get_mut(&FieldId::new("reinforcements"))
+        .expect("reinforcement configuration");
+    let Some(senkei_model::DomainValue::List(items)) = &mut reinforcements.default else { panic!("reinforcement defaults"); };
+    let Some(senkei_model::DomainValue::Record(fields)) = items.first_mut() else { panic!("reinforcement default record"); };
+    fields.insert(FieldId::new("slot_id"), senkei_model::DomainValue::String("unit-infantry-top".to_owned()));
+    refresh_digest(&mut package);
+    let codes = issue_codes(validate(package, &initial_engine_compatibility()));
+    assert!(codes.iter().any(|code| code == "duplicate_roster_slot_id"));
+}
+
+#[test]
+fn initial_and_reinforcement_rosters_must_share_the_slot_id_namespace() {
+    let mut package = initial_package();
+    let projection = package
+        .world_initialization
+        .entities
+        .iter_mut()
+        .find(|projection| {
+            projection.source == senkei_model::EntityProjectionSource::EachConfigurationItem {
+                field: FieldId::new("reinforcements"),
+            }
+        })
+        .expect("reinforcement projection");
+    projection.projection_id = senkei_model::ProjectionId::new("other_unit_namespace");
+    refresh_digest(&mut package);
+    let codes = issue_codes(validate(package, &initial_engine_compatibility()));
+    assert!(codes.iter().any(|code| code == "invalid_roster_projection"));
+}

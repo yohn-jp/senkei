@@ -28,9 +28,12 @@ part of the Jinrei type system.
 | `initial_deployments` | list of at most 16 `{slot_id, unit_class, lane, position}` records | infantry/top, archer/mid, cavalry/bot; each at position `4` |
 | `reinforcements` | list of at most 16 `{slot_id, unit_class, lane, available_tick}` records | medic/mid at tick `4`, infantry/bot at tick `8` |
 
-`slot_id` is a unique, stable string key within its roster list. The engine
-derives entity IDs from the projection, side, type, and slot key; list order
-does not affect identity. Reinforcement launch costs one credit. Initial
+`slot_id` is a unique, stable string key across a side's initial deployments
+and reinforcement roster. The engine derives entity IDs from the shared unit
+projection, side, type, and slot key; list order does not affect identity.
+Tactics can read this key on own units, reserves, and visible enemy units and
+use it as a deterministic unique collection key. Public replay entity views
+omit the raw key. Reinforcement launch costs one credit. Initial
 deployment list entries are already part of the submitted army. Credits,
 positions, launch timing, roster size, and all world limits are validated
 before simulation. One reserve can be deployed per side per tick; this keeps
