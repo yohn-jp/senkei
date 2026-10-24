@@ -1,0 +1,39 @@
+{
+  "command": "nix develop path:. --command blender --background --factory-startup --threads 8 --python tools/assets/build_hero.py -- --hero f01",
+  "results": [
+    {
+      "lod": "detail",
+      "byteIdentical": false,
+      "structureIdentical": true,
+      "equivalentWithinTolerance": true,
+      "floatTolerance": 0.000001,
+      "maxFloatDelta": 1.1920928955078125e-7,
+      "changedAccessors": [
+        {
+          "accessor": 20,
+          "semantics": [
+            "TEXCOORD_0"
+          ]
+        }
+      ],
+      "sha256": "7afc3ae1ec7545b76958f234549b3a1b3d2b73cc63af53d9b7c02abefd8abd38"
+    },
+    {
+      "lod": "battle",
+      "byteIdentical": false,
+      "structureIdentical": true,
+      "equivalentWithinTolerance": true,
+      "floatTolerance": 0.000001,
+      "maxFloatDelta": 1.1920928955078125e-7,
+      "changedAccessors": [
+        {
+          "accessor": 20,
+          "semantics": [
+            "TEXCOORD_0"
+          ]
+        }
+      ],
+      "sha256": "53143c3a61cf5128dd410457a54ee9c032f9cf891e4c3fa98fdcc81bc6867d98"
+    }
+  ]
+}

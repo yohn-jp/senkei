@@ -11,6 +11,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve("apps/web/index.html"),
+        hero: resolve("apps/web/hero/index.html"),
         graphics: resolve("apps/web/graphics/index.html"),
       },
     },

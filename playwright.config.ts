@@ -10,6 +10,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
     launchOptions: {
+      executablePath: process.env.SENKEI_CHROMIUM_EXECUTABLE,
       args: [
         "--no-sandbox",
         "--use-angle=swiftshader",

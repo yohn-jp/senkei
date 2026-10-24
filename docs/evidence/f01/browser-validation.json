@@ -1,0 +1,47 @@
+{
+  "viewport": "1440x900; 1920x1080; 390x844; 430x932; 320x844",
+  "detailStats": "25,535 triangles · 5 motions · 12 skinned meshes",
+  "battleStats": "8,937 triangles · 5 motions · 12 skinned meshes",
+  "frames": {
+    "Idle": {
+      "startBytes": 471221,
+      "posedBytes": 471940,
+      "time": "1.038"
+    },
+    "Walk": {
+      "startBytes": 471221,
+      "posedBytes": 472935,
+      "time": "0.338"
+    },
+    "Attack": {
+      "startBytes": 471221,
+      "posedBytes": 462986,
+      "time": "0.478"
+    },
+    "Skill": {
+      "startBytes": 471221,
+      "posedBytes": 469197,
+      "time": "0.688"
+    },
+    "Death": {
+      "startBytes": 471221,
+      "posedBytes": 306601,
+      "time": "2.166"
+    }
+  },
+  "loadedGLBs": [
+    "http://127.0.0.1:4173/assets/heroes/f01/f01-detail.glb",
+    "http://127.0.0.1:4173/assets/heroes/f01/f01-battle.glb",
+    "http://127.0.0.1:4173/assets/heroes/f01/f01-detail.glb"
+  ],
+  "consoleErrors": [],
+  "checks": [
+    "five rendered pose changes",
+    "death clamp",
+    "rotation",
+    "zoom",
+    "lighting",
+    "LOD reload and five clips",
+    "no horizontal overflow"
+  ]
+}

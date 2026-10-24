@@ -16,6 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run contract:types && git diff --exit-code -- packages/replay-contract/src/generated.ts
+      - run: npm run assets:validate
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
@@ -25,6 +26,7 @@ jobs:
         with:
           name: graphics-g1-browser-evidence
           path: |
+            docs/evidence/f01/*
             docs/evidence/g1/*.png
             docs/evidence/g1/*.webm
             playwright-report/
