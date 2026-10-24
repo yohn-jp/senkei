@@ -2,27 +2,34 @@ name: F01 static study
 on:
   push:
     branches: [feat/three-f01-static-study]
+  pull_request:
+    paths:
+      - 'packages/renderer/src/f01-study/**'
+      - 'apps/web/src/f01-study/**'
+      - 'apps/web/f01-study/**'
+      - 'tests/visual/f01-static.spec.ts'
+      - '.github/workflows/f01-study.yml'
 permissions:
   contents: read
 jobs:
-  prepare-workbench:
+  static-study:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm test && npm run build
-      - name: Package source and locked dependencies for offline visual iteration
-        run: tar -czf "$RUNNER_TEMP/f01-workspace.tgz" .
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser -- tests/visual/f01-static.spec.ts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: f01-isolated-workbench
-          path: ${{ runner.temp }}/f01-workspace.tgz
-          retention-days: 1
+          name: f01-static-study-evidence
+          path: |
+            docs/evidence/f01-procedural/
+            playwright-report/
+            test-results/
