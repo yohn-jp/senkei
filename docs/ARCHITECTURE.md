@@ -49,23 +49,31 @@ Web WorkerとWASMの間のAPIは型付きのバージョン付きデータ契約
 
 ## 4. ソース構造（提案。必要に応じて統合可）
 
-    crates/
-      senkei-model/  # 戦型と不変Combatant Snapshot
-      jinrei/        # 戦術言語 / 型付きIR / CU / 専用VM
-      senritsu/      # ルールスキーマ / 検証 / RulePlan
-      enbu/          # Tick / 遷移 / 調停 / 結果生成
-      wasm/          # ブラウザ向け型付き境界
     apps/
-      web/         # 編集、戦場、デバッグ、PvE
-      server/      # 将来追加（初期には作らない）
-    scenarios/     # 公開できるNPC・検証シナリオ
-    specs/         # 言語・ルール・CUのバージョン別仕様
+      web/               # Desktop/Mobileのブラウザアプリ
+      server/            # 将来の公式戦だけ（初期には作らない）
+    packages/
+      senkei-model/      # 戦型データ・不変入力
+      jinrei/            # 戦術言語・VM
+      senritsu/          # ルールパッケージ
+      enbu/              # 決定論的演武
+      wasm-adapter/      # ブラウザ用ランタイム境界
+      replay-contract/   # 表示データSchemaとFixtures
+      replay-player/     # 再生・停止・シーク
+      renderer/          # 3D戦場・ユニット・カメラ・演出
+    assets/
+      sources/           # 生成元と造形パラメータ
+      generated/         # 生成物
+      manifests/         # 素材の出典・ライセンス
+    scenarios/           # NPC戦・合成検証ケース
+    specs/               # バージョン別の言語・ルール・CU仕様
     tests/
       determinism/
       conformance/
+      visual/
       balance/
 
-crate数の多さを目的にしません。Senritsuの型付きパッケージをJinreiコンパイラとEnbuがそれぞれ検証・利用し、EnbuはJinreiの実行ポートだけを呼ぶようにします。言語のパーサ／コンパイラとEnbuのワールド遷移を循環依存させず、戦闘コアがブラウザやCloudflareのAPIをインポートしないことを優先します。パッケージ間の詳細契約は [COMPONENTS.md](COMPONENTS.md) が正本です。
+ディレクトリは言語別ではなく責務別とし、Cargo workspace・npm workspace等は各パッケージの実装事情で構成します。空のモジュールを最初から量産しません。Senritsuの型付きパッケージをJinreiコンパイラとEnbuがそれぞれ検証・利用し、EnbuはJinreiの実行ポートだけを呼ぶようにします。言語のパーサ／コンパイラとEnbuのワールド遷移を循環依存させず、戦闘コアがブラウザやCloudflareのAPIをインポートしないことを優先します。パッケージ間の詳細契約は [COMPONENTS.md](COMPONENTS.md) が正本です。
 
 ## 5. ストレージとバージョン（確定原則）
 
@@ -92,3 +100,9 @@ crate数の多さを目的にしません。Senritsuの型付きパッケージ�
 Enbuは、検証済み攻撃戦型・防衛戦型と不変のSenritsu／戦場定義を入力し、完全自動で計算を完了して結果と描画用イベントを返す。対戦申請、チケット、レーティング、データ永続化、描画は担当しない。内部戦闘状態は試合中だけ保持し、永続的なネットワークセッションは要求しない。
 
 ブラウザ側はローカルPvEでは同じWASMコアを実行する。将来の公開戦はサーバーが同じ意味論を権威実行し、クライアントは戦闘結果と表示を許されたイベントを再生する。対戦相手の非公開IRを描画のために配布しない。内部トレースと公開リプレイは別データ契約にする。
+
+## 9. 表示系の独立コンポーネント（確定境界）
+
+Enbuの結果から、ゲームロジックと分離したバージョン付きの`PresentationReplay`を生成し、`Replay Decoder → Replay Player → read-only View State → Scene Adapter → Renderer`の順に消費する。**これはHTTP APIではなくデータ契約**。RendererはEnbu、Jinrei、Senritsuの内部実装に依存せず、勝敗やダメージを再計算しない。
+
+画風はプロシージャル3D＋Pixel 3D（[GRAPHICS.md](GRAPHICS.md)）を第一候補とし、データ契約は [REPLAY.md](REPLAY.md)、Desktop/Mobile UIは [UI-DESIGN.md](UI-DESIGN.md) に分離する。Replay Schemaと固定Fixtureにより、Enbu完成前でも描画を独立実装・テストできる。初期のG1範囲は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) による。

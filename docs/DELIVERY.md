@@ -29,7 +29,7 @@
 - IndexedDBで保存・復元、戦術の版管理・インポート／エクスポート。
 - UIが固まらずにNPC戦・複数ケースのベンチマークを実行する。
 
-受入条件：サーバーAPIなしでブラウザ内の編集→PvE→分析→修正→再戦が完結すること。描画処理とシミュレーションが独立し、描画はイベントのみを再生できること。
+受入条件：サーバーAPIなしでブラウザ内の編集→PvE→分析→修正→再戦が完結すること。描画処理とシミュレーションが独立し、描画はイベントのみを再生できること。描画のReplay ContractおよびFixtureは [REPLAY.md](REPLAY.md) に従う。
 
 ### Phase D — Playable local product
 
@@ -88,3 +88,9 @@ Jinreiの表層文法と評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md
 - 全体: 新しい兵科等のデータ拡張と、物理意味論が必要な拡張を区別した互換性テストを持つ。
 
 責務境界の正本は [COMPONENTS.md](COMPONENTS.md)。
+
+## 7. グラフィック実装の独立トラック
+
+戦闘コアのPhase A–Eは維持する。表示側は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) のG1–G5として**別トラック**で段階的に実装できる。最初のG1ではSchema・合成Fixture・Replay Player・Pixel 3D戦場を縦断し、実ブラウザで再生・停止・シークを確認する。Enbuを実装済みと偽ることなく、先に描画品質を実測・評価する。デスクトップとモバイルは [UI-DESIGN.md](UI-DESIGN.md) の別操作モデルを適用する。
+
+G1の実装・CI・描画検証が終わるまでは、アーキテクチャ文書の存在だけを完成証拠として扱わない。

@@ -1,0 +1,76 @@
+# PresentationReplay — Enbuと描画の契約
+
+## 1. 境界とauthority
+
+Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し、**描画を許可された戦場状態・イベントだけ**をPresentationReplayに投影する。この文書はその意味・時間・可視性の契約であってHTTP APIの設計ではない。
+
+- **Producer**: Enbuの許可リスト方式のPresentation Projection。
+- **Consumers**: Replay Decoder、Replay Player、Scene Adapter、Renderer。いずれも戦闘の再計算をしない。
+- **除外**: Jinreiソース／IR／バイトコード、RestrictedDiagnostics、秘密の戦術メモリ、ReproductionContext。
+- **初期開発**: Enbuを待たず、仕様に従う合成Fixtureを入力にRendererを実装する。
+- 設計の上位契約は [COMPONENTS.md](COMPONENTS.md)、[ENBU.md](ENBU.md)、[ONLINE.md](ONLINE.md)、[EXECUTION.md](EXECUTION.md)。
+
+## 2. 言語非依存のSchema
+
+初期の採用方式は**JSON Schemaをデータ契約の正本としたJSON Fixture**。必要なRust／TypeScriptの型はスキーマとの一致を検証し、言語ごとに意味が異なる独自モデルを作らない。JSON Schema単独では表現できない整列・状態復元・権限の意味は規範テストで保証する。
+
+| 論理セクション | 必要情報 |
+| --- | --- |
+| Header | schemaVersion、出力由来（sample／official等）、Enbu版、SenritsuのID／digest、観測ビュー種別 |
+| Scene | 描画に許可された地形、経路、施設、本拠地等の初期構造 |
+| InitialView | プレゼンテーションID、所属、表示種別、位置、見えている初期状態 |
+| Timeline | Tick、同一Tickの全順序キー、許可されたイベント |
+| Checkpoints | 任意Tickの表示状態（必要に応じて） |
+| Result | 公開可能な勝敗、終局理由、終局Tick |
+| Presentation metadata | 表示の座標規約、appearanceKey、アセットカタログ版 |
+
+上記は**実装時にv0.1 Schemaへ具体化する必要のある契約事項**。フィールド名・JSON構造・バイナリ形式はまだ実装で確定していないため、設計段階の例を既存APIと呼ばない。
+
+## 3. 座標・時間とイベント
+
+- 論理的なWorldPoint（戦場平面上の位置）を、Renderer側のScene AdapterがThree.jsの3D座標・高度へ変換する。戦律の射程や命中をRendererで再計算しない。
+- 3レーンは最初のSenritsuのScene内容であり、Replay Schema自体へ「3本しかない」をハードコードしない。
+- 時刻は**整数Tick＋同一Tick内の規範的順序**。描画FPS、演出ミリ秒、再生速度と切り離す。
+- 再生、巻き戻し、直接シークは同じ確定状態へ戻る。Checkpointの使用有無によって結果を変えない。
+- 出現・移動・攻撃Cue・被害による確定状態変化・破壊・非表示化・終局を意味イベントとして提供する。
+- イベントにモデルのGLBファイル名やTypeScript関数、未観測の座標、Jinrei内部ルールIDを埋め込まない。
+
+| イベント群 | 表示で担う役割 |
+| --- | --- |
+| spawn / appear | 観測可能なEntityの生成／登場 |
+| move / position | 位置の変更・補間可能な移動区間 |
+| attack / act | 行動・攻撃の演出Cue（ダメージの再計算なし） |
+| damage / state | 実際に確定した耐久値等の可視状態 |
+| destroy / disappear | 破壊・死亡・視界外などを区別して表示 |
+| match-end | 許可された終局結果 |
+
+不明なschemaVersion、同一Tick順序キーの衝突、存在しない対象への参照、前後関係が不正なイベントは検証エラーにする。表示用識別子は内部Entity IDや秘密のJinrei状態を含まない。
+
+## 4. Replay Playerの責務
+
+- 初期表示状態とイベント列から、指定Tickの**read-only Display State**を構築する。
+- 再生／一時停止、速度変更、任意Tickへのシーク、開始位置へ戻る操作を扱う。
+- 任意Tickへシークした表示状態が、0から順再生した同Tickと一致することを保証する。
+- シーク・再生中の選択対象消失を安全に扱い、描画側へ不正なEntity参照を残さない。
+- 描画の補間やパーティクルの時間はRendererが扱う。Replay Playerが戦闘判定を再計算しない。
+- 未対応データのときは勝手に修正せず、理由を示して再生を停止する。
+
+## 5. 秘匿性
+
+公開Replayは**許可リスト方式で生成**する。内部診断トレースをまるごと出力してからクライアント側で隠す方式は禁止する。相手の非公開Jinreiソース、IR、条件、戦術メモリ、内部CU内訳、未観測状態を含めない。
+
+自軍のCU・ルール発火等の分析は別のRestrictedDiagnostics契約を経由し、可視権限を検証する。リプレイの挙動から相手の戦術を推測される可能性は残るが、直接ソースを配布してはならない。
+
+## 6. 最初に実装するFixtureと適合テスト
+
+| Fixture | 意図 |
+| --- | --- |
+| basic-three-lane | 三レーン・双方の本拠地・塔・複数兵科・移動 |
+| clash-and-loss | 同Tickの攻撃・被害・消失、確定順序 |
+| tower-collapse | 塔の段階的な損傷と破壊 |
+| dense-army | 100体相当の表示・性能検証 |
+| malformed-replay | 不正schemaVersion、順序、参照、必須値 |
+
+すべて**合成のサンプルデータ**であり、正式なSenritsuの兵科数値・Enbuの勝敗計算結果ではない。
+
+実装受入: Schema正常例を受理し異常例を拒否、同Tick順序を固定、シークと順再生のDisplay State一致、RendererはEnbuから独立してFixtureで動作、公開Replayに内部情報フィールドがない、再生をHTTP/Cloudflareへ結びつけない。

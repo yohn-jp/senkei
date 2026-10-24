@@ -22,6 +22,10 @@
 | [ENBU.md](ENBU.md) | Enbuの状態遷移、実行境界と結果 |
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
 | [EXECUTION.md](EXECUTION.md) | コンパイル方式、論理CU、物理最適化、戦闘エンジンの入出力・秘匿境界 |
+| [GRAPHICS.md](GRAPHICS.md) | **グラフィックの正本**：Pixel 3D、3D制作、画風、レンダラー |
+| [REPLAY.md](REPLAY.md) | **Enbu/Renderer表示契約**：Schema、Tick、投影・秘匿性 |
+| [UI-DESIGN.md](UI-DESIGN.md) | Desktop/Mobile別のUI・操作・状態設計 |
+| [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
 | [ONLINE.md](ONLINE.md) | 将来の非同期PvP、公式戦、ランキング、Cloudflare |
 | [DELIVERY.md](DELIVERY.md) | 実装順・各段階の完了条件・未決定事項 |
@@ -33,7 +37,7 @@
 3. Web UIやインフラの推奨技術。
 4. 例示した兵科、数値、名前、アルゴリズム。
 
-数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と初期Senritsuのゲーム数値はルールパッケージで具体化します。
+数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本、表示契約は [REPLAY.md](REPLAY.md) を設計正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と初期Senritsuのゲーム数値はルールパッケージで具体化します。
 
 ## 変更の作法
 
