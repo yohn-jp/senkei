@@ -584,6 +584,7 @@ fn validate_observation_expression_visibility(
         }
         RuleExpression::Not(inner) => validate_observation_expression_visibility(inner, view, &format!("{path}.value"), package, issues, depth + 1),
         RuleExpression::Literal(_) | RuleExpression::IntentArgument(_) => {}
+        RuleExpression::CurrentTick => {}
     }
 }
 
@@ -1358,6 +1359,10 @@ fn infer_expression_type_inner(
         return None;
     }
     match expression {
+        RuleExpression::CurrentTick => Some(DomainType::Integer {
+            min: Some(0),
+            max: Some(i64::from(package.termination.max_ticks)),
+        }),
         RuleExpression::Literal(value) => Some(type_of_literal(value, package)),
         RuleExpression::IntentArgument(index) => {
             let Some(capability) = capability else {

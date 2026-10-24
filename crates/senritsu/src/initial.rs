@@ -253,7 +253,7 @@ fn world_initialization() -> WorldInitialization {
 
     WorldInitialization {
         entities,
-        global_fields: BTreeMap::from([(id("tick"), DomainValue::Integer(0))]),
+        global_fields: BTreeMap::new(),
         collections: ["units", "towers", "cores", "barracks"]
             .into_iter()
             .map(|collection| (id(collection), Vec::new()))
@@ -311,10 +311,7 @@ fn world_schema() -> WorldSchema {
             (id("core"), EntityTypeSchema { fields: core_fields, default_owner: None }),
             (id("barracks"), EntityTypeSchema { fields: barracks_fields, default_owner: None }),
         ]),
-        global_fields: BTreeMap::from([(
-            id("tick"),
-            field_schema(int_type(0, 500), Visibility::Public, true),
-        )]),
+        global_fields: BTreeMap::new(),
         collections: BTreeMap::from([
             (id("units"), world_collection("unit", 64)),
             (id("towers"), world_collection("tower", 6)),
@@ -482,7 +479,7 @@ fn capabilities(
         vec![
             not(less(field_expr(EntitySelector::IntentActor, "resources"), int_lit(1))),
             eq(field_expr(EntitySelector::IntentTarget, "deployed"), bool_lit(false)),
-            not(less(RuleExpression::GlobalField(id("tick")), field_expr(EntitySelector::IntentTarget, "available_tick"))),
+            not(less(RuleExpression::CurrentTick, field_expr(EntitySelector::IntentTarget, "available_tick"))),
         ],
     );
     result.insert(id("deploy"), produce);

@@ -79,6 +79,8 @@ The capability catalog is finite and typed:
 The shared capability contract names actor and target argument indexes. All
 actions return Intent candidates; Enbu validates ownership, range, lane,
 availability, and credits before applying Senritsu transitions.
+The `match.tick` path reads the engine tick, and reserve availability checks
+use the typed `CurrentTick` rule expression rather than a mutable world field.
 
 ## Ordering, termination, and cost
 
