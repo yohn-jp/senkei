@@ -385,6 +385,9 @@ export class Battlefield {
       (min.y + max.y) / 2,
     );
     this.controls.enableDamping = false;
+    // Consume any orbit or pan delta left by damping before writing the reset
+    // pose, or OrbitControls would apply that old gesture to the overview.
+    this.controls.update();
     const offset = this.mobile
       ? new THREE.Vector3(10, 46, 18)
       : new THREE.Vector3(17, 38, 31);

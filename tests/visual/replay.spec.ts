@@ -1,7 +1,24 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { OrthographicCamera, Vector3 } from "three";
 const evidence = "docs/evidence/g1";
+const g1 = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../packages/replay-contract/fixtures/basic-three-lane.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as {
+  scene: {
+    bounds: {
+      min: { x: number; y: number };
+      max: { x: number; y: number };
+    };
+  };
+  initialView: Array<{ id: string; position: { x: number; y: number } }>;
+};
 mkdirSync(evidence, { recursive: true });
 async function seek(page: Page, tick: number) {
   const slider = page.getByRole("slider", { name: "Tickシーク" });
@@ -55,26 +72,54 @@ for (const [width, height] of [
     };
     await shot("initial");
     const bounds = await page.locator("canvas").boundingBox();
-    const span = mobile
-        ? Math.max(18.5, (14 * bounds!.height) / bounds!.width)
-        : 13,
-      aspect = bounds!.width / bounds!.height;
-    const pickCamera = new OrthographicCamera(
-      -span * aspect,
-      span * aspect,
-      span * 1.15,
-      -span * 0.85,
-      0.1,
-      200,
+    const host = await page.locator(".scene-host").boundingBox();
+    const { min, max } = g1.scene.bounds;
+    const center = new Vector3(
+      (min.x + max.x) / 2,
+      0,
+      (min.y + max.y) / 2,
     );
-    pickCamera.position.copy(
-      mobile ? new Vector3(34, 34, 9) : new Vector3(14, 28, 32),
+    const pickCamera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+    const [cameraPosition, zoom] = (
+      (await page.locator("canvas").getAttribute("data-camera")) ?? ""
+    ).split(":");
+    pickCamera.position.fromArray(
+      cameraPosition.split(",").map(Number),
     );
-    pickCamera.lookAt(0, 0, 0);
+    pickCamera.zoom = Number(zoom);
+    pickCamera.lookAt(center);
     pickCamera.updateMatrixWorld();
-    const pick = new Vector3(-5.6, 0.96, 0).project(pickCamera),
-      px = bounds!.x + ((pick.x + 1) * bounds!.width) / 2,
-      py = bounds!.y + ((1 - pick.y) * bounds!.height) / 2;
+    const direction = center.clone().sub(pickCamera.position).normalize();
+    const right = new Vector3()
+      .crossVectors(direction, pickCamera.up)
+      .normalize();
+    const screenUp = new Vector3().crossVectors(right, direction).normalize();
+    let horizontal = 0,
+      vertical = 0;
+    for (const x of [min.x, max.x])
+      for (const z of [min.y, max.y])
+        for (const y of [-1, 5]) {
+          const corner = new Vector3(x, y, z).sub(center);
+          horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
+          vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
+        }
+    const aspect = host!.width / host!.height;
+    const halfHeight = Math.max(vertical, horizontal / aspect) * 1.18;
+    pickCamera.left = -halfHeight * aspect;
+    pickCamera.right = halfHeight * aspect;
+    pickCamera.top = halfHeight;
+    pickCamera.bottom = -halfHeight;
+    pickCamera.updateProjectionMatrix();
+    const heavy = g1.initialView.find(
+      (entity) => entity.id === "azure-top-heavy",
+    )!;
+    const pick = new Vector3(
+      heavy.position.x,
+      0.96,
+      heavy.position.y,
+    ).project(pickCamera);
+    const px = bounds!.x + ((pick.x + 1) * bounds!.width) / 2;
+    const py = bounds!.y + ((1 - pick.y) * bounds!.height) / 2;
     if (mobile) await page.touchscreen.tap(px, py);
     else await page.mouse.click(px, py);
     await expect(page.getByRole("region", { name: "選択情報" })).toContainText(
