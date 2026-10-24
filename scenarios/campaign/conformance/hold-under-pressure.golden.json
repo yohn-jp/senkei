@@ -1,0 +1,38 @@
+{
+  "golden_schema": "senkei-conformance/v1",
+  "request_id": "campaign-hold-under-pressure",
+  "request_sha256": "250538876cc1f2d8b2aa3cc849c1c20f996d0826235df4384db2693a307f61e4",
+  "response_sha256": "8671a1755119eed31c9e382d97cfd0c92c04902f46541136d97fc8b8b8b751c2",
+  "summary": {
+    "outcome": "defender_victory",
+    "termination_reason": "attacker_core_destroyed",
+    "final_tick": 69,
+    "final_state_digest": "693dd0d90d42ad4cc3cf69401fcf14e60eeb4b9321873a466fe804136167adbf",
+    "cu_by_side": {
+      "attacker": 1173,
+      "defender": 3036
+    },
+    "replay_frames": 70,
+    "event_count": 123,
+    "events_by_type": {
+      "unit_moved": 93,
+      "core_attacked": 30
+    },
+    "core_damage_by_owner": {
+      "attacker": 300
+    },
+    "diagnostic_event_count": 4278,
+    "diagnostics_by_kind": {
+      "cost_charged": 3795,
+      "intent_proposed": 207,
+      "state_evaluated": 69,
+      "intent_rejected": 84,
+      "intent_accepted": 123
+    },
+    "accepted_by_side_capability": {
+      "attacker:move_forward": 48,
+      "defender:move_forward": 45,
+      "defender:attack_core": 30
+    }
+  }
+}

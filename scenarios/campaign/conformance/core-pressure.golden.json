@@ -1,0 +1,37 @@
+{
+  "golden_schema": "senkei-conformance/v1",
+  "request_id": "campaign-core-pressure",
+  "request_sha256": "81b30ffe33d8ca955609c522271d5dfda67a1fcc256fbf0ead190e2deb9db242",
+  "response_sha256": "b9f1661fe407ecd8b2010c8c3e9329094ae335fad6d0aca949d3f891085f2a68",
+  "summary": {
+    "outcome": "defender_victory",
+    "termination_reason": "attacker_core_destroyed",
+    "final_tick": 70,
+    "final_state_digest": "a92cfbf5ad7f6b36792638c7bd01644210faa70b24bdca180d656d96cba1d32a",
+    "cu_by_side": {
+      "attacker": 1190,
+      "defender": 2800
+    },
+    "replay_frames": 71,
+    "event_count": 124,
+    "events_by_type": {
+      "unit_moved": 96,
+      "core_attacked": 28
+    },
+    "core_damage_by_owner": {
+      "attacker": 300
+    },
+    "diagnostic_event_count": 3990,
+    "diagnostics_by_kind": {
+      "cost_charged": 3570,
+      "intent_proposed": 210,
+      "intent_rejected": 86,
+      "intent_accepted": 124
+    },
+    "accepted_by_side_capability": {
+      "attacker:move_forward": 48,
+      "defender:move_forward": 48,
+      "defender:attack_core": 28
+    }
+  }
+}

@@ -1,0 +1,4 @@
+browser/test-results/
+browser/playwright-report/
+browser/blob-report/
+browser/.last-run.json

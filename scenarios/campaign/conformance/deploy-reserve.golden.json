@@ -1,0 +1,40 @@
+{
+  "golden_schema": "senkei-conformance/v1",
+  "request_id": "campaign-deploy-reserve",
+  "request_sha256": "ca309b3aa7a5c60d420c30101e9cdf81a21e09711a926467dfd5bb89fb6678f5",
+  "response_sha256": "6d393e251b70731e47d023a3886d515d6928a274ba285f69a30e1323dec3f4e5",
+  "summary": {
+    "outcome": "defender_victory",
+    "termination_reason": "attacker_core_destroyed",
+    "final_tick": 106,
+    "final_state_digest": "e5921f05f3d0849baf3b4f6c2f437813be6251c61b07960accd44161bf017032",
+    "cu_by_side": {
+      "attacker": 1802,
+      "defender": 6914
+    },
+    "replay_frames": 107,
+    "event_count": 166,
+    "events_by_type": {
+      "unit_moved": 136,
+      "unit_deployed": 2,
+      "core_attacked": 28
+    },
+    "core_damage_by_owner": {
+      "attacker": 300
+    },
+    "diagnostic_event_count": 8817,
+    "diagnostics_by_kind": {
+      "cost_charged": 8076,
+      "intent_proposed": 320,
+      "intent_rejected": 154,
+      "intent_accepted": 166,
+      "runtime_notice": 101
+    },
+    "accepted_by_side_capability": {
+      "attacker:move_forward": 48,
+      "defender:move_forward": 88,
+      "defender:deploy": 2,
+      "defender:attack_core": 28
+    }
+  }
+}

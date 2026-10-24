@@ -1,0 +1,38 @@
+{
+  "golden_schema": "senkei-conformance/v1",
+  "request_id": "campaign-medic-support",
+  "request_sha256": "f47b839f03ad76997b9348d4f96de6617d259de87e826b0d17abcc4b8619558a",
+  "response_sha256": "7a4f5ec49945c8c683069e057b8f27a8220085d1b5f889193b1d62c5a1ac28f1",
+  "summary": {
+    "outcome": "defender_victory",
+    "termination_reason": "attacker_core_destroyed",
+    "final_tick": 72,
+    "final_state_digest": "f65be46387f33d18a17b85b65a41d57fdc9610c3a6504c6f32071154aa2c7e90",
+    "cu_by_side": {
+      "attacker": 1224,
+      "defender": 4464
+    },
+    "replay_frames": 73,
+    "event_count": 126,
+    "events_by_type": {
+      "unit_moved": 96,
+      "core_attacked": 30
+    },
+    "core_damage_by_owner": {
+      "attacker": 300
+    },
+    "diagnostic_event_count": 5760,
+    "diagnostics_by_kind": {
+      "cost_charged": 5256,
+      "intent_proposed": 216,
+      "state_evaluated": 72,
+      "intent_rejected": 90,
+      "intent_accepted": 126
+    },
+    "accepted_by_side_capability": {
+      "attacker:move_forward": 48,
+      "defender:move_forward": 48,
+      "defender:attack_core": 30
+    }
+  }
+}
