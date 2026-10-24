@@ -80,6 +80,7 @@ fn build_package() -> RulePackage {
     ];
 
     RulePackage {
+        next: None,
         ruleset: RulesetRef {
             id: id(RULESET_ID),
             version: VERSION,
