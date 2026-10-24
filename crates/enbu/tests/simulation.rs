@@ -481,6 +481,34 @@ fn current_tick_is_shared_by_observations_preconditions_transitions_and_terminat
 }
 
 #[test]
+fn initial_termination_evaluates_current_tick_as_zero() {
+    let (attacker, defender, base_rules, context) = setup(3);
+    let mut plan = base_rules.plan().clone();
+    plan.termination.conditions = vec![TerminationCondition {
+        order: 1,
+        when: RuleExpression::Equal {
+            left: Box::new(RuleExpression::CurrentTick),
+            right: Box::new(RuleExpression::Literal(DomainValue::Integer(0))),
+        },
+        outcome: MatchOutcome::Draw,
+        reason: id("tick-zero"),
+    }];
+    let plan = reverify(&ruleset(), plan);
+    struct NeverCalled;
+    impl TacticalExecutionPort for NeverCalled {
+        fn execute(&mut self, _: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            panic!("tick-zero termination must finish before calling the execution port")
+        }
+    }
+
+    let mut port = NeverCalled;
+    let artifact = simulate(&attacker, &defender, &plan, &context, &mut port).unwrap();
+    assert_eq!(artifact.result.final_tick, 0);
+    assert_eq!(artifact.result.termination_reason, id("tick-zero"));
+    assert_eq!(artifact.replay.frames.len(), 1);
+}
+
+#[test]
 fn a_silent_port_reaches_the_ruleset_timeout() {
     struct Wait;
     impl TacticalExecutionPort for Wait {
