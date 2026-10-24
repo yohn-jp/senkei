@@ -20,6 +20,10 @@ PR #3 remains OPEN and must not be merged on the strength of CI alone.
   are reviewed against real WASM matches, not synthetic fixture success.
 - Next uses the available desktop workspace width. During battle, internal
   navigation becomes horizontal and the map receives the main display area.
+  Mobile collapses setup controls into an accessible disclosure and keeps the
+  transport beside the map. A selector of currently visible entities enables
+  follow without precise mesh tapping. WebGL loss pauses Replay; retry rebuilds
+  the renderer at the same Tick without changing the draft or player.
 - The strategic report now records 56 cases. Eight representative scenarios
   run to base destruction or the real 600-tick cap: two opposite-side base
   victories (ticks 146 and 143), six timeouts. Solo/Quintet and jungle/lane
@@ -57,7 +61,7 @@ changed code. A passing test does not override a missing acceptance condition.
 | --- | --- | --- |
 | Contract / Correctness | PASS for automated checks | Rust workspace, native/WASM complete responses, replay adapter/decoder/player and production browser checks. Actual map edges replace decorative gameplay topology. |
 | Visual / Art | FAIL | Approved twelve-Hero exhibition art/animation and matching LOD are unavailable. Detail explicitly says so; no frozen PR #4 asset was imported. A larger map or a captured screenshot does not establish art acceptance. |
-| Interaction / UX | NOT_CHECKED for final acceptance | Dedicated screens and recorded real-browser flow are implemented. Final user evaluation, physical touch, mobile IME and hardware safe-area behavior are still unverified. |
+| Interaction / UX | FAIL for the complete mobile gate | Dedicated views and the recorded core flow work. Mobile tree branches and assembly groups still use a scrolling card flow rather than the fully specified independent tree/bottom-sheet and staged assembly interaction. Final user evaluation and physical touch/IME/safe-area checks remain unverified. |
 | Balance / Security | FAIL for complete gate | Exact outcomes and public/private boundaries are tested, but six full-length strategic scenarios still time out. Fixed opening policies do not prove dominance-free balance. |
 
 ## Verification
@@ -72,8 +76,16 @@ emulation, not hardware-GPU or physical-mobile evidence.
   regeneration. Production TypeScript/Vite build and 34 Vitest checks pass.
 - Graphics: ten browser tests pass, including the original viewport cases
   and the immediate replay-replacement keyboard seek regression.
-- Final production journey results and screenshot/video inventory are listed
-  in the [real-browser evidence record](../evidence/next/README.md).
+- The production browser suite passes all nine tests, including the five
+  viewport Atelier matrix. Final screenshot/video inventory is listed
+  in the [real-browser evidence record](../evidence/next/README.md). The real
+  WASM journey passes follow/zoom/overview, analysis-to-Tick navigation,
+  exact-Tick WebGL loss/retry, unsaved offline recovery and explicit baseline
+  restoration before another offline compile/simulation. The full nine-test
+  run passed with the stricter five-second playback-start poll; hosted
+  SwiftShader reached Tick 23 when that five-second poll expired, so its
+  explicit waiting budget is now 15 seconds while the Tick ≥25 and exact pause
+  assertions remain unchanged. This does not establish an FPS guarantee.
 
 The first follow-up push passed Rust, WASM, web build and Graphics checks but
 failed Production browser smoke because that test still expected the old
@@ -87,4 +99,7 @@ CI status.
 The player must evaluate the real map, mobile interaction and full edit →
 match → replay → analysis → revised rematch experience. Approved character
 art and the remaining balance/physical-device evidence are outstanding.
+Dedicated fixed captures for every requested death/respawn and tower-destruction
+state across all viewports are not a complete evidence matrix; the video and
+current overview/follow/final captures must not be treated as that full matrix.
 There is no final G2 acceptance claim and no merge authorization.

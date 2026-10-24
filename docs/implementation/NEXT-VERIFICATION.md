@@ -82,7 +82,7 @@ for contested neutrals. See [parameter policies](NEXT-PARAMETERS.md).
 | `npm run typecheck`, production build | PASS |
 | `npm test` | PASS, 34 Replay Contract/Player/draft validation tests |
 | `npm run contract:types` generated-file check | PASS |
-| Production browser suite | PASS, 4 tests, including initial offline persistence/regression and Next diagnostics-enabled real match/rematch/offline restore |
+| Production browser suite | PASS, 9 tests: five-viewport Atelier matrix plus existing core/offline journeys and the real Next loop; see PR3-G2-FOLLOWUP and the evidence README |
 | Next playback recording | PASS, real replay advances to tick 25, pauses without consuming paused time, then seeks to final tick |
 | Graphics browser suite | PASS, 10 tests, four viewports, 320px/landscape, recovery, replay-replacement seek regression and animated playback |
 | Native Next CLI example | PASS, attacker base-destruction victory at tick 211 |
