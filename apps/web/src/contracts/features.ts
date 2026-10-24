@@ -50,6 +50,8 @@ export interface BattleFeatureProps {
 
 export interface PersistenceFeatureProps {
   readonly documents: readonly LocalSenkeiDocumentSummary[];
+  /** App bootstrap error opening/listing IndexedDB; undefined means no load error. */
+  readonly storage_error?: string | null;
   readonly active_document: LocalSenkeiDocument | null;
   readonly active_draft: SenkeiDraft | null;
   readonly history: readonly LocalSenkeiRevisionSummary[];
