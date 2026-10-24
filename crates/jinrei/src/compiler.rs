@@ -280,8 +280,8 @@ fn type_program(ast: &StructuredTacticsAst, plan: &RulePlan) -> Result<TypedProg
                 }
                 let issue_cost = plan.cost_schedule.operations.get(&schema.issue_cost)
                     .ok_or_else(|| CompileError::new(ApiErrorCode::ValidationFailed, format!("cost schedule is missing capability issue cost '{}'", schema.issue_cost)))?;
-                if issue_cost.base == 0 || issue_cost.per_item == 0 {
-                    return Err(CompileError::new(ApiErrorCode::ValidationFailed, format!("capability issue cost '{}' must have nonzero base and per-item costs", schema.issue_cost)));
+                if issue_cost.base == 0 && issue_cost.per_item == 0 {
+                    return Err(CompileError::new(ApiErrorCode::ValidationFailed, format!("capability issue cost '{}' must define a nonzero total charge", schema.issue_cost)));
                 }
                 let mut arguments = Vec::new();
                 for (index, argument) in do_call.arguments.iter().enumerate() {

@@ -68,7 +68,13 @@ fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
     };
     let mut operations = BTreeMap::new();
     for key in REQUIRED_JINREI_COST_OPERATIONS {
-        operations.insert(CostOperationId::new(key), LogicalCuCost { base: 2, per_item: 1 });
+        let quote = match key {
+            COST_COLLECTION_ITERATION => LogicalCuCost { base: 0, per_item: 1 },
+            COST_AGGREGATE => LogicalCuCost { base: 1, per_item: 1 },
+            COST_CAPABILITY_ISSUE => LogicalCuCost { base: 3, per_item: 0 },
+            _ => LogicalCuCost { base: 1, per_item: 0 },
+        };
+        operations.insert(CostOperationId::new(key), quote);
     }
     let cost_schedule = CostSchedule {
         id: CostScheduleId::new("test-costs"), version: version(), operations,

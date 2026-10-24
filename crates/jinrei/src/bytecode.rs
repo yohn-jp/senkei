@@ -122,8 +122,8 @@ pub(crate) fn verify_core_cost_schedule(schedule: &CostSchedule) -> Result<(), c
         let id = CostOperationId::new(*name);
         let cost = schedule.operations.get(&id).ok_or_else(|| crate::CompileError::new(
             ApiErrorCode::ValidationFailed, format!("Senritsu cost schedule is missing required operation '{name}'")))?;
-        if cost.base == 0 || cost.per_item == 0 {
-            return Err(crate::CompileError::new(ApiErrorCode::ValidationFailed, format!("Senritsu cost operation '{name}' must have nonzero base and per-item costs")));
+        if cost.base == 0 && cost.per_item == 0 {
+            return Err(crate::CompileError::new(ApiErrorCode::ValidationFailed, format!("Senritsu cost operation '{name}' must define a nonzero total charge")));
         }
     }
     Ok(())
