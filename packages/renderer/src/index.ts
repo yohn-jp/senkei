@@ -278,7 +278,12 @@ export class Battlefield {
     .matches;
   private selected: string | null = null;
   private tracked: string | null = null;
-  private labels: { element: HTMLSpanElement; point: THREE.Vector3 }[] = [];
+  private labels: {
+    element: HTMLSpanElement;
+    point: THREE.Vector3;
+    desktopTransform?: string;
+    mobileTransform?: string;
+  }[] = [];
   private marker = new THREE.Group();
   private startPointer = { x: 0, y: 0 };
   readonly canvas: HTMLCanvasElement;
@@ -303,7 +308,9 @@ export class Battlefield {
     this.gl.toneMappingExposure = 1.05;
     host.appendChild(this.canvas);
     this.scene.background = new THREE.Color(0x263f4e);
-    this.scene.fog = new THREE.Fog(0x263f4e, 65, 115);
+    this.scene.fog = replay.scene.routes?.length
+      ? null
+      : new THREE.Fog(0x263f4e, 65, 115);
     this.scene.add(new THREE.HemisphereLight(0xddefff, 0x5b6046, 1.6));
     const sun = new THREE.DirectionalLight(0xffe6b7, 2.8);
     sun.position.set(-10, 23, 12);
@@ -338,6 +345,22 @@ export class Battlefield {
       this.labels.push({
         element,
         point: new THREE.Vector3(p.x, lane.elevation + 0.15, p.y),
+      });
+    }
+    for (const camp of replay.scene.camps ?? []) {
+      const element = document.createElement("span");
+      element.className = "world-label";
+      const location = camp.id.replace(/^camp[_-]?/i, "").replaceAll("_", " ");
+      element.textContent = `CAMP · ${location.toUpperCase()}`;
+      element.style.whiteSpace = "nowrap";
+      host.appendChild(element);
+      this.labels.push({
+        element,
+        point: new THREE.Vector3(camp.position.x, 0.9, camp.position.y),
+        desktopTransform: "translate(10px, -135%)",
+        mobileTransform: location.toLowerCase() === "nw"
+          ? "translate(-105%, -135%)"
+          : "translate(10px, -135%)",
       });
     }
     this.scene.add(this.effects, this.marker);
@@ -427,6 +450,7 @@ export class Battlefield {
   };
   resetCamera() {
     this.tracked = null;
+    const hasAuthoredRoutes = Boolean(this.replay.scene.routes?.length);
     const { min, max } = this.replay.scene.bounds;
     const center = new THREE.Vector3(
       (min.x + max.x) / 2,
@@ -437,9 +461,13 @@ export class Battlefield {
     // Consume any orbit or pan delta left by damping before writing the reset
     // pose, or OrbitControls would apply that old gesture to the overview.
     this.controls.update();
-    const offset = this.mobile
-      ? new THREE.Vector3(10, 46, 18)
-      : new THREE.Vector3(17, 38, 31);
+    const offset = hasAuthoredRoutes
+      ? this.mobile
+        ? new THREE.Vector3(32, 50, 0)
+        : new THREE.Vector3(0, 20, 32)
+      : this.mobile
+        ? new THREE.Vector3(10, 46, 18)
+        : new THREE.Vector3(17, 38, 31);
     this.camera.position.copy(center).add(offset);
     this.camera.zoom = 1;
     this.controls.target.copy(center);
@@ -461,7 +489,8 @@ export class Battlefield {
           vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
         }
     const aspect = Math.max(0.25, this.host.clientWidth / this.host.clientHeight);
-    const halfHeight = Math.max(vertical, horizontal / aspect) * 1.18;
+    const frameMargin = hasAuthoredRoutes ? 1.05 : 1.18;
+    const halfHeight = Math.max(vertical, horizontal / aspect) * frameMargin;
     this.camera.left = -halfHeight * aspect;
     this.camera.right = halfHeight * aspect;
     this.camera.top = halfHeight;
@@ -666,6 +695,7 @@ export class Battlefield {
         );
   }
   private buildCamp(position: WorldPoint, campId: string) {
+    const scale = this.replay.scene.routes?.length ? 1.22 : 1;
     const campAccent = campId.includes("center")
       ? 0x8eb9a6
       : campId.includes("se")
@@ -674,7 +704,7 @@ export class Battlefield {
     const camp = new THREE.Group();
     camp.position.set(position.x, 0, position.y);
     const pad = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.75, 1.9, 0.16, 8),
+      new THREE.CylinderGeometry(1.75 * scale, 1.9 * scale, 0.16, 8),
       new THREE.MeshStandardMaterial({
         color: 0x77694f,
         roughness: 1,
@@ -685,7 +715,7 @@ export class Battlefield {
     pad.receiveShadow = true;
     camp.add(pad);
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(1.55, 0.08, 4, 10),
+      new THREE.TorusGeometry(1.55 * scale, 0.09, 4, 10),
       new THREE.MeshStandardMaterial({
         color: campAccent,
         roughness: 1,
@@ -700,7 +730,7 @@ export class Battlefield {
       box(
         camp,
         [0.55 + (i % 2) * 0.25, 0.55 + (i % 3) * 0.18, 0.6],
-        [Math.cos(angle) * 2.15, 0.18, Math.sin(angle) * 2.15],
+        [Math.cos(angle) * 2.15 * scale, 0.18, Math.sin(angle) * 2.15 * scale],
         i % 2 ? 0x667267 : campAccent,
         angle,
       );
@@ -911,6 +941,7 @@ export class Battlefield {
   }
   private structureModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const base = e.kind === "base";
+    if (this.replay.scene.routes?.length) g.scale.setScalar(base ? 1.08 : 1.14);
     const wide = base ? 2.25 : e.appearanceKey === "spire-tower" ? 1.05 : 1.35;
     const high = base ? 2.9 : e.appearanceKey === "spire-tower" ? 2.7 : 2.05;
     box(g, [wide + 0.55, 0.35, wide + 0.55], [0, 0.17, 0], 0x646b60);
@@ -1285,6 +1316,10 @@ export class Battlefield {
       this.gl.setRenderTarget(null);
       this.gl.render(this.output, this.outputCamera);
       for (const label of this.labels) {
+        const transform = this.mobile
+          ? label.mobileTransform
+          : label.desktopTransform;
+        if (transform) label.element.style.transform = transform;
         const p = label.point.clone().project(this.camera);
         label.element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         label.element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
