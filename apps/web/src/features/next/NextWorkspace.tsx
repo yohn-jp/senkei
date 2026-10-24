@@ -512,6 +512,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [isPlaying, setIsPlaying] = useState(false);
   const [pixel, setPixel] = useState(true);
   const [rendererError, setRendererError] = useState<string | null>(null);
+  const [rendererAttempt, setRendererAttempt] = useState(0);
   const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
   const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
   const [savedSetupError, setSavedSetupError] = useState<string | null>(null);
@@ -879,20 +880,30 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     const host = rendererHost.current;
     if (!host || !run || !player) return;
     let current: BattlefieldRenderer | null = null;
+    setRendererError(null);
+    const handleRendererFailure = (message: string) => {
+      player.pause();
+      setRendererError(message);
+    };
     try {
-      current = new Battlefield(host, run.graphicsReplay, setSelectedEntityId, setRendererError);
+      current = new Battlefield(host, run.graphicsReplay, setSelectedEntityId, handleRendererFailure);
       renderer.current = current;
       current.setPixel(pixel);
       current.update(player.state, player.playing);
       current.select(selectedEntityId);
     } catch (cause) {
-      setRendererError(cause instanceof Error ? cause.message : "The 3D renderer could not start.");
+      handleRendererFailure(cause instanceof Error ? cause.message : "The 3D renderer could not start.");
     }
     return () => {
       current?.dispose();
       if (renderer.current === current) renderer.current = null;
     };
-  }, [player, run]);
+  }, [player, rendererAttempt, run]);
+
+  const retryRenderer = useCallback(() => {
+    setRendererError(null);
+    setRendererAttempt((attempt) => attempt + 1);
+  }, []);
 
   useEffect(() => {
     renderer.current?.update(displayState ?? { tick: 0, entities: {}, cues: [], result: null }, isPlaying);
@@ -1042,7 +1053,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       </header>
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
-      {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError}</span><button type="button" onClick={() => setRendererError(null)} aria-label="Dismiss renderer error">×</button></div>}
+      {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError} Playback is paused at the current tick.</span><button type="button" onClick={retryRenderer}>Retry battlefield renderer</button></div>}
 
       <details className="next-save-disclosure" open={saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
       <summary><strong>Save and recovery</strong><small>{recoveryLoadError ? "Recovery needs attention" : savedSetup ? "Pinned setup available" : "No pinned setup"} · opens local setup controls</small></summary>
