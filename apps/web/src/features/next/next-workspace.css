@@ -349,3 +349,14 @@
 @media (prefers-reduced-motion: reduce) {
   .next-workspace *, .next-workspace *::before, .next-workspace *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+.next-squad-preview { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:12px; margin:20px 0; }
+.next-squad-preview article { min-width:0; border:1px solid #34444b; padding:14px; border-radius:5px; background:#182229; }
+.next-squad-preview h4 { margin:0 0 8px; color:#d9e7d1; }
+.next-squad-preview p,.next-squad-preview small { font-size:12px; color:#9bb0ac; overflow-wrap:anywhere; }
+.next-squad-preview ol { display:flex; flex-wrap:wrap; gap:6px; padding:0; list-style:none; }
+.next-squad-preview li { border:1px solid #425654; padding:7px; border-radius:4px; font-size:12px; }
+.next-squad-preview li small { display:block; margin-top:4px; }
+.next-squad-preview [role=alert] { color:#f2b5a5; }
+
+.next-camera-controls { flex-wrap:wrap; }

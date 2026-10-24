@@ -1,6 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
+test.use({ video: "on" });
+
 test("real WASM Next workbench supports editing, replay, rematch, mobile and offline restore", async ({ page, baseURL }) => {
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
@@ -20,6 +22,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(page.getByRole("heading", { name: /Battle workbench/ })).toBeVisible();
   await expect(page.getByText("REAL LOCAL SIMULATION")).toBeVisible();
 
+  await expect(page.getByRole("region", {name:"Squad formation preview"})).toContainText("Quintet");
   await page.locator(".next-catalog-card").nth(1).click();
   await page.getByLabel("Skill path").selectOption("path_b");
   await page.locator("#next-tab-jinrei").click();
@@ -45,9 +48,21 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
 
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
   await slider.focus();
+  await slider.press("Home");
+  await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
+  await page.getByRole("button", {name:"Play replay", exact:true}).click();
+  await expect.poll(async () => Number(await slider.inputValue())).toBeGreaterThanOrEqual(25);
+  await page.getByRole("button", {name:"Pause replay", exact:true}).click();
+  const pausedTick = await slider.inputValue();
+  await page.waitForTimeout(250);
+  await expect(slider).toHaveValue(pausedTick);
+  await slider.focus();
   await slider.press("End");
   await expect(page.locator(".next-tick-readout")).toContainText("/");
   await expect(page.locator(".next-stage-hud")).not.toContainText(/\b0 VISIBLE ENTITIES\b/);
+  const pixelToggle = page.getByRole("button", {name:"Toggle Pixel 3D"});
+  await pixelToggle.click();
+  await expect(pixelToggle).toHaveAttribute("aria-pressed","false");
   mkdirSync("../../docs/evidence/next", { recursive:true });
   await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
   await page.screenshot({path:"../../docs/evidence/next/desktop-battle.png"});

@@ -467,6 +467,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [player, setPlayer] = useState<ReplayPlayer | null>(null);
   const [displayState, setDisplayState] = useState<DisplayState | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [pixel, setPixel] = useState(true);
   const [rendererError, setRendererError] = useState<string | null>(null);
   const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
   const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
@@ -539,6 +540,14 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     (filters.trait_id === "all" || hero.trait_id === filters.trait_id) &&
     hero.stats.hp >= minHp), [filters.placement, filters.role, filters.trait_id, heroes, minHp]);
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
+  const formationGroups = useMemo(() => {
+    const groups = new Map<string, FormationSlot[]>();
+    for (const slot of slots) groups.set(slot.squad, [...(groups.get(slot.squad) ?? []), slot]);
+    return [...groups.entries()].map(([id, members]) => ({ id, members: members.sort((a,b) => {
+      const rank = (slot: FormationSlot) => nextRules?.heroes.find(h => h.id === slot.catalog_id)?.placement === "backline" ? 1 : 0;
+      return rank(a)-rank(b) || a.slot_id.localeCompare(b.slot_id);
+    }) }));
+  }, [slots,nextRules]);
   const selectedFrame = run && displayState ? latestFrame(run.sourceReplay.frames, displayState.tick) : null;
   const publicEntities = selectedFrame?.visible_state?.entities ?? {};
   const selectedDisplayEntity = selectedEntityId ? displayState?.entities[selectedEntityId] ?? null : null;
@@ -718,7 +727,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     let last = performance.now();
     let animationFrame = 0;
     const advance = (now: number) => {
-      player.advance(now - last);
+      player.advance(document.hidden ? 0 : Math.max(0, Math.min(250, now - last)));
       last = now;
       animationFrame = requestAnimationFrame(advance);
     };
@@ -737,6 +746,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     try {
       current = new Battlefield(host, run.graphicsReplay, setSelectedEntityId, setRendererError);
       renderer.current = current;
+      current.setPixel(pixel);
       current.update(player.state, player.playing);
       current.select(selectedEntityId);
     } catch (cause) {
@@ -752,6 +762,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     renderer.current?.update(displayState ?? { tick: 0, entities: {}, cues: [], result: null }, isPlaying);
     renderer.current?.select(selectedEntityId);
   }, [displayState, isPlaying, selectedEntityId]);
+
+  useEffect(() => { renderer.current?.setPixel(pixel); }, [pixel]);
 
   const changeSlot = useCallback((index: number, changes: Partial<FormationSlot>) => {
     const nextSlots = slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...changes } : slot);
@@ -960,6 +972,15 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               </div>
             </div>
 
+            <section aria-label="Squad formation preview" className="next-squad-preview">
+              {formationGroups.map(({id,members}) => <article key={id}>
+                <h4>{["Solo","Duo","Trio","Quartet","Quintet"][members.length-1]} · {formatId(id)}</h4>
+                <p>Movement ×{(nextRules.parameters[`squad_${members.length}_speed_milli`]/1000).toFixed(2)} · Maturation {nextRules.parameters.squad_maturation_ticks} ticks</p>
+                <ol>{members.map(member => { const hero=findHero(nextRules,member.catalog_id); return <li key={member.slot_id} data-placement={hero?.placement}>{hero?.placement === "backline" ? "⌁" : "◆"} {hero?.name}<small>{hero?.placement === "backline" ? "Rear" : "Front"}</small></li>; })}</ol>
+                {new Set(members.map(m => m.node)).size === 1 ? <small>Start: {formatId(members[0].node)} · planned formation order</small> : <p role="alert">Members must share one starting node to form this Squad.</p>}
+              </article>)}
+            </section>
+
             <section className="next-catalog" aria-label="Filtered hero catalog">
               <div className="next-catalog-heading"><div><span className="next-eyebrow">CATALOG · {visibleHeroes.length} AVAILABLE</span><h4>Select for slot {String(activeSlot + 1).padStart(2, "0")}</h4></div><small>Filters apply to this pick list</small></div>
               <div className="next-catalog-grid">
@@ -975,7 +996,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               </div>
             </section>
 
-            <div className="next-panel-footer"><span>Five records are sent as typed Senkei configuration.</span><button className="next-secondary-button" onClick={() => setTab("jinrei")} type="button">Continue to Jinrei <b>→</b></button></div>
+            <div className="next-panel-footer"><span>Choose five heroes, their Squads and planned skills before battle.</span><button className="next-secondary-button" onClick={() => setTab("jinrei")} type="button">Continue to Jinrei <b>→</b></button></div>
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
@@ -1003,7 +1024,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               <div className="next-replay-toolbar">
                 <div className="next-play-controls"><button aria-label="Return to first tick" disabled={!player} onClick={() => player?.reset()} type="button">|◀</button><button className="next-play-button" aria-label={isPlaying ? "Pause replay" : "Play replay"} disabled={!player || run.graphicsReplay.result.tick === 0} onClick={() => isPlaying ? player?.pause() : player?.play()} type="button">{isPlaying ? "Ⅱ" : "▶"}</button><button aria-label="Previous tick" disabled={!player || !displayState || displayState.tick === 0} onClick={() => player?.seek(Math.max(0, (displayState?.tick ?? 0) - 1))} type="button">←</button><button aria-label="Next tick" disabled={!player || !displayState || displayState.tick >= run.graphicsReplay.result.tick} onClick={() => player?.seek(Math.min(run.graphicsReplay.result.tick, (displayState?.tick ?? 0) + 1))} type="button">→</button></div>
                 <label className="next-speed"><span>SPEED</span><select aria-label="Replay speed" onChange={(event) => player?.setSpeed(Number(event.target.value))} defaultValue="1"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-                <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button></div>
+                <div className="next-camera-controls"><button onClick={() => renderer.current?.zoom(1.2)} type="button" aria-label="Zoom in">＋</button><button onClick={() => renderer.current?.zoom(0.83)} type="button" aria-label="Zoom out">−</button><button disabled={!selectedEntityId} onClick={() => selectedEntityId && renderer.current?.setTracking(selectedEntityId)} type="button">Follow</button><button onClick={() => { renderer.current?.setTracking(null); renderer.current?.resetCamera(); }} type="button">Overview</button><button type="button" aria-label="Toggle Pixel 3D" aria-pressed={pixel} onClick={() => setPixel(value => !value)}>{pixel ? "Pixel 3D" : "Smooth 3D"}</button></div>
                 <span className="next-tick-readout">TICK <strong>{displayState?.tick ?? 0}</strong><small> / {run.graphicsReplay.result.tick}</small></span>
               </div>
               <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
