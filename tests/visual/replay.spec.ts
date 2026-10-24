@@ -154,6 +154,7 @@ for (const [width, height] of [
     await expect(
       page.getByRole("button", { name: "再生", exact: true }),
     ).toBeDisabled();
+    if (!mobile) await expect(page.locator(".army-count")).toContainText("—");
     await shot("invalid");
     await page.getByRole("button", { name: "正常なサンプルへ戻る" }).click();
     await expect(page.locator("canvas")).toHaveAttribute(

@@ -514,7 +514,7 @@ export class Battlefield {
         e.position.y,
       );
       if (e.kind === "unit")
-        g.rotation.y = e.side === "azure" ? -Math.PI / 2 : Math.PI / 2;
+        g.rotation.y = e.side === "azure" ? Math.PI / 2 : -Math.PI / 2;
       if (!playing || this.reducedMotion) g.position.copy(g.userData.to);
     }
     disposeTree(this.effects);

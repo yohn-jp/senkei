@@ -225,9 +225,11 @@ function App() {
     ) ?? [];
   const changeFixture = (value: string) => setFixture(value as FixtureKey);
   const counts = (side: string) =>
-    Object.values(state?.entities ?? {}).filter(
-      (e) => e.side === side && e.kind === "unit" && !e.destroyed,
-    ).length;
+    state
+      ? Object.values(state.entities).filter(
+          (e) => e.side === side && e.kind === "unit" && !e.destroyed,
+        ).length
+      : "—";
   return (
     <div className="app">
       <header className="header">
