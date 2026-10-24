@@ -557,17 +557,19 @@
 .is-battle-workspace .next-stage-hud { align-items: center; bottom: auto; font-size: 7px; left: 0; padding: 10px 12px; right: 0; top: 0; }
 .is-battle-workspace .next-stage-hud strong { color: #e4eddc; font-size: 9px; margin-left: auto; padding-left: 12px; }
 .is-battle-workspace .next-camera-controls { align-items: center; background: rgba(8,15,19,.82); border: 1px solid rgba(214,225,218,.12); border-radius: 4px; display: flex; flex-wrap: wrap; gap: 4px; left: 11px; max-width: min(750px, calc(100% - 22px)); padding: 5px; position: absolute; top: 39px; z-index: 3; }
-.is-battle-workspace .next-camera-controls button { font-size: 8px; height: 29px; min-height: 29px; min-width: 30px; padding: 0 8px; }
+.is-battle-workspace .next-camera-controls button { font-size: 11px; height: 29px; min-height: 29px; min-width: 30px; padding: 0 8px; }
 .is-battle-workspace .next-camera-controls button[aria-pressed="true"] { background: rgba(189,237,149,.15); border-color: rgba(189,237,149,.4); color: #d8eccb; }
-.is-battle-workspace .next-camera-target select { font-size: 8px; height: 29px; max-width: 200px; min-width: 130px; }
+.is-battle-workspace .next-camera-target select { font-size: 11px; height: 29px; max-width: 200px; min-width: 130px; }
 .is-battle-workspace .next-replay-controls { background: rgba(8,15,19,.85); border: 1px solid rgba(214,225,218,.12); border-radius: 4px; box-shadow: 0 5px 20px rgba(0,0,0,.22); flex: 0 0 auto; left: auto; margin: 0; order: initial; position: relative; right: auto; z-index: 3; }
 .is-battle-workspace .next-replay-toolbar { background: transparent; border: 0; border-radius: 0; flex-wrap: wrap; gap: 9px; padding: 6px 8px 3px; }
 .is-battle-workspace .next-play-controls button { height: 31px; min-width: 34px; }
 .is-battle-workspace .next-speed select { min-height: 30px; }
-.is-battle-workspace .next-tick-readout { font-size: 8px; }
+.is-battle-workspace .next-speed span, .is-battle-workspace .next-speed select { font-size: 11px; }
+.is-battle-workspace .next-tick-readout { font-size: 11px; }
+.is-battle-workspace .next-tick-readout strong { font-size: 13px; }
 .is-battle-workspace .next-seekbar { background: transparent; border: 0; padding: 3px 12px 8px; }
 .is-battle-workspace .next-seekbar input { height: 14px; }
-.is-battle-workspace .next-seekbar > div { font-size: 7px; }
+.is-battle-workspace .next-seekbar > div { font-size: 11px; }
 .is-battle-workspace .next-battle-lower[hidden] { display: none; }
 .is-battle-workspace .next-battle-lower:not([hidden]) { background: rgba(9,16,20,.97); border: 1px solid rgba(214,225,218,.15); border-radius: 5px; bottom: 10px; display: grid; gap: 7px; max-height: 70%; overflow: auto; padding: 8px; position: absolute; right: 10px; width: min(360px, 34%); z-index: 5; }
 .is-battle-workspace .next-battle-lower .next-detail-card { background: transparent; padding: 7px; }
@@ -606,8 +608,8 @@
   .is-battle-workspace .next-battle-options > summary { font-size: 6px; }
   .is-battle-workspace .next-match-badge { font-size: 6px; max-width: 42%; }
   .is-battle-workspace .next-battle-stage { flex: 1 1 auto; min-height: 190px; }
-  .is-battle-workspace .next-stage-hud { align-items: flex-start; flex-wrap: wrap; gap: 5px 9px; font-size: 6px; padding: 8px 8px; }
-  .is-battle-workspace .next-stage-hud strong { font-size: 7px; padding: 0; }
+  .is-battle-workspace .next-stage-hud { align-items: flex-start; flex-wrap: wrap; gap: 5px 9px; font-size: 8px; padding: 8px 8px; }
+  .is-battle-workspace .next-stage-hud strong { font-size: 11px; padding: 0; }
   .is-battle-workspace .next-camera-controls { display: none; }
   .is-battle-workspace .next-replay-controls { bottom: auto; left: auto; margin: 0; right: auto; z-index: 3; }
   .is-battle-workspace .next-replay-toolbar { align-items: center; gap: 5px; padding: 5px 5px 2px; }
@@ -616,10 +618,11 @@
   .is-battle-workspace .next-play-controls .next-play-button { flex: 1; }
   .is-battle-workspace .next-speed { min-height: 44px; }
   .is-battle-workspace .next-speed select { min-height: 42px; }
-  .is-battle-workspace .next-tick-readout { flex: 0 0 auto; font-size: 8px; margin-left: 0; }
+  .is-battle-workspace .next-tick-readout { flex: 0 0 auto; font-size: 11px; margin-left: 0; }
+  .is-battle-workspace .next-tick-readout strong { font-size: 13px; }
   .is-battle-workspace .next-seekbar { padding: 2px 8px 6px; }
   .is-battle-workspace .next-seekbar input { height: 24px; }
-  .is-battle-workspace .next-seekbar > div { font-size: 6px; }
+  .is-battle-workspace .next-seekbar > div { font-size: 11px; }
   .is-battle-workspace .next-battle-lower:not([hidden]) { bottom: 7px; display: grid; grid-template-columns: 1fr; left: 6px; max-height: 38%; padding: 7px; right: 6px; width: auto; }
   .is-battle-workspace .next-battle-lower .next-entity-stats { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .is-battle-workspace .next-result-disclosure { min-height: 17px; }
@@ -627,7 +630,8 @@
   .is-battle-workspace .next-result-disclosure > summary span,
   .is-battle-workspace .next-result-disclosure > summary small { font-size: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .is-battle-workspace .next-battle-mobile-tabs { align-items: stretch; background: rgba(11,18,22,.97); border: 1px solid rgba(214,225,218,.12); border-radius: 5px; display: flex; flex: 0 0 53px; gap: 2px; justify-content: space-around; margin-bottom: 0; padding: 3px 3px calc(3px + env(safe-area-inset-bottom)); z-index: 8; }
-  .is-battle-workspace .next-battle-mobile-tabs button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 4px; color: #88968f; cursor: pointer; display: flex; flex: 1 1 0; flex-direction: column; font-size: 7px; gap: 1px; justify-content: center; min-height: 44px; min-width: 0; padding: 3px 1px; }
+  .is-battle-workspace .next-battle-mobile-tabs button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 4px; color: #a9b8ad; cursor: pointer; display: flex; flex: 1 1 0; font-size: 11px; font-weight: 600; justify-content: center; min-height: 44px; min-width: 0; padding: 3px 0; white-space: nowrap; }
+  .is-battle-workspace .next-battle-mobile-tabs button > span { display: none; }
   .is-battle-workspace .next-battle-mobile-tabs button > span { color: #9eb18f; font-size: 15px; line-height: 1; }
   .is-battle-workspace .next-battle-mobile-tabs button.is-active { background: rgba(189,237,149,.09); border-color: rgba(189,237,149,.22); color: #e0eadb; }
   .is-battle-workspace .next-mobile-sheet:not([hidden]) { background: rgba(12,20,25,.97); border: 1px solid rgba(214,225,218,.16); border-radius: 6px 6px 0 0; bottom: 7px; display: flex; flex-direction: column; gap: 6px; left: 7px; max-height: 52%; overflow-y: auto; padding: 10px; position: absolute; right: 7px; z-index: 5; }
@@ -643,10 +647,13 @@
   .is-battle-workspace .next-follow-list button span { font-size: 8px; overflow-wrap: anywhere; }
   .is-battle-workspace .next-follow-list button b { color: #b8d3a6; flex: 0 0 auto; font-size: 7px; }
   .is-battle-workspace .next-follow-subhead { border-top: 1px solid rgba(214,225,218,.08); padding-top: 7px; }
-  .is-battle-workspace .next-follow-sheet > .next-empty-detail { font-size: 8px; margin: 0; }
+  .is-battle-workspace .next-mobile-sheet { font-size: 12px; }
+  .is-battle-workspace .next-follow-list button span { font-size: 12px; }
+  .is-battle-workspace .next-follow-list button b { font-size: 12px; }
+  .is-battle-workspace .next-follow-sheet > .next-empty-detail { font-size: 12px; margin: 0; }
   .is-battle-workspace .next-mobile-timeline .next-timeline { margin: 0; max-height: none; overflow: auto; padding-right: 2px; }
   .is-battle-workspace .next-mobile-timeline .next-timeline li button { min-height: 44px; }
-  .is-battle-workspace .next-mobile-timeline .next-timeline-copy small { font-size: 7px; }
+  .is-battle-workspace .next-mobile-timeline .next-timeline-copy small { font-size: 11px; }
   .is-battle-workspace .next-empty-battle { flex: 1 1 auto; margin: 0; min-height: 0; }
 }
 
@@ -656,8 +663,7 @@
   .is-battle-workspace .next-battle-header p { max-width: 130px; }
   .is-battle-workspace .next-battle-actions .next-secondary-button { display: none; }
   .is-battle-workspace .next-battle-actions .next-launch-button { font-size: 7px; min-height: 34px; }
-  .is-battle-workspace .next-battle-mobile-tabs button { font-size: 6px; }
-  .is-battle-workspace .next-battle-mobile-tabs button > span { font-size: 13px; }
+  .is-battle-workspace .next-battle-mobile-tabs button { font-size: 11px; }
   .is-battle-workspace .next-replay-toolbar { gap: 3px; }
   .is-battle-workspace .next-play-controls button { min-width: 44px; }
 }
@@ -670,10 +676,11 @@
   .is-battle-workspace .next-mobile-sheet:not([hidden]) { max-height: 62%; }
 }
 
-.is-battle-workspace .next-battle-minimap { background: rgba(7,15,19,.83); border: 1px solid rgba(214,225,218,.17); border-radius: 4px; color: #c4d2c6; padding: 6px; pointer-events: none; position: absolute; right: 11px; top: 40px; width: clamp(138px, 14vw, 190px); z-index: 2; }
-.is-battle-workspace .next-battle-minimap > div:first-child { align-items: baseline; display: flex; justify-content: space-between; gap: 4px; margin-bottom: 4px; }
-.is-battle-workspace .next-battle-minimap > div:first-child > span { color: #a9bb9e; font: 6px "DM Mono",monospace; letter-spacing: .11em; }
-.is-battle-workspace .next-battle-minimap > div:first-child > small { color: #74847d; font: 5px "DM Mono",monospace; white-space: nowrap; }
+.is-battle-workspace .next-battle-minimap { background: rgba(7,15,19,.88); border: 1px solid rgba(214,225,218,.17); border-radius: 4px; color: #c4d2c6; padding: 5px; pointer-events: auto; position: absolute; right: 11px; top: 40px; width: clamp(138px, 14vw, 190px); z-index: 2; }
+.is-battle-workspace .next-minimap-toggle { align-items: center; background: transparent; border: 0; color: #c4d2c6; cursor: pointer; display: flex; justify-content: space-between; min-height: 30px; padding: 0 2px; text-align: left; width: 100%; }
+.is-battle-workspace .next-minimap-toggle > span { color: #c3d4b8; font: 11px "DM Mono",monospace; letter-spacing: .03em; white-space: nowrap; }
+.is-battle-workspace .next-minimap-toggle > small { color: #8f9e94; font: 8px "DM Mono",monospace; }
+.is-battle-workspace .next-battle-minimap-content > svg { margin-top: 2px; }
 .is-battle-workspace .next-battle-minimap svg { background: #162521; border: 1px solid rgba(214,225,218,.08); border-radius: 3px; display: block; height: auto; width: 100%; }
 .is-battle-workspace .next-minimap-ground { fill: #1b302b; }
 .is-battle-workspace .next-minimap-route { fill: none; opacity: .75; stroke: #937d5b; stroke-dasharray: 1.6 1.3; stroke-width: .7; }
@@ -687,24 +694,26 @@
 .is-battle-workspace .next-minimap-entity.side-azure { fill: #9dd8f2; }
 .is-battle-workspace .next-minimap-entity.side-vermilion { fill: #f19a7d; }
 .is-battle-workspace .next-minimap-entity.side-neutral { fill: #f5d17f; }
-.is-battle-workspace .next-minimap-legend { color: #84958d; display: flex; flex-wrap: wrap; gap: 3px 7px; margin-top: 5px; }
-.is-battle-workspace .next-minimap-legend span { align-items: center; display: inline-flex; font: 5px "DM Mono",monospace; gap: 3px; white-space: nowrap; }
+.is-battle-workspace .next-minimap-legend { color: #aab8ac; display: flex; gap: 12px; justify-content: center; margin-top: 5px; }
+.is-battle-workspace .next-minimap-legend span { align-items: center; display: inline-flex; font: 11px "DM Mono",monospace; gap: 4px; white-space: nowrap; }
 .is-battle-workspace .next-minimap-legend i { border-radius: 50%; display: inline-block; height: 4px; width: 4px; }
 .is-battle-workspace .next-minimap-legend i.side-azure { background: #9dd8f2; }
 .is-battle-workspace .next-minimap-legend i.side-vermilion { background: #f19a7d; }
 .is-battle-workspace .next-minimap-legend i.side-neutral { background: #f5d17f; }
 
 @media (max-width: 760px) {
-  .is-battle-workspace .next-battle-minimap { padding: 4px; right: 6px; top: 39px; width: clamp(106px, 31vw, 132px); }
-  .is-battle-workspace .next-battle-minimap > div:first-child { margin-bottom: 3px; }
-  .is-battle-workspace .next-battle-minimap > div:first-child > span { font-size: 5px; }
-  .is-battle-workspace .next-battle-minimap > div:first-child > small { font-size: 4px; }
-  .is-battle-workspace .next-minimap-legend { gap: 2px 4px; margin-top: 3px; }
-  .is-battle-workspace .next-minimap-legend span { font-size: 4px; gap: 2px; }
-  .is-battle-workspace .next-minimap-legend i { height: 3px; width: 3px; }
+  .is-battle-workspace .next-battle-minimap { padding: 0; right: 6px; top: 39px; width: auto; }
+  .is-battle-workspace .next-battle-minimap.is-open { padding: 4px; width: clamp(106px, 31vw, 132px); }
+  .is-battle-workspace .next-minimap-toggle { min-height: 44px; padding: 0 8px; width: auto; }
+  .is-battle-workspace .next-battle-minimap.is-open .next-minimap-toggle { min-height: 32px; padding: 0 2px; width: 100%; }
+  .is-battle-workspace .next-minimap-toggle > span { font-size: 11px; }
+  .is-battle-workspace .next-minimap-toggle > small { font-size: 9px; margin-left: 8px; }
+  .is-battle-workspace .next-minimap-legend { gap: 10px; margin-top: 4px; }
+  .is-battle-workspace .next-minimap-legend span { font-size: 11px; gap: 3px; }
+  .is-battle-workspace .next-minimap-legend i { height: 5px; width: 5px; }
 }
 
 @media (max-width: 380px) {
   .is-battle-workspace .next-battle-minimap { right: 5px; width: 105px; }
-  .is-battle-workspace .next-minimap-legend span { font-size: 3.5px; }
+  .is-battle-workspace .next-battle-minimap.is-open { width: 105px; }
 }

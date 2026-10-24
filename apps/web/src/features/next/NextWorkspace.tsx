@@ -522,6 +522,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [battleMobileView, setBattleMobileView] = useState<BattlefieldMobileView>("battle");
   const [battleInspectorOpen, setBattleInspectorOpen] = useState(false);
+  const [battleMapContextOpen, setBattleMapContextOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 761px)").matches);
   const [cameraMode, setCameraMode] = useState<BattlefieldCameraMode>("tactical");
   const [followedEntityId, setFollowedEntityId] = useState<string | null>(null);
   const [followedSquadId, setFollowedSquadId] = useState<string | null>(null);
@@ -544,6 +545,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const rendererHost = useRef<HTMLDivElement>(null);
   const renderer = useRef<BattlefieldRenderer | null>(null);
+  const mobileTimelineRef = useRef<HTMLOListElement>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -904,6 +906,14 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   }, [draft]);
 
   useEffect(() => {
+    const compactViewport = window.matchMedia("(max-width: 760px)");
+    const syncMapContext = () => setBattleMapContextOpen(!compactViewport.matches);
+    syncMapContext();
+    compactViewport.addEventListener("change", syncMapContext);
+    return () => compactViewport.removeEventListener("change", syncMapContext);
+  }, []);
+
+  useEffect(() => {
     if (!run) {
       setPlayer(null);
       setDisplayState(null);
@@ -1133,6 +1143,18 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     const start = Math.max(0, Math.min(timelineEvents.length - 180, center - 90));
     return timelineEvents.slice(start, start + 180);
   }, [displayState?.tick, timelineEvents]);
+  useEffect(() => {
+    if (battleMobileView !== "timeline") return;
+    const rows = mobileTimelineRef.current?.querySelectorAll<HTMLElement>("[data-event-tick]");
+    if (!rows?.length) return;
+    const tick = displayState?.tick ?? 0;
+    const currentRow = [...rows].reduce((nearest, row) => {
+      const distance = Math.abs(Number(row.dataset.eventTick) - tick);
+      const nearestDistance = Math.abs(Number(nearest.dataset.eventTick) - tick);
+      return distance < nearestDistance ? row : nearest;
+    });
+    currentRow.scrollIntoView({ block: "nearest" });
+  }, [battleMobileView, displayState?.tick, contextualTimelineEvents]);
   const sceneBounds = run?.graphicsReplay.scene.bounds ?? null;
   const miniMapPoint = (point: WorldPoint): WorldPoint => {
     if (!sceneBounds) return { x: 0, y: 0 };
@@ -1146,6 +1168,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   ].filter((base) => Boolean(base.node)) : [];
   const setBattleView = (view: BattlefieldMobileView): void => {
     setBattleMobileView(view);
+    if (view === "timeline") player?.pause();
     if (view === "battle" || view === "overview") {
       const nextMode = view === "overview" ? "overview" : "tactical";
       setCameraMode(nextMode);
@@ -1352,8 +1375,9 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             {runResult && run ? <>
               <div className="next-battle-stage">
                 <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />
-                <aside className="next-battle-minimap" aria-label="Current battlefield map context">
-                  <div><span>MAP CONTEXT</span><small>Visible positions · T{displayState?.tick ?? 0}</small></div>
+                <aside className={`next-battle-minimap${battleMapContextOpen ? " is-open" : ""}`} aria-label="Current battlefield map context">
+                  <button aria-expanded={battleMapContextOpen} aria-label="Toggle battlefield map context" className="next-minimap-toggle" onClick={() => setBattleMapContextOpen((open) => !open)} type="button"><span>MAP · T{displayState?.tick ?? 0}</span><small>{battleMapContextOpen ? "HIDE" : "OPEN"}</small></button>
+                  {battleMapContextOpen && <div className="next-battle-minimap-content">
                   <svg aria-label="Replay lanes, routes, camps, bases and currently visible entities" role="img" viewBox="0 0 120 80">
                     <rect className="next-minimap-ground" height="80" rx="4" width="120" x="0" y="0" />
                     {(run.graphicsReplay.scene.routes ?? []).map((route) => {
@@ -1378,7 +1402,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                         : <circle className={`next-minimap-entity side-${entity.side}`} cx={point.x} cy={point.y} key={entity.id} r="1.45" />;
                     })}
                   </svg>
-                  <div className="next-minimap-legend"><span><i className="side-azure" />Attacker</span><span><i className="side-vermilion" />Defender</span><span><i className="side-neutral" />Neutral</span></div>
+                  <div aria-label="Entity side markers: A attacker, D defender, N neutral" className="next-minimap-legend"><span aria-label="Attacker"><i className="side-azure" /><b>A</b></span><span aria-label="Defender"><i className="side-vermilion" /><b>D</b></span><span aria-label="Neutral"><i className="side-neutral" /><b>N</b></span></div>
+                  </div>}
                 </aside>
                 <div className="next-stage-hud"><span><i /> {run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER VIEW" : "PUBLIC REPLAY"}</span><span>{displayState?.entities ? Object.values(displayState.entities).filter(entity => !entity.destroyed).length : 0} VISIBLE ENTITIES</span><strong>T{String(displayState?.tick ?? 0).padStart(2, "0")} / {run.graphicsReplay.result.tick}</strong></div>
                 <div className="next-camera-controls" data-testid="battle-camera-controls" aria-label="Battlefield camera">
@@ -1412,7 +1437,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               </section>
               <section aria-label="Replay event timeline" className="next-mobile-sheet next-mobile-timeline" hidden={battleMobileView !== "timeline"}>
                 <header><div><span className="next-eyebrow">PUBLIC PRESENTATION REPLAY</span><h4>Event timeline <small>{timelineEvents.length}</small></h4></div><button aria-label="Close timeline sheet" onClick={() => setBattleView("battle")} type="button">×</button></header>
-                {contextualTimelineEvents.length ? <ol className="next-timeline">{[...contextualTimelineEvents].reverse().map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "Battle system"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">View ↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
+                {contextualTimelineEvents.length ? <ol className="next-timeline" ref={mobileTimelineRef}>{[...contextualTimelineEvents].reverse().map((event, index) => <li data-event-tick={event.tick} key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "Battle system"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">View ↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
               </section>
               </div>
               <div className="next-replay-controls" aria-label="Replay controls">
