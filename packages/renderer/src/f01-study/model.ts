@@ -1,4 +1,4 @@
-import { Group, Mesh, MeshStandardMaterial, Color, type Object3D, type BufferGeometry } from 'three';
+import { Group, Mesh, MeshStandardMaterial, Color, Raycaster, Vector3, Matrix4, Box3, type Object3D, type BufferGeometry } from 'three';
 import { sections, panel, loft, polyhedron, hairLock, type V2, type V3 } from './geometry';
 
 export interface F01Definition {
@@ -15,10 +15,11 @@ type MaterialKey=keyof F01Definition['palette'];
 export function snapshotF01(root: Object3D) {
   root.updateMatrixWorld(true);
   const meshes: unknown[]=[];
+  const gpu=(values:number[])=>Array.from(new Float32Array(values));
   root.traverse(node=>{if(node instanceof Mesh){
     const m=node.material as MeshStandardMaterial;
-    meshes.push({name:node.name, matrix:node.matrixWorld.toArray(), positions:Array.from(node.geometry.getAttribute('position').array),
-      normals:Array.from(node.geometry.getAttribute('normal').array), color:m.color.toArray(), metalness:m.metalness, roughness:m.roughness});
+    meshes.push({name:node.name, matrix:gpu(node.matrixWorld.toArray()), positions:Array.from(node.geometry.getAttribute('position').array),
+      normals:Array.from(node.geometry.getAttribute('normal').array), color:gpu(m.color.toArray()), metalness:m.metalness, roughness:m.roughness});
   }});
   return meshes;
 }
@@ -45,6 +46,20 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
   }
   const plate=(parent:Object3D,name:string,outline:readonly V2[],mat:MaterialKey,pos:V3,depth=.03,bevel=.1,ridge=0,rotation:V3=[0,0,0]) =>
     add(parent,name,panel(outline,depth,bevel,ridge),mat,pos,rotation);
+  // Project thin overlays onto the actual underlying mesh, avoiding floating straps/badges.
+  function seat(overlay:Mesh,target:Mesh,side=1,gap=.002) {
+    overlay.updateWorldMatrix(true,false);target.updateWorldMatrix(true,false);
+    const box=new Box3().setFromObject(overlay),base=side>0?box.min.z:box.max.z;
+    const inverse=new Matrix4().copy(overlay.matrixWorld).invert(),p=overlay.geometry.getAttribute('position');
+    const ray=new Raycaster(new Vector3(),new Vector3(0,0,-side));
+    for(let i=0;i<p.count;i++){
+      const world=new Vector3().fromBufferAttribute(p,i).applyMatrix4(overlay.matrixWorld),offset=side*(world.z-base);
+      ray.ray.origin.set(world.x,world.y,side*10);const hit=ray.intersectObject(target,false)[0];
+      if(!hit)throw new Error(`Unseated overlay: ${overlay.name}`);
+      world.z=hit.point.z+side*(gap+offset);world.applyMatrix4(inverse);p.setXYZ(i,world.x,world.y,world.z);
+    }
+    overlay.geometry.computeVertexNormals();overlay.geometry.computeBoundingBox();overlay.geometry.computeBoundingSphere();
+  }
   const diamond:V2[]=[[0,.07],[-.047,0],[0,-.07],[.047,0]];
   let randomState=d.seed;
   const random=()=>{let x=randomState+=0x6d2b79f5;x=Math.imul(x^(x>>>15),x|1);x^=x+Math.imul(x^(x>>>7),x|61);return ((x^(x>>>14))>>>0)/4294967296;};
@@ -55,17 +70,24 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
   add(parts.head,'neck',sections([[1.93,0,.005,.084,.08],[2.07,0,.012,.087,.083]]),'skin');
   const breast:V2[]=[[-.32,.14],[-.22,.23],[-.11,.18],[.11,.18],[.22,.23],[.32,.14],[.27,-.12],[.1,-.23],[-.1,-.23],[-.27,-.12]];
   plate(parts.chest,'cuirass-edge',breast,'gold',[0,1.62,.16],.055,.045,.045);
-  plate(parts.chest,'cuirass',breast.map(([x,y])=>[x*.95,y*.94]),'steel',[0,1.62,.178],.052,.11,.052);
+  const breastplate=plate(parts.chest,'cuirass',breast.map(([x,y])=>[x*.95,y*.94]),'steel',[0,1.62,.178],.052,.11,.052);
   // Raised gorget wraps the neck, rather than floating as a flat collar.
   add(parts.chest,'gorget',sections([[1.83,0,-.015,.22,.16],[1.90,0,-.015,.19,.145],[1.95,0,-.005,.135,.12]]),'steel');
   for(let i=0;i<3;i++){
     const w=.246-i*.009;
     plate(parts.chest,'waist-lame',[[-w,.055],[w,.055],[w*.98,-.04],[0,-.085],[-w*.98,-.04]],'darkSteel',[0,1.38-i*.083,.16+i*.008],.035,.12,.018);
   }
-  // Leather baldric, bounded by the torso surface; original three-ridge heraldry.
-  plate(parts.chest,'baldric',[[-.29,.20],[-.245,.235],[.235,-.20],[.18,-.24]],'leather',[0,1.61,.295],.018,.06);
-  plate(parts.chest,'baldric-buckle',[[-.047,.055],[.047,.055],[.047,-.055],[-.047,-.055]],'gold',[-.08,1.67,.326],.012,.10,0,[0,0,-.7]);
-  plate(parts.chest,'buckle-inset',[[-.025,.032],[.025,.032],[.025,-.032],[-.025,-.032]],'leather',[-.08,1.67,.341],.005,.03,0,[0,0,-.7]);
+  // Six connected leather sections follow the cuirass ridge rather than floating in a plane.
+  for(let i=0;i<6;i++){
+    const t=i/6,u=(i+1)/6;
+    const point=(q:number,side:number):V2=>[-.218+.416*q+side*.018,1.798-.308*q+side*.022];
+    const strap=plate(parts.chest,'baldric',[point(t,-1),point(t,1),point(u,1),point(u,-1)],'leather',[0,0,0],.009,0);
+    seat(strap,breastplate);
+  }
+  const buckle=plate(parts.chest,'baldric-buckle',[[-.04,.045],[.04,.045],[.04,-.045],[-.04,-.045]],'gold',[-.08,1.695,0],.01,.10,0,[0,0,-.7]);
+  seat(buckle,breastplate,1,.018);
+  const inset=plate(parts.chest,'buckle-inset',[[-.023,.027],[.023,.027],[.023,-.027],[-.023,-.027]],'leather',[-.08,1.695,0],.003,.03,0,[0,0,-.7]);
+  seat(inset,breastplate,1,.035);
   add(parts.chest,'belt',sections([[1.10,0,.005,.28,.19],[1.17,0,.005,.275,.188]]),'leather');
   plate(parts.chest,'belt-buckle',[[-.065,.05],[.065,.05],[.065,-.05],[-.065,-.05]],'gold',[0,1.133,.2],.025,.12);
   plate(parts.chest,'buckle-field',[[-.035,.025],[.035,.025],[.035,-.025],[-.035,-.025]],'darkSteel',[0,1.133,.23],.006,.02);
@@ -88,32 +110,31 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
     plate(faceGroup,'iris',[[-.008,.007],[.008,.007],[.008,-.008],[-.008,-.008]],'eyes',[s*.083,.249,.168],.001,0);
     plate(faceGroup,'brow',[[-.047,.008],[.045,.011],[.035,-.01],[-.043,-.012]],'hair',[s*.088,.282,.168],.012,.1,0,[0,0,s*-.14]);
   }
-  add(faceGroup,'nose',polyhedron([[-.025,.268,.166],[.025,.268,.166],[.029,.171,.182],[0,.166,.235],[-.029,.171,.182],[0,.255,.195]],
+  add(faceGroup,'nose',polyhedron([[-.025,.268,.166],[.025,.268,.166],[.029,.171,.182],[0,.174,.215],[-.029,.171,.182],[0,.255,.184]],
     [[0,5,1],[0,4,3,5],[5,3,2,1],[4,2,3],[0,1,2,4]]),'skin');
   plate(faceGroup,'mouth',[[-.053,.002],[0,-.003],[.053,.002],[.042,-.007],[0,-.01],[-.042,-.007]],'leather',[0,.113,.163],.002,0);
-  // Short beard consists of a single sculpted jaw band, not separate spikes.
-  add(faceGroup,'jaw-stubble',loft([
-    [[.083,.023,.085],[.066,.024,.119],[0,.019,.129],[-.066,.024,.119],[-.083,.023,.085],[-.083,.023,.078],[-.05,.023,.065],[.05,.023,.065],[.083,.023,.078]],
-    [[.14,.083,.10],[.102,.079,.157],[0,.073,.168],[-.102,.079,.157],[-.14,.083,.10],[-.14,.083,.09],[-.07,.083,.07],[.07,.083,.07],[.14,.083,.09]]
-  ]),'hair');
-  // Hair cap and deliberately asymmetrical swept locks.
+  // A closed cap follows the scalp. Broad swept locks replace the repeated comb-like spikes.
   const hairGroup=new Group();parts.hair.add(hairGroup);hairGroup.position.copy(headGroup.position);hairGroup.scale.copy(headGroup.scale);
   add(hairGroup,'hair-cap',loft([
-    [[.181,.24,.048],[.148,.334,.133],[0,.345,.158],[-.148,.33,.133],[-.182,.235,.045],[-.173,.17,-.105],[-.08,.14,-.166],[.08,.14,-.166],[.173,.17,-.105]],
-    [[.155,.40,.02],[.11,.433,.10],[0,.45,.119],[-.11,.43,.1],[-.155,.39,.02],[-.14,.36,-.12],[-.07,.36,-.15],[.07,.36,-.15],[.14,.36,-.12]]
+    [[.19,.265,.05],[.137,.33,.173],[0,.34,.181],[-.137,.33,.173],[-.19,.265,.05],[-.18,.17,-.115],[-.09,.14,-.177],[.09,.14,-.177],[.18,.17,-.115]],
+    [[.193,.37,.035],[.145,.392,.15],[0,.405,.16],[-.145,.392,.15],[-.193,.37,.035],[-.174,.34,-.124],[-.083,.33,-.178],[.083,.33,-.178],[.174,.34,-.124]],
+    [[.157,.435,.025],[.115,.453,.118],[.02,.466,.135],[-.11,.448,.118],[-.157,.43,.025],[-.137,.405,-.115],[-.065,.403,-.15],[.08,.416,-.15],[.15,.425,-.115]]
   ]),'hair');
-  for(let i=0;i<5;i++){
-    const x=-.135+i*.057, jitter=(random()-.5)*.015;
-    add(hairGroup,'swept-lock',hairLock([[x,.365,.095,.041,.035],[x+.025,.475+jitter,.073,.046,.041],[x+.065,.47+jitter,-.005,.034,.03],[x+.10,.395,-.103,.008,.012]]),'hair');
+  const locks=[
+    [[-.13,.346,.136,.051,.025],[-.10,.401,.166,.067,.03],[-.025,.47,.07,.076,.035],[.07,.445,-.085,.025,.012]],
+    [[.025,.36,.15,.048,.023],[.065,.426,.13,.057,.035],[.09,.474,.03,.052,.026],[.135,.426,-.105,.015,.012]],
+    [[.13,.342,.09,.025,.02],[.164,.397,.06,.031,.025],[.153,.446,-.01,.028,.02],[.162,.386,-.1,.01,.01]]
+  ];
+  for(const rows of locks){
+    const jitter=(random()-.5)*.012;
+    add(hairGroup,'swept-lock',hairLock(rows.map(([x,y,z,w,t])=>[x,y+jitter,z,w,t] as const)),'hair');
   }
-  add(hairGroup,'forelock',hairLock([[-.11,.405,.1,.065,.04],[-.056,.385,.16,.055,.035],[.015,.326,.179,.012,.008]]),'hair');
-
   // Arms, with compact shoulder articulation and leather closures under each plate.
   for(const s of [-1,1]) {
     const sx=s*.40*d.shoulderWidth, elbow=s*.52*d.shoulderWidth, wrist=s*.58*d.shoulderWidth;
     add(parts.arms,'sleeve',sections([[1.26,wrist,.02,.085,.085],[1.48,elbow,-.005,.105,.10],[1.80,sx,-.035,.13,.13]]),'lining');
-    add(parts.shoulders,'pauldron-rim',sections([[1.73,sx,-.02,.215,.22],[1.83,sx,-.02,.235,.245],[1.94,sx,-.02,.18,.18],[1.985,sx,-.02,.095,.085]]),'gold');
-    add(parts.shoulders,'pauldron-shell',sections([[1.76,sx,-.015,.211,.215],[1.84,sx,-.015,.228,.24],[1.955,sx,-.015,.165,.16],[1.999,sx,-.015,.08,.065]]),'steel');
+    add(parts.shoulders,'pauldron-rim',sections([[1.735,sx,-.02,.212,.22],[1.782,sx,-.02,.228,.238]]),'gold');
+    add(parts.shoulders,'pauldron-shell',sections([[1.778,sx,-.02,.226,.236],[1.84,sx,-.02,.235,.245],[1.95,sx,-.02,.18,.18],[1.99,sx,-.02,.09,.075]]),'steel');
     plate(parts.shoulders,'shoulder-lame',[[-.14,.075],[.14,.075],[.12,-.06],[0,-.095],[-.12,-.06]],'darkSteel',[sx+s*.03,1.73,.135],.045,.13,.02,[0,s*.25,s*.12]);
     plate(parts.shoulders,'cape-clasp',diamond,'gold',[s*.245,1.852,.18],.03,.13,.014);
     plate(parts.arms,'upper-arm',[[-.095,.12],[.095,.12],[.088,-.10],[0,-.15],[-.088,-.1]],'steel',[s*.49*d.shoulderWidth,1.585,.10],.04,.17,.018,[0,s*.15,s*.20]);
@@ -139,7 +160,7 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
     plate(leg,'greave',[[-.086,.158],[.078,.158],[.064,-.144],[.025,-.19],[-.072,-.155]],'steel',[0,.355,.118],.035,.1,.032);
     // Toe is a chamfered footprint, wider at the ball and tapering to a squared tip.
     const footprint:V2[]=[[-.10,-.12],[.10,-.12],[.122,.12],[.098,.29],[-.094,.29],[-.124,.14]];
-    const ring=(y:number,scale:number,zOffset=0)=>[...footprint].reverse().map(([x,z])=>[x*scale,y,z*scale+zOffset] as V3);
+    const ring=(y:number,scale:number,zOffset=0)=>footprint.map(([x,z])=>[x*scale,y,z*scale+zOffset] as V3);
     add(leg,'sole',loft([ring(.025,1.04),ring(.065,1.04)]),'darkSteel');
     add(leg,'sabatons',loft([ring(.067,1),ring(.125,.96),ring(.205,.64,-.035)]),'steel');
     for(let i=0;i<2;i++) plate(leg,'toe-lame',[[-.10,.025],[.10,.025],[.095,-.025],[-.095,-.025]],'darkSteel',[0,.14-i*.02,.18+i*.05],.009,.02,0,[-.6,0,0]);
@@ -158,22 +179,23 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
   }
   const border=[...Array.from({length:7},(_,i)=>i),...Array.from({length:5},(_,i)=>(i+1)*7+6),...Array.from({length:6},(_,i)=>40-i),...Array.from({length:4},(_,i)=>(4-i)*7)];
   for(let i=0;i<border.length;i++){const a=border[i],b=border[(i+1)%border.length];cf.push([a,b,b+cn,a+cn]);}
-  add(parts.cape,'tailored-cape',polyhedron(cv,cf),'cloth');
+  const cape=add(parts.cape,'tailored-cape',polyhedron(cv,cf.map(face=>[...face].reverse())),'cloth');
   for(let c=0;c<6;c++){
     const a=cv[35+c],b=cv[36+c];
-    add(parts.cape,'cape-hem',polyhedron([[a[0],a[1]+.035,a[2]-.003],[a[0],a[1]+.008,a[2]-.004],[b[0],b[1]+.008,b[2]-.004],[b[0],b[1]+.035,b[2]-.003]],[[0,1,2,3]]),'gold');
+    add(parts.cape,'cape-hem',polyhedron([[a[0],a[1]+.035,a[2]-.003],[a[0],a[1]+.008,a[2]-.004],[b[0],b[1]+.008,b[2]-.004],[b[0],b[1]+.035,b[2]-.003]],[[3,2,1,0]]),'gold');
   }
   // Back insignia is positioned on the cape, not a floating front badge copied to the back.
-  plate(parts.cape,'cape-insignia',[[0,.115],[-.085,.01],[0,-.11],[.085,.01]],'gold',[0,1.35,-.354],.008,.05,0,[0,Math.PI,0]);
+  const insignia=plate(parts.cape,'cape-insignia',[[0,.115],[-.085,.01],[0,-.11],[.085,.01]],'gold',[0,1.35,0],.003,.02,.001,[0,Math.PI,0]);
+  seat(insignia,cape,-1);
 
   // Shield has a convex wooden back, metal rim, enamel field and original chevron device.
   const shield=parts.shield;shield.position.set(.66*d.shoulderWidth,1.12,.22);shield.rotation.set(.03,-.25,-.08);
   const shieldOutline:V2[]=[[-.27,.37],[-.18,.46],[.18,.46],[.27,.37],[.245,-.17],[0,-.48],[-.245,-.17]];
   plate(shield,'shield-back',shieldOutline,'leather',[0,0,0],.055,.045,.045);
   plate(shield,'shield-rim',shieldOutline,'gold',[0,0,.035],.055,.055,.035);
-  plate(shield,'shield-field',shieldOutline.map(([x,y])=>[x*.87,y*.9]),'cloth',[0,0,.084],.026,.06,.045);
+  plate(shield,'shield-field',shieldOutline.map(([x,y])=>[x*.87,y*.9]),'cloth',[0,0,.084],.026,.06,0);
   const chev:V2[]=[[-.15,.035],[0,.145],[.15,.035],[.15,-.018],[0,.084],[-.15,-.018]];
-  for(let i=0;i<3;i++)plate(shield,'command-chevron',chev,'ivory',[0,.16-i*.135,.16],.009,.02);
+  for(let i=0;i<3;i++)plate(shield,'command-chevron',chev,'ivory',[0,.16-i*.135,.116],.006,.02);
   for(const [x,y] of [[-.215,.33],[.215,.33],[-.19,-.14],[.19,-.14],[0,-.39]])plate(shield,'shield-rivet',[[0,.015],[-.015,0],[0,-.015],[.015,0]],'steel',[x,y,.12],.013,.12,.005);
   // Two straps physically connect the rear of the shield to the left glove/forearm.
   for(const y of [-.045,.14])plate(shield,'shield-grip',[[-.12,.025],[.12,.025],[.12,-.025],[-.12,-.025]],'leather',[0,y,-.068],.04,.05);

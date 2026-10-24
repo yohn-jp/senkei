@@ -52,6 +52,17 @@ describe('F01 code-authored static model', () => {
     });
     hero.dispose();
   });
+  it('closed footwear and cape face outward, with positive signed volume', () => {
+    const hero=buildF01();
+    hero.root.traverse(node=>{if(node instanceof Mesh && /^(sole|sabatons|tailored-cape)-/.test(node.name)){
+      const p=node.geometry.getAttribute('position');let volume=0;
+      for(let i=0;i<p.count;i+=3){
+        const a=new Vector3().fromBufferAttribute(p,i),b=new Vector3().fromBufferAttribute(p,i+1),c=new Vector3().fromBufferAttribute(p,i+2);
+        volume+=a.dot(b.cross(c))/6;
+      }
+      expect(volume,node.name).toBeGreaterThan(0);
+    }});hero.dispose();
+  });
   it('rejects nonfinite or unsupported shape parameters before allocating geometry', () => {
     expect(()=>buildF01({...DEFAULT_F01,seed:NaN})).toThrow();
     expect(()=>buildF01({...DEFAULT_F01,shoulderWidth:0})).toThrow();

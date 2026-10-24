@@ -1,6 +1,6 @@
 import {
   Scene, Color, WebGLRenderer, OrthographicCamera, DirectionalLight, HemisphereLight, AmbientLight,
-  Mesh, MeshStandardMaterial, CylinderGeometry, PlaneGeometry, PCFSoftShadowMap, ACESFilmicToneMapping,
+  Mesh, MeshStandardMaterial, ShadowMaterial, CylinderGeometry, PlaneGeometry, PCFSoftShadowMap, ACESFilmicToneMapping,
   SRGBColorSpace, PMREMGenerator, Vector3, type Material, type BufferGeometry,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -8,10 +8,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildF01, DEFAULT_F01, type F01Definition } from './model';
 
 export const VIEWS = {
-  front: { label: '正面', position: [0, 1.4, 6], target: [0, 1.27, 0], span: 3.1 },
-  side: { label: '側面', position: [-6, 1.5, 0], target: [0, 1.27, 0], span: 3.1 },
-  back: { label: '背面', position: [0, 1.4, -6], target: [0, 1.27, 0], span: 3.1 },
-  oblique: { label: '斜め', position: [3.5, 2.9, 6], target: [0, 1.26, 0], span: 3.1 },
+  front: { label: '正面', position: [0, 1.4, 6], target: [0, 1.18, 0], span: 3.1 },
+  side: { label: '側面', position: [-6, 1.5, 0], target: [0, 1.18, 0], span: 3.1 },
+  back: { label: '背面', position: [0, 1.4, -6], target: [0, 1.18, 0], span: 3.1 },
+  oblique: { label: '斜め', position: [3.5, 2.9, 6], target: [0, 1.17, 0], span: 3.1 },
   face: { label: '顔', position: [.8, 2.49, 4], target: [0, 2.23, .02], span: .85 },
   battle: { label: '戦場距離', position: [4, 6.2, 6], target: [0, 1.0, 0], span: 6.7 },
 } as const;
@@ -51,7 +51,7 @@ export class F01Viewer {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
-    this.scene.background = new Color('#d6d4ca');
+    this.scene.background = new Color('#e3e1da');
     const pmrem = new PMREMGenerator(this.renderer), room = new RoomEnvironment();
     this.environment = pmrem.fromScene(room, .04);
     this.scene.environment = this.environment.texture;
@@ -66,7 +66,7 @@ export class F01Viewer {
     this.key.shadow.normalBias = .012; this.key.shadow.bias = -.00015;
     this.fill.position.set(4, 3, 2); this.rim.position.set(1, 4, -4);
     this.scene.add(this.key, this.fill, this.rim, this.hemi, this.ambient, this.hero.root);
-    const ground = new Mesh(new PlaneGeometry(200,200), new MeshStandardMaterial({color:'#d6d4ca',roughness:1,metalness:0}));
+    const ground = new Mesh(new PlaneGeometry(200,200), new ShadowMaterial({color:0x56616b,opacity:.18}));
     ground.rotation.x = -Math.PI/2; ground.position.y = -.045; ground.receiveShadow = true;
     const plinth = new Mesh(new CylinderGeometry(1.03,1.06,.065,64),new MeshStandardMaterial({color:'#bcbdb4',roughness:.85,metalness:0}));
     plinth.position.y = -.0125; plinth.receiveShadow = true;
@@ -122,6 +122,7 @@ export class F01Viewer {
     this.hero.root.traverse(n=>{if(n instanceof Mesh)(n.material as MeshStandardMaterial).wireframe=wireframe;});this.render();
   }
   regenerate(definition: F01Definition = DEFAULT_F01) {
+    if(this.lost)throw new Error('GPUコンテキストが失われています。プレビューを再起動してください。');
     const next=buildF01(definition);this.scene.remove(this.hero.root);this.hero.dispose();this.hero=next;this.scene.add(next.root);this.render();
   }
   rotate(angle:number) {

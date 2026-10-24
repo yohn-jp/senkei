@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { buildF01, snapshotF01 } from '../../packages/renderer/src/f01-study/model';
 const evidence='docs/evidence/f01-procedural';
 const views=[['正面','front'],['側面','side'],['背面','back'],['斜め','oblique'],['顔','face'],['戦場距離','battle']] as const;
 
@@ -37,15 +38,20 @@ test('F01: actual WebGL rendering, six views, controls, deterministic regenerati
   await page.mouse.move(box.x+box.width*.55,box.y+box.height*.55);
   await page.mouse.down();await page.mouse.move(box.x+box.width*.65,box.y+box.height*.5,{steps:8});await page.mouse.up();
   await expect(canvas).not.toHaveAttribute('data-camera',preDrag!);
+  const lightHashes=new Set<string>();
   for(const light of ['Daylight','Neutral','Studio']){
     await page.getByRole('button',{name:light,exact:true}).click();
     await expect(page.getByRole('button',{name:light,exact:true})).toHaveAttribute('aria-pressed','true');
+    lightHashes.add(createHash('sha256').update(await canvas.screenshot()).digest('hex'));
   }
   await page.getByRole('button',{name:'斜め',exact:true}).click();
+  expect(lightHashes.size).toBe(3);
   await page.getByRole('button',{name:'ワイヤーフレーム',exact:true}).click();
   await canvas.screenshot({path:`${evidence}/wireframe.png`});
   await page.getByRole('button',{name:'面表示へ戻す',exact:true}).click();
   const fingerprint=await canvas.getAttribute('data-fingerprint');
+  const cpu=buildF01(), modelSha256=createHash('sha256').update(JSON.stringify(snapshotF01(cpu.root))).digest('hex');
+  expect(fingerprint).toBe(cpu.fingerprint);cpu.dispose();
   const sameBefore=createHash('sha256').update(await canvas.screenshot()).digest('hex');
   await page.getByRole('button',{name:'再生成',exact:true}).click();
   await expect(canvas).toHaveAttribute('data-fingerprint',fingerprint!);
@@ -54,6 +60,12 @@ test('F01: actual WebGL rendering, six views, controls, deterministic regenerati
   await expect(canvas).not.toHaveAttribute('data-fingerprint',fingerprint!);
   await page.getByLabel('seed',{exact:true}).fill('1042');await page.getByRole('button',{name:'再生成',exact:true}).click();
   await expect(canvas).toHaveAttribute('data-fingerprint',fingerprint!);
+  const keyboard=page.getByRole('button',{name:'正面',exact:true});await keyboard.focus();await page.keyboard.press('Enter');
+  await expect(keyboard).toHaveAttribute('aria-pressed','true');
+  await page.getByLabel('seed',{exact:true}).fill('-1');await page.getByRole('button',{name:'再生成',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('整数');await expect(canvas).toHaveAttribute('data-fingerprint',fingerprint!);
+  await page.getByLabel('seed',{exact:true}).fill('1042');await page.getByRole('button',{name:'再生成',exact:true}).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
   for(const width of [320,390,430]){
     await page.setViewportSize({width,height:844});
     await page.getByRole('button',{name:'斜め',exact:true}).click();
@@ -61,14 +73,16 @@ test('F01: actual WebGL rendering, six views, controls, deterministic regenerati
     await page.screenshot({path:`${evidence}/mobile-${width}.png`,fullPage:true});
   }
   expect(errors).toEqual([]);
-  writeFileSync(`${evidence}/browser.json`,JSON.stringify({source:process.env.GITHUB_SHA??'local',webgl:gl,hashes,fingerprint,stats:await status.innerText(),errors,visualAcceptance:'requires human review; not inferred from these tests'},null,2));
+  writeFileSync(`${evidence}/browser.json`,JSON.stringify({source:process.env.GITHUB_SHA??'local',webgl:gl,hashes,fingerprint,modelSha256,stats:await status.innerText(),errors,visualAcceptance:'requires human review; not inferred from these tests'},null,2));
 });
 
 test('F01: context loss is explicit and retry creates a working viewport',async({page})=>{
   await page.goto('/f01-study/');await expect(page.getByTestId('f01-status')).toContainText('triangles');
+  await page.getByLabel('seed',{exact:true}).fill('42');await page.getByRole('button',{name:'再生成',exact:true}).click();
   await page.getByTestId('f01-canvas').evaluate((c:HTMLCanvasElement)=>c.getContext('webgl2')!.getExtension('WEBGL_lose_context')!.loseContext());
   await expect(page.getByRole('alert')).toContainText('GPUコンテキスト');
   await page.getByRole('button',{name:'プレビュー再起動'}).click();
+  await expect(page.getByLabel('seed',{exact:true})).toHaveValue('1042');
   await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByTestId('f01-canvas')).toHaveCount(1);
   await expect(page.getByTestId('f01-status')).toContainText('triangles');
 });

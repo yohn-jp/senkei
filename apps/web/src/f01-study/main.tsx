@@ -11,7 +11,7 @@ function Study() {
   const [error,setError]=useState(''),[epoch,setEpoch]=useState(0),[seed,setSeed]=useState(String(DEFAULT_F01.seed));
   useEffect(()=>{
     if(!host.current)return;
-    setError('');setStats(null);setView('oblique');setLight('studio');setWireframe(false);
+    setError('');setStats(null);setSeed(String(DEFAULT_F01.seed));setView('oblique');setLight('studio');setWireframe(false);
     try {viewer.current=new F01Viewer(host.current,setError,setStats);}
     catch(e){setError(`3D描画を開始できませんでした。${e instanceof Error?e.message:''}`);}
     return ()=>{viewer.current?.dispose();viewer.current=null;};
