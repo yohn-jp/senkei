@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-core-pressure",
-  "request_sha256": "81b30ffe33d8ca955609c522271d5dfda67a1fcc256fbf0ead190e2deb9db242",
+  "request_sha256": "eb6d820d48219f6194f3403a7f82e7c5341fbab61f0763aa702ffc5af58dfe6b",
   "response_sha256": "b9f1661fe407ecd8b2010c8c3e9329094ae335fad6d0aca949d3f891085f2a68",
   "summary": {
     "outcome": "defender_victory",
