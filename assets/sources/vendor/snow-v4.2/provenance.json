@@ -1,0 +1,19 @@
+{
+  "name": "Snow v4.2",
+  "creator": "Blender Studio / Blender Foundation",
+  "credit": "Snow Rig (CC) Blender Foundation | studio.blender.org",
+  "license": "CC-BY-4.0",
+  "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+  "sourcePage": "https://studio.blender.org/characters/snow/v4/",
+  "downloadURL": "https://studio.blender.org/download-source/files/ba/0f/ba0fe6d810333b1d73c1c359e4dc03cb-6.zip",
+  "upstreamZipSha256": "98d58ef3a07083ede14140bc462cccb55d317062846aa0eb652d2e4a7ac422a6",
+  "blendSha256": "80fd0a81bca90f0efdcdcb98422df0e198ae57f4a1c239e13fb795922779b1fc",
+  "included": "Unmodified upstream blend; external texture bundle omitted (Senkei supplies replacement materials). Embedded Python is never executed.",
+  "adaptations": [
+    "extract mesh topology and skin weights",
+    "bake subdivision and rebind to Senkei humanoid",
+    "silver hair; new skin, eyes and clothing materials",
+    "F01 armor / cape / shield / sword and new animation authored for Senkei"
+  ],
+  "review": "docs/evidence/f01/review/source-snow-face.png; source-snow-body.png"
+}
