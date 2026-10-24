@@ -30,6 +30,9 @@ crate when it is ready.
 ## Versions and identities
 
 `Version` serializes as `{ "major": 1, "minor": 0, "patch": 0 }`.
+The shared model contract is `SHARED_MODEL_VERSION` (`1.0.0`), and Enbu's
+deterministic engine contract is `ENBU_ENGINE_VERSION` (`1.0.0`). These
+semantic contract versions are independent of Cargo crate package versions.
 `RulesetRef` is `{ "id", "version", "digest" }`. `digest` is the lowercase
 64-character SHA-256 hex digest of the canonical package content. Canonical
 hashing excludes the digest field itself. Ruleset, language, IR, bytecode,
