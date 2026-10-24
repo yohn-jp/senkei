@@ -1025,6 +1025,7 @@ mod tests {
             ("range", range),
             ("attack_interval", 1),
             ("attack_ready", 0),
+            ("vision", 100),
             ("x", x),
             ("y", 0),
             ("xp", 0),
