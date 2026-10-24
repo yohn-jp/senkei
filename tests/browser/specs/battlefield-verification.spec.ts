@@ -366,7 +366,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     expect(uiRevision).toBe(appSha);
   }
   await page.getByTestId("nav-next").click();
-  await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console|Observe the battlefield/ })).toBeVisible();
   await expect(page.getByText(/REAL LOCAL SIMULATION|LOCAL ENBU REPLAY/i).first()).toBeVisible();
 
   await page.locator("#next-tab-jinrei").click();

@@ -1,0 +1,336 @@
+{
+  "captureType": "actual-real-wasm-enbu-presentation-replay",
+  "tacticProfile": "controlled-cue-snapshot",
+  "uiSignature": "Battlefield console",
+  "uiRevision": "da1c53ed66266c65954a58a4265c049e668fedd2",
+  "baselineCommit": "c9fe67c0b28b2806dbfd70b5c6995ba4e3008acb",
+  "appCommit": "da1c53ed66266c65954a58a4265c049e668fedd2",
+  "wasmSha256": "c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c",
+  "worker": {
+    "requestId": "senkei-1-6",
+    "operation": "simulate",
+    "responseOk": true,
+    "wasmResponses": [
+      {
+        "status": 200,
+        "fromServiceWorker": false,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      },
+      {
+        "status": 200,
+        "fromServiceWorker": true,
+        "url": "http://127.0.0.1:4180/wasm/senkei_wasm.wasm?rev=c113ae5d410ee796e375e218a30561dd91af8650c312abbe872ab1c23ea5bb9c"
+      }
+    ]
+  },
+  "controlledScenario": {
+    "name": "cue",
+    "injection": {
+      "name": "cue",
+      "originalMatchId": "next-ec0b022507f93ba918d4f49aa9f52136",
+      "injectedMatchId": "battlefield-observation-cues-v1",
+      "target": "real-Core-Worker-simulate-snapshot"
+    },
+    "source": {
+      "path": "docs/evidence/battlefield/controlled-cue-bundle/cue-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "37c1a27c8e2ec6000b4821997311aa77c459d0d343cf027770c58fb3ed1acf15",
+      "bytes": 2703
+    },
+    "expected": {
+      "matchId": "battlefield-observation-cues-v1",
+      "finalTick": 228,
+      "finalStateDigest": "13fa2690d1934a7b6a3ebb9bc7418a1f201a8ddff45be2caac0284e5e707b0f5",
+      "ownerPresentationDigest": "370b899d61bba5014faa96fb58b36c0d335e06289e231c74b8ca2cd739f620b4",
+      "publicPresentationDigest": "370b899d61bba5014faa96fb58b36c0d335e06289e231c74b8ca2cd739f620b4"
+    },
+    "policy": "snapshot-injected-into-real-worker; result-produced-by-real-WASM; renderer-receives-presentation-replay-only"
+  },
+  "input": {
+    "matchId": "battlefield-observation-cues-v1",
+    "ruleset": {
+      "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+      "id": "senkei.next",
+      "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "contextSchemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "sha256": "2b736278f291db088e5cadf903a82a5d9507ac8459f05f2a2db68a313b022484"
+  },
+  "replay": {
+    "matchId": "battlefield-observation-cues-v1",
+    "view": "attacker",
+    "schemaVersion": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "presentationDigest": "370b899d61bba5014faa96fb58b36c0d335e06289e231c74b8ca2cd739f620b4",
+    "publicPresentationDigest": "370b899d61bba5014faa96fb58b36c0d335e06289e231c74b8ca2cd739f620b4",
+    "sourceFrameCount": 229,
+    "timelineEventCount": 734,
+    "eventKinds": [
+      "next.attack",
+      "next.death",
+      "next.level_up",
+      "next.neutral_respawn",
+      "next.objective_destroyed",
+      "next.skill_acquired"
+    ],
+    "sha256": "47346efdcfa06b3688be6d98ea84eb3175902b5d90e89f430e820ba1d47fd80d"
+  },
+  "artifactBundle": {
+    "directory": "docs/evidence/battlefield/controlled-cue-bundle",
+    "ownerPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-cue-bundle/actual-owner-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "local-owner-only",
+      "sha256UncompressedJson": "47346efdcfa06b3688be6d98ea84eb3175902b5d90e89f430e820ba1d47fd80d",
+      "uncompressedBytes": 11380210,
+      "compressedBytes": 310609
+    },
+    "publicPresentationReplay": {
+      "path": "docs/evidence/battlefield/controlled-cue-bundle/actual-public-presentation-replay.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "public-presentation",
+      "sha256UncompressedJson": "eb374f8ddf8640f3d09aae5e832879b7d303de2ae3977ee8b6755c5eca1b9223",
+      "uncompressedBytes": 5575277,
+      "compressedBytes": 110437
+    },
+    "simulationInput": {
+      "path": "docs/evidence/battlefield/controlled-cue-bundle/actual-simulation-input.json.gz",
+      "storage": "deterministic-gzip-json",
+      "privacy": "controlled-local-simulation-input",
+      "sha256UncompressedJson": "2b736278f291db088e5cadf903a82a5d9507ac8459f05f2a2db68a313b022484",
+      "uncompressedBytes": 890179,
+      "compressedBytes": 14781
+    },
+    "controlledSource": {
+      "path": "docs/evidence/battlefield/controlled-cue-bundle/cue-compiled-source.jinrei",
+      "privacy": "reproducible-local-tactic-source",
+      "sha256": "37c1a27c8e2ec6000b4821997311aa77c459d0d343cf027770c58fb3ed1acf15",
+      "bytes": 2703
+    }
+  },
+  "result": {
+    "outcome": "defender_victory",
+    "terminationReason": "base_destroyed",
+    "finalTick": 228,
+    "finalStateDigest": "13fa2690d1934a7b6a3ebb9bc7418a1f201a8ddff45be2caac0284e5e707b0f5"
+  },
+  "exactTicks": {
+    "tactical": 0,
+    "overview": 0,
+    "follow": 50,
+    "advance": 1,
+    "clash": 6,
+    "tower_destroy": 96,
+    "base_destroy": 228,
+    "hero_death": 74,
+    "hero_respawn": 94,
+    "monster_respawn": 103,
+    "skill": null,
+    "end": 228
+  },
+  "heroRespawnProof": {
+    "tick": 94,
+    "slotId": "slot-03",
+    "deadEntityId": "visible-9",
+    "respawnedEntityId": "visible-93",
+    "evidence": "owner-replay-same-slot-dead-to-alive-transition",
+    "privacy": "local-owner-only"
+  },
+  "availableCues": {
+    "advance": true,
+    "clash": true,
+    "towerDestroy": true,
+    "baseDestroy": true,
+    "heroDeath": true,
+    "heroRespawn": true,
+    "neutralMonsterRespawn": true,
+    "activeSkill": false,
+    "end": true
+  },
+  "cameraControls": {
+    "explicitTacticalMode": true,
+    "explicitOverviewMode": true,
+    "followTarget": "Azure · F03 · Hero · HP 220/220",
+    "followAvailable": {
+      "initial": true,
+      "1440x900": true,
+      "390x844": true
+    }
+  },
+  "mobileConsole": {
+    "390x844": {
+      "Timeline view": true,
+      "Details view": true
+    }
+  },
+  "layoutByViewport": {
+    "1440x900": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "width": 1440,
+        "height": 900,
+        "viewportWidth": 1440,
+        "viewportHeight": 900
+      },
+      "stageBox": {
+        "x": 73,
+        "y": 177.640625,
+        "width": 1366,
+        "height": 609.359375
+      },
+      "controlsBox": {
+        "x": 72,
+        "y": 793,
+        "width": 1368,
+        "height": 81
+      },
+      "camera": {
+        "pose": "32.258,55.000,51.966:1.000",
+        "mode": "tactical",
+        "tick": "228"
+      }
+    },
+    "390x844": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "width": 390,
+        "height": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "stageBox": {
+        "x": 1,
+        "y": 149.734375,
+        "width": 388,
+        "height": 491.265625
+      },
+      "controlsBox": {
+        "x": 0,
+        "y": 645,
+        "width": 390,
+        "height": 123
+      },
+      "camera": {
+        "pose": "64.030,50.000,20.428:1.000",
+        "mode": "tactical",
+        "tick": "228"
+      }
+    }
+  },
+  "cameraPosesByCapture": {
+    "1440x900/tactical-t000.png": "0.896,55.000,33.536:1.000",
+    "1440x900/overview-t000.png": "24.000,55.000,48.000:1.000",
+    "1440x900/follow-t050.png": "30.800,30.047,51.720:1.000",
+    "1440x900/advance-t001.png": "1.512,55.000,34.464:1.000",
+    "1440x900/clash-t006.png": "7.090,55.000,38.936:1.000",
+    "1440x900/tower-destroy-t096.png": "30.870,55.000,51.532:1.000",
+    "1440x900/base-destroy-t228.png": "32.258,55.000,51.966:1.000",
+    "1440x900/hero-death-t074.png": "12.550,55.000,44.529:1.000",
+    "1440x900/hero-respawn-t094.png": "23.749,55.000,52.324:1.000",
+    "1440x900/monster-respawn-t103.png": "32.122,55.000,56.008:1.000",
+    "1440x900/end-t228.png": "32.258,55.000,51.966:1.000",
+    "390x844/tactical-t000.png": "32.896,50.000,1.536:1.000",
+    "390x844/overview-t000.png": "56.000,50.000,16.000:1.000",
+    "390x844/follow-t050.png": "62.800,34.047,19.720:1.000",
+    "390x844/advance-t001.png": "33.512,50.000,2.464:1.000",
+    "390x844/clash-t006.png": "39.090,50.000,6.936:1.000",
+    "390x844/tower-destroy-t096.png": "62.078,50.000,19.994:1.000",
+    "390x844/base-destroy-t228.png": "64.030,50.000,20.428:1.000",
+    "390x844/hero-death-t074.png": "44.555,50.000,10.796:1.000",
+    "390x844/hero-respawn-t094.png": "49.113,50.000,21.529:1.000",
+    "390x844/monster-respawn-t103.png": "64.122,50.000,24.343:1.000",
+    "390x844/end-t228.png": "64.030,50.000,20.428:1.000"
+  },
+  "followTargetPosition": {
+    "id": "visible-8",
+    "x": 30.8,
+    "z": 19.72,
+    "sourceX": 770,
+    "sourceY": 493
+  },
+  "cameraTargetsByCapture": {
+    "1440x900/follow-t050.png": {
+      "x": 30.8,
+      "y": 0.047,
+      "z": 19.72
+    },
+    "390x844/follow-t050.png": {
+      "x": 30.8,
+      "y": 0.047,
+      "z": 19.72
+    }
+  },
+  "viewports": [
+    {
+      "name": "1440x900",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "390x844",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "screenshotNames": [
+    "tactical",
+    "overview",
+    "follow",
+    "advance",
+    "clash",
+    "tower-destroy",
+    "base-destroy",
+    "hero-death",
+    "hero-respawn",
+    "monster-respawn",
+    "end"
+  ],
+  "hashes": {
+    "ownerReplaySha256": "47346efdcfa06b3688be6d98ea84eb3175902b5d90e89f430e820ba1d47fd80d",
+    "publicReplaySha256": "eb374f8ddf8640f3d09aae5e832879b7d303de2ae3977ee8b6755c5eca1b9223",
+    "inputSnapshotSha256": "2b736278f291db088e5cadf903a82a5d9507ac8459f05f2a2db68a313b022484",
+    "imageSha256": {
+      "1440x900/advance-t001.png": "4e99580596342573bef804e2ade229ebe86d4f07885802340a73513e8d80fa0d",
+      "1440x900/base-destroy-t228.png": "92b53eef0150d4251d32fe0189a723cbc5a3d20c40718a1492f6b6f46006ccd4",
+      "1440x900/clash-t006.png": "0306664a3b89284f8aa1f85588169c5a39c92dbc5ccfa1a894e8c3aed0876789",
+      "1440x900/end-t228.png": "92b53eef0150d4251d32fe0189a723cbc5a3d20c40718a1492f6b6f46006ccd4",
+      "1440x900/follow-t050.png": "23d16355a4657f4aadfe00150765782de587f32ed52086baf46c4d32b3b7ff34",
+      "1440x900/hero-death-t074.png": "04549e667d915d8120edba1dc3cc5bb9ba40749d9892c1d0c1105447ea7bfe09",
+      "1440x900/hero-respawn-t094.png": "b83788645b070f5b46ac4544332ab0e1233e2006ac731a0627558f60e591a9fa",
+      "1440x900/monster-respawn-t103.png": "38014431170b4b0fad580e583d7d5f75d39b33822023759a3391167bda1b5f7e",
+      "1440x900/overview-t000.png": "6b28630589698caa8afc91719c2c1e98dd259eb3f0ecd86f3d03b8ea5b71922b",
+      "1440x900/tactical-t000.png": "893ac46658756f40d2e0d924cbd8b24e8fed572f9eae360766e1885a68b93b40",
+      "1440x900/tower-destroy-t096.png": "ef656dd2250b217d180e6c3fea84050a7d996c3209dedc7a47accbff8993c907",
+      "390x844/advance-t001.png": "c987b00ec151c8b99e4c70e9450e84dc537547a2bbdc95c9e02e8f6f73c25792",
+      "390x844/base-destroy-t228.png": "953195a5b816cf7bfc2aac80381687746da7fe9ce0fe8c505be652bbb0fcbca2",
+      "390x844/clash-t006.png": "68cde680a83d8a99781d86c3915da9474b4f137c437f4a7c0301fa6acf33f09f",
+      "390x844/details-view-t006.png": "a2df2ca585780c585dc8e9cef04cd5b11b24729747ec83253b13a03ac8699fd1",
+      "390x844/end-t228.png": "953195a5b816cf7bfc2aac80381687746da7fe9ce0fe8c505be652bbb0fcbca2",
+      "390x844/follow-t050.png": "61d9a5694b4cc1f06c8cd94ce0a12389fef355af29bcdb13ef422d9ee59df079",
+      "390x844/hero-death-t074.png": "daf30b6984f45facc7a5d0e123c624bfec56a6259aef3b58bb809337734c33fa",
+      "390x844/hero-respawn-t094.png": "77930a4be8e76b536125db703fb05dfdef5d2bdbb8e87d5cc49300ab60c8a52b",
+      "390x844/monster-respawn-t103.png": "89a2624e8492ce713ce12b1300b7feed0b84443f9d463e4afeae5e28e642499d",
+      "390x844/overview-t000.png": "73c2d32f58ff8c0304d4b99507752e9f34ec4de205a4a02447021b5137c8618a",
+      "390x844/tactical-t000.png": "03eec0edc9bcbfc2abdafc2c20b888a08d5871c31ce68c44a70c2bd4dd00da79",
+      "390x844/timeline-view-t006.png": "8296ff89f47643a9d7d30804e379bd854c6bb49a673a883332fbce19338002ed",
+      "390x844/tower-destroy-t096.png": "6d73ae2d9541e3159cf9e5702540f572543750bf8d5bcf5cc572eaf793ebff1d"
+    }
+  }
+}
