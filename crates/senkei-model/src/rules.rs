@@ -1,5 +1,5 @@
 use crate::{
-    CapabilityId, CollectionId, CollectionSchema, CostOperationId, DomainSchema, DomainType,
+    CapabilityId, CollectionId, CostOperationId, DomainSchema, DomainType,
     DomainValue, EntityId, EventId, FieldId, RulesetRef, RuleId, SymbolId, TypeId, Version,
     Visibility,
 };
@@ -14,9 +14,11 @@ pub struct RulePackage {
     pub primitive_set_id: crate::PrimitiveSetId,
     pub primitive_set_version: Version,
     pub jinrei_language_version: Version,
+    pub structured_ast_version: Version,
     pub typed_ir_version: Version,
     pub bytecode_version: Version,
     pub domain: DomainSchema,
+    pub world_initialization: WorldInitialization,
     pub world: WorldSchema,
     pub phases: Vec<ExecutionPhase>,
     pub required_primitives: BTreeSet<TransitionPrimitiveKind>,
@@ -57,6 +59,30 @@ impl VerifiedRulePlan {
     pub fn plan(&self) -> &RulePlan {
         &self.plan
     }
+
+    pub fn domain_schema(&self) -> &DomainSchema {
+        &self.plan.domain
+    }
+
+    pub fn world_initialization(&self) -> &WorldInitialization {
+        &self.plan.world_initialization
+    }
+
+    pub fn cost_schedule(&self) -> &CostSchedule {
+        &self.plan.cost_schedule
+    }
+
+    pub fn limits(&self) -> &RuleLimits {
+        &self.plan.limits
+    }
+
+    pub fn termination(&self) -> &TerminationPolicy {
+        &self.plan.termination
+    }
+
+    pub fn world_schema(&self) -> &WorldSchema {
+        &self.plan.world
+    }
 }
 
 /// The validated, normalized plan that Enbu executes.
@@ -67,9 +93,11 @@ pub struct RulePlan {
     pub primitive_set_id: crate::PrimitiveSetId,
     pub primitive_set_version: Version,
     pub jinrei_language_version: Version,
+    pub structured_ast_version: Version,
     pub typed_ir_version: Version,
     pub bytecode_version: Version,
     pub domain: DomainSchema,
+    pub world_initialization: WorldInitialization,
     pub world: WorldSchema,
     pub phases: Vec<ExecutionPhase>,
     pub required_primitives: BTreeSet<TransitionPrimitiveKind>,
@@ -81,12 +109,79 @@ pub struct RulePlan {
     pub limits: RuleLimits,
 }
 
+/// Projects the two immutable Senkei configurations into the shared initial world.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorldInitialization {
+    pub entities: Vec<EntityProjection>,
+    pub global_fields: BTreeMap<FieldId, DomainValue>,
+    /// Static seed values only; entity collections are derived from world entities.
+    pub collections: BTreeMap<CollectionId, Vec<DomainValue>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EntityProjection {
+    pub projection_id: crate::ProjectionId,
+    pub applies_to: ProjectionSides,
+    pub source: EntityProjectionSource,
+    pub entity_type: TypeId,
+    pub entity_id: EntityIdProjection,
+    pub owner: EntityOwnerProjection,
+    pub fields: BTreeMap<FieldId, ProjectionValue>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectionSides {
+    Both,
+    AttackerOnly,
+    DefenderOnly,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum EntityProjectionSource {
+    Singleton,
+    EachConfigurationItem { field: FieldId },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum EntityIdProjection {
+    Fixed(EntityId),
+    ConstantKey(String),
+    ConfigurationKey { root: FieldId, path: Vec<FieldId> },
+    ConfigurationItemKey { path: Vec<FieldId> },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum EntityOwnerProjection {
+    Unowned,
+    Fixed(crate::CombatantSide),
+    SnapshotSide,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum ProjectionValue {
+    Constant(DomainValue),
+    ConfigurationPath { root: FieldId, path: Vec<FieldId> },
+    ConfigurationItemPath { path: Vec<FieldId> },
+    SnapshotSide,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorldSchema {
     pub entity_types: BTreeMap<TypeId, EntityTypeSchema>,
     pub global_fields: BTreeMap<FieldId, FieldSchema>,
-    pub collections: BTreeMap<CollectionId, CollectionSchema>,
+    pub collections: BTreeMap<CollectionId, WorldCollectionSchema>,
     pub max_entities: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorldCollectionSchema {
+    pub element_type: DomainType,
+    pub max_items: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,7 +235,47 @@ pub enum EntitySelector {
     IntentActor,
     IntentTarget,
     ByIntentArgument(u16),
+    ObservedEntity,
     Fixed(EntityId),
+    ByProjectionKey {
+        projection_id: crate::ProjectionId,
+        entity_type: TypeId,
+        owner: EntityOwnerSelector,
+        key: DomainValue,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum WorldEntitySelector {
+    Fixed(EntityId),
+    ByProjectionKey {
+        projection_id: crate::ProjectionId,
+        entity_type: TypeId,
+        owner: EntityOwnerSelector,
+        key: DomainValue,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EntityOwnerSelector {
+    Any,
+    OwnSide,
+    OtherSide,
+    Unowned,
+    Attacker,
+    Defender,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum CollectionSource {
+    WorldEntities {
+        entity_types: BTreeSet<TypeId>,
+        owner: EntityOwnerSelector,
+        filter: Option<RuleExpression>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,8 +304,9 @@ pub enum TransitionPrimitive {
     SetGlobalField { field: FieldId, value: RuleExpression },
     AddGlobalInteger { field: FieldId, amount: RuleExpression },
     CreateEntity {
+        id: EntityIdSource,
         entity_type: TypeId,
-        owner: Option<crate::CombatantSide>,
+        owner: EntityOwnerSource,
         fields: BTreeMap<FieldId, RuleExpression>,
     },
     RemoveEntity { target: EntitySelector },
@@ -178,6 +314,20 @@ pub enum TransitionPrimitive {
     RemoveCollectionValue { collection: CollectionId, value: RuleExpression },
     EmitEvent { event: EventId, payload: BTreeMap<FieldId, RuleExpression> },
     SetOutcome { outcome: RuleExpression, reason: SymbolId },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EntityIdSource {
+    DeterministicInvocation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum EntityOwnerSource {
+    Unowned,
+    Fixed(crate::CombatantSide),
+    IntentSide,
 }
 
 impl TransitionPrimitive {
@@ -218,18 +368,32 @@ pub struct ArbitrationRule {
 pub enum ArbitrationResolution {
     AllowAll { max_accepted: u32 },
     RejectConflicts,
-    SelectOrdered { sort_by: Vec<IntentKey>, max_accepted: u32 },
+    SelectOrdered { sort_by: Vec<IntentSortTerm>, max_accepted: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum IntentKey {
     Priority,
+    Side,
     Actor,
     Target,
     ActionId,
     Capability,
     Argument(u16),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntentSortTerm {
+    pub key: IntentKey,
+    pub direction: SortDirection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,6 +402,7 @@ pub struct TerminationPolicy {
     /// Evaluated in ascending `order`; the first matching condition wins.
     pub conditions: Vec<TerminationCondition>,
     pub on_timeout: MatchOutcome,
+    pub on_timeout_reason: SymbolId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -264,6 +429,23 @@ pub struct CostSchedule {
     pub operations: BTreeMap<CostOperationId, LogicalCuCost>,
     pub per_tick_budget: crate::LogicalCu,
     pub per_match_budget: crate::LogicalCu,
+    pub overrun_policy: BudgetOverrunPolicy,
+    pub memory_commit_policy: MemoryCommitPolicy,
+    pub budget_overrun_reason: SymbolId,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BudgetOverrunPolicy {
+    RejectTickAndKeepMemory,
+    AbortMatch,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryCommitPolicy {
+    OnCompletedEvaluation,
+    OnAnyIntentAccepted,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,8 +468,11 @@ pub struct EventSchema {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleLimits {
+    pub max_input_bytes: u64,
     pub max_entities: u32,
     pub max_events: u64,
+    pub max_diagnostic_events: u64,
+    pub max_output_bytes: u64,
     pub max_intents_per_side_per_tick: u32,
     pub max_value_depth: u32,
 }
@@ -301,9 +486,11 @@ impl From<&RulePackage> for RulePlan {
             primitive_set_id: package.primitive_set_id.clone(),
             primitive_set_version: package.primitive_set_version,
             jinrei_language_version: package.jinrei_language_version,
+            structured_ast_version: package.structured_ast_version,
             typed_ir_version: package.typed_ir_version,
             bytecode_version: package.bytecode_version,
             domain: package.domain.clone(),
+            world_initialization: package.world_initialization.clone(),
             world: package.world.clone(),
             phases: package.phases.clone(),
             required_primitives: package.required_primitives.clone(),
@@ -362,6 +549,7 @@ pub fn validate_package_header(
         ));
     }
     if package.jinrei_language_version != engine.jinrei_language
+        || package.structured_ast_version != engine.structured_ast
         || package.typed_ir_version != engine.typed_ir
         || package.bytecode_version != engine.bytecode
     {

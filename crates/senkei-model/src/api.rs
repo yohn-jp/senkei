@@ -1,6 +1,6 @@
 use crate::{
-    ApiError, CompileResult, MatchContext, RulesetRef, SenkeiSnapshot,
-    Version,
+    ApiError, CompileResult, MatchContext, MatchId, RulesetRef, SenkeiSnapshot,
+    StructuredTacticsAst, Version,
 };
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +9,13 @@ pub const WASM_API_VERSION: Version = Version::new(1, 0, 0);
 pub const OP_INITIAL_RULESET: &str = "initial_ruleset";
 pub const OP_COMPILE_TEXT: &str = "compile_text";
 pub const OP_COMPILE_AST: &str = "compile_ast";
+pub const OP_PARSE_TEXT: &str = "parse_text";
+pub const OP_FORMAT_AST: &str = "format_ast";
+pub const OP_NEW_MATCH_CONTEXT: &str = "new_match_context";
 pub const OP_SIMULATE: &str = "simulate";
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmptyPayload {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiRequestEnvelope<T> {
@@ -34,13 +40,28 @@ pub struct CompileTextPayload {
     pub source: String,
 }
 
-/// `ast` is serialized by Jinrei's versioned Structured AST contract. The
-/// generic envelope leaves the AST type owned by Jinrei rather than duplicating
-/// compiler syntax in this game-neutral crate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CompileAstPayload<Ast> {
+pub struct ParseTextPayload {
     pub ruleset_ref: RulesetRef,
-    pub ast: Ast,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompileAstPayload {
+    pub ruleset_ref: RulesetRef,
+    pub ast: StructuredTacticsAst,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormatAstPayload {
+    pub ruleset_ref: RulesetRef,
+    pub ast: StructuredTacticsAst,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewMatchContextPayload {
+    pub ruleset_ref: RulesetRef,
+    pub match_id: MatchId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,12 +83,18 @@ pub struct LocalSimulationResponse {
 
 impl From<CompileResult> for CompileResultEnvelope {
     fn from(value: CompileResult) -> Self {
-        Self { program: value.program, estimated_cu: value.estimated_cu, diagnostics: value.diagnostics }
+        Self {
+            ast: value.ast,
+            program: value.program,
+            estimated_cu: value.estimated_cu,
+            diagnostics: value.diagnostics,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompileResultEnvelope {
+    pub ast: StructuredTacticsAst,
     pub program: crate::TacticalProgram,
     pub estimated_cu: crate::LogicalCu,
     pub diagnostics: Vec<crate::CompileDiagnostic>,

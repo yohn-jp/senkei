@@ -40,6 +40,10 @@ Senritsu package must constrain all accepted CU values and totals to
 `9_007_199_254_740_991` or below so JavaScript can represent them exactly.
 `senkei_model::LogicalCu::MAX_SAFE_JSON_INTEGER` exposes that bound.
 
+`StructuredTacticsAst.schema_version` uses the separate
+`senkei_model::AST_SCHEMA_VERSION` (`1.0.0`); it is independent of the Jinrei
+language version and must match `RulePackage.structured_ast_version`.
+
 ## JSON value tags
 
 `DomainValue` uses adjacent tags:
@@ -115,7 +119,7 @@ memory is committed under the RulePlan.
 `senkei_model::RulePackage`. It includes:
 
 - a ruleset identity/digest and required model, engine, primitive set, Jinrei,
-  IR, and bytecode versions;
+  structured-AST, IR, and bytecode versions;
 - `domain`, with Senkei configuration, observations, finite collections,
   typed capabilities, tactical memory, symbols, and schema limits;
 - `world`, with typed entity/global/collection fields and entity limits;
@@ -173,13 +177,16 @@ pub fn compile_ast(
     rules: &VerifiedRulePlan,
 ) -> Result<CompileResult, ApiError>;
 
+pub fn parse(source: &str) -> Result<StructuredTacticsAst, ApiError>;
+pub fn format(ast: &StructuredTacticsAst) -> Result<String, ApiError>;
+
 pub struct Vm { /* interpreter state only */ }
 
 impl TacticalExecutionPort for Vm { /* ... */ }
 ```
 
-`CompileResult` contains a `TacticalProgram`, its estimated logical CU, and
-structured compile warnings. The compiler binds the program to the RulePlan's
+`CompileResult` contains normalized `ast`, a `TacticalProgram`, estimated
+logical CU, and structured compile warnings. The compiler binds the program to the RulePlan's
 ruleset and CU schedule. It emits the versioned dedicated bytecode; it does
 not emit or execute arbitrary JavaScript, native code, or player-authored
 WASM.
@@ -226,6 +233,18 @@ network, clock, or random-number dependency.
 `RestrictedDiagnostics` for an authorized local caller. `ReproductionContext`
 contains private immutable inputs and has no general serializer.
 
+```rust,ignore
+pub fn new_match_context(
+    rules: &VerifiedRulePlan,
+    match_id: MatchId,
+) -> MatchContext;
+```
+
+The helper starts with an empty `WorldState`, takes `max_ticks` from the
+verified termination policy, copies validated host limits from `RulePlan.limits`,
+and fills ruleset/component versions from the plan and Enbu's version
+constants. The browser does not choose world, tick, or host-limit semantics.
+
 ## WASM JSON envelope
 
 Request envelope:
@@ -240,7 +259,8 @@ Request envelope:
 ```
 
 `api_version` is `1.0.0`. Operations are `initial_ruleset`, `compile_text`,
-`compile_ast`, and `simulate`. Every response is:
+`compile_ast`, `parse_text`, `format_ast`, `new_match_context`, and `simulate`.
+Every response is:
 
 ```json
 {
@@ -264,9 +284,16 @@ Payloads:
 {"ruleset_ref":{"id":"...","version":{"major":1,"minor":0,"patch":0},"digest":"..."},"source":"senkei ..."}
 ```
 
+`parse_text` uses this payload and returns `StructuredTacticsAst`.
+
 ```json
 {"ruleset_ref":{"id":"...","version":{"major":1,"minor":0,"patch":0},"digest":"..."},"ast":{"schema_version":{"major":1,"minor":0,"patch":0},"program_name":"hold_line","declarations":[]}}
 ```
+
+`format_ast` uses the same `{ruleset_ref,ast}` payload and returns canonical
+source text. `new_match_context` payload is
+`{"ruleset_ref":{"id":"...","version":{"major":1,"minor":0,"patch":0},"digest":"..."},"match_id":"..."}`;
+the adapter validates the bundled package and calls `enbu::new_match_context`.
 
 ```json
 {"attacker":{},"defender":{},"context":{},"include_diagnostics":false}
@@ -290,6 +317,80 @@ string code, JSON-style path, message, and details map. A validation error
 reports all deterministic issues in stable path/code order. Component
 internals may use richer Rust errors, but adapters map them into this contract
 without including private source or bytecode in public responses.
+
+## Deterministic projection, execution, and diagnostics semantics
+
+- `WorldInitialization.global_fields` and `.collections` are static seed
+  values applied once to `MatchContext.initial_world`. Entity projections
+  apply after the base world for attacker then defender, in package order and
+  only for `ProjectionSides` selected. `Singleton` emits one entity per
+  selected side; `EachConfigurationItem` emits one entity per bounded record.
+  Variable-length item lists are processed by derived EntityId ascending.
+  Projections only add; duplicate IDs/destinations and schema, missing-value,
+  unknown-value, or type errors reject the match. Side-dependent setup belongs
+  on side-owned entity fields; global seed fields are constants. Observable
+  `DomainSchema.collections` query world entities; mutable `WorldSchema`
+  collections are separate backing data.
+- Projected IDs use `derive_projected_entity_id`: SHA-256 over length-prefixed
+  fields (u64 big-endian byte lengths): namespace `senkei.projected-entity.v1`,
+  ruleset digest, projection ID, entity type, owner (`attacker`, `defender`, or
+  `unowned`), key type (`string` or `entity`), and key bytes. Output is
+  `prj:<lowercase hex>`. Runtime-created IDs use
+  `derive_invocation_entity_id`: namespace `senkei.runtime-entity.v1`, match
+  ID, big-endian tick, side, rule ID, accepted-intent ordinal (u32 big-endian),
+  and operation index (u32 big-endian); output is `run:<hex>`.
+- `ObservationFieldSchema.source` is explicit (`Tick`, world global field,
+  selected world entity field, current collection entity field, or typed
+  `RuleExpression`). `CollectionSchema.source` filters typed world entities;
+  no dotted path string is parsed as world navigation. Visible fields define
+  each entity projection. Collection `order_by` fields compare ascending
+  using schema-typed values; EntityId ascending breaks iteration ties.
+  `argmin` / `argmax` accept only declared `CollectionUniqueKey`s. The
+  synthetic `binding.id` path uses `CollectionUniqueKey::EntityId`; other
+  paths must match an explicit `Fields` key.
+- Arbitration sort terms carry `Ascending` or `Descending`. After declared
+  terms, Enbu appends the canonical tie-break tuple `(side, action_id, actor,
+  target, capability, arguments)` in ascending order. No source order
+  participates. This order assigns accepted-intent ordinals.
+- `CapabilitySchema.actor_argument` and `target_argument` select Entity-typed
+  positional arguments that remain in `Intent.arguments`. `target_type`
+  constrains the target argument, actors must be owned by the issuing side,
+  and `target_owner` constrains the target to any, own side, other side, or
+  unowned.
+- Each transition phase evaluates all conditions and operands from the
+  immutable phase-start world. Transition rules order by ascending `order`
+  then RuleId; accepted intent ordinal and operation index order effect
+  emission. AddInteger/AddFixed writes to one field sum with checked i128
+  arithmetic, clamp once to declared field bounds, and commit together.
+  Overflow is `arithmetic_overflow`. Set plus additive writes, multiple Set
+  writes, and conflicting structural writes to one address are
+  `transition_conflict`. RemoveEntity is applied in an explicitly later
+  phase. Concurrent collection appends coexist in canonical emission order;
+  duplicates remain. RemoveCollectionValue removes all equal values, so
+  concurrent removals coalesce.
+- Required CU keys are `jinrei.path_read`, `jinrei.comparison`,
+  `jinrei.arithmetic`, `jinrei.logic`, `jinrei.state_reference`,
+  `jinrei.collection_iteration`, `jinrei.aggregate`, `jinrei.memory_read`,
+  `jinrei.memory_write`, and `jinrei.capability_issue`. Missing entries are
+  validation/compile errors, never free operations. `CapabilitySchema.issue_cost`
+  selects the billed key for issuing that capability.
+- VM output is `Completed` exactly when `required_cu <= available_cu`; then
+  `charged_cu == required_cu`. It is `BudgetExceeded` exactly when required CU
+  is larger; then `charged_cu == available_cu`, intents are empty, and next
+  memory equals prior memory. `RejectTickAndKeepMemory` drops that side's
+  outputs and continues; `AbortMatch` waits for both sides, discards both
+  tick outputs/memory, and returns Aborted with
+  `CostSchedule.budget_overrun_reason`. Completed memory commits according to
+  `OnCompletedEvaluation` or `OnAnyIntentAccepted`; overrun never commits.
+- Every `DiagnosticEvent` has nullable `action_id` and `entity_id`. UI groups
+  CU only by explicit IDs. It may resolve lane only by joining an attributed
+  entity to same-tick public `visible_state` and a schema-declared visible
+  lane field; otherwise lane is unknown/unattributed. Missing attribution is
+  never inferred.
+- `new_match_context` copies validated host caps from `RulePlan.limits`,
+  including input bytes, entities, events, diagnostic events, and output bytes.
+  A host-cap failure is `resource_limit`, separate from logical CU or a game
+  loss.
 
 ## Acceptance checks for this contract
 

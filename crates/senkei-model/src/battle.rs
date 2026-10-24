@@ -28,6 +28,7 @@ pub struct TacticalProgram {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompileResult {
+    pub ast: crate::StructuredTacticsAst,
     pub program: TacticalProgram,
     pub estimated_cu: LogicalCu,
     pub diagnostics: Vec<crate::CompileDiagnostic>,
@@ -47,7 +48,7 @@ pub struct SenkeiSnapshot {
     pub initial_memory: TacticalMemory,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorldState {
     pub entities: BTreeMap<EntityId, EntityState>,
     pub global_fields: BTreeMap<FieldId, DomainValue>,
@@ -111,6 +112,19 @@ pub struct HostLimits {
     pub max_entities: u32,
     pub max_events: u64,
     pub max_diagnostic_events: u64,
+    pub max_output_bytes: u64,
+}
+
+impl From<&crate::RuleLimits> for HostLimits {
+    fn from(limits: &crate::RuleLimits) -> Self {
+        Self {
+            max_input_bytes: limits.max_input_bytes,
+            max_entities: limits.max_entities,
+            max_events: limits.max_events,
+            max_diagnostic_events: limits.max_diagnostic_events,
+            max_output_bytes: limits.max_output_bytes,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

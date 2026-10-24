@@ -3,6 +3,10 @@
 use crate::{DomainValue, Version};
 use serde::{Deserialize, Serialize};
 
+/// Version of the shared structured AST transport schema, independent of the
+/// surface language's semantic version.
+pub const AST_SCHEMA_VERSION: Version = Version::new(1, 0, 0);
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructuredTacticsAst {
     pub schema_version: Version,
@@ -82,6 +86,11 @@ pub enum Quantifier {
 pub enum TacticalValue {
     Literal(DomainValue),
     Path(TacticalPath),
+    FilteredCollection {
+        binding: String,
+        collection: TacticalCollection,
+        predicates: Vec<TacticalPredicate>,
+    },
     Count {
         binding: String,
         collection: TacticalCollection,

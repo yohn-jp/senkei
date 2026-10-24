@@ -1,6 +1,8 @@
 use senkei_model::{
-    ApiError, ApiErrorCode, DomainValue, LogicalCu, Observed, StructuredTacticsAst,
-    TacticalCapabilityCall, TacticalDeclaration, TacticalPredicate, Version,
+    derive_invocation_entity_id, derive_projected_entity_id, ApiError, ApiErrorCode,
+    CombatantSide, ContentDigest, DomainValue, EntityId, LogicalCu, MatchId, Observed,
+    ProjectionId, RuleId, StructuredTacticsAst, TacticalCapabilityCall,
+    TacticalDeclaration, TacticalPredicate, TypeId, Version,
 };
 use std::collections::BTreeMap;
 
@@ -59,4 +61,47 @@ fn logical_cu_serializes_as_an_exact_json_integer() {
     assert_eq!(serde_json::to_string(&LogicalCu(17)).unwrap(), "17");
     assert!(LogicalCu(LogicalCu::MAX_SAFE_JSON_INTEGER).is_json_safe());
     assert!(!LogicalCu(LogicalCu::MAX_SAFE_JSON_INTEGER + 1).is_json_safe());
+}
+
+#[test]
+fn entity_ids_are_stable_and_side_scoped() {
+    let digest = ContentDigest::new("a".repeat(64));
+    let projection = ProjectionId::from("core");
+    let entity_type = TypeId::from("base");
+    let key = DomainValue::String("core".into());
+    let attacker = derive_projected_entity_id(
+        &digest,
+        &projection,
+        &entity_type,
+        Some(CombatantSide::Attacker),
+        &key,
+    )
+    .unwrap();
+    let attacker_again = derive_projected_entity_id(
+        &digest,
+        &projection,
+        &entity_type,
+        Some(CombatantSide::Attacker),
+        &key,
+    )
+    .unwrap();
+    let defender = derive_projected_entity_id(
+        &digest,
+        &projection,
+        &entity_type,
+        Some(CombatantSide::Defender),
+        &key,
+    )
+    .unwrap();
+    assert_eq!(attacker, attacker_again);
+    assert_ne!(attacker, defender);
+
+    let match_id = MatchId::from("m1");
+    let rule = RuleId::from("spawn");
+    let created = derive_invocation_entity_id(&match_id, 3, CombatantSide::Attacker, &rule, 1, 0);
+    let created_again = derive_invocation_entity_id(&match_id, 3, CombatantSide::Attacker, &rule, 1, 0);
+    let other_operation = derive_invocation_entity_id(&match_id, 3, CombatantSide::Attacker, &rule, 1, 1);
+    assert_eq!(created, created_again);
+    assert_ne!(created, other_operation);
+    assert!(EntityId::from("unused").as_str() == "unused");
 }

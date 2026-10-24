@@ -14,6 +14,9 @@ pub struct DiagnosticEvent {
     pub tick: u32,
     pub side: CombatantSide,
     pub sequence: u64,
+    /// Null when the event is not attributable to one tactical action/entity.
+    pub action_id: Option<crate::ActionId>,
+    pub entity_id: Option<crate::EntityId>,
     pub record: DiagnosticRecord,
 }
 
@@ -99,5 +102,7 @@ pub enum ApiErrorCode {
     UnsupportedPrimitive,
     BudgetExceeded,
     ResourceLimit,
+    TransitionConflict,
+    ArithmeticOverflow,
     InternalError,
 }

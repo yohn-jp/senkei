@@ -1,9 +1,12 @@
-use crate::{CapabilityId, CollectionId, FieldId, ObservationPath, StateId, SymbolDomainId, SymbolId, TypeId};
+use crate::{
+    CapabilityId, CollectionId, CollectionSource, FieldId, ObservationPath, StateId,
+    SymbolDomainId, SymbolId, TypeId,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// No floating-point value is part of the shared deterministic data model.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum DomainValue {
     Null,
@@ -61,6 +64,7 @@ pub enum Visibility {
 pub struct ObservationFieldSchema {
     pub value_type: DomainType,
     pub visibility: Visibility,
+    pub source: ObservationSource,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,8 +72,19 @@ pub struct CollectionSchema {
     pub element_type: TypeId,
     pub max_items: u32,
     pub visibility: Visibility,
-    /// Every observable collection has a package-defined stable order.
-    pub order_by: Vec<crate::FieldPath>,
+    pub source: CollectionSource,
+    pub visible_fields: BTreeMap<FieldId, ObservationFieldSchema>,
+    /// Compared ascending by typed value; EntityId ascending breaks equal keys.
+    pub order_by: Vec<FieldId>,
+    /// Only these explicitly unique keys are valid for argmin/argmax tie-breaks.
+    pub unique_keys: BTreeSet<CollectionUniqueKey>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum CollectionUniqueKey {
+    EntityId,
+    Fields(Vec<FieldId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -93,6 +108,9 @@ pub struct ParameterSchema {
 pub struct CapabilitySchema {
     pub arguments: Vec<ParameterSchema>,
     pub target_type: Option<TypeId>,
+    pub actor_argument: Option<u16>,
+    pub target_argument: Option<u16>,
+    pub target_owner: TargetOwnerConstraint,
     pub phases: BTreeSet<crate::PhaseId>,
     pub preconditions: Vec<crate::RuleExpression>,
     pub issue_cost: crate::CostOperationId,
@@ -110,6 +128,25 @@ pub struct DomainSchema {
     pub symbol_domains: BTreeMap<SymbolDomainId, BTreeSet<SymbolId>>,
     pub max_expression_depth: u32,
     pub max_collection_items: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum ObservationSource {
+    Tick,
+    WorldGlobalField { field: FieldId },
+    WorldEntityField { entity: crate::WorldEntitySelector, field: FieldId },
+    CurrentEntityField { field: FieldId },
+    Derived(crate::RuleExpression),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TargetOwnerConstraint {
+    Any,
+    OwnSide,
+    OtherSide,
+    Unowned,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

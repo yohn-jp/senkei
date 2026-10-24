@@ -4,6 +4,29 @@ use crate::{
 };
 use std::collections::BTreeSet;
 
+pub const COST_PATH_READ: &str = "jinrei.path_read";
+pub const COST_COMPARISON: &str = "jinrei.comparison";
+pub const COST_ARITHMETIC: &str = "jinrei.arithmetic";
+pub const COST_LOGIC: &str = "jinrei.logic";
+pub const COST_STATE_REFERENCE: &str = "jinrei.state_reference";
+pub const COST_COLLECTION_ITERATION: &str = "jinrei.collection_iteration";
+pub const COST_AGGREGATE: &str = "jinrei.aggregate";
+pub const COST_MEMORY_READ: &str = "jinrei.memory_read";
+pub const COST_MEMORY_WRITE: &str = "jinrei.memory_write";
+pub const COST_CAPABILITY_ISSUE: &str = "jinrei.capability_issue";
+pub const REQUIRED_JINREI_COST_OPERATIONS: [&str; 10] = [
+    COST_PATH_READ,
+    COST_COMPARISON,
+    COST_ARITHMETIC,
+    COST_LOGIC,
+    COST_STATE_REFERENCE,
+    COST_COLLECTION_ITERATION,
+    COST_AGGREGATE,
+    COST_MEMORY_READ,
+    COST_MEMORY_WRITE,
+    COST_CAPABILITY_ISSUE,
+];
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct LogicalCu(pub u64);
@@ -22,7 +45,7 @@ impl LogicalCu {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionBudget {
     pub available_cu: LogicalCu,
     pub max_intents: u32,
@@ -40,11 +63,21 @@ pub struct TacticalExecutionRequest<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TacticalExecutionOutput {
+    pub status: TacticalExecutionStatus,
     pub intents: Vec<Intent>,
     /// Proposed next memory; Enbu commits it atomically at the RulePlan-defined point.
     pub next_memory: TacticalMemory,
     pub charged_cu: LogicalCu,
+    /// Full deterministic cost of the evaluation, before the budget cap.
+    pub required_cu: LogicalCu,
     pub diagnostics: Vec<crate::TacticalDiagnostic>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TacticalExecutionStatus {
+    Completed,
+    BudgetExceeded,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
