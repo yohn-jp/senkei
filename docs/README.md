@@ -15,6 +15,10 @@
 | [PRODUCT.md](PRODUCT.md) | ユーザー、体験、非目標、学習の導線 |
 | [GAMEPLAY.md](GAMEPLAY.md) | 3レーン戦略・兵力・攻守・戦闘ループ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Local-first、コンポーネント・境界・データ |
+| [COMPONENTS.md](COMPONENTS.md) | **名称・責務の正本**: Senkei / Jinrei / Senritsu / Enbu |
+| [JINREI.md](JINREI.md) | Jinrei言語コアとルール依存の区別 |
+| [SENRITSU.md](SENRITSU.md) | Senritsuのルールパッケージ、拡張と型付きCapability |
+| [ENBU.md](ENBU.md) | Enbuの状態遷移、実行境界と結果 |
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
 | [EXECUTION.md](EXECUTION.md) | コンパイル方式、論理CU、物理最適化、戦闘エンジンの入出力・秘匿境界 |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
@@ -28,7 +32,7 @@
 3. Web UIやインフラの推奨技術。
 4. 例示した兵科、数値、名前、アルゴリズム。
 
-数値・コード例は、明示的に確定と書かない限り仕様値ではありません。特にDSLの表層構文やCU単価は次の設計議論で決めます。
+数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本とします。Jinreiの表層構文とCU単価は次の設計議論で決めます。
 
 ## 変更の作法
 

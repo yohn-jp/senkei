@@ -4,11 +4,11 @@
 
 この文書は戦術言語のコンパイル、論理CU、戦闘エンジンの実行形式、結果出力に関する合意済みのアーキテクチャ契約を定義する。具体的な言語名、表層文法、型の具体名、CU単価は未決定であり、ここでは固定しない。
 
-- 戦術言語は**コンパイル型DSL**。人が記述した戦術を直接JavaScript/Rustなどの任意コードとして実行しない。
-- コンパイルした戦術は、検証可能な**専用バイトコード**としてRust製の**Senkei VM**が実行する。
-- Senkei VM・コンパイラ・戦闘エンジン自体はRust製で、ブラウザ配布時に**WASMバイナリ**へコンパイルする。プレイヤーの戦術を毎回WASMへコンパイルするわけではない。
+- Jinrei（陣令）は**コンパイル型DSL**。人が記述した戦術を直接JavaScript/Rustなどの任意コードとして実行しない。
+- コンパイルした戦術は、検証可能な**専用バイトコード**としてRust製の**Jinrei VM**が実行する。
+- Jinrei VM・コンパイラ・EnbuエンジンはRust製で、ブラウザ配布時に**WASMバイナリ**へコンパイルする。プレイヤーの戦術を毎回WASMへコンパイルするわけではない。
 - ゲーム内CUは論理的な計算資源。実際のCPU時間、WASM命令数、メモリ帯域、JIT、SIMD、ホスト性能と切り離す。
-- 戦闘エンジンは双方の戦型とルール・戦場の確定スナップショットを受け、勝敗・統計・描画用リプレイを計算して返す。描画、アカウント、DB、レーティング、チケットは担当しない。
+- Enbuは双方の戦型と検証済みSenritsu・戦場の確定スナップショットを受け、勝敗・統計・描画用リプレイを計算して返す。描画、アカウント、DB、レーティング、チケットは担当しない。
 
 ## 2. コンパイルパイプライン
 
@@ -30,13 +30,13 @@
                                        Tactical Bytecode
                                               │
                                               ↓
-                                     Senkei VM (written in Rust)
+                                     Jinrei VM (written in Rust)
                                       ├─ Native binary
                                       └─ WASM binary (browser)
 
 ノーコードとコードで等価の戦術を構築した場合、等価の正規化IR、CU意味論および戦闘結果へ収束させる。正本はパース時のASTではなく、型と意味を検証した構造化IR。GUIは任意の合法IRを汎用ノードとして損失なく表現できることを目標にする。
 
-Typed Semantic IRは「何を計算するか」を表す。Costed Logical IRは、計算対象・条件・評価回数とCU課金可能な論理演算を確定する。専用バイトコードはその契約を実行する形式であり、WASMバイナリとは別物。
+Typed Semantic IRは「何を計算するか」を表す。Costed Logical IRは、計算対象・条件・評価回数とCU課金可能な論理演算を確定する。専用バイトコードはその契約を実行する形式であり、WASMバイナリとは別物。Senritsuは独立した不変のルールパッケージとしてDomain SchemaとCapability/CU契約をJinreiに提供する。Enbuは検証済みRulePlanを解決して、Jinrei VMから返された命令候補を規則に沿って適用する。責務の正本は [COMPONENTS.md](COMPONENTS.md)。
 
 ## 3. 論理CUと物理最適化の隔離
 
@@ -67,9 +67,10 @@ Typed Semantic IRは「何を計算するか」を表す。Costed Logical IRは�
 
 概念上の契約は次のとおり。実際のRust API・型名・シリアライズ形式は未確定。
 
-    simulate(
+    Enbu.simulate(
       attacker: ValidatedCombatantSnapshot,
       defender: ValidatedCombatantSnapshot,
+      rules: VerifiedSenritsu,
       context: ImmutableMatchContext
     ) -> SimulationArtifact
 
@@ -116,4 +117,4 @@ Rustの同一コアから、ローカルブラウザ用のWASM版と、ヘッド
 
 ## 8. 未決定
 
-戦術言語名、型の具体名称、予約語・文法、バイトコード命令集合、Costed IRの正確な操作一覧とCU単価、最適化の規範的正規化規則、結果とリプレイの正式なデータスキーマ、公式戦の実行インフラは次の詳細設計・実測で決める。
+Jinreiの型の具体名称、予約語・文法、バイトコード命令集合、Costed IRの正確な操作一覧とCU単価、最適化の規範的正規化規則、結果とリプレイの正式なデータスキーマ、公式戦の実行インフラは次の詳細設計・実測で決める。

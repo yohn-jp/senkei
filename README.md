@@ -8,7 +8,7 @@ Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦�
 
 最初の製品は**ローカル完結のPvE・戦術開発環境**です。オフラインのブラウザ内で戦術を編集し、NPCに何度でも挑戦し、リプレイとCU（戦術計算資源）のプロファイルを確認できることを目指します。オンラインの公式非同期PvP、チケット、レートは将来の追加機能であり、初期段階の依存要件ではありません。
 
-- Rust製の共有ルール・コンパイラ・戦術VM・戦闘シミュレーター
+- Senkei（戦型）・Jinrei（陣令）・Senritsu（戦律）・Enbu（演武）に責務分離したRust製コア
 - WebAssemblyで実行するブラウザ内シミュレーション
 - TypeScriptを中心とするノーコード／テキストの戦術編集UI
 - IndexedDB等へのローカル保存と戦術バージョン管理
@@ -22,6 +22,10 @@ Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦�
 - [製品ビジョン・体験](docs/PRODUCT.md)
 - [戦場・ゲームループ](docs/GAMEPLAY.md)
 - [システムアーキテクチャ](docs/ARCHITECTURE.md)
+- [4コンポーネントの名称と責務（正本）](docs/COMPONENTS.md)
+- [Jinrei（陣令）：戦術言語とルールの境界](docs/JINREI.md)
+- [Senritsu（戦律）：ルールセット契約](docs/SENRITSU.md)
+- [Enbu（演武）：シミュレーション契約](docs/ENBU.md)
 - [独自言語・共通IR・CUモデル](docs/TACTICS.md)
 - [コンパイル・論理CU・戦闘エンジンの入出力境界](docs/EXECUTION.md)
 - [決定論的シミュレーション・検証](docs/SIMULATION.md)

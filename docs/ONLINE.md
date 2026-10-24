@@ -21,10 +21,10 @@
     Admission API: authenticate, authorize, validate ticket & snapshot
                  |
                  v
-    Match Authority: fix both immutable strategies + ruleset version
+    Match Authority: fix both Senkei snapshots + Senritsu digest
                  |
                  v
-    Authoritative Simulation Job: validate and run shared battle semantics
+    Enbu Job: validate Jinrei bytecode, run verified Senritsu
                  |
                  v
     Atomic Settlement: persist result, ticket accounting, ratings
@@ -83,3 +83,7 @@
 公式戦では両戦型をサーバーのみが同時に読み、公開用の`PresentationReplay`を生成する。これは戦場で観測可能な行動・状態差分のみから構成し、**相手のソース・バイトコード・Typed IR・内部条件・秘密状態・内部CUトレースを含めない**。公開イベントは許可リスト方式で生成する。攻撃者には自軍のデバッグ情報と対戦上観測可能な敵の挙動だけを見せ、相手の戦型の完全な解析情報は与えない。
 
 権威再計算用の不変入力と完全な診断情報はサーバー側でアクセス制御する。公開リプレイから相手の戦術挙動を推測する可能性は残るため、コードの非公開とブラックボックス性は区別する。戦術の公開・Forkは所有者が明示した範囲に限定する。
+
+## 9. 四コンポーネントのオンライン境界
+
+将来の公式戦で永続化する戦型はSenkeiスナップショット。Jinreiはプレイヤー戦術のコンパイル・評価を受け持ち、Enbuが検証済みSenritsuのルールを用いて1試合を完走する。Cloudflare等のAPI・認証・チケット・レートは四つのコアとは別のオンラインアダプター。公式戦サーバーだけが両者の非公開戦術を読み、クライアントへは許可されたリプレイを返す。

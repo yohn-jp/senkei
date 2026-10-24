@@ -4,7 +4,7 @@
 
 **最初は完全ローカルで動く。** ブラウザ上でPvE・編集・コンパイル・戦闘・デバッグ・ベンチマークが成立し、アカウント・サーバーAPI・ネット接続を必要としない構成を目標とします。静的アセットの初回取得と、その後のオフライン実行は区別します。
 
-戦闘ルール・戦術コンパイラ・実行VMはバックエンドのサービス実装に従属させません。公式PvP追加時は、同じ戦闘意味論を権威的なサーバーで実行します。
+Senritsu（戦律）のルール定義、Jinrei（陣令）の戦術コンパイラ・VM、Enbu（演武）の決定論的シミュレーションは異なる責務です。公式PvP追加時は、同じ戦闘意味論を権威的なサーバーで実行します。
 
 ## 2. 論理コンポーネント
 
@@ -15,14 +15,13 @@
       ├─ Debugger / Replay / Profiler │
       ├─ Local Persistence            │
       └─ Web Worker                   │
-           └─ Rust / WASM Core <──────┘
-                ├─ Domain & Ruleset
-                ├─ DSL Parser / Type Checker
-                ├─ Canonical Typed IR / Validator
-                ├─ Costed IR / Bytecode Compiler
-                ├─ CU Meter & Tactics VM
-                ├─ Battle Simulation
-                └─ Trace / Replay
+           └─ Rust / WASM Runtime <──────┘
+                ├─ Senritsu: Versioned Rules + Domain Schema
+                ├─ Jinrei: Parser / Types / Costed IR / VM
+                └─ Enbu: Tick / State / Transitions / Results
+                            ├─ MatchResult
+                            ├─ PresentationReplay
+                            └─ RestrictedDiagnostics
 
     Future only: Cloudflare-hosted official battle authority
       ├─ API / Authentication / Ranked Admission
@@ -30,13 +29,14 @@
       ├─ Authoritative core execution
       └─ Rating, persistence, replay distribution
 
-データフローは編集 → 解析・型検査 → Typed IR → Costed IR → 専用バイトコード → 戦術VM → シミュレーション → 結果・リプレイ生成です。UIは勝敗計算を所有せず、コアが唯一のゲーム規則を実装します。Rustで実装したVM自体をWASMへコンパイルするのであって、戦術コードを直接WASMへ変換しません。完全な実行契約は [EXECUTION.md](EXECUTION.md) に定義します。
+データフローは Senkei編集 → Jinrei解析・型検査（Senritsuスキーマを参照）→ Typed IR → Costed IR → 専用バイトコード → Jinrei VM（Enbuから呼び出す）→ Enbuのルール遷移 → 結果・リプレイ生成です。UIは勝敗計算を所有せず、コアが唯一のゲーム規則を実装します。Rustで実装したVM自体をWASMへコンパイルするのであって、戦術コードを直接WASMへ変換しません。完全な実行契約は [EXECUTION.md](EXECUTION.md) に定義します。
 
 ## 3. 技術選択
 
 | 対象 | 方針 | 状態 |
 | --- | --- | --- |
-| 戦闘ルール・コンパイラ・VM | Rust | 推奨 |
+| Jinreiコンパイラ・VM、Enbu実行エンジン | Rust | 推奨 |
+| Senritsuルールパッケージ | 型付き・検証済みデータと有限の遷移プリミティブ | 確定方向 |
 | ブラウザ内エンジン | RustをWebAssemblyへコンパイル | 確定方向 |
 | UI・エディタ | TypeScript / React | 推奨 |
 | メインスレッドからの隔離 | Web Worker | 推奨 |
@@ -50,13 +50,11 @@ Web WorkerとWASMの間のAPIは型付きのバージョン付きデータ契約
 ## 4. ソース構造（提案。必要に応じて統合可）
 
     crates/
-      domain/      # ユニット、レーン、施設、ルール
-      tactics/     # 戦術DSL / Typed IR / 検証
-      compiler/    # パーサ、型検査、正規化・最適化
-      vm/          # CUを計測する戦術実行
-      simulation/  # Tick型の戦闘
-      replay/      # トレースと検証可能なリプレイ
-      wasm/        # ブラウザ向け型付き境界
+      senkei-model/  # 戦型と不変Combatant Snapshot
+      jinrei/        # 戦術言語 / 型付きIR / CU / 専用VM
+      senritsu/      # ルールスキーマ / 検証 / RulePlan
+      enbu/          # Tick / 遷移 / 調停 / 結果生成
+      wasm/          # ブラウザ向け型付き境界
     apps/
       web/         # 編集、戦場、デバッグ、PvE
       server/      # 将来追加（初期には作らない）
@@ -67,7 +65,7 @@ Web WorkerとWASMの間のAPIは型付きのバージョン付きデータ契約
       conformance/
       balance/
 
-crate数の多さを目的にしません。依存関係はdomain→言語／VM／simulation→adapterのように単方向とし、戦闘コアがブラウザやCloudflareのAPIをインポートしないことを優先します。
+crate数の多さを目的にしません。Senritsuの型付きパッケージをJinreiコンパイラとEnbuがそれぞれ検証・利用し、EnbuはJinreiの実行ポートだけを呼ぶようにします。言語のパーサ／コンパイラとEnbuのワールド遷移を循環依存させず、戦闘コアがブラウザやCloudflareのAPIをインポートしないことを優先します。パッケージ間の詳細契約は [COMPONENTS.md](COMPONENTS.md) が正本です。
 
 ## 5. ストレージとバージョン（確定原則）
 
@@ -91,6 +89,6 @@ crate数の多さを目的にしません。依存関係はdomain→言語／VM�
 
 ## 8. エンジンの境界（確定）
 
-戦闘エンジンは、検証済み攻撃戦型・防衛戦型と不変の戦場／ルールを入力し、完全自動で計算を完了して結果と描画用イベントを返す。対戦申請、チケット、レーティング、データ永続化、描画は担当しない。内部戦闘状態は試合中だけ保持し、永続的なネットワークセッションは要求しない。
+Enbuは、検証済み攻撃戦型・防衛戦型と不変のSenritsu／戦場定義を入力し、完全自動で計算を完了して結果と描画用イベントを返す。対戦申請、チケット、レーティング、データ永続化、描画は担当しない。内部戦闘状態は試合中だけ保持し、永続的なネットワークセッションは要求しない。
 
 ブラウザ側はローカルPvEでは同じWASMコアを実行する。将来の公開戦はサーバーが同じ意味論を権威実行し、クライアントは戦闘結果と表示を許されたイベントを再生する。対戦相手の非公開IRを描画のために配布しない。内部トレースと公開リプレイは別データ契約にする。
