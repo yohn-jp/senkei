@@ -5,6 +5,7 @@ import type {
   RulePackage,
 } from "../../../apps/web/src/contracts/core-model";
 import { presentationToGraphics } from "./next-adapter";
+import { decodeReplay, type PresentationReplay } from "./index";
 
 function project(edges = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
@@ -15,6 +16,7 @@ function project(edges = [
     next: {
       parameters: { tick_duration_ms: 100 },
       map: {
+        attacker_base: "attacker", defender_base: "defender",
         nodes: {
           attacker: { x: 0, y: 0, region: "base" },
           camp: { x: 250, y: 125, region: "jungle" },
@@ -55,6 +57,12 @@ describe("Next map graph projection", () => {
         points: [{ x: 0, y: 0 }, { x: 10, y: 5 }],
       },
     ]);
+    expect(replay.scene.baseSites).toEqual([
+      {id:"attacker",side:"azure",position:{x:0,y:0}},
+      {id:"defender",side:"vermilion",position:{x:20,y:10}},
+    ]);
+    // Known geography remains available without revealing a live base entity.
+    expect(replay.initialView).toEqual([]);
     expect(replay.scene.camps).toEqual([
       { id: "camp-nw", position: { x: 10, y: 5 } },
     ]);
@@ -69,5 +77,20 @@ describe("Next map graph projection", () => {
     expect(() => project([
       { from: "attacker", to: "absent", length: 1, region: "jungle", blocked: false },
     ])).toThrow("Missing public map node: absent");
+  });
+});
+
+
+describe("known base geography", () => {
+  it("rejects live/private state in static sites and validates authored positions", () => {
+    const withHp = structuredClone(project()) as PresentationReplay;
+    Object.assign(withHp.scene.baseSites![0]!, {hp: 999});
+    expect(() => decodeReplay(withHp)).toThrow(/Schema/);
+    const outside = structuredClone(project()) as PresentationReplay;
+    outside.scene.baseSites![0]!.position.x = 100;
+    expect(() => decodeReplay(outside)).toThrow(/outside scene/);
+    const duplicate = structuredClone(project()) as PresentationReplay;
+    duplicate.scene.baseSites![1]!.id = duplicate.scene.baseSites![0]!.id;
+    expect(() => decodeReplay(duplicate)).toThrow(/Duplicate base site/);
   });
 });

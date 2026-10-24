@@ -95,5 +95,6 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
     scene:{ bounds:{min:{x:Math.min(...nodes.map(n=>n.x))/scale-3,y:Math.min(...nodes.map(n=>n.y))/scale-3},max:{x:Math.max(...nodes.map(n=>n.x))/scale+3,y:Math.max(...nodes.map(n=>n.y))/scale+3}},
       lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(nodePoint)})),
       camps:next.camps.map(c=>({id:c.id,position:nodePoint(c.node)})),
+      baseSites:[{id:next.map.attacker_base,side:"azure",position:nodePoint(next.map.attacker_base)},{id:next.map.defender_base,side:"vermilion",position:nodePoint(next.map.defender_base)}],
       routes:next.map.edges.flatMap((edge,index)=>edge.blocked?[]:[{id:`map-edge-${index}`,region:edge.region,points:[nodePoint(edge.from),nodePoint(edge.to)]}]) },initialView,timeline,result });
 }

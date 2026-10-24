@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { KnownBaseSites } from "./base-sites";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
@@ -269,6 +270,7 @@ export class Battlefield {
   private units = new Map<string, THREE.Group>();
   private effects = new THREE.Group();
   private camps = new THREE.Group();
+  private baseSites: KnownBaseSites;
   private state: DisplayState | null = null;
   private playing = false;
   private changedAt = 0;
@@ -337,6 +339,7 @@ export class Battlefield {
     fill.position.set(15, 10, -20);
     this.scene.add(fill);
     this.terrain();
+    this.baseSites = new KnownBaseSites(this.scene, host, replay);
     for (const camp of replay.scene.camps ?? [])
       this.buildCamp(camp.position, camp.id);
     this.scene.add(this.camps);
@@ -1934,6 +1937,7 @@ export class Battlefield {
         element.style.transform = `translate(-50%, calc(-120% + ${sideOffset}px))`;
         element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
       }
+      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       this.canvas.dataset.camera =
         this.camera.position
           .toArray()
@@ -1968,5 +1972,6 @@ export class Battlefield {
     this.canvas.remove();
     this.labels.forEach((label) => label.element.remove());
     this.entityLabels.forEach((label) => label.remove());
+    this.baseSites.dispose();
   }
 }

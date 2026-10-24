@@ -148,6 +148,36 @@
           "items": {
             "$ref": "#/$defs/Route"
           }
+        },
+        "baseSites": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Immutable base locations from the public World map. This is not facility state or visibility.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "side": {
+                "enum": [
+                  "azure",
+                  "vermilion"
+                ]
+              },
+              "position": {
+                "$ref": "#/$defs/WorldPoint"
+              }
+            },
+            "required": [
+              "id",
+              "side",
+              "position"
+            ]
+          }
         }
       },
       "required": [

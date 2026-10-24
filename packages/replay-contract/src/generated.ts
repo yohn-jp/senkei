@@ -101,6 +101,32 @@ export interface PresentationReplay {
      * Traversable map edges projected from the ruleset world graph.
      */
     routes?: Route[];
+    /**
+     * Immutable base locations from the public World map. This is not facility state or visibility.
+     *
+     * @maxItems 2
+     */
+    baseSites?:
+      | []
+      | [
+          {
+            id: string;
+            side: "azure" | "vermilion";
+            position: WorldPoint;
+          }
+        ]
+      | [
+          {
+            id: string;
+            side: "azure" | "vermilion";
+            position: WorldPoint;
+          },
+          {
+            id: string;
+            side: "azure" | "vermilion";
+            position: WorldPoint;
+          }
+        ];
   };
   /**
    * @minItems 0
