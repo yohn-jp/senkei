@@ -964,6 +964,7 @@ fn validate_phases_and_rules(package: &RulePackage, issues: &mut Vec<ValidationI
         }
     }
     for primitive in &package.required_primitives {
+        if package.next.is_some() && matches!(primitive, TransitionPrimitiveKind::BattleNavigation|TransitionPrimitiveKind::BattleVision|TransitionPrimitiveKind::BattleSquads|TransitionPrimitiveKind::BattleCombat) { continue; }
         if !package
             .transitions
             .iter()

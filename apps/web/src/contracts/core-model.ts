@@ -337,6 +337,7 @@ export interface ExecutionPhase {
 }
 
 export type TransitionPrimitiveKind =
+  | "battle_navigation" | "battle_vision" | "battle_squads" | "battle_combat"
   | "set_field"
   | "add_integer"
   | "add_fixed"

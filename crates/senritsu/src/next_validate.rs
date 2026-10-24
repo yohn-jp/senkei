@@ -5,6 +5,13 @@ use std::collections::BTreeSet;
 pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIssue>) {
     let Some(r) = &package.next else { return };
     let mut check = |ok: bool, path: &str, message: &str| { if !ok { issues.push(ValidationIssue::new("invalid_next_rules",path,message)); } };
+    let mut supported=package.clone();
+    crate::next_domain::configure(&mut supported);
+    check(package.domain==supported.domain && package.world==supported.world,"domain","next finite primitives require their registered typed visibility and capability schema");
+    check(package.transitions.is_empty(),"transitions","next mechanics execute only their registered finite phases");
+    for value in r.parameters.values() { check((0..=1_000_000).contains(value),"next.parameters","parameters must fit bounded nonnegative deterministic arithmetic"); }
+    for unit in r.minions.iter().chain(r.monsters.iter()) { check((0..=1_000_000).contains(&unit.xp),"next.units.xp","XP rewards exceed supported bounds"); }
+    check(r.parameters.get("xp_scale")==Some(&2520),"next.parameters.xp_scale","exact XP storage requires 2520 quanta per XP");
     check(r.mechanics_version == Version::new(1,0,0),"next.mechanics_version","unsupported finite battle mechanics version");
     check(package.minimum_engine_version >= Version::new(1,1,0),"minimum_engine_version","next mechanics require Enbu 1.1.0");
     check(r.heroes.len()==12,"next.heroes","catalog must contain exactly twelve Heroes");
@@ -18,7 +25,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         check(!h.skill_paths.is_empty() && !h.skills.is_empty(),"next.heroes.skills","Heroes require configured skill paths");
         let skills:BTreeSet<_>=h.skills.iter().map(|s|s.id.as_str()).collect();
         check(skills.len()==h.skills.len(),"next.heroes.skills","duplicate skill ID");
-        for skill in &h.skills { check(skill.cooldown>=0 && skill.cost>=0 && skill.unlock_level>=1 && skill.prerequisites.iter().all(|id|skills.contains(id.as_str())),"next.heroes.skills","invalid skill prerequisites or cost"); }
+        for skill in &h.skills { check((0..=1_000_000).contains(&skill.cooldown) && (0..=1_000_000).contains(&skill.duration) && (0..=1_000_000).contains(&skill.power) && (0..=1_000_000).contains(&skill.range) && (0..=1_000_000).contains(&skill.cost) && skill.unlock_level>=1 && skill.prerequisites.iter().all(|id|skills.contains(id.as_str())),"next.heroes.skills","invalid skill prerequisites or cost"); }
         for path in h.skill_paths.values() { let mut acquired=BTreeSet::new(); for id in path { if let Some(skill)=h.skills.iter().find(|s| &s.id==id) { check(skill.prerequisites.iter().all(|p|acquired.contains(p)),"next.heroes.skill_paths","path does not satisfy prerequisite order"); acquired.insert(id.clone()); } else { check(false,"next.heroes.skill_paths","path references absent skill"); } } }
     }
     check(r.map.nodes.contains_key(&r.map.attacker_base) && r.map.nodes.contains_key(&r.map.defender_base),"next.map","map bases must exist");
@@ -28,6 +35,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     for lane in ["top","mid","bot"] { check(r.map.lanes.get(lane).is_some_and(|p|p.len()>=2 && p.first()==Some(&r.map.attacker_base) && p.last()==Some(&r.map.defender_base) && p.iter().all(|id|r.map.nodes.contains_key(id))),"next.map.lanes","all three base-to-base lanes are required"); }
     for camp in &r.camps { check(r.map.nodes.contains_key(&camp.node) && r.monsters.iter().any(|m|m.id==camp.monster) && camp.respawn_ticks>0,"next.camps","invalid camp position/type/respawn"); }
     check(!r.minions.is_empty() && r.camps.len()>=2,"next","minion waves and multiple camps required");
-    const CAPS: &[&str]= &["move","pursue","retreat","activate","split","merge","regroup","target"];
+    for primitive in [TransitionPrimitiveKind::BattleNavigation,TransitionPrimitiveKind::BattleVision,TransitionPrimitiveKind::BattleSquads,TransitionPrimitiveKind::BattleCombat] { check(package.required_primitives.contains(&primitive),"required_primitives","next requires all finite battle primitives"); }
+    const CAPS: &[&str]= &["move","pursue","retreat","activate","split","merge","regroup"];
     check(package.domain.capabilities.keys().all(|id| CAPS.contains(&id.as_str())),"domain.capabilities","unsupported finite battle capability");
 }

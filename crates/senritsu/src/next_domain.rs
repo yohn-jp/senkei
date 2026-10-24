@@ -58,7 +58,7 @@ pub fn configure(package: &mut RulePackage) {
     };
     package.world = world_schema(&skill_ids, tower_count);
     package.phases = phases();
-    package.required_primitives.clear();
+    package.required_primitives = [TransitionPrimitiveKind::BattleNavigation,TransitionPrimitiveKind::BattleVision,TransitionPrimitiveKind::BattleSquads,TransitionPrimitiveKind::BattleCombat].into_iter().collect();
     package.transitions.clear();
     package.arbitration = arbitration(package.limits.max_intents_per_side_per_tick);
     package.termination = TerminationPolicy {
@@ -188,7 +188,7 @@ fn hero_entity_schema(skill_ids: &BTreeSet<FieldId>) -> EntityTypeSchema {
         (id("slot_id"), field(string_type(48), Visibility::OwningSide, false)),
         (id("squad"), field(string_type(64), Visibility::OwningSide, true)),
         (id("skill_path"), field(string_type(MAX_STRING_BYTES), Visibility::OwningSide, false)),
-        (id("xp"), field(int_type(0, MAX_INT), Visibility::OwningSide, true)),
+        (id("xp"), field(int_type(0, 9_007_199_254_740_991), Visibility::OwningSide, true)),
         (id("level"), field(int_type(1, MAX_INT), Visibility::Public, true)),
         (id("maturity"), field(int_type(0, MAX_INT), Visibility::Public, true)),
         (id("formation"), field(int_type(0, 5), Visibility::Public, true)),
@@ -645,7 +645,8 @@ mod tests {
         assert_eq!(package.minimum_engine_version, NEXT_ENGINE_VERSION);
         assert!(package.world_initialization.entities.is_empty());
         assert!(package.transitions.is_empty());
-        assert!(package.required_primitives.is_empty());
+        assert_eq!(package.required_primitives.len(), 4);
+        assert!(package.required_primitives.contains(&TransitionPrimitiveKind::BattleCombat));
         assert!(!package.world.entity_types.contains_key(&TypeId::from("unit")));
         assert!(!package.domain.collections.contains_key(&CollectionId::from("allies.units")));
         assert_eq!(package.termination.max_ticks, 375);

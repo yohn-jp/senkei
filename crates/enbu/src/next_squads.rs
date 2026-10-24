@@ -43,7 +43,7 @@ pub fn initialize(
 
     let seeds = parse_loadout(snapshot, side, rules)?;
     let starting_level = support::param(rules, "hero_start_level", 1);
-    let starting_xp = support::param(rules, "hero_start_xp", 0);
+    let starting_xp = support::param(rules, "hero_start_xp", 0).saturating_mul(2520);
     let starting_energy = support::param(rules, "hero_initial_energy", 100);
     if starting_level < 1 || starting_xp < 0 || starting_energy < 0 {
         return Err(invalid("Hero starting level, XP, and energy must be non-negative (level at least one)"));
@@ -215,6 +215,7 @@ pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
         support::set_int(entity, "hp", max_hp);
         support::set_int(entity, "attack_ready", i64::from(tick));
         support::set_string(entity, "goal", "");
+        entity.fields.insert("target".into(), DomainValue::Null);
         support::set_string(entity, "lane", "");
         support::set_string(entity, "squad", solo_id);
         support::set_int(entity, "maturity", 0);

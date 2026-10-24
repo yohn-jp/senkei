@@ -133,8 +133,9 @@ pub fn simulate<P: TacticalExecutionPort>(
             break;
         }
 
+        let mut objective_events = Vec::new();
         if let Some(next) = &plan.next {
-            next_combat::objective_lifecycle(&mut world, next, tick);
+            objective_events = next_combat::objective_lifecycle(&mut world, next, tick);
             next_vision::lifecycle(&mut world, next, tick);
         }
         // Freeze observations before calling either side. Executor call order
@@ -306,6 +307,7 @@ pub fn simulate<P: TacticalExecutionPort>(
             next_tactics::apply(&mut world, next, &accepted_by_side, tick);
             next_navigation::advance(&mut world, next, tick);
             next_events = next_combat::resolve(&mut world, next, &accepted_by_side, tick);
+            next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
             event_count = event_count.checked_add(next_events.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit,"event count overflow"))?;
@@ -369,7 +371,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         schema_version: Version::new(1, 0, 0),
         match_id: context.match_id.clone(),
         result_digest: result_digest.clone(),
-        frames: replay_frames,
+        frames: if plan.next.is_some() { project_replay_identities(replay_frames) } else { replay_frames },
     };
     let diagnostics = RestrictedDiagnostics {
         events: diagnostics,
@@ -384,7 +386,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         rule_package_digest: rules.package_digest().clone(),
         context: context.clone(),
     };
-    let owner_replay = plan.next.as_ref().map(|_| PresentationReplay { perspective:Some(CombatantSide::Attacker),schema_version:Version::new(1,0,0),match_id:context.match_id.clone(),result_digest,frames:owner_frames });
+    let owner_replay = plan.next.as_ref().map(|_| PresentationReplay { perspective:Some(CombatantSide::Attacker),schema_version:Version::new(1,0,0),match_id:context.match_id.clone(),result_digest,frames:project_replay_identities(owner_frames) });
     let artifact = SimulationArtifact { owner_replay, result, replay, diagnostics, reproduction };
     let response_size = serde_json::to_vec(&artifact.public_response())
         .map_err(|_| api_error(ApiErrorCode::InternalError, "public simulation response could not be measured"))?
@@ -1119,4 +1121,43 @@ fn observation(world: &WorldState, plan: &RulePlan, side: CombatantSide, tick:u3
 fn event_references_known(event:&senkei_model::PresentationEvent,before:&senkei_model::WorldStateView,after:&senkei_model::WorldStateView)->bool {
     let known=|id:&senkei_model::EntityId|before.entities.contains_key(id)&&after.entities.contains_key(id);
     event.entity.as_ref().is_some_and(known) && event.payload.values().all(|v|match v { DomainValue::Entity(id)=>known(id),DomainValue::List(_)|DomainValue::Record(_)=>false,_=>true })
+}
+
+/// Strip internal roster keys before either presentation channel leaves Enbu.
+/// Visibility re-entry and a confirmed respawn allocate a new incarnation.
+fn project_replay_identities(mut frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
+    use senkei_model::{EntityId,EntityStateView};
+    let mut active:BTreeMap<EntityId,(EntityId,i64)>=BTreeMap::new();
+    let mut serial=0_u64;
+    for frame in &mut frames {
+        let Some(view)=&mut frame.visible_state else { continue };
+        active.retain(|raw,_|view.entities.contains_key(raw));
+        for (raw,entity) in &view.entities {
+            let hp=match entity.fields.get(&"hp".into()) { Some(DomainValue::Integer(hp))=>*hp,_=>0 };
+            let respawn=active.get(raw).is_some_and(|(_,old_hp)| *old_hp<=0 && hp>0);
+            if !active.contains_key(raw)||respawn { serial+=1;active.insert(raw.clone(),(EntityId::new(format!("visible-{serial}")),hp)); }
+            else if let Some((_,old_hp))=active.get_mut(raw) { *old_hp=hp; }
+        }
+        for event in &mut frame.events {
+            event.entity=event.entity.as_ref().and_then(|raw|active.get(raw).map(|(id,_)|id.clone()));
+            for value in event.payload.values_mut() { if let DomainValue::Entity(raw)=value { *value=active.get(raw).map(|(id,_)|DomainValue::Entity(id.clone())).unwrap_or(DomainValue::Null); } }
+        }
+        let entities=std::mem::take(&mut view.entities);
+        view.entities=entities.into_iter().filter_map(|(raw,entity)|active.get(&raw).map(|(id,_)|(id.clone(),EntityStateView { ..entity }))).collect();
+    }
+    frames
+}
+
+#[cfg(test)]
+mod next_projection_tests {
+    use super::*;
+    #[test]
+    fn presentation_keys_hide_private_slots_and_rotate_on_visibility_or_respawn() {
+        let raw=senkei_model::EntityId::from("hero:defender:PRIVATE-SLOT");
+        let frame=|tick,hp:Option<i64>| ReplayFrame { tick,events:Vec::new(),visible_state:Some(senkei_model::WorldStateView { entities:hp.map(|hp|BTreeMap::from([(raw.clone(),senkei_model::EntityStateView { entity_type:"hero".into(),owner:Some(CombatantSide::Defender),fields:BTreeMap::from([("hp".into(),DomainValue::Integer(hp))]) })])).unwrap_or_default(),global_fields:BTreeMap::new() }) };
+        let frames=project_replay_identities(vec![frame(0,Some(10)),frame(1,None),frame(2,Some(10)),frame(3,Some(0)),frame(4,Some(10))]);
+        let id=|n:usize|frames[n].visible_state.as_ref().unwrap().entities.keys().next().unwrap().clone();
+        assert_ne!(id(0),id(2));assert_ne!(id(2),id(4));
+        assert!(!serde_json::to_string(&frames).unwrap().contains("PRIVATE-SLOT"));
+    }
 }

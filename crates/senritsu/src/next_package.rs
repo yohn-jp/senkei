@@ -13,6 +13,7 @@ pub fn next_package() -> RulePackage {
 pub fn next_engine_compatibility() -> EngineCompatibility {
     let mut engine=crate::initial_engine_compatibility();
     engine.engine=Version::new(1,1,0);
+    engine.available_primitives.extend([TransitionPrimitiveKind::BattleNavigation,TransitionPrimitiveKind::BattleVision,TransitionPrimitiveKind::BattleSquads,TransitionPrimitiveKind::BattleCombat]);
     engine
 }
 #[cfg(test)]
