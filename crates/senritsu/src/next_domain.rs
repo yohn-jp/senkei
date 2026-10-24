@@ -75,7 +75,7 @@ pub fn configure(package: &mut RulePackage) {
     package.limits.max_intents_per_side_per_tick = 32;
     package.limits.max_events = 200_000;
     package.limits.max_diagnostic_events = 250_000;
-    package.limits.max_output_bytes = 16_000_000;
+    package.limits.max_output_bytes = 32_000_000;
     package.limits.max_value_depth = 32;
 }
 
@@ -193,6 +193,8 @@ fn hero_entity_schema(skill_ids: &BTreeSet<FieldId>) -> EntityTypeSchema {
         (id("maturity"), field(int_type(0, MAX_INT), Visibility::Public, true)),
         (id("formation"), field(int_type(0, 5), Visibility::Public, true)),
         (id("respawn_at"), field(tick_type(), Visibility::OwningSide, true)),
+        (id("life_generation"), field(int_type(0, MAX_INT), Visibility::Internal, true)),
+        (id("passive_generation"), field(int_type(0, MAX_INT), Visibility::Internal, true)),
         (id("energy"), field(int_type(0, MAX_INT), Visibility::Public, true)),
         (id("skills"), field(
             DomainType::List { element: Box::new(string_type(MAX_STRING_BYTES)), max_items: 64 },

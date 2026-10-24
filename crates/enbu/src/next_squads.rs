@@ -488,7 +488,13 @@ fn placement_rank(placement: &str) -> u8 {
 }
 
 fn hero_entity_id(side: CombatantSide, slot_id: &str) -> EntityId {
-    EntityId::from(format!("hero:{}:{slot_id}", support::side_name(side)))
+    senkei_model::derive_projected_entity_id(
+        &senkei_model::ContentDigest::new("0".repeat(64)),
+        &senkei_model::ProjectionId::from("next.hero"),
+        &senkei_model::TypeId::from("hero"),
+        Some(side),
+        &DomainValue::String(slot_id.to_owned()),
+    ).expect("a string Hero key is valid")
 }
 
 fn base_node(side: CombatantSide, rules: &NextRules) -> &str {

@@ -254,7 +254,15 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         replay: public.replay,
         diagnostics: request
             .include_diagnostics
-            .then(|| artifact.diagnostics.clone()),
+            .then(|| {
+                let mut diagnostics=artifact.diagnostics.clone();
+                if rules.plan().next.is_some() {
+                    diagnostics.events.retain(|event| event.side == senkei_model::CombatantSide::Attacker);
+                    diagnostics.cu_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
+                    diagnostics.final_memory_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
+                }
+                diagnostics
+            }),
     };
     Ok((encode(&response, "result")?, max_output_bytes))
 }
