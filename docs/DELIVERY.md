@@ -94,3 +94,16 @@ Jinreiの表層文法と評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md
 戦闘コアのPhase A–Eは維持する。表示側は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) のG1–G5として**別トラック**で段階的に実装できる。最初のG1ではSchema・合成Fixture・Replay Player・Pixel 3D戦場を縦断し、実ブラウザで再生・停止・シークを確認する。Enbuを実装済みと偽ることなく、先に描画品質を実測・評価する。デスクトップとモバイルは [UI-DESIGN.md](UI-DESIGN.md) の別操作モデルを適用する。
 
 G1の実装・CI・描画検証が終わるまでは、アーキテクチャ文書の存在だけを完成証拠として扱わない。
+
+## 8. 次期Senritsuゲームデザインと既存実装の分離
+
+最新のMOBA型マップ・Hero・Squad・ジャングル・視界の設計は、[WORLD.md](WORLD.md)／[UNITS.md](UNITS.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) に記録する。現行のPhase A–DとGraphics G1は小規模初期Senritsu／固定Fixtureによる**既存の実装**である。これらの設計文書だけで新ルールが実装されたとは判定しない。
+
+次の実装で区別すべき単位：
+1. 次期Senritsu RulePackageのWorld／Hero Catalog／観測／Capability／数値と、互換性・版検証。
+2. Enbuの必要な有限遷移プリミティブ（視界・移動・Squad・XP・復活等）の実装と決定論テスト。
+3. Jinrei v0.1の文法を維持したDomain Schema／Skill Tree／合流Intentの公開と型検査。
+4. Enbu PresentationReplayを消費するRendererのMOBA型広域マップ／ジャングル表示（[GRAPHICS.md](GRAPHICS.md)）。既存G1の小型サンプルとは区別。
+5. [BALANCE.md](BALANCE.md) の複数異なる対戦ケースによる係数・連携・XPの検証。
+
+既存の完成済み部分を無断で再実装せず、次期Senritsuの導入は別実装スコープとして管理する。未確定数値は明示的に選び、現在の古いコード値を最新の合意値だと推測しない。

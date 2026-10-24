@@ -8,7 +8,7 @@ Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦�
 
 この実装の対象は、**ローカル完結のPvE・戦術開発環境**です。ブラウザ内のエディタ、NPCキャンペーン、決定論的な戦闘、公開リプレイとローカル診断、IndexedDBへの保存、キャッシュ済みアセットを使うオフライン再戦を含みます。公式PvP、アカウント、サーバー保存はこの範囲に含みません。
 
-この作業ブランチ `impl/phase-a-d` はまだ `main` にマージされていません。受入条件と検証状況は [コア検証手順](docs/implementation/CORE-VALIDATION.md)、[受入テスト行列](tests/README.md)、[デリバリー計画](docs/DELIVERY.md)を参照してください。ブランチ上に機能があることだけで、全受入項目の完了を示すものではありません。
+Phase A–DのローカルPvE実装は `main` に取り込み済みです。受入条件と検証状況は [コア検証手順](docs/implementation/CORE-VALIDATION.md)、[受入テスト行列](tests/README.md)、[デリバリー計画](docs/DELIVERY.md)を参照してください。ブランチ上に機能があることだけで、全受入項目の完了を示すものではありません。
 
 ## ローカルで起動する
 
@@ -45,6 +45,10 @@ cargo run --locked -p senkei-runner -- run examples/local-match.json
 - [Jinrei（陣令）：戦術言語とルールの境界](docs/JINREI.md)
 - [Jinrei規範文法・三値論理・集合演算](docs/JINREI-GRAMMAR.md)
 - [Senritsu（戦律）：ルールセット契約](docs/SENRITSU.md)
+- [次期Senritsu：MOBA型マップ・Minion視界・中立領域](docs/WORLD.md)
+- [次期Senritsu：Hero・Squad・死亡復活・12体Catalog](docs/UNITS.md)
+- [次期Senritsu：通常戦闘・経験値・Skill Tree](docs/COMBAT.md)
+- [次期Senritsu：合意済み係数とバランス検証](docs/BALANCE.md)
 - [Enbu（演武）：シミュレーション契約](docs/ENBU.md)
 - [独自言語・共通IR・CUモデル](docs/TACTICS.md)
 - [コンパイル・論理CU・戦闘エンジンの入出力境界](docs/EXECUTION.md)
@@ -55,6 +59,8 @@ cargo run --locked -p senkei-runner -- run examples/local-match.json
 - [決定論的シミュレーション・検証](docs/SIMULATION.md)
 - [将来の公式PvP・Cloudflare境界](docs/ONLINE.md)
 - [実装の順序・受入条件・未決事項](docs/DELIVERY.md)
+
+新しいHero／Squad／ジャングル／視界の設計文書は**次期Senritsuの仕様化対象**です。現行の `senkei.initial` とGraphics G1のサンプル画面で既に動く機能を示すものではありません。合意値と未決定パラメータは各文書で分離しています。
 
 ## ライセンス
 

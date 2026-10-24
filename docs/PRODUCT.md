@@ -64,3 +64,9 @@ Senkei（戦型）は、**自分が書いた戦略が自分の代わりに戦う
 - Enbu：戦型を実行して結果と描画イベントを生むエンジン。
 
 名称と依存関係は [COMPONENTS.md](COMPONENTS.md) に従う。
+
+## 8. 次期ゲームルールの戦略要素
+
+MOBA型3レーン＋複数の中立モンスター地点、5体固定のHeroをSquadへ分割してJinreiで自動運用し、Minion視界から情報と移動効率を得るゲームデザインを合意した。Heroは成長し、編成時のSkill Treeに従ってスキルを取得する。Squadは人数により機動力と連携の価値が異なり、死亡時の自動離脱・拠点Solo復活、Jinreiによる再合流が戦術の中心となる。
+
+具体的なドメイン・戦闘・数値は [WORLD.md](WORLD.md)、[UNITS.md](UNITS.md)、[COMBAT.md](COMBAT.md)、[BALANCE.md](BALANCE.md) を参照。これらは次期Senritsuの設計であり、現在のローカルPvE初期ルールに実装済みだとは限らない。

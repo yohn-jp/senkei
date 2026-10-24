@@ -19,6 +19,10 @@
 | [JINREI.md](JINREI.md) | Jinrei言語コアとルール依存の区別 |
 | [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) | **Jinrei文法v0.1の正本**：状態・行動、三値論理、集合、順序とCU |
 | [SENRITSU.md](SENRITSU.md) | Senritsuのルールパッケージ、拡張と型付きCapability |
+| [WORLD.md](WORLD.md) | **次期Senritsuゲームデザイン**：MOBAマップ・Minion・視界・中立拠点 |
+| [UNITS.md](UNITS.md) | **次期Senritsuゲームデザイン**：5 Hero・12種Catalog・Squad・死亡復活 |
+| [COMBAT.md](COMBAT.md) | **次期Senritsuゲームデザイン**：通常戦闘・移動・XP・Skill Tree |
+| [BALANCE.md](BALANCE.md) | **次期Senritsuバランスの正本**：合意倍率・未決数値・対戦検証 |
 | [ENBU.md](ENBU.md) | Enbuの状態遷移、実行境界と結果 |
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
 | [EXECUTION.md](EXECUTION.md) | コンパイル方式、論理CU、物理最適化、戦闘エンジンの入出力・秘匿境界 |
@@ -38,7 +42,7 @@
 3. Web UIやインフラの推奨技術。
 4. 例示した兵科、数値、名前、アルゴリズム。
 
-数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本、表示契約は [REPLAY.md](REPLAY.md) を設計正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と初期Senritsuのゲーム数値はルールパッケージで具体化します。
+数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本、表示契約は [REPLAY.md](REPLAY.md) を設計正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と既存Senritsuのゲーム数値はルールパッケージで具体化します。最新のMOBA型Hero/Squad/Minion/ジャングル設計は [WORLD.md](WORLD.md)／[UNITS.md](UNITS.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) に区分して記録し、**現行の senkei.initial やG1 Fixtureに実装済みとみなさない**。
 
 ## 変更の作法
 

@@ -68,3 +68,15 @@ SenritsuはコンテンツとしてOSSで配布可能。初期実装ではサン
 - 不明なCapabilityや不足する遷移プリミティブは明示的に非互換エラー。
 - データだけで追加できる新兵科のケースと、エンジン拡張が必要な新物理規則のケースを区別する。
 - 観測制限・命令合法性・CU・勝敗・公開イベントを組み合わせたコンフォーマンスケースを持つ。
+
+## 8. 次期Senritsuゲームデザインの正本
+
+現行の `senkei.initial` は3レーン・歩兵／射手／騎兵／衛生兵等を含む**既存の小規模なローカルPvE用ルールパッケージ**である。最新の議論で合意した5 Hero、初期12種6+6、動的Squadと死亡Solo復活、MOBA型ジャングル、Minion視界、XP等分などは**まだ現行Rulesetの値ではない**。
+
+次期ゲームルール設計の分担：
+- [WORLD.md](WORLD.md)：地形、対角拠点と三レーン、Minion視界、ジャングル、施設。
+- [UNITS.md](UNITS.md)：Hero Catalogと属性、5Hero/Squad、合流・分離、死亡・復活。
+- [COMBAT.md](COMBAT.md)：通常攻撃、追撃／撤退、XP、レベル、Skill Tree、Tick解決。
+- [BALANCE.md](BALANCE.md)：確定した初期係数、残る未決定数値、バランス検証。
+
+これらはSenritsuのドメインデータと規則を具体化する文書であり、Jinreiの文法とEnbuの汎用遷移エンジンを暗黙に変更するものではない。次期実装では独立したRuleset ID／版／内容digest、Domain Schema／Capability Catalog／検証済みRulePlan、コンフォーマンステストを必要とする。ゲーム特有の効果を初期SenritsuのHardcodeとして言語コアへ持ち込まない。
