@@ -24,6 +24,7 @@ Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦�
 - [システムアーキテクチャ](docs/ARCHITECTURE.md)
 - [4コンポーネントの名称と責務（正本）](docs/COMPONENTS.md)
 - [Jinrei（陣令）：戦術言語とルールの境界](docs/JINREI.md)
+- [Jinrei規範文法・三値論理・集合演算](docs/JINREI-GRAMMAR.md)
 - [Senritsu（戦律）：ルールセット契約](docs/SENRITSU.md)
 - [Enbu（演武）：シミュレーション契約](docs/ENBU.md)
 - [独自言語・共通IR・CUモデル](docs/TACTICS.md)

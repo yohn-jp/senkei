@@ -17,6 +17,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Local-first、コンポーネント・境界・データ |
 | [COMPONENTS.md](COMPONENTS.md) | **名称・責務の正本**: Senkei / Jinrei / Senritsu / Enbu |
 | [JINREI.md](JINREI.md) | Jinrei言語コアとルール依存の区別 |
+| [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) | **Jinrei文法v0.1の正本**：状態・行動、三値論理、集合、順序とCU |
 | [SENRITSU.md](SENRITSU.md) | Senritsuのルールパッケージ、拡張と型付きCapability |
 | [ENBU.md](ENBU.md) | Enbuの状態遷移、実行境界と結果 |
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
@@ -32,7 +33,7 @@
 3. Web UIやインフラの推奨技術。
 4. 例示した兵科、数値、名前、アルゴリズム。
 
-数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本とします。Jinreiの表層構文とCU単価は次の設計議論で決めます。
+数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と初期Senritsuのゲーム数値はルールパッケージで具体化します。
 
 ## 変更の作法
 

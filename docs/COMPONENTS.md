@@ -13,7 +13,7 @@
 
 - **確定**: これら四つの名称と、エンジン／ルールセット／戦術言語を分離する責務。
 - **設計方針**: 以下の依存・インターフェースの方向性。
-- **未決定**: 公開パッケージ名、具体的な構造体名、シリアライズ形式、Jinreiの表層文法、CU単価、個々のルール数値。
+- **未決定**: 公開パッケージ名、具体的な構造体名、シリアライズ形式、CU単価、個々のルール数値（Jinreiの表層文法v0.1は確定済み）。
 
 ## 2. コンポーネント境界
 
@@ -80,4 +80,4 @@ EnbuはJinreiの**コンパイラ・ソース構文**を知る必要がない。
 
 ## 6. 文書の参照関係
 
-本書を名称・責務の正本とする。ルールパッケージ詳細は [SENRITSU.md](SENRITSU.md)、エンジン詳細は [ENBU.md](ENBU.md)、言語と戦律の接続は [JINREI.md](JINREI.md)。従来の [TACTICS.md](TACTICS.md) と [EXECUTION.md](EXECUTION.md) は言語の目的、論理CU、コンパイル過程の上位契約を記載する。
+本書を名称・責務の正本とする。ルールパッケージ詳細は [SENRITSU.md](SENRITSU.md)、エンジン詳細は [ENBU.md](ENBU.md)、言語と戦律の接続は [JINREI.md](JINREI.md)、規範文法・三値論理は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)。従来の [TACTICS.md](TACTICS.md) と [EXECUTION.md](EXECUTION.md) は言語の目的、論理CU、コンパイル過程の上位契約を記載する。
