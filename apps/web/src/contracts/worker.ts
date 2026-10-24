@@ -24,6 +24,10 @@ export type WebWorkerRequest =
       readonly payload: Record<string, never>;
     })
   | (WorkerRequestBase & {
+      readonly operation: "new_match_context";
+      readonly payload: { readonly ruleset_ref: RulesetRef; readonly match_id: string };
+    })
+  | (WorkerRequestBase & {
       readonly operation: "compile";
       readonly payload: TacticalInput;
     })
@@ -61,6 +65,11 @@ export type WebWorkerResponse =
       readonly operation: "initial_ruleset";
       readonly ok: true;
       readonly result: RulePackage;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "new_match_context";
+      readonly ok: true;
+      readonly result: import("./core-model").MatchContext;
     })
   | (WorkerResponseBase & {
       readonly operation: "compile";
@@ -101,6 +110,10 @@ export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "initial_ruleset";
       readonly payload: Record<string, never>;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "new_match_context";
+      readonly payload: { readonly ruleset_ref: RulesetRef; readonly match_id: string };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "compile_text";

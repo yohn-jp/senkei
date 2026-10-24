@@ -46,6 +46,7 @@ export interface BattleFeatureProps {
     options?: { readonly include_diagnostics?: boolean },
   ): Promise<void>;
   onBenchmark(cases: readonly BenchmarkCase[]): Promise<void>;
+  onBenchmarkScenarios(scenario_ids: readonly string[]): Promise<void>;
 }
 
 export interface PersistenceFeatureProps {

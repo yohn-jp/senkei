@@ -192,6 +192,7 @@ export interface RulePackage {
   readonly primitive_set_id: string;
   readonly primitive_set_version: import("./core").CoreVersion;
   readonly jinrei_language_version: import("./core").CoreVersion;
+  readonly structured_ast_version: import("./core").CoreVersion;
   readonly typed_ir_version: import("./core").CoreVersion;
   readonly bytecode_version: import("./core").CoreVersion;
   readonly domain: DomainSchema;

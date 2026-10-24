@@ -31,6 +31,13 @@ export const CORE_API_VERSION: CoreVersion = Object.freeze({
   patch: 0,
 });
 
+/** Version of StructuredTacticsAst wire JSON, independent of Jinrei language version. */
+export const STRUCTURED_AST_VERSION: CoreVersion = Object.freeze({
+  major: 1,
+  minor: 0,
+  patch: 0,
+});
+
 export interface RulesetRef {
   readonly id: string;
   readonly version: CoreVersion;
@@ -129,6 +136,7 @@ export interface WorkerFailure {
 
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
+  newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
   formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;
   compile(input: TacticalInput): Promise<CompileOutcome>;

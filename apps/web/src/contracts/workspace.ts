@@ -46,11 +46,13 @@ export interface LocalPveScenario {
   readonly campaign_id: string;
   readonly campaign_title: string;
   readonly order: number;
+  readonly difficulty: "beginner" | "standard" | "expert";
   readonly title: string;
   readonly description: string;
   readonly objective: string;
   readonly criteria: readonly LocalPveScenarioCriterion[];
-  readonly snapshot: import("./core").SimulationSnapshot;
+  /** NPC defender input; the selected player Senkei is supplied by the App. */
+  readonly npc: SenkeiDraft;
 }
 
 export interface LocalPveScenarioCriterion {
