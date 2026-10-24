@@ -1,4 +1,4 @@
-use enbu::simulate;
+use enbu::{simulate, ENGINE_VERSION};
 use senkei_model::*;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -102,7 +102,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         right: Box::new(RuleExpression::Literal(DomainValue::Integer(0))),
     };
     let plan = RulePlan {
-        minimum_engine_version: Version::new(0, 1, 0),
+        minimum_engine_version: ENGINE_VERSION,
         model_version: v(),
         primitive_set_id: id("generic-v1"),
         primitive_set_version: v(),
@@ -189,7 +189,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         match_id: id("simultaneous-test"),
         ruleset: ruleset_ref.clone(),
         versions: ComponentVersions {
-            model: v(), engine: Version::new(0, 1, 0), ruleset: v(),
+            model: v(), engine: ENGINE_VERSION, ruleset: v(),
             jinrei_language: v(), structured_ast: v(), typed_ir: v(), bytecode: v(), cost_schedule: v(), replay_schema: v(),
         },
         initial_world: WorldState {
@@ -271,6 +271,16 @@ fn a_silent_port_reaches_the_ruleset_timeout() {
     assert_eq!(result.result.outcome, MatchOutcome::Draw);
     assert_eq!(result.result.final_tick, 2);
     assert_eq!(result.replay.frames.len(), 3);
+}
+
+#[test]
+fn canonical_context_advertises_the_shared_engine_version() {
+    let (_, _, plan, _) = setup(3);
+    let context = enbu::new_match_context(&plan, id("version-check"));
+    assert_eq!(ENGINE_VERSION, senkei_model::ENBU_ENGINE_VERSION);
+    assert_eq!(context.versions.engine, senkei_model::ENBU_ENGINE_VERSION);
+    assert_eq!(context.max_ticks, plan.plan().termination.max_ticks);
+    assert_eq!(context.host_limits, HostLimits::from(&plan.plan().limits));
 }
 
 #[test]

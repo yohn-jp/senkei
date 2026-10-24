@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 /// Semantic version of this implementation. Input context versions are
 /// compared to this value rather than trusted as a caller assertion.
-pub const ENGINE_VERSION: Version = Version::new(0, 1, 0);
+pub const ENGINE_VERSION: Version = senkei_model::ENBU_ENGINE_VERSION;
 pub const MODEL_VERSION: Version = Version::new(1, 0, 0);
 pub const REPLAY_SCHEMA_VERSION: Version = Version::new(1, 0, 0);
 
