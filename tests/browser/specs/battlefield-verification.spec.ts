@@ -260,18 +260,12 @@ function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
 }
 
 async function assertActualHeroRows(
-  page: import("@playwright/test").Page,
   cluster: import("@playwright/test").Locator,
   replay: JsonRecord,
   tick: number,
 ): Promise<JsonRecord[]> {
   const heroes = replayVisibleHeroesAt(replay, tick);
   expect(heroes, `the exact owner replay frame at T${tick} must contain five living visible Heroes`).toHaveLength(5);
-  const selector = page.getByRole("combobox", { name: /Observe visible entity/i });
-  const options = await selector.locator("option").evaluateAll((elements) => elements.map((element) => {
-    const option = element as HTMLOptionElement;
-    return { value: option.value, label: (option.textContent ?? "").trim() };
-  }));
   const rows = cluster.locator(".next-visible-cluster-entities > li");
   const summaries = await rows.evaluateAll((elements) => elements.map((element) => {
     const row = element as HTMLElement;
@@ -279,27 +273,29 @@ async function assertActualHeroRows(
       text: (row.textContent ?? "").replace(/\s+/g, " ").trim(),
       identity: row.querySelector(".next-visible-entity-copy > strong")?.textContent?.trim() ?? "",
       categoryRoleSide: row.querySelector(".next-visible-entity-copy > span")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+      hp: row.querySelector(".next-visible-entity-copy > div > b")?.textContent?.trim() ?? "",
+      worldPosition: row.querySelector(".next-visible-entity-copy > div > small")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
     };
   }));
   const heroRows = summaries.filter((row) => row.categoryRoleSide.startsWith("Hero ·"));
   expect(heroRows, "the selected nearby cluster must expose all five currently visible Heroes as separate rows").toHaveLength(5);
   const byCatalogId = new Map<string, { sourceId: string; displayId: string; label: string }>();
   for (const hero of heroes) {
-    const option = options.find((candidate) => candidate.label.split(" · ").includes(hero.catalogId));
-    expect(option, `${hero.catalogId} should have a visible current-entity selector option`).toBeDefined();
-    const optionParts = option!.label.split(" · ");
-    const catalogIndex = optionParts.indexOf(hero.catalogId);
-    const identity = `${optionParts[catalogIndex]} · ${optionParts[catalogIndex + 1] ?? ""}`;
-    const displayId = optionParts.find((part) => part.startsWith("ID "))?.slice(3) ?? "";
+    const expectedPosition = `X ${hero.sourceX} · Y ${hero.sourceY}`;
+    const matches = heroRows.filter((row) =>
+      row.identity.startsWith(`${hero.catalogId} · `) &&
+      row.hp === `HP ${hero.hp}/${hero.maxHp}` &&
+      row.worldPosition.includes(expectedPosition),
+    );
+    expect(matches, `${hero.catalogId} should appear once with its actual replay HP and World position`).toHaveLength(1);
+    const matchingRow = matches[0]!;
+    const identity = matchingRow.identity;
+    const displayId = matchingRow.worldPosition.match(/\bID\s+([^\s·]+)/)?.[1] ?? "";
     expect(displayId).not.toBe("");
     byCatalogId.set(hero.catalogId, { sourceId: hero.id, displayId, label: identity });
-    const row = rows.filter({ hasText: `ID ${displayId}` });
-    await expect(row, `${hero.catalogId} should appear once in the selected visible cluster`).toHaveCount(1);
-    await expect(row.locator(".next-visible-entity-copy > strong")).toHaveText(identity);
-    await expect(row.locator(".next-visible-entity-copy > span")).toContainText("Hero ·");
-    await expect(row.locator(".next-visible-entity-copy > div > b")).toHaveText(`HP ${hero.hp}/${hero.maxHp}`);
-    await expect(row.locator(".next-visible-entity-copy > div > small")).toContainText(`X ${hero.sourceX} · Y ${hero.sourceY}`);
-    await expect(row).not.toContainText(/slot-|squad|cooldown|private|owner id/i);
+    expect(identity.split(" · ")[1]?.trim()).not.toBe("");
+    expect(matchingRow.categoryRoleSide).toContain("Hero ·");
+    expect(matchingRow.text).not.toMatch(/slot-|squad|cooldown|private|owner id/i);
   }
   expect(heroRows.map((row) => row.identity).sort()).toEqual([...byCatalogId.values()].map((hero) => hero.label).sort());
   return heroes.map((hero) => ({
@@ -488,12 +484,25 @@ async function assertSemanticCueAtTick(
   await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
   await page.waitForTimeout(500);
   await expect(canvas).toHaveAttribute("data-tick", String(tick));
-  const cues = page.locator(`.cue-world-label[data-tick="${tick}"][data-cue-type="${expected!.type}"]`);
-  await expect(cues.first(), `${expected!.sourceEvent} should have a visible ${expected!.type} cue at T${tick}`).toBeVisible();
-  const texts = await cues.allInnerTexts();
-  expect(texts.some((text) => expected!.fragments.every((fragment) => text.toLowerCase().includes(fragment.toLowerCase()))),
-    `${expected!.sourceEvent} cue at T${tick} should identify ${expected!.fragments.join(" / ")}: ${texts.join(" | ")}`,
-  ).toBe(true);
+  const cuesAtTick = (): import("@playwright/test").Locator =>
+    page.locator(`.cue-world-label[data-tick="${tick}"][data-cue-type="${expected!.type}"]`);
+  const findExpectedCue = async (): Promise<{ locator: import("@playwright/test").Locator; text: string } | null> => {
+    const candidates = await cuesAtTick().all();
+    for (const locator of candidates) {
+      const text = (await locator.textContent() ?? "").replace(/\s+/g, " ").trim();
+      if (expected!.fragments.every((fragment) => text.toLowerCase().includes(fragment.toLowerCase()))) {
+        return { locator, text };
+      }
+    }
+    return null;
+  };
+  const expectedCue = await findExpectedCue();
+  expect(expectedCue, `${expected!.sourceEvent} must identify ${expected!.fragments.join(" / ")} at T${tick}`).not.toBeNull();
+  await expect(
+    expectedCue!.locator,
+    `${expected!.sourceEvent} should render the expected ${expected!.type} cue visibly at T${tick}`,
+  ).toBeVisible();
+  const texts = await cuesAtTick().allInnerTexts();
   const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
     elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
       tick: (element as HTMLElement).dataset.tick,
@@ -512,7 +521,9 @@ async function assertSemanticCueAtTick(
   );
   expect(adjacentLabels, "all surviving cue labels must match the currently displayed frame").toBe(0);
   await seekToTick(page, tick);
-  await expect(cues.first()).toBeVisible();
+  const restoredCue = await findExpectedCue();
+  expect(restoredCue, `${expected!.sourceEvent} must remain identifiable after returning to T${tick}`).not.toBeNull();
+  await expect(restoredCue!.locator, `${expected!.sourceEvent} must be visible after returning to T${tick}`).toBeVisible();
   return captured;
 }
 
@@ -998,15 +1009,20 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     if (clusterInspectorOnly) {
       const tick = followTick;
       await seekToTick(page, tick);
-      const clusterTarget = await selectVisibleHero(page, "F03");
+      // Desktop exposes the entity selector; mobile intentionally exposes
+      // only the Follow sheet. clickFollow above has already selected F03
+      // while the selector was available at the initial desktop viewport.
+      const clusterTarget = viewport.width > 700 ? await selectVisibleHero(page, "F03") : followTarget;
       expect(clusterTarget.supported, "the current exact replay frame should offer the actual F03 Hero").toBe(true);
+      expect(clusterTarget.catalogId).toBe("F03");
       expect(clusterTarget.id).toBeTruthy();
       const expectedFollow = replayHeroPosition(sourceReplay, tick, clusterTarget);
       expect(expectedFollow, "F03 should resolve to its owner-replay position at the selected tick").not.toBeNull();
 
       let container: import("@playwright/test").Locator;
       if (viewport.width > 700) {
-        await page.getByTestId("battle-visible-roster-toggle").click();
+        const rosterToggle = page.getByTestId("battle-visible-roster-toggle");
+        if (await rosterToggle.getAttribute("aria-expanded") !== "true") await rosterToggle.click();
         container = page.getByTestId("battle-visible-roster");
       } else {
         const followView = page.getByRole("button", { name: "Follow view" });
@@ -1020,12 +1036,16 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await expect(selectedCluster, "opening Follow should show the cluster containing the actual selected Hero").toHaveCount(1);
       const selectedClusterLabel = await selectedCluster.locator(".next-visible-cluster-toggle").getAttribute("aria-label");
       expect(selectedClusterLabel).toMatch(/nearby visible entities|entities at the same replay position/i);
-      const verifiedHeroes = await assertActualHeroRows(page, selectedCluster, sourceReplay, tick);
+      const verifiedHeroes = await assertActualHeroRows(selectedCluster, sourceReplay, tick);
       const clusterScreenshot = "selected-visible-cluster-t050.png";
+      const clusterCameraPose = await canvas.getAttribute("data-camera");
+      const clusterCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
+      cameraPosesByCapture[`${viewport.name}/${clusterScreenshot}`] = clusterCameraPose;
+      cameraTargetsByCapture[`${viewport.name}/${clusterScreenshot}`] = clusterCameraTarget;
       await page.screenshot({ path: join(directory, clusterScreenshot), animations: "disabled" });
 
       const followAction = selectedCluster.getByRole("button", {
-        name: new RegExp(`^Follow ${clusterTarget.catalogId}, replay entity ${clusterTarget.id}$`),
+        name: new RegExp(`^Follow ${clusterTarget.catalogId}.*replay entity ${clusterTarget.id}$`),
       });
       await expect(followAction, "the selected live entity row should offer a Follow action for this exact UI entity").toHaveCount(1);
       await followAction.click();
@@ -1040,9 +1060,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await expect(canvas).toHaveAttribute("data-tick", String(tick));
       const followScreenshot = "follow-f03-same-tick.png";
       await page.screenshot({ path: join(directory, followScreenshot), animations: "disabled" });
-      const captureKey = `${viewport.name}/${clusterScreenshot}`;
-      cameraPosesByCapture[captureKey] = await canvas.getAttribute("data-camera");
-      cameraTargetsByCapture[captureKey] = actualTarget;
+      const followCaptureKey = `${viewport.name}/${followScreenshot}`;
+      cameraPosesByCapture[followCaptureKey] = await canvas.getAttribute("data-camera");
+      cameraTargetsByCapture[followCaptureKey] = actualTarget;
       clusterInspection[viewport.name] = {
         tick,
         selectedCatalogId: clusterTarget.catalogId,
@@ -1347,10 +1367,12 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     skillFollowCaptures,
     cameraTargetsByCapture,
     roleFollowCaptures,
+    clusterInspection: clusterInspectorOnly ? clusterInspection : null,
     semanticCueAssertions,
     viewports: captureViewports,
-    screenshotNames: skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
-      ? roleFollowOnly.map((role) => `${role}-follow`)
+    screenshotNames: clusterInspectorOnly ? ["selected-visible-cluster", "follow-f03-same-tick"]
+      : skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
+        ? roleFollowOnly.map((role) => `${role}-follow`)
       : [
       "tactical", "overview", "follow", "advance", "clash", "tower-destroy", "base-destroy",
       "hero-death", "hero-respawn", "monster-respawn", "skill", "end",
