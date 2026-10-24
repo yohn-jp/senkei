@@ -6,16 +6,18 @@ import {
   type Event,
 } from "@senkei/replay-contract";
 import { ReplayPlayer } from "@senkei/replay-player";
-import { Battlefield } from "@senkei/renderer";
+import { Battlefield, HERO_CATALOG_BY_ID } from "@senkei/renderer";
 import basic from "../../../../packages/replay-contract/fixtures/basic-three-lane.json";
 import clash from "../../../../packages/replay-contract/fixtures/clash-and-loss.json";
 import tower from "../../../../packages/replay-contract/fixtures/tower-collapse.json";
+import moba from "../../../../packages/replay-contract/fixtures/moba-three-lane.json";
 import malformed from "../../../../packages/replay-contract/fixtures/invalid/schema-version.json";
 import "./style.css";
 const fixtures = {
   "tower-collapse": tower,
   "basic-three-lane": basic,
   "clash-and-loss": clash,
+  "moba-three-lane": moba,
   "malformed-replay": malformed,
 };
 type FixtureKey = keyof typeof fixtures;
@@ -23,6 +25,7 @@ const names: Record<FixtureKey, string> = {
   "tower-collapse": "朱軍の塔、陥落",
   "basic-three-lane": "三路の進軍",
   "clash-and-loss": "中央の交戦",
+  "moba-three-lane": "三路MOBA・十二英雄",
   "malformed-replay": "不正データ（復帰確認）",
 };
 const kindNames: Record<string, string> = {
@@ -31,6 +34,9 @@ const kindNames: Record<string, string> = {
   archer: "射手",
   watchtower: "監視塔",
   citadel: "本拠地",
+  hero: "英雄",
+  minion: "兵士",
+  monster: "野獣",
 };
 const sideNames = { azure: "蒼軍", vermilion: "朱軍", neutral: "中立" };
 function CameraIcon() {
@@ -59,19 +65,41 @@ function eventLabel(event: Event) {
     damage: "確定HP更新",
     destroy: "破壊・損失",
     disappear: "観測終了",
-    "match-end": "サンプル終局",
+    "match-end": "終局",
   };
   return types[event.type];
+}
+function originLabel(origin: "sample" | "official" | "local") {
+  return origin === "sample"
+    ? "サンプル戦闘"
+    : origin === "official"
+      ? "公式戦"
+      : "ローカル演武";
+}
+function entityName(entity: DisplayState["entities"][string]) {
+  if (entity.catalogId) {
+    const hero = HERO_CATALOG_BY_ID[
+      entity.catalogId as keyof typeof HERO_CATALOG_BY_ID
+    ];
+    if (hero) return hero.name;
+    if (entity.catalogId.startsWith("minion_")) return "兵士";
+    if (entity.catalogId.startsWith("monster_")) return "野獣";
+  }
+  return kindNames[entity.archetype] ?? entity.archetype;
 }
 function Scene({
   player,
   selected,
   onSelect,
+  tracking,
+  onTrackingChange,
   cameraEpoch,
 }: {
   player: ReplayPlayer;
   selected: string | null;
   onSelect: (id: string) => void;
+  tracking: boolean;
+  onTrackingChange: (tracking: boolean) => void;
   cameraEpoch: number;
 }) {
   const host = useRef<HTMLDivElement>(null),
@@ -113,7 +141,11 @@ function Scene({
   }, [selected, player, attempt]);
   useEffect(() => {
     renderer.current?.resetCamera();
+    onTrackingChange(false);
   }, [cameraEpoch]);
+  useEffect(() => {
+    renderer.current?.setTracking(tracking ? selected : null);
+  }, [tracking, selected, player, attempt]);
   useEffect(() => {
     renderer.current?.setPixel(pixel);
   }, [pixel, attempt, player]);
@@ -128,9 +160,20 @@ function Scene({
       <div className="scene-tools">
         <button
           aria-label="カメラを初期位置へ"
-          onClick={() => renderer.current?.resetCamera()}
+          onClick={() => {
+            renderer.current?.resetCamera();
+            onTrackingChange(false);
+          }}
         >
           <CameraIcon /> <span>視点を戻す</span>
+        </button>
+        <button
+          aria-label="選択対象を追跡"
+          aria-pressed={tracking}
+          disabled={!selected}
+          onClick={() => onTrackingChange(!tracking)}
+        >
+          ◎ <span>追跡</span>
         </button>
         <button aria-label="拡大" onClick={() => renderer.current?.zoom(1.2)}>
           ＋
@@ -177,8 +220,10 @@ function App() {
     [speed, setSpeed] = useState(1);
   const [selected, setSelected] = useState<string | null>(null),
     [cameraEpoch, setCameraEpoch] = useState(0);
+  const [tracking, setTracking] = useState(false);
   useEffect(() => {
     setSelected(null);
+    setTracking(false);
     setPlaying(false);
     setSpeed(1);
     try {
@@ -192,6 +237,9 @@ function App() {
       setError(e instanceof Error ? e.message : "Replay不正");
     }
   }, [fixture]);
+  useEffect(() => {
+    if (!selected && tracking) setTracking(false);
+  }, [selected, tracking]);
   useEffect(() => {
     if (!player) return;
     const sync = () => {
@@ -248,13 +296,15 @@ function App() {
         </div>
         <span className="sample-badge">
           <b />
-          サンプル戦闘
+          {originLabel(player?.replay.header.origin ?? "sample")}
         </span>
       </header>
       <main className="workspace">
         <aside className="sidebar">
           <div className="fixture-block">
-            <span className="eyebrow">01 / SAMPLE REPLAY</span>
+            <span className="eyebrow">
+              01 / {player?.replay.header.origin.toUpperCase() ?? "SAMPLE"} REPLAY
+            </span>
             <h2>演武を選ぶ</h2>
             <label className="sr-only" htmlFor="fixture">
               Fixture選択
@@ -271,9 +321,15 @@ function App() {
               ))}
             </select>
             <p>
-              固定Fixtureによる合成の戦闘です。
+              {player?.replay.header.origin === "sample"
+                ? "固定Fixtureによる合成の戦闘です。"
+                : player?.replay.header.origin === "official"
+                  ? "公開された戦闘Replayです。"
+                  : "ローカル演武の公開情報を再生します。"}
               <br />
-              Enbuの実行結果・正式勝敗ではありません。
+              {player?.replay.header.origin === "sample"
+                ? "Enbuの実行結果・正式勝敗ではありません。"
+                : "戦闘の状態はReplayの記録に従います。"}
             </p>
           </div>
           <div className="army-block">
@@ -289,21 +345,21 @@ function App() {
             <div className="legend">
               <div>
                 <span>⚑</span>
-                <b>槍歩兵</b>
-                <small>長槍・小盾</small>
+                <b>前衛</b>
+                <small>盾・長柄・重装</small>
               </div>
               <div>
                 <span>▣</span>
-                <b>重装兵</b>
-                <small>大盾・重鎧</small>
+                <b>後衛</b>
+                <small>弓・術具・攻城装備</small>
               </div>
               <div>
-                <span>⌁</span>
-                <b>射手</b>
-                <small>弓・フード</small>
+                <span>◇</span>
+                <b>中立キャンプ</b>
+                <small>野獣・森の拠点</small>
               </div>
             </div>
-            <p className="muted">兵科は表示用のサンプルです。</p>
+            <p className="muted">外見はReplayの公開Catalogに対応します。</p>
           </div>
           <section className="events">
             <span className="eyebrow">RECORDED MOMENTS</span>
@@ -338,12 +394,13 @@ function App() {
             ))}
           </section>
           <div className="sidebar-foot">
-            PRESENTATION REPLAY <span>v0.1</span>
+            PRESENTATION REPLAY{" "}
+            <span>v{player?.replay.schemaVersion ?? "0.1"}</span>
           </div>
         </aside>
         <div className="arena">
           <div className="mobile-fixture">
-            <label htmlFor="mobile-fixture">サンプル</label>
+            <label htmlFor="mobile-fixture">Replay</label>
             <select
               id="mobile-fixture"
               aria-label="モバイルFixture選択"
@@ -368,6 +425,8 @@ function App() {
               player={player}
               selected={selected}
               onSelect={setSelected}
+              tracking={tracking}
+              onTrackingChange={setTracking}
               cameraEpoch={cameraEpoch}
             />
           ) : (
@@ -385,7 +444,13 @@ function App() {
             <section className="entity-detail" aria-label="選択情報">
               <span>
                 {sideNames[entity.side]} /{" "}
-                {kindNames[entity.archetype] ?? entity.archetype}
+                {entityName(entity)}
+                {entity.catalogId &&
+                HERO_CATALOG_BY_ID[
+                  entity.catalogId as keyof typeof HERO_CATALOG_BY_ID
+                ]
+                  ? ` · ${entity.catalogId}`
+                  : ""}
               </span>
               <span>
                 HP {entity.hp} / {entity.maxHp}
@@ -400,7 +465,9 @@ function App() {
           )}
           {state?.result && (
             <div className="result-banner" role="status" aria-label="終局結果">
-              <span>サンプル終局</span>
+              <span>
+                {player ? originLabel(player.replay.header.origin) : "終局"}
+              </span>
               <strong>
                 {state.result.winner === "draw"
                   ? "引き分け"
@@ -470,7 +537,7 @@ function App() {
             </div>
           </section>
           <footer className="arena-footer">
-            <span>合成Fixture · 戦闘の再計算なし</span>
+            <span>Replay表示 · 戦闘計算なし</span>
             <span>PIXEL 3D / PROCEDURAL ASSETS</span>
           </footer>
         </div>

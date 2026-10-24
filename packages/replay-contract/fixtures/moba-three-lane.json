@@ -1,0 +1,835 @@
+{
+  "schemaVersion": "0.2",
+  "header": {
+    "origin": "sample",
+    "title": "三路戦場・十二英雄の外見見本",
+    "enbuVersion": null,
+    "senritsu": {
+      "id": "graphics-fixture-only",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "view": "public"
+  },
+  "presentation": {
+    "coordinates": "x-right-y-down",
+    "assetCatalogVersion": "procedural-moba-0.2",
+    "tickDurationMs": 400
+  },
+  "scene": {
+    "bounds": {
+      "min": {
+        "x": -16,
+        "y": -12
+      },
+      "max": {
+        "x": 16,
+        "y": 12
+      }
+    },
+    "lanes": [
+      {
+        "id": "top",
+        "label": "TOP",
+        "points": [
+          {
+            "x": -13,
+            "y": 6
+          },
+          {
+            "x": -9,
+            "y": 1
+          },
+          {
+            "x": -5,
+            "y": -4
+          },
+          {
+            "x": 1,
+            "y": -7
+          },
+          {
+            "x": 7,
+            "y": -8
+          },
+          {
+            "x": 13,
+            "y": -9
+          }
+        ],
+        "elevation": 0.84
+      },
+      {
+        "id": "mid",
+        "label": "MID",
+        "points": [
+          {
+            "x": -13,
+            "y": 9
+          },
+          {
+            "x": -7,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": -5
+          },
+          {
+            "x": 13,
+            "y": -9
+          }
+        ],
+        "elevation": 0.48
+      },
+      {
+        "id": "bot",
+        "label": "BOT",
+        "points": [
+          {
+            "x": -13,
+            "y": 11
+          },
+          {
+            "x": -8,
+            "y": 11
+          },
+          {
+            "x": -2,
+            "y": 9
+          },
+          {
+            "x": 4,
+            "y": 6
+          },
+          {
+            "x": 9,
+            "y": 1
+          },
+          {
+            "x": 13,
+            "y": -9
+          }
+        ],
+        "elevation": 0.26
+      }
+    ],
+    "camps": [
+      {
+        "id": "camp_nw",
+        "position": {
+          "x": -2,
+          "y": -10
+        }
+      },
+      {
+        "id": "camp_center",
+        "position": {
+          "x": 2,
+          "y": -4
+        }
+      },
+      {
+        "id": "camp_se",
+        "position": {
+          "x": 5,
+          "y": 9
+        }
+      }
+    ]
+  },
+  "initialView": [
+    {
+      "id": "azure-base",
+      "side": "azure",
+      "kind": "base",
+      "archetype": "base",
+      "appearanceKey": "citadel",
+      "position": {
+        "x": -14,
+        "y": 9
+      },
+      "hp": 2400,
+      "maxHp": 2400
+    },
+    {
+      "id": "vermilion-base",
+      "side": "vermilion",
+      "kind": "base",
+      "archetype": "base",
+      "appearanceKey": "citadel",
+      "position": {
+        "x": 14,
+        "y": -9
+      },
+      "hp": 2400,
+      "maxHp": 2400
+    },
+    {
+      "id": "azure-top-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": -9,
+        "y": 1
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "azure-mid-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "spire-tower",
+      "position": {
+        "x": -7,
+        "y": 5
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "azure-bot-tower",
+      "side": "azure",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": -8,
+        "y": 11
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "vermilion-top-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": 8,
+        "y": -8
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "vermilion-mid-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "spire-tower",
+      "position": {
+        "x": 7,
+        "y": -5
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "vermilion-bot-tower",
+      "side": "vermilion",
+      "kind": "tower",
+      "archetype": "tower",
+      "appearanceKey": "watchtower",
+      "position": {
+        "x": 8,
+        "y": 2
+      },
+      "hp": 1200,
+      "maxHp": 1200
+    },
+    {
+      "id": "azure-bannerhold",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f01",
+      "position": {
+        "x": -4,
+        "y": -3.5
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F01"
+    },
+    {
+      "id": "azure-tempest",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r01",
+      "position": {
+        "x": -6,
+        "y": -4.9
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R01"
+    },
+    {
+      "id": "azure-stoneheart",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f02",
+      "position": {
+        "x": -4,
+        "y": 2.5
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F02"
+    },
+    {
+      "id": "azure-farwatch",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r03",
+      "position": {
+        "x": -6,
+        "y": 3.8
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R03"
+    },
+    {
+      "id": "azure-breach",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f03",
+      "position": {
+        "x": -4,
+        "y": 8.4
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F03"
+    },
+    {
+      "id": "azure-conductor",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r05",
+      "position": {
+        "x": -6,
+        "y": 9.6
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R05"
+    },
+    {
+      "id": "vermilion-rook",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f04",
+      "position": {
+        "x": 4,
+        "y": -7.5
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F04"
+    },
+    {
+      "id": "vermilion-farshot",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r02",
+      "position": {
+        "x": 5.6,
+        "y": -6.3
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R02"
+    },
+    {
+      "id": "vermilion-lockstep",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f05",
+      "position": {
+        "x": 4,
+        "y": -2.7
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F05"
+    },
+    {
+      "id": "vermilion-lifeline",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r04",
+      "position": {
+        "x": 5.8,
+        "y": -3.8
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R04"
+    },
+    {
+      "id": "vermilion-pathfinder",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.f06",
+      "position": {
+        "x": 4,
+        "y": 4.3
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "F06"
+    },
+    {
+      "id": "vermilion-aegis",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "hero",
+      "appearanceKey": "senkei.next.hero.r06",
+      "position": {
+        "x": 5.8,
+        "y": 3.2
+      },
+      "hp": 180,
+      "maxHp": 220,
+      "catalogId": "R06"
+    },
+    {
+      "id": "azure-top-minion-melee",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": -1.5,
+        "y": -6.3
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "azure-top-minion-ranged",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": -2.7,
+        "y": -5.8
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "vermilion-top-minion-melee",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": 1.5,
+        "y": -7.4
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "vermilion-top-minion-ranged",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": 2.7,
+        "y": -7
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "azure-mid-minion-melee",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": -1.5,
+        "y": 0.9
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "azure-mid-minion-ranged",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": -2.7,
+        "y": 1.8
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "vermilion-mid-minion-melee",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": 1.5,
+        "y": -0.9
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "vermilion-mid-minion-ranged",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": 2.7,
+        "y": -1.8
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "azure-bot-minion-melee",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": -1.5,
+        "y": 7
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "azure-bot-minion-ranged",
+      "side": "azure",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": -2.7,
+        "y": 7.8
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "vermilion-bot-minion-melee",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_melee",
+      "position": {
+        "x": 1.5,
+        "y": 5.6
+      },
+      "hp": 90,
+      "maxHp": 90,
+      "catalogId": "minion_melee"
+    },
+    {
+      "id": "vermilion-bot-minion-ranged",
+      "side": "vermilion",
+      "kind": "unit",
+      "archetype": "minion",
+      "appearanceKey": "minion_ranged",
+      "position": {
+        "x": 2.7,
+        "y": 5
+      },
+      "hp": 62,
+      "maxHp": 62,
+      "catalogId": "minion_ranged"
+    },
+    {
+      "id": "monster_grove_brute",
+      "side": "neutral",
+      "kind": "unit",
+      "archetype": "monster",
+      "appearanceKey": "monster-grove-brute",
+      "position": {
+        "x": -2,
+        "y": -10
+      },
+      "hp": 210,
+      "maxHp": 210,
+      "catalogId": "monster_grove_brute"
+    },
+    {
+      "id": "monster_iron_warden",
+      "side": "neutral",
+      "kind": "unit",
+      "archetype": "monster",
+      "appearanceKey": "monster-iron-warden",
+      "position": {
+        "x": 2,
+        "y": -4
+      },
+      "hp": 340,
+      "maxHp": 340,
+      "catalogId": "monster_iron_warden"
+    },
+    {
+      "id": "monster_storm_stalker",
+      "side": "neutral",
+      "kind": "unit",
+      "archetype": "monster",
+      "appearanceKey": "monster-storm-stalker",
+      "position": {
+        "x": 5,
+        "y": 9
+      },
+      "hp": 170,
+      "maxHp": 170,
+      "catalogId": "monster_storm_stalker"
+    }
+  ],
+  "timeline": [
+    {
+      "type": "move",
+      "tick": 2,
+      "order": 0,
+      "entityId": "azure-bannerhold",
+      "position": {
+        "x": -2.5,
+        "y": -2.9
+      }
+    },
+    {
+      "type": "move",
+      "tick": 2,
+      "order": 1,
+      "entityId": "vermilion-rook",
+      "position": {
+        "x": 2.8,
+        "y": -7
+      }
+    },
+    {
+      "type": "move",
+      "tick": 2,
+      "order": 2,
+      "entityId": "azure-mid-minion-melee",
+      "position": {
+        "x": -0.5,
+        "y": 0.45
+      }
+    },
+    {
+      "type": "move",
+      "tick": 2,
+      "order": 3,
+      "entityId": "vermilion-mid-minion-melee",
+      "position": {
+        "x": 0.5,
+        "y": -0.45
+      }
+    },
+    {
+      "type": "attack",
+      "tick": 4,
+      "order": 0,
+      "entityId": "azure-bannerhold",
+      "targetId": "vermilion-mid-minion-melee"
+    },
+    {
+      "type": "damage",
+      "tick": 4,
+      "order": 1,
+      "entityId": "vermilion-mid-minion-melee",
+      "hp": 28
+    },
+    {
+      "type": "skill",
+      "tick": 6,
+      "order": 0,
+      "entityId": "vermilion-lifeline",
+      "targetId": "vermilion-lockstep",
+      "skillKey": "r04_a_active"
+    },
+    {
+      "type": "vitals",
+      "tick": 7,
+      "order": 0,
+      "entityId": "vermilion-lockstep",
+      "hp": 196,
+      "maxHp": 230
+    },
+    {
+      "type": "attack",
+      "tick": 10,
+      "order": 0,
+      "entityId": "vermilion-rook",
+      "targetId": "azure-bannerhold"
+    },
+    {
+      "type": "damage",
+      "tick": 10,
+      "order": 1,
+      "entityId": "azure-bannerhold",
+      "hp": 0
+    },
+    {
+      "type": "destroy",
+      "tick": 10,
+      "order": 2,
+      "entityId": "azure-bannerhold"
+    },
+    {
+      "type": "spawn",
+      "tick": 15,
+      "order": 0,
+      "entity": {
+        "id": "azure-bannerhold-life-2",
+        "side": "azure",
+        "kind": "unit",
+        "archetype": "hero",
+        "appearanceKey": "senkei.next.hero.f01",
+        "position": {
+          "x": -12.2,
+          "y": 8.4
+        },
+        "hp": 180,
+        "maxHp": 220,
+        "catalogId": "F01"
+      }
+    },
+    {
+      "type": "attack",
+      "tick": 18,
+      "order": 0,
+      "entityId": "azure-breach",
+      "targetId": "vermilion-mid-tower"
+    },
+    {
+      "type": "damage",
+      "tick": 18,
+      "order": 1,
+      "entityId": "vermilion-mid-tower",
+      "hp": 560
+    },
+    {
+      "type": "skill",
+      "tick": 21,
+      "order": 0,
+      "entityId": "azure-tempest",
+      "targetId": "vermilion-rook",
+      "skillKey": "r01_b_active"
+    },
+    {
+      "type": "attack",
+      "tick": 24,
+      "order": 0,
+      "entityId": "azure-breach",
+      "targetId": "vermilion-mid-tower"
+    },
+    {
+      "type": "damage",
+      "tick": 24,
+      "order": 1,
+      "entityId": "vermilion-mid-tower",
+      "hp": 0
+    },
+    {
+      "type": "destroy",
+      "tick": 24,
+      "order": 2,
+      "entityId": "vermilion-mid-tower"
+    },
+    {
+      "type": "spawn",
+      "tick": 27,
+      "order": 0,
+      "entity": {
+        "id": "azure-mid-minion-melee-wave-2",
+        "side": "azure",
+        "kind": "unit",
+        "archetype": "minion",
+        "appearanceKey": "minion_melee",
+        "position": {
+          "x": -2.1,
+          "y": 1.7
+        },
+        "hp": 90,
+        "maxHp": 90,
+        "catalogId": "minion_melee"
+      }
+    },
+    {
+      "type": "attack",
+      "tick": 30,
+      "order": 0,
+      "entityId": "vermilion-pathfinder",
+      "targetId": "monster_iron_warden"
+    },
+    {
+      "type": "damage",
+      "tick": 30,
+      "order": 1,
+      "entityId": "monster_iron_warden",
+      "hp": 0
+    },
+    {
+      "type": "destroy",
+      "tick": 30,
+      "order": 2,
+      "entityId": "monster_iron_warden"
+    },
+    {
+      "type": "match-end",
+      "tick": 32,
+      "order": 0,
+      "result": {
+        "winner": "azure",
+        "reason": "catalog-visual-showcase",
+        "tick": 32
+      }
+    }
+  ],
+  "result": {
+    "winner": "azure",
+    "reason": "catalog-visual-showcase",
+    "tick": 32
+  }
+}
