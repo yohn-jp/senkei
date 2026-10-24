@@ -185,3 +185,16 @@ ceiling are provisional because the design documents leave them open. The
 agreed movement ratios above remain fixed initial design inputs. W9 should
 report scenario coverage and imbalances; this parameter set does not claim a
 balanced result or a target win rate.
+
+## Provisional lifecycle and ordering policies
+
+Squad identity is side-scoped. A shared initial squad label must refer to one
+map node. Split/merge/regroup proposals resolve by actor ID, side, capability,
+target, then action ID; invalid proposals have no effect. Merge and regroup
+combine colocated cohorts into the target squad identity and reset preparation.
+A death removes the Hero and resets the remaining cohort's preparation; it
+continues at its new size. Respawn restores full max HP and starting energy,
+clears temporary effects, and retains XP, levels, acquired skills and ready-tick
+cooldowns. Respawn creates a new Solo identity at the home base. These choices
+are provisional mechanics for this package, not previously agreed numerical
+requirements. Goal arbitration prefers retreat, then pursuit, then movement.

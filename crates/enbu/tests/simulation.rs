@@ -102,6 +102,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         right: Box::new(RuleExpression::Literal(DomainValue::Integer(0))),
     };
     let plan = RulePlan {
+        next: None,
         minimum_engine_version: ENGINE_VERSION,
         model_version: v(),
         primitive_set_id: id("generic-v1"),

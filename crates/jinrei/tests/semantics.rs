@@ -102,6 +102,7 @@ fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
         budget_overrun_reason: SymbolId::new("cu_overrun"),
     };
     let plan = RulePlan {
+        next: None,
         minimum_engine_version: version(), model_version: version(),
         primitive_set_id: PrimitiveSetId::new("test-primitives"), primitive_set_version: version(),
         jinrei_language_version: jinrei::LANGUAGE_VERSION,
