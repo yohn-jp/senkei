@@ -76,6 +76,22 @@ const catalogAppearance: Record<string, string> = {
   monster_storm_stalker: "monster-stalker",
 };
 
+type CueLabelEntry = {
+  element: HTMLSpanElement;
+  point: THREE.Vector3;
+  type: string;
+  sourceId?: string;
+  targetId?: string;
+  entityId?: string;
+};
+
+type ProjectedCueLabel = {
+  cueLabel: CueLabelEntry;
+  projectedX: number;
+  projectedY: number;
+  order: number;
+};
+
 function ribbon(
   points: readonly WorldPoint[],
   width: number,
@@ -291,10 +307,8 @@ export class Battlefield {
     mobileTransform?: string;
   }[] = [];
   private entityLabels = new Map<string, HTMLSpanElement>();
-  private cueLabels: {
-    element: HTMLSpanElement;
-    point: THREE.Vector3;
-  }[] = [];
+  private cueLabels: CueLabelEntry[] = [];
+  private cueSummary: HTMLSpanElement | null = null;
   private cueLayoutSignature = "";
   private marker = new THREE.Group();
   private focusMarker = new THREE.Group();
@@ -1617,12 +1631,17 @@ export class Battlefield {
     for (const cueLabel of this.cueLabels) cueLabel.element.remove();
     this.cueLabels = [];
     this.cueLayoutSignature = "";
+    if (this.cueSummary) {
+      this.cueSummary.hidden = true;
+      this.cueSummary.dataset.tick = String(state.tick);
+    }
     if (this.replay.scene.routes?.length) {
       const addCueLabel = (
         type: string,
         text: string,
         side: DisplayEntity["side"],
         point: THREE.Vector3,
+        ids: { sourceId?: string; targetId?: string; entityId?: string } = {},
       ) => {
         const element = document.createElement("span");
         element.className = "world-label cue-world-label";
@@ -1642,7 +1661,7 @@ export class Battlefield {
           fontWeight: "700",
           letterSpacing: ".04em",
           lineHeight: "1.35",
-          maxWidth: "min(420px, calc(100vw - 20px))",
+          maxWidth: "min(360px, calc(100vw - 20px))",
           padding: "5px 7px",
           textAlign: "center",
           whiteSpace: "normal",
@@ -1650,8 +1669,34 @@ export class Battlefield {
         });
         element.textContent = text;
         this.host.appendChild(element);
-        this.cueLabels.push({ element, point });
+        this.cueLabels.push({ element, point, type, ...ids });
       };
+      if (!this.cueSummary) {
+        const summary = document.createElement("span");
+        summary.className = "world-label cue-summary-label";
+        summary.setAttribute("role", "note");
+        Object.assign(summary.style, {
+          background: "rgba(10, 18, 22, .94)",
+          border: "1px solid rgba(211, 224, 206, .5)",
+          borderRadius: "4px",
+          boxShadow: "0 2px 8px rgba(0,0,0,.55)",
+          color: "#e5edda",
+          fontFamily: '"DM Mono", monospace',
+          fontSize: "9px",
+          fontWeight: "700",
+          letterSpacing: ".03em",
+          lineHeight: "1.3",
+          left: "8px",
+          maxWidth: "min(320px, calc(100% - 16px))",
+          padding: "4px 6px",
+          whiteSpace: "nowrap",
+          zIndex: "4",
+        });
+        this.host.appendChild(summary);
+        this.cueSummary = summary;
+      }
+      this.cueSummary.hidden = true;
+      this.cueSummary.dataset.tick = String(state.tick);
       const cueAnchor = (entity: DisplayEntity, height: number) =>
         new THREE.Vector3(
           entity.position.x,
@@ -1677,6 +1722,7 @@ export class Battlefield {
               : `SKILL ${cue.skillKey} · ${this.entityLabel(source)} → ${this.entityLabel(target)}`,
             source.side,
             midpoint,
+            { sourceId: source.id, targetId: target.id },
           );
         } else if (cue.type === "damage") {
           const entity = state.entities[cue.entityId];
@@ -1686,6 +1732,7 @@ export class Battlefield {
             `DAMAGE · ${this.entityLabel(entity)} · HP ${cue.hp}/${entity.maxHp}`,
             entity.side,
             cueAnchor(entity, 3),
+            { entityId: entity.id },
           );
         } else if (cue.type === "vitals") {
           const entity = state.entities[cue.entityId];
@@ -1695,6 +1742,7 @@ export class Battlefield {
             `VITALS · ${this.entityLabel(entity)} · HP ${cue.hp}/${cue.maxHp}`,
             entity.side,
             cueAnchor(entity, 3),
+            { entityId: entity.id },
           );
         } else if (cue.type === "destroy") {
           const entity = state.entities[cue.entityId];
@@ -1713,6 +1761,7 @@ export class Battlefield {
             `${title} · ${this.entityLabel(entity)}`,
             entity.side,
             cueAnchor(entity, 3.2),
+            { entityId: entity.id },
           );
         } else if (cue.type === "spawn") {
           const entity = state.entities[cue.entity.id];
@@ -1722,6 +1771,7 @@ export class Battlefield {
             `APPEARED · ${this.entityLabel(entity)}`,
             entity.side,
             cueAnchor(entity, 3),
+            { entityId: entity.id },
           );
         }
       }
@@ -1983,56 +2033,182 @@ export class Battlefield {
         this.camera.bottom,
         this.host.clientWidth,
         this.host.clientHeight,
-      ].map((value) => value.toFixed(3)).join(":");
+      ].map((value) => value.toFixed(3)).join(":") +
+        `:${this.mobile ? "mobile" : "desktop"}:${this.selected ?? ""}:${this.trackedIds.join(",")}`;
       if (cueCameraSignature !== this.cueLayoutSignature) {
         this.cueLayoutSignature = cueCameraSignature;
         const hostRect = this.host.getBoundingClientRect();
-        const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+        const currentState = this.state;
+        const focusedHeroIds = new Set<string>();
+        for (const id of [...(this.selected ? [this.selected] : []), ...this.trackedIds]) {
+          const entity = currentState?.entities[id];
+          if (entity && this.isHero(entity)) focusedHeroIds.add(id);
+        }
+        const focusedTargets = new Set(focusedHeroIds);
         for (const cueLabel of this.cueLabels) {
+          if (
+            (cueLabel.type === "attack" || cueLabel.type === "skill") &&
+            cueLabel.sourceId &&
+            focusedHeroIds.has(cueLabel.sourceId) &&
+            cueLabel.targetId
+          ) focusedTargets.add(cueLabel.targetId);
+        }
+        const candidates: ProjectedCueLabel[] = [];
+        for (let order = 0; order < this.cueLabels.length; order++) {
+          const cueLabel = this.cueLabels[order]!;
+          cueLabel.element.hidden = true;
+          cueLabel.element.style.maxWidth = this.mobile
+            ? "min(240px, calc(100vw - 20px))"
+            : "min(360px, calc(100vw - 20px))";
           const p = cueLabel.point.clone().project(this.camera);
           const inView = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1 && p.z >= -1 && p.z <= 1;
-          cueLabel.element.hidden = !inView;
           if (!inView) continue;
-          const projectedX = ((p.x + 1) * this.host.clientWidth) / 2;
-          const projectedY = ((1 - p.y) * this.host.clientHeight) / 2;
-          cueLabel.element.style.left = `${projectedX}px`;
-          cueLabel.element.style.top = `${projectedY}px`;
-          const labelWidth = cueLabel.element.getBoundingClientRect().width;
+          candidates.push({
+            cueLabel,
+            projectedX: ((p.x + 1) * this.host.clientWidth) / 2,
+            projectedY: ((1 - p.y) * this.host.clientHeight) / 2,
+            order,
+          });
+        }
+        const involvesFocusedHero = (candidate: ProjectedCueLabel) => {
+          const { cueLabel } = candidate;
+          if (
+            cueLabel.type === "skill" &&
+            cueLabel.sourceId &&
+            focusedHeroIds.has(cueLabel.sourceId)
+          ) return true;
+          if (
+            cueLabel.type === "destroy" &&
+            cueLabel.entityId &&
+            focusedHeroIds.has(cueLabel.entityId)
+          ) return true;
+          if (
+            cueLabel.type === "damage" &&
+            cueLabel.entityId &&
+            focusedTargets.has(cueLabel.entityId)
+          ) return true;
+          return (
+            (cueLabel.type === "attack" || cueLabel.type === "skill") &&
+            Boolean(
+              (cueLabel.sourceId && focusedHeroIds.has(cueLabel.sourceId)) ||
+                (cueLabel.targetId && focusedHeroIds.has(cueLabel.targetId)),
+            )
+          );
+        };
+        const priority = (candidate: ProjectedCueLabel) => {
+          const { cueLabel } = candidate;
+          if (
+            cueLabel.type === "skill" &&
+            cueLabel.sourceId &&
+            focusedHeroIds.has(cueLabel.sourceId)
+          ) return 0;
+          if (
+            cueLabel.type === "destroy" &&
+            cueLabel.entityId &&
+            focusedHeroIds.has(cueLabel.entityId)
+          ) return 0;
+          const entity = cueLabel.entityId
+            ? currentState?.entities[cueLabel.entityId]
+            : undefined;
+          if (
+            cueLabel.type === "destroy" &&
+            (entity?.kind === "base" || entity?.kind === "tower")
+          ) return 1;
+          if (
+            cueLabel.type === "damage" &&
+            cueLabel.entityId &&
+            focusedTargets.has(cueLabel.entityId)
+          ) return 2;
+          if (
+            (cueLabel.type === "attack" || cueLabel.type === "skill") &&
+            involvesFocusedHero(candidate)
+          ) return 3;
+          if (cueLabel.type === "attack" || cueLabel.type === "skill") return 4;
+          if (cueLabel.type === "damage") return 5;
+          if (cueLabel.type === "destroy") return 6;
+          if (cueLabel.type === "vitals") return 7;
+          return 8;
+        };
+        const ordered = [...candidates].sort(
+          (a, b) => priority(a) - priority(b) || a.order - b.order,
+        );
+        const hasFocusedEvent = candidates.some(involvesFocusedHero);
+        const budget = this.mobile ? 3 : 8;
+        const chosen = ordered.slice(0, budget);
+        if (!hasFocusedEvent) {
+          const fallback = candidates.find(({ cueLabel }) =>
+            cueLabel.type === "attack" || cueLabel.type === "skill",
+          );
+          if (fallback && !chosen.includes(fallback)) {
+            if (chosen.length >= budget) chosen[chosen.length - 1] = fallback;
+            else chosen.push(fallback);
+          }
+        }
+        const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+        const safeTop = hostRect.top + Math.min(88, hostRect.height * 0.3);
+        const safeBottom = hostRect.bottom - Math.min(60, hostRect.height * 0.2);
+        let shown = 0;
+        for (const candidate of chosen) {
+          const { cueLabel, projectedX, projectedY } = candidate;
+          const element = cueLabel.element;
+          element.hidden = false;
+          element.style.left = `${projectedX}px`;
+          element.style.top = `${projectedY}px`;
+          const labelWidth = element.getBoundingClientRect().width;
           const minX = Math.min(this.host.clientWidth / 2, labelWidth / 2 + 4);
           const maxX = Math.max(minX, this.host.clientWidth - labelWidth / 2 - 4);
-          cueLabel.element.style.left = `${THREE.MathUtils.clamp(projectedX, minX, maxX)}px`;
+          element.style.left = `${THREE.MathUtils.clamp(projectedX, minX, maxX)}px`;
+          const labelHeight = element.getBoundingClientRect().height;
+          const verticalStep = Math.max(32, Math.ceil((labelHeight + 8) / 8) * 8);
           let placedRect: { left: number; right: number; top: number; bottom: number } | null = null;
-          for (let step = 0; step < Math.ceil(this.host.clientHeight / 32) * 2 + 1; step++) {
-            const distance = Math.ceil(step / 2) * 32;
+          const maxSteps = Math.ceil(hostRect.height / verticalStep) * 2 + 1;
+          for (let step = 0; step < maxSteps; step++) {
+            const distance = Math.ceil(step / 2) * verticalStep;
             const offset = step === 0 ? 0 : step % 2 === 1 ? -distance : distance;
-            cueLabel.element.style.transform = offset < 0
+            element.style.transform = offset < 0
               ? `translate(-50%, calc(-120% - ${-offset}px))`
               : offset > 0
                 ? `translate(-50%, calc(-120% + ${offset}px))`
                 : "translate(-50%, -120%)";
-            const rect = cueLabel.element.getBoundingClientRect();
-            const candidate = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+            const rect = element.getBoundingClientRect();
+            const box = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
             const inside =
-              candidate.left >= hostRect.left + 4 &&
-              candidate.right <= hostRect.right - 4 &&
-              candidate.top >= hostRect.top + 4 &&
-              candidate.bottom <= hostRect.bottom - 4;
+              box.left >= hostRect.left + 4 &&
+              box.right <= hostRect.right - 4 &&
+              box.top >= safeTop + 4 &&
+              box.bottom <= safeBottom - 4;
             const overlaps = placed.some((other) =>
-              candidate.left < other.right + 4 &&
-              candidate.right + 4 > other.left &&
-              candidate.top < other.bottom + 4 &&
-              candidate.bottom + 4 > other.top,
+              box.left < other.right + 4 &&
+              box.right + 4 > other.left &&
+              box.top < other.bottom + 4 &&
+              box.bottom + 4 > other.top,
             );
             if (inside && !overlaps) {
-              placedRect = candidate;
+              placedRect = box;
               break;
             }
           }
           if (!placedRect) {
-            const rect = cueLabel.element.getBoundingClientRect();
-            placedRect = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+            element.hidden = true;
+            continue;
           }
           placed.push(placedRect);
+          shown++;
+        }
+        if (this.cueSummary) {
+          const remaining = Math.max(0, candidates.length - shown);
+          this.cueSummary.hidden = remaining === 0;
+          this.cueSummary.dataset.tick = String(currentState?.tick ?? 0);
+          this.cueSummary.textContent = `+${remaining} other events · T${currentState?.tick ?? 0}`;
+          this.cueSummary.setAttribute(
+            "aria-label",
+            `${remaining} other visible events at tick ${currentState?.tick ?? 0}`,
+          );
+          this.cueSummary.style.maxWidth = this.mobile
+            ? "min(240px, calc(100% - 16px))"
+            : "min(320px, calc(100% - 16px))";
+          this.cueSummary.style.bottom = "32px";
+          this.cueSummary.style.left = "8px";
         }
       }
       for (const [id, element] of this.entityLabels) {
@@ -2153,5 +2329,6 @@ export class Battlefield {
     this.entityLabels.forEach((label) => label.remove());
     this.baseSites.dispose();
     this.cueLabels.forEach((label) => label.element.remove());
+    this.cueSummary?.remove();
   }
 }
