@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { Mesh, Vector3 } from 'three';
+import { Mesh, Vector3, Raycaster } from 'three';
 import { buildF01, DEFAULT_F01, snapshotF01 } from './model';
 
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -62,6 +62,18 @@ describe('F01 code-authored static model', () => {
       }
       expect(volume,node.name).toBeGreaterThan(0);
     }});hero.dispose();
+  });
+  it('keeps the shield enamel in front of its backing rim', () => {
+    const hero=buildF01();hero.root.updateMatrixWorld(true);
+    let rim:Mesh|undefined,field:Mesh|undefined;
+    hero.root.traverse(n=>{if(n instanceof Mesh){if(n.name.startsWith('shield-rim-'))rim=n;if(n.name.startsWith('shield-field-'))field=n;}});
+    expect(rim).toBeDefined();expect(field).toBeDefined();
+    const shield=hero.root.getObjectByName('shield')!;
+    const origin=shield.localToWorld(new Vector3(0,0,2));
+    const direction=new Vector3(0,0,-1).transformDirection(shield.matrixWorld);
+    const ray=new Raycaster(origin,direction);
+    expect(ray.intersectObject(field!,false)[0].distance).toBeLessThan(ray.intersectObject(rim!,false)[0].distance);
+    hero.dispose();
   });
   it('rejects nonfinite or unsupported shape parameters before allocating geometry', () => {
     expect(()=>buildF01({...DEFAULT_F01,seed:NaN})).toThrow();

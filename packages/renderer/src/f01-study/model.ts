@@ -15,10 +15,12 @@ type MaterialKey=keyof F01Definition['palette'];
 export function snapshotF01(root: Object3D) {
   root.updateMatrixWorld(true);
   const meshes: unknown[]=[];
+  // Canonical identity is float32; normalize sub-1e-12 transform noise across JS engines.
+  // Mesh buffers remain unquantized: same-runtime tests compare their exact values.
   const gpu=(values:number[])=>Array.from(new Float32Array(values));
   root.traverse(node=>{if(node instanceof Mesh){
     const m=node.material as MeshStandardMaterial;
-    meshes.push({name:node.name, matrix:gpu(node.matrixWorld.toArray()), positions:Array.from(node.geometry.getAttribute('position').array),
+    meshes.push({name:node.name, matrix:gpu(node.matrixWorld.toArray()).map(v=>Math.abs(v)<1e-12?0:v), positions:Array.from(node.geometry.getAttribute('position').array),
       normals:Array.from(node.geometry.getAttribute('normal').array), color:gpu(m.color.toArray()), metalness:m.metalness, roughness:m.roughness});
   }});
   return meshes;
@@ -163,7 +165,6 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
     const ring=(y:number,scale:number,zOffset=0)=>footprint.map(([x,z])=>[x*scale,y,z*scale+zOffset] as V3);
     add(leg,'sole',loft([ring(.025,1.04),ring(.065,1.04)]),'darkSteel');
     add(leg,'sabatons',loft([ring(.067,1),ring(.125,.96),ring(.205,.64,-.035)]),'steel');
-    for(let i=0;i<2;i++) plate(leg,'toe-lame',[[-.10,.025],[.10,.025],[.095,-.025],[-.095,-.025]],'darkSteel',[0,.14-i*.02,.18+i*.05],.009,.02,0,[-.6,0,0]);
   }
 
   // Heavy cape: a closed double surface, hand-authored folds and an uneven tailored hem.
@@ -192,7 +193,7 @@ export function buildF01(definition: F01Definition = DEFAULT_F01) {
   const shield=parts.shield;shield.position.set(.66*d.shoulderWidth,1.12,.22);shield.rotation.set(.03,-.25,-.08);
   const shieldOutline:V2[]=[[-.27,.37],[-.18,.46],[.18,.46],[.27,.37],[.245,-.17],[0,-.48],[-.245,-.17]];
   plate(shield,'shield-back',shieldOutline,'leather',[0,0,0],.055,.045,.045);
-  plate(shield,'shield-rim',shieldOutline,'gold',[0,0,.035],.055,.055,.035);
+  plate(shield,'shield-rim',shieldOutline,'gold',[0,0,.035],.055,.055,0);
   plate(shield,'shield-field',shieldOutline.map(([x,y])=>[x*.87,y*.9]),'cloth',[0,0,.084],.026,.06,0);
   const chev:V2[]=[[-.15,.035],[0,.145],[.15,.035],[.15,-.018],[0,.084],[-.15,-.018]];
   for(let i=0;i<3;i++)plate(shield,'command-chevron',chev,'ivory',[0,.16-i*.135,.116],.006,.02);
