@@ -138,3 +138,28 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .page-content[data-view="next"] .next-heading-mark { font-size: 30px; }
   .page-content[data-view="next"] .next-heading-status { display: none; }
 }
+
+/* The real battle is a task workspace; its console owns the screen geometry. */
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) {
+  grid-template-columns: 72px minmax(0, 1fr);
+  --battlefield-available-height: calc(100dvh - 40px);
+}
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar { padding: 15px 6px; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .wordmark { justify-content: center; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .wordmark > span:last-child,
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .workspace-label,
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .sidebar-bottom { display: none; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .primary-nav { margin-top: 24px; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .nav-item { display: block; font-size: 10px; padding: 12px 3px; text-align: center; overflow-wrap: anywhere; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .nav-number,
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar .nav-arrow { display: none; }
+.app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .workspace > .topbar { height: 40px; padding-inline: 16px; }
+.page-content[data-view="next"]:has(.next-battle-panel:not([hidden])) { padding: 0; }
+.page-content[data-view="next"]:has(.next-battle-panel:not([hidden])) .next-heading,
+.page-content[data-view="next"]:has(.next-battle-panel:not([hidden])) .next-save-disclosure { display: none; }
+.page-content[data-view="next"]:has(.next-battle-panel:not([hidden])) > .page-footer { display: none; }
+@media (max-width: 760px) {
+  .app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .sidebar { display: none; }
+  .app-shell:has(.page-content[data-view="next"] .next-battle-panel:not([hidden])) > .workspace > .topbar { padding-inline: 10px; }
+}
