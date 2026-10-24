@@ -13,11 +13,12 @@ and eleven Luna review/support agents were dispatched within the environment's
 assembly, simulation orchestration, dispatcher, replay projection and final
 integration. Consumer dependencies were published as commits.
 
-The additional main commit defines **G2 Hero Atelier** as a separate track and
-explicitly distinguishes it from the parallel Senritsu implementation. Its
-four dedicated presentation screens and exhibition LOD work are **not completed
-by this PR**. The frozen gameplay workbench is implemented; this report does
-not claim completion of that newer presentation track.
+The current acceptance authority is [Issue #5](https://github.com/yohn-jp/senkei/issues/5).
+The follow-up adds four dedicated Hero Atelier views, shared-draft recovery,
+and authored navigation routes in the battlefield projection. These changes
+are functional corrections; approved Hero art, physical-device evidence and
+final player-experience acceptance remain outstanding. See the
+[G2 follow-up report](PR3-G2-FOLLOWUP.md) for independent gate results.
 
 ## Implemented and committed scope
 
@@ -73,17 +74,17 @@ for contested neutrals. See [parameter policies](NEXT-PARAMETERS.md).
 | Check | Result |
 | --- | --- |
 | `cargo build --workspace --locked` | PASS |
-| `cargo test --workspace --locked` | PASS, 102 Rust tests |
+| `cargo test --workspace --locked` | PASS, 103 Rust tests |
 | Real compiled WASM build | PASS |
 | Initial scenario generation `--check` | PASS |
 | Seven initial native/WASM golden comparisons | PASS, complete responses and repeated-input equality |
 | `bash scripts/balance/run-next.sh` | PASS, 56 cases plus public Next native/WASM comparison and three matching invalid-request rejections |
 | `npm run typecheck`, production build | PASS |
-| `npm test` | PASS, 26 Replay Contract/Player tests |
+| `npm test` | PASS, 34 Replay Contract/Player/draft validation tests |
 | `npm run contract:types` generated-file check | PASS |
 | Production browser suite | PASS, 4 tests, including initial offline persistence/regression and Next diagnostics-enabled real match/rematch/offline restore |
 | Next playback recording | PASS, real replay advances to tick 25, pauses without consuming paused time, then seeks to final tick |
-| Graphics browser suite | PASS, 9 tests, four viewports, 320px/landscape, recovery and animated playback |
+| Graphics browser suite | PASS, 10 tests, four viewports, 320px/landscape, recovery, replay-replacement seek regression and animated playback |
 | Native Next CLI example | PASS, attacker base-destruction victory at tick 211 |
 | Real Next browser example | PASS, attacker base-destruction victory at tick 227; a different input from the CLI example |
 
@@ -121,17 +122,19 @@ victories add integration evidence, not a broader balance sample.
 
 ## Unimplemented or unverified boundaries
 
-- The newer G2 Hero Atelier dedicated Collection/Detail/Tree/Assembly screens,
-  exhibition models/LOD and its visual-quality acceptance remain unimplemented
-  by this bounded W1–W9 program. Existing selection/path/grouping controls are
-  not represented as those dedicated screens.
+- Dedicated Collection/Detail/Tree/Assembly views now exist and share the
+  actual Catalog and draft. Approved character exhibition models/animation,
+  matching LOD and final visual-quality acceptance remain outstanding. The
+  dossier explicitly states when its character asset is unavailable.
 - Hardware GPU FPS/thermal/memory measurements, physical mobile devices,
   physical touch/IME/safe-area behavior and cross-browser coverage are NOT_CHECKED.
 - Exhaustive composition balance, adaptive tactics, and long-term behavior
   beyond the six time-limited 600-tick strategic cases are NOT_CHECKED. No
   dominance-free balance claim.
-- W9 does not contain a separate observation-boundary/reveal-expiry scenario;
-  current visibility, Unknown propagation and reveal expiry have W2 unit tests.
+- W9 now adds a standalone real-Enbu reveal-expiry regression: the sole
+  nearby vision source dies, catalog reveal preserves sight, and owner/public
+  replay both hide the target at its expiry tick. The versioned test fixture
+  unlocks the existing skill at match start; it does not tune production rules.
 - Circular vision without terrain occlusion, integer movement rounding and the
   documented combat/lifecycle/tuning policies are explicit provisional rules.
 - Initial deployment zones remain a narrow design decision; current local
