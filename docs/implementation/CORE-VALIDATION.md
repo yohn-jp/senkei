@@ -37,21 +37,21 @@ Input schema `1.0.0`:
   "ruleset_ref": {
     "id": "senkei.initial",
     "version": { "major": 1, "minor": 0, "patch": 0 },
-    "digest": "d74b06f37399873162a32f03b7b493e41f0b7e0dbe31201246d8113266700232"
+    "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2"
   },
   "attacker": {
     "id": "attacker-demo",
     "revision": "1",
     "configuration": {},
     "initial_memory": {},
-    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.id), }, }"
+    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.slot_id), }, }"
   },
   "defender": {
     "id": "defender-demo",
     "revision": "1",
     "configuration": {},
     "initial_memory": {},
-    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.id), }, }"
+    "tactics": "senkei wait { action hold { when false, do move_forward(argmin unit in allies.units by unit.position then unit.slot_id), }, }"
   }
 }
 ```

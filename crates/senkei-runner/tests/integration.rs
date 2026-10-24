@@ -7,7 +7,7 @@ const CORE_ATTACK: &str = r#"senkei core_pressure {
     action strike_core {
         when true,
         do attack_core(
-            argmin unit in allies.units by unit.position then unit.id,
+            argmin unit in allies.units by unit.position then unit.slot_id,
             argmin core in enemies.visible_cores by core.position then core.id,
         ),
     },
@@ -17,8 +17,8 @@ const UNIT_ATTACK: &str = r#"senkei intercept {
     action attack_weakest {
         when true,
         do attack_unit(
-            argmin unit in allies.units by unit.position then unit.id,
-            argmin target in enemies.visible_units by target.hp then target.id,
+            argmin unit in allies.units by unit.position then unit.slot_id,
+            argmin target in enemies.visible_units by target.hp then target.slot_id,
         ),
     },
 }"#;
@@ -27,7 +27,7 @@ const TOWER_ATTACK: &str = r#"senkei tower_pressure {
     action attack_tower {
         when true,
         do attack_tower(
-            argmin unit in allies.units by unit.position then unit.id,
+            argmin unit in allies.units by unit.position then unit.slot_id,
             argmin tower in enemies.visible_towers by tower.hp then tower.id,
         ),
     },
@@ -36,14 +36,14 @@ const TOWER_ATTACK: &str = r#"senkei tower_pressure {
 const MOVE_FORWARD: &str = r#"senkei marching_line {
     action advance_one {
         when true,
-        do move_forward(argmin unit in allies.units by unit.position then unit.id),
+        do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
     },
 }"#;
 
 const WAIT: &str = r#"senkei wait {
     action hold {
         when false,
-        do move_forward(argmin unit in allies.units by unit.position then unit.id),
+        do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
     },
 }"#;
 
@@ -272,48 +272,18 @@ fn load_npc_sources() -> Vec<(String, String)> {
 
     let fixture_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scenarios/campaign/source-fixtures.json");
-    if fixture_path.is_file() {
-        let json = std::fs::read(&fixture_path).expect("campaign source fixture is readable");
-        let records: Vec<RecipeSource> =
-            serde_json::from_slice(&json).expect("campaign source fixture is valid JSON");
-        return records
-            .into_iter()
-            .map(|record| (record.id, record.source))
-            .collect();
-    }
-
-    // Compatibility path for the initial literal-source catalog. The
-    // scenario owner supplies the evaluated fixture when recipe builders are
-    // introduced; Rust never reimplements their TypeScript generation logic.
-    const CATALOG: &str = include_str!("../../../scenarios/campaign/catalog.ts");
-    literal_recipe_sources(CATALOG)
+    assert!(
+        fixture_path.is_file(),
+        "evaluated campaign source fixture is required at {}",
+        fixture_path.display()
+    );
+    let json = std::fs::read(&fixture_path).expect("campaign source fixture is readable");
+    let records: Vec<RecipeSource> =
+        serde_json::from_slice(&json).expect("campaign source fixture is valid JSON");
+    records
         .into_iter()
-        .enumerate()
-        .map(|(index, source)| (format!("literal-{}", index + 1), source))
+        .map(|record| (record.id, record.source))
         .collect()
-}
-
-fn literal_recipe_sources(catalog: &str) -> Vec<String> {
-    let mut rest = catalog;
-    let mut sources = Vec::new();
-    while let Some(source_start) = rest.find("source: `") {
-        rest = &rest[source_start + "source: `".len()..];
-        let source_end = rest
-            .find("`,")
-            .expect("recipe source template has a terminator");
-        let mut source = rest[..source_end].to_owned();
-        source = source.replace(
-            "${firstUnit(\"position\")}",
-            "argmin unit in allies.units by unit.position then unit.id",
-        );
-        source = source.replace(
-            "${weakestUnitText()}",
-            "argmin unit in allies.units by unit.hp then unit.id",
-        );
-        sources.push(source);
-        rest = &rest[source_end + 2..];
-    }
-    sources
 }
 
 #[test]
