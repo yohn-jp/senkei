@@ -5,6 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 const configDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(configDirectory, "../..");
 const baseURL = "http://127.0.0.1:4173";
+const executablePath = process.env.SENKEI_CHROMIUM_EXECUTABLE;
 
 export default defineConfig({
   testDir: "./specs",
@@ -17,6 +18,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    launchOptions: executablePath ? { executablePath } : undefined,
     ...devices["Desktop Chrome"],
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

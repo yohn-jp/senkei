@@ -98,3 +98,8 @@ npm ci --prefix tests/browser
 npx --prefix tests/browser playwright install --with-deps chromium
 npm run test:e2e --prefix tests/browser
 ```
+
+On NixOS, the bundled Playwright Chromium may lack the dynamically linked
+libraries it expects. After building the production app, run
+`tests/browser/run-nix.sh` to use Chromium from the Nix store. You can set
+`SENKEI_CHROMIUM_EXECUTABLE` directly to another compatible Chromium binary.
