@@ -1,0 +1,293 @@
+{
+  "schema_version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "match_id": "next-cli-example",
+  "ruleset_ref": {
+    "digest": "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+    "id": "senkei.next",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "attacker": {
+    "id": "next-player",
+    "revision": "1",
+    "configuration": {
+      "heroes": {
+        "kind": "list",
+        "value": [
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-1"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "F01"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "attacker_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-2"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "F03"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "attacker_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-3"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "F06"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "attacker_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-4"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "R02"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "attacker_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-5"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "R04"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "attacker_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "initial_memory": {},
+    "tactics": "senkei next_march {\n    action advance_1 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-1\", } by h.level then h.id, \"defender_base\"), },\n    action advance_2 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-2\", } by h.level then h.id, \"defender_base\"), },\n    action advance_3 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-3\", } by h.level then h.id, \"defender_base\"), },\n    action advance_4 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-4\", } by h.level then h.id, \"defender_base\"), },\n    action advance_5 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-5\", } by h.level then h.id, \"defender_base\"), }\n}"
+  },
+  "defender": {
+    "id": "next-rival",
+    "revision": "1",
+    "configuration": {
+      "heroes": {
+        "kind": "list",
+        "value": [
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-1"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "F02"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "defender_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-2"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "F04"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "defender_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-3"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "R01"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "defender_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-4"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "R03"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "defender_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          },
+          {
+            "kind": "record",
+            "value": {
+              "slot_id": {
+                "kind": "string",
+                "value": "hero-5"
+              },
+              "catalog_id": {
+                "kind": "string",
+                "value": "R05"
+              },
+              "squad": {
+                "kind": "string",
+                "value": "main"
+              },
+              "node": {
+                "kind": "string",
+                "value": "defender_base"
+              },
+              "skill_path": {
+                "kind": "string",
+                "value": "path_a"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "initial_memory": {},
+    "tactics": "senkei next_march {\n    action advance_1 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-1\", } by h.level then h.id, \"attacker_base\"), },\n    action advance_2 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-2\", } by h.level then h.id, \"attacker_base\"), },\n    action advance_3 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-3\", } by h.level then h.id, \"attacker_base\"), },\n    action advance_4 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-4\", } by h.level then h.id, \"attacker_base\"), },\n    action advance_5 { when true, do move(argmin h in filter h in allies.heroes { h.slot_id == \"hero-5\", } by h.level then h.id, \"attacker_base\"), }\n}"
+  }
+}

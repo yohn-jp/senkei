@@ -223,3 +223,13 @@ clears temporary effects, and retains XP, levels, acquired skills and ready-tick
 cooldowns. Respawn creates a new Solo identity at the home base. These choices
 are provisional mechanics for this package, not previously agreed numerical
 requirements. Goal arbitration prefers retreat, then pursuit, then movement.
+
+## Initial node placement boundary
+
+The local preparation model accepts existing logical map nodes and rejects a
+Squad whose initial members occupy different nodes. The default roster starts
+at its own base; lane-spread presets use the corresponding lane approaches.
+The agreed documents do not define initial deployment zones. Whether to limit
+initial placement to the home base or a side-specific zone remains a narrow
+future design decision; the current local scenario/workbench setup permits
+any existing node. Balance comparisons must therefore state initial nodes.
