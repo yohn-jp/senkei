@@ -86,7 +86,9 @@ async function navigationResponse(request) {
 
 async function assetResponse(request) {
   const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
+  // Same-origin resources may be cached by the explicit asset pass using a
+  // fetch request with different Vary headers than the browser's module load.
+  const cached = await cache.match(request, { ignoreVary: true });
   if (cached) return cached;
   let response;
   try {
