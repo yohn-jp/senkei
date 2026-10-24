@@ -7,5 +7,5 @@ cd "$repo_root"
 
 exec nix shell nixpkgs#chromium -c bash -c '
   export SENKEI_CHROMIUM_EXECUTABLE="$(command -v chromium)"
-  npm run test:e2e --prefix tests/browser
-'
+  npm run test:e2e --prefix tests/browser -- "$@"
+' -- "$@"
