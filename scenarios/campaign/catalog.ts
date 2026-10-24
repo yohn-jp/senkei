@@ -238,7 +238,7 @@ const recipes: readonly Recipe[] = [
     action deploy_next {
         when match.tick >= 4,
         do deploy(
-            argmin barracks in allies.barracks by barracks.id then barracks.id,
+            argmin barracks in allies.barracks by barracks.resources then barracks.id,
             argmin reserve in allies.reserves by reserve.available_tick then reserve.id,
             mid,
         ),
