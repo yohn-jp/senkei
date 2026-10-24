@@ -10,7 +10,8 @@ The diagnostics option is enabled. They are distinct from the synthetic
 - [Mobile 390×844](mobile-battle.png): independent narrow composition,
   current owner view, seek/camera controls and no horizontal overflow.
 - [Workbench video](next-workbench.webm): selection/edit/compile, real match,
-  visible playback and pause, seek, revised rematch and offline restoration.
+  visible playback and pause, seek, revised rematch, offline restoration, and
+  an offline compile/simulate pass.
 - [52-case balance report](balance.json): exact package digest and case data.
 
 Chromium 155 ran with SwiftShader. Images were inspected; the tests check

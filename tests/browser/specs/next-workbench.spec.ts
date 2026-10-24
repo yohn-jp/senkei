@@ -8,15 +8,22 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
 
   const pageErrors: string[] = [];
-  const wasmResponses: { readonly status: number; readonly fromServiceWorker: boolean }[] = [];
+  const wasmResponses: { readonly status: number; readonly fromServiceWorker: boolean; readonly url: string }[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.context().on("response", (response) => {
     if (new URL(response.url()).pathname.endsWith("/wasm/senkei_wasm.wasm")) {
-      wasmResponses.push({ status: response.status(), fromServiceWorker: response.fromServiceWorker() });
+      wasmResponses.push({ status: response.status(), fromServiceWorker: response.fromServiceWorker(), url:response.url() });
     }
   });
 
   await page.setViewportSize({width:1440,height:900});
+  // A previous install can retain a fixed-name core in the offline cache.
+  // The current content fingerprint must bypass that obsolete binary.
+  await page.goto(`${baseURL}/graphics/`, {waitUntil:"networkidle"});
+  await page.evaluate(async () => {
+    const cache = await caches.open("senkei-web-offline-v1");
+    await cache.put("/wasm/senkei_wasm.wasm", new Response(new Uint8Array([0,97,115,109,1,0,0,0]), {headers:{"Content-Type":"application/wasm"}}));
+  });
   await page.goto(baseURL, { waitUntil: "networkidle" });
   await page.getByTestId("nav-next").click();
   await expect(page.getByRole("heading", { name: /Battle workbench/ })).toBeVisible();
@@ -92,7 +99,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
-  await page.waitForFunction(async () => Boolean(await (await caches.open("senkei-web-offline-v1")).match("/wasm/senkei_wasm.wasm")));
+  await page.waitForFunction(async () => (await (await caches.open("senkei-web-offline-v1")).keys()).some(request => { const url=new URL(request.url); return url.pathname === "/wasm/senkei_wasm.wasm" && url.searchParams.has("rev"); }));
   await page.context().setOffline(true);
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -104,11 +111,17 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await page.locator("#next-tab-jinrei").click();
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(editedSource);
     await expect(page.getByLabel("Skill path")).toHaveValue("path_a");
+    await page.getByRole("button", {name:"Compile tactics"}).click();
+    await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+    await page.locator("#next-tab-battle").click();
+    await page.getByRole("button", {name:"Launch local battle"}).click();
+    await expect(page.getByText("AUTHORITATIVE ENBU RESULT")).toBeVisible({timeout:90_000});
+    await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   } finally {
     await page.context().setOffline(false);
   }
 
-  expect(wasmResponses.some((response) => response.status === 200)).toBe(true);
+  expect(wasmResponses.some((response) => response.status === 200 && /[?&]rev=[a-f0-9]{64}/.test(response.url))).toBe(true);
   expect(wasmResponses.some((response) => response.fromServiceWorker)).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(finalTick).toMatch(/TICK\s+\d+\s+\/\s+\d+/);

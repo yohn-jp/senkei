@@ -89,7 +89,11 @@ for contested neutrals. See [parameter policies](NEXT-PARAMETERS.md).
 
 Browser checks used Nix Chromium 155 with SwiftShader. They prove actual WebGL
 rendering and interaction in that environment, not hardware GPU performance.
-Fresh production and source WASM artifacts had the same SHA-256.
+Fresh production and source WASM artifacts had the same SHA-256. The worker
+uses a content-fingerprinted WASM URL so an obsolete offline-cache entry cannot
+pin the new UI to an old engine. The Next browser regression seeds an obsolete
+fixed-name binary, then verifies current-engine loading and offline compilation
+and simulation after saved-setup restoration.
 
 The rendering review caught and corrected a mount race, camera reset damping,
 accumulating unit debris, a HUD count that included historical corpses, and
