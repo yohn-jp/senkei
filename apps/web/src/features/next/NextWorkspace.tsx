@@ -49,6 +49,26 @@ interface VisibleSquadTarget {
   readonly label: string;
 }
 
+interface VisibleBattleTarget {
+  readonly id: string;
+  readonly label: string;
+  readonly identity: string;
+  readonly catalogId: string | null;
+  readonly role: string;
+  readonly category: string;
+  readonly side: string;
+  readonly hp: number;
+  readonly maxHp: number;
+  readonly position: WorldPoint;
+  readonly locationKey: string;
+}
+
+interface VisibleBattleCluster {
+  readonly id: string;
+  readonly position: WorldPoint;
+  readonly entities: readonly VisibleBattleTarget[];
+}
+
 interface FocusedReplayPoint {
   readonly tick: number;
   readonly point: WorldPoint;
@@ -303,6 +323,13 @@ function formatId(value: string): string {
   return value.replaceAll("_", " ").replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
+function pluralizeEntityCategory(category: string, count: number): string {
+  if (count === 1) return category;
+  if (category === "Hero") return "Heroes";
+  if (category.endsWith("facility")) return `${category.slice(0, -8)}facilities`;
+  return `${category}s`;
+}
+
 function formatExperience(value: number, rules: NextRules | null): string {
   const scale = rules?.parameters.xp_scale;
   if (!Number.isSafeInteger(value)) return "—";
@@ -522,6 +549,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [battleMobileView, setBattleMobileView] = useState<BattlefieldMobileView>("battle");
   const [battleInspectorOpen, setBattleInspectorOpen] = useState(false);
+  const [battleRosterOpen, setBattleRosterOpen] = useState(false);
+  const [expandedVisibleClusterId, setExpandedVisibleClusterId] = useState<string | null>(null);
   const [battleMapContextOpen, setBattleMapContextOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 761px)").matches);
   const [cameraMode, setCameraMode] = useState<BattlefieldCameraMode>("tactical");
   const [followedEntityId, setFollowedEntityId] = useState<string | null>(null);
@@ -546,6 +575,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const rendererHost = useRef<HTMLDivElement>(null);
   const renderer = useRef<BattlefieldRenderer | null>(null);
   const mobileTimelineRef = useRef<HTMLOListElement>(null);
+  const mobileVisibleClustersRef = useRef<HTMLDivElement>(null);
+  const desktopVisibleClustersRef = useRef<HTMLDivElement>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -653,16 +684,67 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const activeSlotValue = slots[activeSlot] ?? null;
   const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
   const heroes = nextRules?.heroes ?? [];
-  const visibleCameraTargets = useMemo(() => Object.values(displayState?.entities ?? {})
+  const visibleCameraTargets = useMemo<VisibleBattleTarget[]>(() => Object.values(displayState?.entities ?? {})
     .filter((entity) => !entity.destroyed && entity.hp > 0)
     .sort((left, right) => {
       const priority = (entity: DisplayState["entities"][string]) => entity.archetype === "hero" ? 0 : entity.kind === "unit" ? 1 : entity.kind === "tower" ? 2 : 3;
       return priority(left) - priority(right) || left.side.localeCompare(right.side) || left.id.localeCompare(right.id);
     })
-    .map((entity) => ({
-      id: entity.id,
-      label: `${formatId(entity.side)} · ${entity.catalogId ? `${entity.catalogId} · ` : ""}${formatId(entity.archetype)} · HP ${entity.hp}/${entity.maxHp}`,
-    })), [displayState]);
+    .map((entity) => {
+      const hero = entity.archetype === "hero" && entity.catalogId
+        ? nextRules?.heroes.find((candidate) => candidate.id === entity.catalogId) ?? null
+        : null;
+      const identity = hero
+        ? `${hero.id} · ${hero.name}`
+        : entity.catalogId ? formatId(entity.catalogId) : entity.id;
+      const role = hero
+        ? `${formatId(hero.placement)} · ${formatId(hero.role)}`
+        : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
+      const category = entity.archetype === "hero" ? "Hero" : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
+      const side = formatId(entity.side);
+      return {
+        id: entity.id,
+        label: `${side} · ${identity} · ${role} · HP ${entity.hp}/${entity.maxHp} · ID ${entity.id}`,
+        identity,
+        catalogId: entity.catalogId ?? null,
+        role,
+        category,
+        side,
+        hp: entity.hp,
+        maxHp: entity.maxHp,
+        position: entity.position,
+        locationKey: `${entity.position.x},${entity.position.y}`,
+      };
+    }), [displayState, nextRules]);
+  const visibleEntityClusters = useMemo<VisibleBattleCluster[]>(() => {
+    const groups = new Map<string, VisibleBattleTarget[]>();
+    for (const entity of visibleCameraTargets) {
+      groups.set(entity.locationKey, [...(groups.get(entity.locationKey) ?? []), entity]);
+    }
+    return [...groups.entries()].map(([id, entities]) => ({
+      id,
+      position: entities[0]?.position ?? { x: 0, y: 0 },
+      entities,
+    }));
+  }, [visibleCameraTargets]);
+  useEffect(() => {
+    if (!battleRosterOpen && battleMobileView !== "follow") return;
+    const activeId = followedEntityId ?? selectedEntityId;
+    const preferredCluster = visibleEntityClusters.find((cluster) => cluster.entities.some((entity) => entity.id === activeId)) ??
+      visibleEntityClusters.find((cluster) => cluster.entities.filter((entity) => entity.category === "Hero").length > 1) ??
+      visibleEntityClusters.find((cluster) => cluster.entities.length > 1) ??
+      visibleEntityClusters[0] ?? null;
+    setExpandedVisibleClusterId(preferredCluster?.id ?? null);
+  }, [battleMobileView, battleRosterOpen, followedEntityId, selectedEntityId, visibleEntityClusters]);
+  useEffect(() => {
+    if (!battleRosterOpen && battleMobileView !== "follow") return;
+    const frame = requestAnimationFrame(() => {
+      const mobile = window.matchMedia("(max-width: 760px)").matches;
+      const list = mobile ? mobileVisibleClustersRef.current : desktopVisibleClustersRef.current;
+      list?.querySelector<HTMLElement>(".next-visible-cluster.is-expanded .next-visible-cluster-toggle")?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [battleMobileView, battleRosterOpen, expandedVisibleClusterId]);
   const visibleHeroes = useMemo(() => heroes.filter((hero) =>
     (filters.placement === "all" || hero.placement === filters.placement) &&
     (filters.role === "all" || hero.role === filters.role) &&
@@ -1208,6 +1290,34 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     if (point) setFocusedReplayPoint({ tick: event.tick, point });
     setTab("battle");
   };
+  const renderVisibleEntityClusters = (surface: "mobile" | "desktop"): ReactElement => (
+    <div className="next-visible-clusters" ref={surface === "mobile" ? mobileVisibleClustersRef : desktopVisibleClustersRef}>
+      {visibleEntityClusters.length ? visibleEntityClusters.map((cluster) => {
+        const expanded = expandedVisibleClusterId === cluster.id;
+        const counts = new Map<string, number>();
+        for (const entity of cluster.entities) counts.set(entity.category, (counts.get(entity.category) ?? 0) + 1);
+        const composition = [...counts.entries()].map(([category, count]) => `${count} ${pluralizeEntityCategory(category, count)}`).join(" · ");
+        const location = `X ${cluster.position.x.toFixed(2)} · Y ${cluster.position.y.toFixed(2)}`;
+        const countLabel = cluster.entities.length > 1 ? `${cluster.entities.length} at same position` : "1 visible entity";
+        return <section className={`next-visible-cluster${expanded ? " is-expanded" : ""}`} key={cluster.id}>
+          <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${cluster.entities.length} visible entities at replay location ${location}`} className="next-visible-cluster-toggle" onClick={() => setExpandedVisibleClusterId(expanded ? null : cluster.id)} type="button">
+            <span><strong>{countLabel}</strong><small>{composition} · {location}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
+          </button>
+          {expanded && <ul className="next-visible-cluster-entities">{cluster.entities.map((entity) => <li className={selectedEntityId === entity.id ? "is-selected" : ""} key={entity.id}>
+            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id}</small></div></div>
+            <div className="next-visible-entity-actions"><button aria-label={`Select ${entity.identity}, replay entity ${entity.id}`} aria-pressed={selectedEntityId === entity.id} onClick={() => {
+              selectBattleEntity(entity.id);
+              setBattleInspectorOpen(true);
+              setBattleRosterOpen(false);
+            }} type="button">Select</button><button aria-label={`Follow ${entity.identity}, replay entity ${entity.id}`} onClick={() => {
+              followVisibleEntity(entity.id);
+              setBattleRosterOpen(false);
+            }} type="button">Follow{entity.catalogId ? ` ${entity.catalogId}` : ""}</button></div>
+          </li>)}</ul>}
+        </section>;
+      }) : <p className="next-empty-detail">No living entities are currently visible in this replay view.</p>}
+    </div>
+  );
 
   if (!packageValue || !nextRules) {
     return (
@@ -1406,6 +1516,11 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   <div aria-label="Entity side markers: A attacker, D defender, N neutral" className="next-minimap-legend"><span aria-label="Attacker"><i className="side-azure" /><b>A</b></span><span aria-label="Defender"><i className="side-vermilion" /><b>D</b></span><span aria-label="Neutral"><i className="side-neutral" /><b>N</b></span></div>
                   </div>}
                 </aside>
+                <button aria-expanded={battleRosterOpen} aria-label={`Visible entity roster, ${visibleCameraTargets.length} living visible entities`} className="next-visible-roster-trigger" data-testid="battle-visible-roster-toggle" onClick={() => setBattleRosterOpen((open) => !open)} type="button"><span>VISIBLE ROSTER</span><b>{visibleCameraTargets.length}</b></button>
+                <section aria-label="Visible entity cluster roster" className="next-visible-roster-panel" data-testid="battle-visible-roster" hidden={!battleRosterOpen}>
+                  <header><div><span className="next-eyebrow">CURRENT DISPLAY · TICK {displayState?.tick ?? 0}</span><h4>Visible entities <small>{visibleCameraTargets.length}</small></h4></div><button aria-label="Close visible entity roster" onClick={() => setBattleRosterOpen(false)} type="button">×</button></header>
+                  {renderVisibleEntityClusters("desktop")}
+                </section>
                 <div className="next-stage-hud"><span><i /> {run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER VIEW" : "PUBLIC REPLAY"}</span><span>{displayState?.entities ? Object.values(displayState.entities).filter(entity => !entity.destroyed).length : 0} VISIBLE ENTITIES</span><strong>T{String(displayState?.tick ?? 0).padStart(2, "0")} / {run.graphicsReplay.result.tick}</strong></div>
                 <div className="next-camera-controls" data-testid="battle-camera-controls" aria-label="Battlefield camera">
                   <button aria-label="Tactical view" aria-pressed={cameraMode === "tactical" && !followedEntityId && !followedSquadId} onClick={() => setBattleView("battle")} type="button">Tactical</button>
@@ -1432,9 +1547,9 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                 </div>
               <section aria-label="Choose a visible unit or confirmed owner Squad to follow" className="next-mobile-sheet next-follow-sheet" hidden={battleMobileView !== "follow"}>
                 <header><div><span className="next-eyebrow">CAMERA TARGETS · TICK {displayState?.tick ?? 0}</span><h4>Follow a visible unit</h4></div><button aria-label="Close follow sheet" onClick={closeBattleSheet} type="button">×</button></header>
+                <span className="next-eyebrow next-follow-subhead">VISIBLE ENTITY CLUSTERS · TICK {displayState?.tick ?? 0}</span>
+                {renderVisibleEntityClusters("mobile")}
                 {ownerReplay ? <><span className="next-eyebrow next-follow-subhead">CONFIRMED OWNER SQUADS</span>{visibleSquadTargets.length ? <div className="next-follow-list">{visibleSquadTargets.map((target) => <button key={target.id} onClick={() => followVisibleSquad(target.id)} type="button"><span>{target.label}</span><b>Follow Squad ↗</b></button>)}</div> : <p className="next-empty-detail">No owned Hero Squad membership is confirmed among currently visible entities at this tick.</p>}</> : <p className="next-empty-detail">Own-Squad follow is unavailable in this public replay. No private membership is inferred.</p>}
-                <span className="next-eyebrow next-follow-subhead">CURRENTLY VISIBLE ENTITIES</span>
-                <div className="next-follow-list">{visibleCameraTargets.length ? visibleCameraTargets.map((entity) => <button key={entity.id} onClick={() => followVisibleEntity(entity.id)} type="button"><span>{entity.label}</span><b>Follow ↗</b></button>) : <p className="next-empty-detail">No living visible units at this tick.</p>}</div>
               </section>
               <section aria-label="Replay event timeline" className="next-mobile-sheet next-mobile-timeline" hidden={battleMobileView !== "timeline"}>
                 <header><div><span className="next-eyebrow">PUBLIC PRESENTATION REPLAY</span><h4>Event timeline <small>{timelineEvents.length}</small></h4></div><button aria-label="Close timeline sheet" onClick={closeBattleSheet} type="button">×</button></header>
