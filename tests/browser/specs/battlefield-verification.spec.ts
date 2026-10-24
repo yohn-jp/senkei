@@ -469,6 +469,30 @@ function semanticCueExpectationAt(
     : null;
 }
 
+async function assertCueSummaryGeometry(
+  page: import("@playwright/test").Page,
+  tick: number,
+): Promise<void> {
+  const summary = page.locator(`.cue-summary-label[data-tick="${tick}"]`);
+  await expect(summary, `the overflow summary should represent the current T${tick} cues`).toHaveCount(1);
+  await expect(summary, `the T${tick} overflow summary should be visible`).toBeVisible();
+  const summaryBox = await summary.boundingBox();
+  expect(summaryBox, `the T${tick} overflow summary should have a rendered box`).not.toBeNull();
+  expect(summaryBox!.height, `the T${tick} summary must remain a compact strip`).toBeLessThan(36);
+
+  const visibleCueLocators = await page.locator(`.cue-world-label[data-tick="${tick}"]`).all();
+  const visibleCueBoxes = (await Promise.all(visibleCueLocators.map(async (cue) =>
+    await cue.isVisible() ? cue.boundingBox() : null,
+  ))).filter((box): box is NonNullable<typeof box> => box !== null);
+  const overlapsSummary = visibleCueBoxes.filter((cueBox) =>
+    summaryBox!.x < cueBox.x + cueBox.width &&
+    summaryBox!.x + summaryBox!.width > cueBox.x &&
+    summaryBox!.y < cueBox.y + cueBox.height &&
+    summaryBox!.y + summaryBox!.height > cueBox.y,
+  );
+  expect(overlapsSummary, `the T${tick} overflow summary must not intersect a visible cue label`).toEqual([]);
+}
+
 async function assertSemanticCueAtTick(
   page: import("@playwright/test").Page,
   canvas: import("@playwright/test").Locator,
@@ -502,6 +526,7 @@ async function assertSemanticCueAtTick(
     expectedCue!.locator,
     `${expected!.sourceEvent} should render the expected ${expected!.type} cue visibly at T${tick}`,
   ).toBeVisible();
+  await assertCueSummaryGeometry(page, tick);
   const texts = await cuesAtTick().allInnerTexts();
   const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
     elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
