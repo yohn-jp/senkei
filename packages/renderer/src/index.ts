@@ -879,6 +879,40 @@ export class Battlefield {
     this.selected = id;
   }
   private height(p: WorldPoint) {
+    if (this.replay.scene.routes?.length) {
+      let best = Infinity;
+      let surface = -0.035;
+      for (const lane of this.replay.scene.lanes)
+        for (let i = 1; i < lane.points.length; i++) {
+          const d = distanceToSegment(p, lane.points[i - 1], lane.points[i]);
+          if (d < best) {
+            best = d;
+            // Authored lane tracks sit at lane elevation - 0.045. Keep feet
+            // barely above that path without changing the Replay position.
+            surface = lane.elevation - 0.035;
+          }
+        }
+      for (const route of this.replay.scene.routes) {
+        if (route.region !== "jungle") continue;
+        for (let i = 1; i < route.points.length; i++) {
+          const d = distanceToSegment(p, route.points[i - 1], route.points[i]);
+          if (d < best) {
+            best = d;
+            // Jungle tracks are drawn at y=0.037.
+            surface = 0.047;
+          }
+        }
+      }
+      for (const camp of this.replay.scene.camps ?? []) {
+        const d = Math.hypot(p.x - camp.position.x, p.y - camp.position.y);
+        if (d <= 3 && d <= best) {
+          best = d;
+          // Camp ground is level with the continuous ground surface.
+          surface = -0.035;
+        }
+      }
+      return surface;
+    }
     let best = Infinity,
       height = 0;
     for (const lane of this.replay.scene.lanes)
@@ -1208,6 +1242,11 @@ export class Battlefield {
     return e.kind === "unit" &&
       (e.archetype === "hero" || appearance.startsWith("hero-"));
   }
+  private sideMarker(side: DisplayEntity["side"]) {
+    if (side === "azure") return "◆ Azure";
+    if (side === "vermilion") return "▲ Vermilion";
+    return "○ Neutral";
+  }
   private heroModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const appearance = this.canonicalAppearance(e);
     const key = (Object.keys(HERO_CATALOG) as (keyof typeof HERO_CATALOG)[]).find(
@@ -1387,6 +1426,48 @@ export class Battlefield {
   private structureModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const base = e.kind === "base";
     if (this.replay.scene.routes?.length) g.scale.setScalar(base ? 1.08 : 1.14);
+    if (base && this.replay.scene.routes?.length) {
+      // Keep the Replay base anchor in the open center of a small courtyard.
+      // Heroes can occupy and fight at that exact coordinate without a solid
+      // tower body or roof hiding them from the tactical camera.
+      // Build the paving as a perimeter ring. Leave the center at terrain
+      // height: a continuous raised floor here would hide units on the base
+      // anchor, which is also the hero spawn and assault position.
+      for (const z of [-1.51, 1.51]) {
+        box(g, [3.35, 0.2, 0.32], [0, 0.1, z], 0x646b60);
+        box(g, [2.95, 0.1, 0.16], [0, 0.25, z], 0xb0b5a3);
+        box(g, [3.05, 0.14, 0.13], [0, 0.34, z], color);
+      }
+      for (const x of [-1.51, 1.51]) {
+        box(g, [0.32, 0.2, 2.8], [x, 0.1, 0], 0x646b60);
+        box(g, [0.16, 0.1, 2.56], [x, 0.25, 0], 0xb0b5a3);
+        box(g, [0.13, 0.14, 3.05], [x, 0.34, 0], color);
+      }
+
+      const wallY = 0.49;
+      box(g, [0.3, 0.58, 2.64], [-1.3, wallY, 0], stone);
+      box(g, [0.3, 0.58, 2.64], [1.3, wallY, 0], stone);
+      box(g, [2.64, 0.58, 0.3], [0, wallY, -1.3], stone);
+      // A broad gate faces the map. The open center keeps units visible as
+      // they spawn, regroup, or enter a base assault.
+      box(g, [0.72, 0.58, 0.3], [-0.96, wallY, 1.3], stone);
+      box(g, [0.72, 0.58, 0.3], [0.96, wallY, 1.3], stone);
+
+      for (const x of [-1.3, 1.3])
+        for (const z of [-1.3, 1.3]) {
+          box(g, [0.46, 1.34, 0.46], [x, 0.69, z], stone);
+          box(g, [0.55, 0.12, 0.55], [x, 1.42, z], 0xd5cdb2);
+          box(g, [0.12, 0.72, 0.08], [x, 1.06, z > 0 ? 1.55 : -1.55], color);
+        }
+
+      // Place the base core behind and to one side of the Replay anchor so it
+      // reads as the objective without covering a unit on the center tile.
+      box(g, [0.82, 0.24, 0.72], [0.74, 0.43, -0.78], 0x646b60);
+      box(g, [0.52, 0.52, 0.48], [0.74, 0.8, -0.78], stone);
+      cone(g, 0.38, 0.78, 1.45, color, 5).position.x = 0.74;
+      this.healthBar(g, e, 2.15);
+      return;
+    }
     const wide = base ? 2.25 : e.appearanceKey === "spire-tower" ? 1.05 : 1.35;
     const high = base ? 2.9 : e.appearanceKey === "spire-tower" ? 2.7 : 2.05;
     box(g, [wide + 0.55, 0.35, wide + 0.55], [0, 0.17, 0], 0x646b60);
@@ -1766,7 +1847,12 @@ export class Battlefield {
         const destination = tracked.reduce(
           (sum, entity) => {
             sum.x += entity.position.x;
-            sum.z += this.height(entity.position);
+            if (this.replay.scene.routes?.length) {
+              sum.y += this.height(entity.position);
+              sum.z += entity.position.y;
+            } else {
+              sum.z += this.height(entity.position);
+            }
             return sum;
           },
           new THREE.Vector3(),
@@ -1854,17 +1940,24 @@ export class Battlefield {
       for (const [id, element] of this.entityLabels) {
         const entity = this.state?.entities[id];
         const group = this.units.get(id);
-        const heroStack = entity && this.isHero(entity)
-          ? Object.values(this.state?.entities ?? {})
-              .filter((other) => {
-                if (!this.isHero(other) || other.destroyed) return false;
-                return Math.hypot(
-                  other.position.x - entity.position.x,
-                  other.position.y - entity.position.y,
-                ) < 0.65;
-              })
+        const nearbyHeroes = entity && this.isHero(entity)
+          ? Object.values(this.state?.entities ?? {}).filter((other) =>
+              this.isHero(other) &&
+              !other.destroyed &&
+              Math.hypot(
+                other.position.x - entity.position.x,
+                other.position.y - entity.position.y,
+              ) < 0.65,
+            )
+          : [];
+        const heroStack = entity
+          ? nearbyHeroes
+              .filter((other) => other.side === entity.side)
               .sort((a, b) => a.id.localeCompare(b.id))
           : [];
+        const overlapsOtherSide = Boolean(
+          entity && nearbyHeroes.some((other) => other.side !== entity.side),
+        );
         const focused = Boolean(
           entity &&
             (this.selected === id ||
@@ -1891,16 +1984,37 @@ export class Battlefield {
         element.hidden = !visible;
         if (!visible || !group) continue;
         const identity = this.entityLabel(entity!).replace(/^HERO · /, "");
+        const sideMarker = this.sideMarker(entity!.side);
         element.textContent = groupedHeroes && focused
-          ? `${heroStack.length} visible Heroes · ◆ ${identity} · ${entity!.hp}/${entity!.maxHp}`
+          ? `${sideMarker} · ${heroStack.length} visible Heroes · ${identity} · ${entity!.hp}/${entity!.maxHp}`
           : groupedHeroes
-            ? `${heroStack.length} visible Heroes`
-            : `${focused ? "◆ " : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
-        const height = entity?.kind === "base" ? 4.6 : entity?.kind === "tower" ? 4 : 2.8;
+            ? `${sideMarker} · ${heroStack.length} visible Heroes`
+            : `${focused ? `${sideMarker} · ` : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
+        const height = entity?.kind === "base"
+          ? this.replay.scene.routes?.length ? 2.6 : 4.6
+          : entity?.kind === "tower" ? 4 : 2.8;
         const p = group.position.clone().add(new THREE.Vector3(0, height, 0)).project(this.camera);
         element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
-        element.style.transform = "translate(-50%, -120%)";
+        const separateSelectedIdentity = Boolean(
+          focused &&
+            heroStack.length > 1 &&
+            heroStack[0].id !== id,
+        );
+        const sideOffset = separateSelectedIdentity
+          ? entity!.side === "azure"
+            ? -42
+            : entity!.side === "vermilion"
+              ? 42
+              : 0
+          : overlapsOtherSide
+            ? entity!.side === "azure"
+              ? -14
+              : entity!.side === "vermilion"
+                ? 14
+                : 0
+            : 0;
+        element.style.transform = `translate(-50%, calc(-120% + ${sideOffset}px))`;
         element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
       }
       this.canvas.dataset.camera =
