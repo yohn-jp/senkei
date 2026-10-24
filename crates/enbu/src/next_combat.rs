@@ -96,6 +96,7 @@ pub fn objective_lifecycle(
     tick: u32,
 ) -> Vec<PresentationEvent> {
     reapply_movement_passives(world, rules, tick);
+    regrant_passive_shields(world, rules);
     let due: Vec<_> = world.entities.iter()
         .filter(|(_, entity)| entity.entity_type.as_str() == "monster")
         .filter(|(_, entity)| support::int(entity, "hp") <= 0)
@@ -412,6 +413,26 @@ fn collect_skill_activations(
                 event: "next.skill_damage",
                 uses_basic_attack: false,
             });
+        } else if skill.effect == SkillEffect::AreaDamage {
+            let radius = support::param(rules, "skill_area_radius", 80).max(0);
+            let radius_squared = i128::from(radius) * i128::from(radius);
+            for (area_target_id, area_target) in &start.entities {
+                if area_target.owner == Some(*side)
+                    || !support::alive(area_target)
+                    || !is_targetable(area_target)
+                    || support::distance2(target, area_target) > radius_squared
+                    || !crate::next_vision::visible(start, rules, *side, area_target)
+                {
+                    continue;
+                }
+                damage.push(Hit {
+                    source: actor_id.clone(),
+                    target: area_target_id.clone(),
+                    raw_power: skill.power,
+                    event: "next.skill_damage",
+                    uses_basic_attack: false,
+                });
+            }
         } else {
             effects.push(PendingEffect { source: actor_id.clone(), target: target_id, skill: skill.clone(), side: *side });
         }
@@ -454,6 +475,7 @@ fn apply_activations(
                 }
             }
             SkillEffect::Damage => {}
+            SkillEffect::AreaDamage => {}
         }
     }
 
@@ -486,7 +508,7 @@ fn apply_activations(
             }
             SkillEffect::Empower => set_timed_magnitude(target, "empower", "empower_until", power, expiry, tick),
             SkillEffect::Defense => set_timed_magnitude(target, "defense_bonus", "defense_until", power, expiry, tick),
-            SkillEffect::Damage | SkillEffect::Heal | SkillEffect::Shield => {}
+            SkillEffect::Damage | SkillEffect::AreaDamage | SkillEffect::Heal | SkillEffect::Shield => {}
         }
     }
 }
@@ -627,6 +649,7 @@ fn apply_passive(hero: &mut EntityState, skill: &SkillDefinition, rules: &NextRu
         SkillEffect::Damage | SkillEffect::Empower => {
             add_int(hero, "attack", power);
         }
+        SkillEffect::AreaDamage => {}
         SkillEffect::Heal => {
             if support::alive(hero) {
                 let hp = support::int(hero, "hp");
@@ -692,6 +715,36 @@ fn reapply_movement_passives(world: &mut WorldState, rules: &NextRules, tick: u3
         if slow > 0 && support::int(hero, "slow_until") <= i64::from(tick) {
             support::set_int(hero, "slow", slow);
             support::set_int(hero, "slow_until", permanent_until);
+        }
+    }
+}
+
+/// Regrant one-time passive shields once per Hero life. Permanent stat
+/// passives are intentionally excluded: W3 preserves their stat changes and
+/// this generation marker covers only shields cleared on death.
+fn regrant_passive_shields(world: &mut WorldState, rules: &NextRules) {
+    let hero_ids: Vec<_> = world.entities.iter()
+        .filter(|(_, hero)| hero.entity_type.as_str() == "hero" && support::alive(hero))
+        .filter(|(_, hero)| support::int(hero, "life_generation") != support::int(hero, "passive_generation"))
+        .map(|(id, _)| id.clone())
+        .collect();
+    for hero_id in hero_ids {
+        let Some(hero_state) = world.entities.get(&hero_id) else { continue };
+        let catalog_id = support::string(hero_state, "catalog_id");
+        let learned = skill_ids(hero_state);
+        let life_generation = support::int(hero_state, "life_generation");
+        let shield = rules.heroes.iter()
+            .find(|definition| definition.id == catalog_id)
+            .map(|definition| definition.skills.iter()
+                .filter(|skill| skill.passive && skill.effect == SkillEffect::Shield && learned.contains(&skill.id))
+                .map(|skill| skill.power.max(0))
+                .fold(0_i64, i64::saturating_add))
+            .unwrap_or(0);
+        if let Some(hero) = world.entities.get_mut(&hero_id) {
+            if shield > 0 {
+                add_int(hero, "shield", shield);
+            }
+            support::set_int(hero, "passive_generation", life_generation);
         }
     }
 }
@@ -860,14 +913,15 @@ fn set_max_int(entity: &mut EntityState, key: &str, value: i64) {
 
 fn effect_order(effect: &SkillEffect) -> u8 {
     match effect {
-        SkillEffect::Damage => 0,
-        SkillEffect::Heal => 1,
-        SkillEffect::Shield => 2,
-        SkillEffect::Haste => 3,
-        SkillEffect::Slow => 4,
-        SkillEffect::Reveal => 5,
-        SkillEffect::Empower => 6,
-        SkillEffect::Defense => 7,
+        SkillEffect::AreaDamage => 0,
+        SkillEffect::Damage => 1,
+        SkillEffect::Heal => 2,
+        SkillEffect::Shield => 3,
+        SkillEffect::Haste => 4,
+        SkillEffect::Slow => 5,
+        SkillEffect::Reveal => 6,
+        SkillEffect::Empower => 7,
+        SkillEffect::Defense => 8,
     }
 }
 
@@ -1241,6 +1295,106 @@ mod tests {
         objective_lifecycle(&mut world, &rules, 21);
         assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "haste"), 100);
         assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "attack"), 20);
+    }
+
+    #[test]
+    fn acquired_passive_shield_is_regranted_once_per_hero_life() {
+        let mut rules = rules();
+        rules.heroes[0].skills = vec![
+            SkillDefinition {
+                id: "warding_skin".into(), name: "Warding Skin".into(), passive: true,
+                unlock_level: 2, prerequisites: Vec::new(), cooldown: 0, cost: 0, range: 0,
+                target: "self".into(), effect: SkillEffect::Shield, power: 16, duration: 0,
+            },
+            SkillDefinition {
+                id: "iron_will".into(), name: "Iron Will".into(), passive: true,
+                unlock_level: 2, prerequisites: Vec::new(), cooldown: 0, cost: 0, range: 0,
+                target: "self".into(), effect: SkillEffect::Defense, power: 4, duration: 0,
+            },
+        ];
+        let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 0);
+        hero.fields.insert("skills".into(), DomainValue::List(vec![
+            DomainValue::String("warding_skin".into()),
+            DomainValue::String("iron_will".into()),
+        ]));
+        support::set_int(&mut hero, "defense", 14); // Includes the permanent passive gain.
+        support::set_int(&mut hero, "life_generation", 1);
+        support::set_int(&mut hero, "passive_generation", 0);
+        support::set_int(&mut hero, "shield", 0); // W3 clears shield when the Hero respawns.
+        let mut world = WorldState::default();
+        insert(&mut world, "hero", hero);
+
+        objective_lifecycle(&mut world, &rules, 20);
+        let hero = &world.entities[&EntityId::from("hero")];
+        assert_eq!(support::int(hero, "shield"), 16);
+        assert_eq!(support::int(hero, "passive_generation"), 1);
+        assert_eq!(support::int(hero, "defense"), 14);
+
+        objective_lifecycle(&mut world, &rules, 21);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "shield"), 16);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "defense"), 14);
+
+        // A later respawn receives the one-time passive shield again, without
+        // applying permanent stat passives a second time.
+        let hero = world.entities.get_mut(&EntityId::from("hero")).unwrap();
+        support::set_int(hero, "life_generation", 2);
+        support::set_int(hero, "shield", 0);
+        objective_lifecycle(&mut world, &rules, 40);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "shield"), 16);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "passive_generation"), 2);
+        assert_eq!(support::int(&world.entities[&EntityId::from("hero")], "defense"), 14);
+    }
+
+    #[test]
+    fn area_damage_hits_visible_targets_in_radius_once_each() {
+        let mut rules = rules();
+        rules.parameters.insert("skill_area_radius".into(), 80);
+        rules.heroes[0].skills.push(SkillDefinition {
+            id: "flare".into(), name: "Flare".into(), passive: false,
+            unlock_level: 1, prerequisites: Vec::new(), cooldown: 9, cost: 20, range: 5,
+            target: "enemy".into(), effect: SkillEffect::AreaDamage, power: 42, duration: 0,
+        });
+
+        let mut world = WorldState::default();
+        let mut caster = entity("hero", Some(CombatantSide::Attacker), 0, 100, 0, 0);
+        support::set_int(&mut caster, "vision", 10);
+        support::set_int(&mut caster, "energy", 40);
+        caster.fields.insert("skills".into(), DomainValue::List(vec![DomainValue::String("flare".into())]));
+        insert(&mut world, "caster", caster);
+        insert(&mut world, "center", entity("hero", Some(CombatantSide::Defender), 1, 100, 0, 0));
+        insert(&mut world, "nearby", entity("hero", Some(CombatantSide::Defender), 2, 100, 0, 0));
+        insert(&mut world, "hidden", entity("hero", Some(CombatantSide::Defender), 50, 100, 0, 0));
+        insert(&mut world, "far", entity("hero", Some(CombatantSide::Defender), 100, 100, 0, 0));
+        let mut observer = entity("hero", Some(CombatantSide::Attacker), 95, 100, 0, 0);
+        support::set_int(&mut observer, "vision", 10);
+        insert(&mut world, "observer", observer);
+        assert!(!crate::next_vision::visible(
+            &world, &rules, CombatantSide::Attacker, &world.entities[&EntityId::from("hidden")],
+        ));
+        assert!(crate::next_vision::visible(
+            &world, &rules, CombatantSide::Attacker, &world.entities[&EntityId::from("far")],
+        ));
+
+        let intent = Intent {
+            action_id: "flare-1".into(),
+            capability: "senkei.next.activate".into(),
+            actor: Some(EntityId::from("caster")),
+            target: Some(EntityId::from("center")),
+            arguments: vec![DomainValue::String("flare".into())],
+            priority: None,
+        };
+        let events = resolve(&mut world, &rules, &[(CombatantSide::Attacker, intent)], 0);
+
+        for id in ["center", "nearby"] {
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "hp"), 58);
+        }
+        for id in ["hidden", "far"] {
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "hp"), 100);
+        }
+        assert_eq!(support::int(&world.entities[&EntityId::from("caster")], "energy"), 21);
+        assert_eq!(cooldown_ready(&world.entities[&EntityId::from("caster")], "flare"), 9);
+        assert_eq!(events.iter().filter(|event| event.event.as_str() == "next.skill").count(), 1);
+        assert_eq!(events.iter().filter(|event| event.event.as_str() == "next.skill_damage").count(), 2);
     }
 
     #[test]
