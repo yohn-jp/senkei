@@ -272,6 +272,45 @@ try {
     compileResults.set(entry.key, compileResult);
     snapshots.set(entry.key, makeSnapshot(entry.draft, compileResult));
   });
+
+  const privateObservationPaths = ["enemy.resources", "enemy.strategy", "enemy.program"];
+  const privateObservationRequests = [
+    envelope("compile-private-observation-control", "compile_text", {
+      ruleset_ref: ruleset.ruleset,
+      source: `senkei private_observation_control {
+    action preserve {
+        when self.resources >= 0,
+        do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
+    },
+}`,
+    }),
+    ...privateObservationPaths.map((path, index) => envelope(
+      `compile-private-observation-${index}`,
+      "compile_text",
+      {
+        ruleset_ref: ruleset.ruleset,
+        source: `senkei reject_private_${index} {
+    action preserve {
+        when ${path} >= 0,
+        do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
+    },
+}`,
+      },
+    )),
+  ];
+  const privateObservationResponses = await runNative(privateObservationRequests);
+  assertOk(privateObservationResponses[0], "compile legal self.resources observation control");
+  privateObservationPaths.forEach((path, index) => {
+    const response = privateObservationResponses[index + 1];
+    const error = response?.error;
+    if (response?.ok || error?.code !== "validation_failed" ||
+        !error.message?.includes(path) ||
+        !/(unknown observation|not accessible to Jinrei)/.test(error.message)) {
+      throw new Error(`private observation ${path} was not rejected by the native compiler: ${JSON.stringify(response)}`);
+    }
+  });
+  console.log(`PRIVATE_OBSERVATIONS legal=self.resources; rejected=${privateObservationPaths.join(",")}`);
+
   for (const key of ["ast", "text"]) {
     const inputKey = key === "ast" ? "beginner-preset" : "beginner-text-equivalent";
     const compileResult = compileResults.get(inputKey);

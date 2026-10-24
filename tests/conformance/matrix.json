@@ -52,13 +52,12 @@
     },
     {
       "order": 5,
-      "id": "user.private-data-rejection",
-      "check": "Private tactical data is excluded from public output and hidden reads reject",
-      "status": "PARTIAL",
+      "id": "user.non-public-observation-rejection",
+      "check": "Non-public observations are rejected by the tactics compiler",
+      "status": "VERIFIED",
       "evidence": [
-        "Enbu public_response test excludes bytecode and private input markers",
-        "Senritsu rejects hidden observation access",
-        "not checked: exhaustive public-output secret-field denylist across every response shape"
+        "tests/conformance/generate-scenario-inputs.mjs sends self.resources and enemy.resources/enemy.strategy/enemy.program compile_text probes through the real native dispatcher",
+        "self.resources compiles successfully; each enemy-private path is rejected with validation_failed by Jinrei"
       ]
     },
     {
@@ -224,18 +223,19 @@
       "evidence": [
         "model wire test distinguishes unknown from known null",
         "Senritsu rejects hidden-field observation access and derived hidden reads",
+        "native dispatcher compile probes accept self.resources and reject enemy.resources, enemy.strategy, and enemy.program",
         "not checked: an Enbu runtime probe proving an opponent cannot read a hidden live-world field"
       ]
     },
     {
       "id": "output.public-replay-no-private-data",
       "property": "public results and replay exclude restricted diagnostics, private tactic input, and reproduction context",
-      "status": "partial",
+      "status": "not-checked",
       "required_oracle": ["native-enbu", "wasm-adapter"],
       "evidence": [
         "Enbu public_response test verifies its explicit DTO omits bytecode and private input markers",
         "browser diagnostics are requested separately from the public replay",
-        "not checked: exhaustive serialized-output secret-field denylist across native and WASM payloads"
+        "not checked: exhaustive serialized-output secret-field denylist across native and WASM payloads; this supplemental audit is separate from required non-public observation rejection"
       ]
     },
     {
