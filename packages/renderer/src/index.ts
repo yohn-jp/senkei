@@ -1916,7 +1916,9 @@ export class Battlefield {
           .map((v) => v.toFixed(3))
           .join(",") +
         ":" +
-        this.camera.zoom.toFixed(3);
+        this.camera.zoom.toFixed(3) + ":" +
+        [this.camera.left, this.camera.right, this.camera.top, this.camera.bottom]
+          .map((value) => value.toFixed(3)).join(",");
       this.canvas.dataset.tick = String(this.state?.tick ?? 0);
       this.canvas.dataset.cameraTarget = this.controls.target.toArray().map((value) => value.toFixed(3)).join(",");
       this.canvas.dataset.cameraMode = this.cameraMode;
