@@ -459,14 +459,19 @@
 .next-assembly-note p { margin:3px 0 0; }
 
 @media (max-width:760px) {
-  .next-atelier-nav { display:flex; gap:5px; margin:0 -1px 12px; overflow-x:auto; padding:2px 1px 5px; scroll-snap-type:x mandatory; }
-  .next-atelier-nav button { flex:0 0 136px; min-height:58px; scroll-snap-align:start; }
+  .next-atelier-nav { display:grid; gap:4px; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0 -1px 12px; }
+  .next-atelier-nav button { min-height:58px; min-width:0; padding:7px 4px; }
+  .next-atelier-nav button small { display:none; }
+  .next-atelier-nav button:not(.is-active) { color:#aab5ae; }
   .next-collection-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .next-collection-summary button { min-height:58px; }
   .next-atelier-detail,.next-skill-tree-screen { display:flex; flex-direction:column; }
-  .next-atelier-roster { display:flex; gap:6px; overflow-x:auto; overscroll-behavior-x:contain; padding:8px; scroll-snap-type:x mandatory; width:100%; }
+  .next-atelier-roster { display:grid; gap:4px; grid-template-columns:repeat(5,minmax(0,1fr)); overflow:visible; padding:5px; width:100%; }
   .next-atelier-roster > .next-filter-label { display:none; }
-  .next-atelier-roster button { flex:0 0 126px; min-height:58px; scroll-snap-align:start; }
+  .next-atelier-roster button { align-content:center; display:flex; flex:initial; flex-direction:column; gap:3px; min-height:58px; min-width:0; overflow:hidden; padding:5px 2px; }
+  .next-atelier-roster button > span { font-size:9px; }
+  .next-atelier-roster button strong { display:none; }
+  .next-atelier-roster button small { color:#d2dfd0; font:11px "DM Mono",monospace; }
   .next-hero-dossier,.next-skill-tree-content { width:100%; }
   .next-hero-dossier-head { min-height:148px; padding:15px; }
   .next-hero-dossier-mark { font-size:45px; padding:0 5px; }
@@ -480,7 +485,6 @@
 }
 
 @media (max-width:380px) {
-  .next-atelier-nav button { flex-basis:124px; }
   .next-collection-summary button { padding:7px 6px; }
   .next-skill-tree-title { flex-direction:column; }
   .next-assembly-group li { gap:5px; grid-template-columns:22px minmax(0,1fr) 96px; }
