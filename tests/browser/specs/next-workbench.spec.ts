@@ -116,6 +116,27 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.getByRole("button", {name:"Overview", exact:true}).click();
   await expect.poll(() => canvas.getAttribute("data-camera")).toBe(initialCamera);
 
+  const tickBeforeContextLoss = await slider.inputValue();
+  await canvas.evaluate((element) => {
+    const target = element as HTMLCanvasElement;
+    const gl = target.getContext("webgl2") ?? target.getContext("webgl");
+    const extension = gl?.getExtension("WEBGL_lose_context");
+    if (!extension) throw new Error("WEBGL_lose_context is unavailable in the browser renderer.");
+    extension.loseContext();
+  });
+  const retryRenderer = page.getByRole("button", {name:"Retry battlefield renderer"});
+  await expect(retryRenderer).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Playback is paused at the current tick.");
+  await expect(page.getByRole("alert")).toContainText(/WebGL.*失われました/);
+  await expect(slider).toHaveValue(tickBeforeContextLoss);
+  await expect(page.getByRole("button", {name:"Play replay", exact:true})).toBeVisible();
+  await page.screenshot({path:"../../docs/evidence/next/webgl-context-lost-1440.png"});
+  await retryRenderer.click();
+  await expect.poll(() => page.locator(".next-renderer-host canvas").getAttribute("data-rendered")).toBe("true");
+  await expect.poll(() => page.locator(".next-renderer-host canvas").getAttribute("data-tick")).toBe(tickBeforeContextLoss);
+  await expect(slider).toHaveValue(tickBeforeContextLoss);
+  await expect(page.getByRole("button", {name:"Retry battlefield renderer"})).toBeHidden();
+
   await slider.focus();
   await slider.press("End");
   await expect(page.locator(".next-tick-readout")).toContainText("/");
@@ -158,6 +179,29 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
 
   // Keep the F02 / Path A / editedSource setup as the pinned restore point.
   // The later F05 / Path B / recoverySource edits are deliberately unsaved.
+  for (const [width, height, path] of [
+    [390, 844, "mobile-battle.png"],
+    [430, 932, "mobile-battle-430.png"],
+    [320, 740, "mobile-battle-320.png"],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    const mobileLayout = await page.evaluate(() => ({
+      width: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      cameraControls: getComputedStyle(document.querySelector(".next-camera-controls")!).display,
+    }));
+    expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.width);
+    expect(mobileLayout.cameraControls).not.toBe("none");
+    await expect(page.locator(".next-renderer-host")).toBeVisible();
+    await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
+    await expect(page.locator(".next-replay-controls")).toBeInViewport();
+    await expect(page.getByRole("slider", {name:"Seek replay tick"})).toBeInViewport();
+    await page.screenshot({path:`../../docs/evidence/next/${path}`});
+  }
+
+  // Make all three post-save changes after the pinned baseline and viewport
+  // evidence. No second Save action may overwrite the F02 / Path A / editedSource
+  // restore point before the offline reload below.
   await page.locator("#next-tab-formation").click();
   await atelier.getByRole("tab", {name:"Hero Collection"}).click();
   await page.getByRole("region", {name:"Filtered hero catalog"}).getByRole("button", {name:/F05/}).click();
@@ -173,25 +217,6 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const recoveryBeforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem("senkei.next-workspace-recovery.v1") ?? "null"));
   expect(recoveryBeforeReload.slots.find((slot: {slot_id:string}) => slot.slot_id === "slot-01").skill_path).toBe("path_b");
   expect(recoveryBeforeReload.draft.program_input.source).toBe(recoverySource);
-
-  for (const [width, height, path] of [
-    [390, 844, "mobile-battle.png"],
-    [430, 932, "mobile-battle-430.png"],
-    [320, 740, "mobile-battle-320.png"],
-  ] as const) {
-    await page.setViewportSize({ width, height });
-    const mobileLayout = await page.evaluate(() => ({
-      width: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      cameraControls: getComputedStyle(document.querySelector(".next-camera-controls")!).display,
-    }));
-    expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.width);
-    expect(mobileLayout.cameraControls).not.toBe("none");
-    await page.locator(".next-renderer-host").scrollIntoViewIfNeeded();
-    await expect(page.locator(".next-replay-controls")).toBeInViewport();
-    await expect(page.getByRole("slider", {name:"Seek replay tick"})).toBeInViewport();
-    await page.screenshot({path:`../../docs/evidence/next/${path}`});
-  }
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
@@ -211,6 +236,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(recoverySource);
     await page.getByRole("button", { name: "Restore saved" }).click();
     await page.locator("#next-tab-formation").click();
+    await atelier.getByRole("tab", {name:"Hero Collection"}).click();
     await expect(page.getByRole("group", {name:"Five selected Hero slots"})).toContainText("Stoneheart");
     await atelier.getByRole("tab", {name:"Skill Tree"}).click();
     await expect(page.getByRole("button", {name:"Choose Path A for slot-01"})).toHaveAttribute("aria-pressed","true");
