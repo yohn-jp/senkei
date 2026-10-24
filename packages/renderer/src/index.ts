@@ -625,6 +625,29 @@ export class Battlefield {
       halfHeight: this.projectedFrameHalfHeight(center, points),
     };
   }
+  private strategicViewportFit(center: THREE.Vector3, halfHeight: number) {
+    const hostHeight = Math.max(1, this.host.clientHeight);
+    const topInset = Math.min(this.mobile ? 74 : 88, hostHeight * 0.44);
+    const bottomInset = Math.min(12, hostHeight * 0.1);
+    const safeHeight = Math.max(1, hostHeight - topInset - bottomInset);
+    const safeRatio = safeHeight / hostHeight;
+    const cameraPosition = center.clone().add(this.authoredCameraOffset("strategic"));
+    const direction = center.clone().sub(cameraPosition).normalize();
+    const right = new THREE.Vector3()
+      .crossVectors(direction, this.camera.up)
+      .normalize();
+    const screenUp = new THREE.Vector3()
+      .crossVectors(right, direction)
+      .normalize();
+    // Center the map in the unobscured vertical band and enlarge the frustum
+    // just enough to keep every authored endpoint inside that band.
+    const fittedHalfHeight = halfHeight / safeRatio;
+    const centerShift = ((topInset - bottomInset) * fittedHalfHeight) / hostHeight;
+    return {
+      center: center.clone().addScaledVector(screenUp, centerShift),
+      halfHeight: fittedHalfHeight,
+    };
+  }
   private authoredCloseHalfHeight() {
     const { min, max } = this.replay.scene.bounds;
     return Math.max(
@@ -643,13 +666,14 @@ export class Battlefield {
     // Tactical frames only public current entities and their nearby map
     // context. Overview is the explicit whole-map inspection framing.
     const halfHeight = tactical?.halfHeight ?? boundsHalfHeight;
+    const safeFrame = this.strategicViewportFit(target, halfHeight);
     this.controls.enableDamping = false;
     this.controls.update();
-    this.controls.target.copy(target);
-    this.camera.position.copy(target).add(this.authoredCameraOffset());
+    this.controls.target.copy(safeFrame.center);
+    this.camera.position.copy(safeFrame.center).add(this.authoredCameraOffset());
     this.camera.zoom = 1;
-    this.camera.lookAt(target);
-    this.updateFrustum(halfHeight);
+    this.camera.lookAt(safeFrame.center);
+    this.updateFrustum(safeFrame.halfHeight);
     this.controls.update();
     this.controls.enableDamping = true;
   }
