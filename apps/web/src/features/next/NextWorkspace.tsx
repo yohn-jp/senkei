@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
 import { Battlefield } from "@senkei/renderer";
@@ -35,6 +35,7 @@ const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
+type AtelierScreen = "collection" | "detail" | "skills" | "squads";
 type Side = "attacker" | "defender";
 type HeroFilter = "placement" | "role" | "trait_id";
 type FormationShape = "single" | "three-lane" | "wings" | "custom";
@@ -79,6 +80,23 @@ const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readon
   { id: "jinrei", label: "Jinrei", number: "02" },
   { id: "battle", label: "Battle", number: "03" },
   { id: "analysis", label: "Analysis", number: "04" },
+];
+
+const ATELIER_SCREENS: readonly { readonly id: AtelierScreen; readonly label: string; readonly hint: string }[] = [
+  { id: "collection", label: "Hero Collection", hint: "01 / CHOOSE FIVE" },
+  { id: "detail", label: "Hero Detail", hint: "02 / CATALOG DATA" },
+  { id: "skills", label: "Skill Tree", hint: "03 / PLAN LEVEL UPS" },
+  { id: "squads", label: "Squad Assembly", hint: "04 / FORM SQUADS" },
+];
+
+const SQUAD_PATTERNS: readonly { readonly id: string; readonly sizes: readonly number[] }[] = [
+  { id: "1+1+1+1+1", sizes: [1, 1, 1, 1, 1] },
+  { id: "2+1+1+1", sizes: [2, 1, 1, 1] },
+  { id: "2+2+1", sizes: [2, 2, 1] },
+  { id: "3+1+1", sizes: [3, 1, 1] },
+  { id: "3+2", sizes: [3, 2] },
+  { id: "4+1", sizes: [4, 1] },
+  { id: "5", sizes: [5] },
 ];
 
 function stableKey(value: unknown): string {
@@ -289,6 +307,12 @@ function skillNames(hero: HeroDefinition | null, pathName: string): string[] {
   return path.map((id) => hero.skills.find((skill) => skill.id === id)?.name ?? id);
 }
 
+function formationGroupsPattern(slots: readonly FormationSlot[]): string {
+  const counts = new Map<string, number>();
+  for (const slot of slots) counts.set(slot.squad, (counts.get(slot.squad) ?? 0) + 1);
+  return [...counts.values()].sort((left, right) => right - left).join("+");
+}
+
 function createTacticDraft(packageValue: RulePackage, rules: NextRules, side: Side): SenkeiDraft {
   const heroes = defaultSlots(rules, side, side === "attacker" ? DEFAULT_HERO_IDS : DEFAULT_RIVAL_IDS);
   const source = createStarterJinrei(packageValue, side, heroes);
@@ -449,6 +473,7 @@ function diagnosticDetails(diagnostics: RestrictedDiagnostics): readonly { tick:
 export function NextWorkspace({ active, core, ruleset: packageValue, rulesetError }: WorkspaceProps): ReactElement {
   const nextRules = packageValue?.next ?? null;
   const [tab, setTab] = useState<WorkspaceTab>("formation");
+  const [atelierScreen, setAtelierScreen] = useState<AtelierScreen>("collection");
   const [slots, setSlots] = useState<FormationSlot[]>([]);
   const [rivalSlots, setRivalSlots] = useState<FormationSlot[]>([]);
   const [formationShape, setFormationShape] = useState<FormationShape>("single");
@@ -548,6 +573,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       return rank(a)-rank(b) || a.slot_id.localeCompare(b.slot_id);
     }) }));
   }, [slots,nextRules]);
+  const currentSquadPattern = formationGroupsPattern(slots);
   const selectedFrame = run && displayState ? latestFrame(run.sourceReplay.frames, displayState.tick) : null;
   const publicEntities = selectedFrame?.visible_state?.entities ?? {};
   const selectedDisplayEntity = selectedEntityId ? displayState?.entities[selectedEntityId] ?? null : null;
@@ -849,6 +875,29 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     setError(null);
   };
 
+  const applySquadPattern = useCallback((sizes: readonly number[]): void => {
+    if (sizes.reduce((sum, size) => sum + size, 0) !== slots.length || slots.length !== 5) return;
+    let offset = 0;
+    const nextSlots = sizes.flatMap((size, groupIndex) => {
+      const members = slots.slice(offset, offset + size);
+      offset += size;
+      const node = members[0]?.node;
+      return members.map((slot) => ({ ...slot, squad: `squad-${groupIndex + 1}`, node: node ?? slot.node }));
+    });
+    refreshStarterTactics(slots, nextSlots);
+    setSlots(nextSlots);
+    setFormationShape("custom");
+    setError(null);
+  }, [refreshStarterTactics, slots]);
+
+  const moveSquad = useCallback((squad: string, node: string): void => {
+    const nextSlots = slots.map((slot) => slot.squad === squad ? { ...slot, node } : slot);
+    refreshStarterTactics(slots, nextSlots);
+    setSlots(nextSlots);
+    setFormationShape("custom");
+    setError(null);
+  }, [refreshStarterTactics, slots]);
+
   const runOutcome: SimulationOutcome | null = run?.response.outcome ?? null;
   const runResult: MatchResult | null = runOutcome?.result ?? null;
   const frameEvents = selectedFrame?.events ?? [];
@@ -926,10 +975,18 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
             <div className="next-panel-header">
-              <div><span className="next-eyebrow">01 · HERO CATALOG</span><h3>Assemble your <em>formation</em></h3><p>Every slot keeps its own catalog type, squad, starting node and skill path.</p></div>
+              <div><span className="next-eyebrow">HERO ATELIER · {ATELIER_SCREENS.find((screen) => screen.id === atelierScreen)?.hint}</span><h3>{atelierScreen === "collection" ? <>Choose your <em>heroes</em></> : atelierScreen === "detail" ? <>Hero <em>detail</em></> : atelierScreen === "skills" ? <>Plan a skill <em>tree</em></> : <>Assemble your <em>squads</em></>}</h3><p>{atelierScreen === "collection" ? "Select exactly five entries from the bundled Senritsu Catalog." : atelierScreen === "detail" ? "Inspect the selected Catalog identity, attributes, real stats and growth." : atelierScreen === "skills" ? "Choose a real branch and review its level, prerequisite and effect before battle." : "Divide the same five Heroes into legal Squads and set one shared starting node per unit."}</p></div>
               <span className="next-slot-counter">{String(slots.length).padStart(2, "0")} <small>/ 05</small></span>
             </div>
 
+            <nav className="next-atelier-nav" aria-label="Hero Atelier" role="tablist">
+              {ATELIER_SCREENS.map((screen) => <button aria-selected={atelierScreen === screen.id} className={atelierScreen === screen.id ? "is-active" : ""} id={`next-atelier-${screen.id}`} key={screen.id} onClick={() => setAtelierScreen(screen.id)} role="tab" type="button">{screen.label}<small>{screen.hint}</small></button>)}
+            </nav>
+
+            {atelierScreen === "collection" && <>
+            <div className="next-collection-summary" aria-label="Five selected Hero slots">
+              {slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-label={`Choose hero for slot ${index + 1}`} aria-pressed={activeSlot === index} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id ?? slot.slot_id} · {hero ? formatId(hero.placement) : "EMPTY"}</small></button>; })}
+            </div>
             <div className="next-formation-tools">
               <label className="next-field next-shape-field"><span>Initial formation</span><select value={formationShape} onChange={(event) => {
                 const shape = event.target.value as "single" | "three-lane" | "wings" | "custom";
@@ -945,58 +1002,45 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               </div>
             </div>
 
-            <div className="next-roster-layout">
-              <div className="next-slot-list" role="list" aria-label="Five formation slots">
-                {slots.map((slot, index) => {
-                  const hero = findHero(nextRules, slot.catalog_id);
-                  return <button className={`next-slot-card${activeSlot === index ? " is-active" : ""}`} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button">
-                    <span className="next-slot-index">{String(index + 1).padStart(2, "0")}</span>
-                    <span className={`next-hero-sigil ${hero?.placement ?? ""}`}>{hero?.placement === "backline" ? "⌁" : "◆"}</span>
-                    <span className="next-slot-copy"><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero ? `${hero.id} · ${formatId(hero.role)}` : slot.slot_id}</small></span>
-                    <span className="next-slot-arrow">↗</span>
-                  </button>;
-                })}
-              </div>
-
-              <div className="next-slot-editor">
-                {activeSlotValue && currentHero ? <>
-                  <div className="next-slot-editor-heading"><div><span className="next-eyebrow">SLOT {String(activeSlot + 1).padStart(2, "0")} · {activeSlotValue.slot_id}</span><h4>{currentHero.name}</h4><p>{formatId(currentHero.trait_id)} · {formatId(currentHero.placement)} · {formatId(currentHero.role)}</p></div><span className="next-hero-id">{currentHero.id}</span></div>
-                  <div className="next-stat-row">{(["hp", "attack", "defense", "speed"] as const).map((stat) => <div key={stat}><span>{formatId(stat)}</span><strong>{currentHero.stats[stat]}</strong></div>)}</div>
-                  <div className="next-slot-controls">
-                    <label className="next-field"><span>Squad</span><select value={activeSlotValue.squad} onChange={(event) => changeSlot(activeSlot, { squad: event.target.value })}>{["alpha", "bravo", "charlie", "north", "center", "south", "top", "mid", "bot"].map((value) => <option key={value} value={value}>{formatId(value)}</option>)}</select></label>
-                    <label className="next-field"><span>Starting node</span><select value={activeSlotValue.node} onChange={(event) => changeSlot(activeSlot, { node: event.target.value })}>{Object.keys(nextRules.map.nodes).map((node) => <option key={node} value={node}>{formatId(node)}{Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ? ` · ${formatId(Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ?? "")}` : ""}</option>)}</select></label>
-                    <label className="next-field"><span>Skill path</span><select value={activeSlotValue.skill_path} onChange={(event) => changeSlot(activeSlot, { skill_path: event.target.value })}>{pathNames.map((path) => <option key={path} value={path}>{formatId(path)}</option>)}</select></label>
-                  </div>
-                  <div className="next-path-skills"><span className="next-filter-label">SKILL PATH LOADOUT</span><div>{skillNames(currentHero, activeSlotValue.skill_path).map((skill) => <span key={skill}>{skill}</span>)}</div></div>
-                </> : <div className="next-slot-editor-heading"><div><span className="next-eyebrow">SELECT A SLOT</span><h4>Choose a hero</h4></div></div>}
-              </div>
-            </div>
-
-            <section aria-label="Squad formation preview" className="next-squad-preview">
-              {formationGroups.map(({id,members}) => <article key={id}>
-                <h4>{["Solo","Duo","Trio","Quartet","Quintet"][members.length-1]} · {formatId(id)}</h4>
-                <p>Movement ×{(nextRules.parameters[`squad_${members.length}_speed_milli`]/1000).toFixed(2)} · Maturation {nextRules.parameters.squad_maturation_ticks} ticks</p>
-                <ol>{members.map(member => { const hero=findHero(nextRules,member.catalog_id); return <li key={member.slot_id} data-placement={hero?.placement}>{hero?.placement === "backline" ? "⌁" : "◆"} {hero?.name}<small>{hero?.placement === "backline" ? "Rear" : "Front"}</small></li>; })}</ol>
-                {new Set(members.map(m => m.node)).size === 1 ? <small>Start: {formatId(members[0].node)} · planned formation order</small> : <p role="alert">Members must share one starting node to form this Squad.</p>}
-              </article>)}
-            </section>
-
             <section className="next-catalog" aria-label="Filtered hero catalog">
-              <div className="next-catalog-heading"><div><span className="next-eyebrow">CATALOG · {visibleHeroes.length} AVAILABLE</span><h4>Select for slot {String(activeSlot + 1).padStart(2, "0")}</h4></div><small>Filters apply to this pick list</small></div>
+              <div className="next-catalog-heading"><div><span className="next-eyebrow">CATALOG · {visibleHeroes.length} AVAILABLE</span><h4>Choose a Hero for slot {String(activeSlot + 1).padStart(2, "0")}</h4></div><small>12 Senritsu identities · filter by the three Catalog axes</small></div>
               <div className="next-catalog-grid">
                 {visibleHeroes.map((hero) => <button aria-pressed={activeSlotValue?.catalog_id === hero.id} className={`next-catalog-card${activeSlotValue?.catalog_id === hero.id ? " is-selected" : ""}`} key={hero.id} onClick={() => {
                   const path = hero.skill_paths[activeSlotValue?.skill_path ?? "path_a"] ? (activeSlotValue?.skill_path ?? "path_a") : Object.keys(hero.skill_paths)[0] ?? "";
                   changeSlot(activeSlot, { catalog_id: hero.id, skill_path: path });
                 }} type="button">
                   <div className="next-catalog-card-top"><span className="next-catalog-id">{hero.id}</span><span className="next-hero-sigil">{hero.placement === "backline" ? "⌁" : "◆"}</span></div>
-                  <strong>{hero.name}</strong><small>{formatId(hero.role)} · {formatId(hero.trait_id)}</small>
+                  <strong>{hero.name}</strong><small>{formatId(hero.placement)} · {formatId(hero.role)} · {formatId(hero.trait_id)}</small>
                   <div className="next-catalog-stats"><span>HP <b>{hero.stats.hp}</b></span><span>ATK <b>{hero.stats.attack}</b></span><span>DEF <b>{hero.stats.defense}</b></span></div>
                 </button>)}
                 {visibleHeroes.length === 0 && <div className="next-catalog-empty">No heroes match these attribute filters. Clear one filter to continue.</div>}
               </div>
             </section>
+            <div className="next-panel-footer"><span>Selected {slots.length} of 5 catalog slots. Hero selection is shared with Detail, Skill Tree, Squads and the battle draft.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("detail")} type="button">Inspect selected Hero <b>→</b></button></div>
+            </>}
 
-            <div className="next-panel-footer"><span>Choose five heroes, their Squads and planned skills before battle.</span><button className="next-secondary-button" onClick={() => setTab("jinrei")} type="button">Continue to Jinrei <b>→</b></button></div>
+            {atelierScreen === "detail" && <div className="next-atelier-detail">
+              <div className="next-atelier-roster" aria-label="Choose a Hero for detail"><span className="next-filter-label">FORMATION · SELECT ONE OF FIVE</span>{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
+              {currentHero && activeSlotValue ? <article className="next-hero-dossier">
+                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. No approved character model is bundled for this Hero.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div><div className="next-stat-matrix"><span>STAT</span><span>BASE</span><span>PER LEVEL</span>{(["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const).map((stat) => <Fragment key={stat}><strong>{formatId(stat)}</strong><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></Fragment>)}</div></section>
+                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Always-on passive effect" : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
+                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. Appearance identity is recorded; its 3D character asset is not available.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
+              </article> : <div className="next-catalog-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
+            </div>}
+
+            {atelierScreen === "skills" && <div className="next-skill-tree-screen">
+              <div className="next-atelier-roster" aria-label="Choose a Hero skill tree"><span className="next-filter-label">FORMATION · CURRENT PLAN</span>{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{formatId(slot.skill_path)}</small></button>; })}</div>
+              {currentHero && activeSlotValue ? <div className="next-skill-tree-content"><div className="next-skill-tree-title"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>Acquisition is planned here. Enbu awards skills only when the Hero reaches each unlock level.</p></div><span className="next-owner-tag">CURRENT · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-branches">{pathNames.map((path) => { const selected = activeSlotValue.skill_path === path; const pathSkills = (currentHero.skill_paths[path] ?? []).map((id) => currentHero.skills.find((skill) => skill.id === id)).filter((skill) => skill !== undefined); return <article className={`next-skill-branch${selected ? " is-selected" : ""}`} key={path}><header><div><span className="next-eyebrow">{formatId(path)} · {pathSkills.length} PLANNED NODES</span><h5>{pathSkills[0]?.name ?? formatId(path)} <span>→</span> {pathSkills[pathSkills.length - 1]?.name ?? ""}</h5></div><button aria-pressed={selected} aria-label={`Choose ${formatId(path)} for ${activeSlotValue.slot_id}`} className="next-secondary-button" onClick={() => changeSlot(activeSlot, { skill_path: path })} type="button">{selected ? "Selected" : "Choose path"}</button></header><ol>{pathSkills.map((skill, index) => <li key={skill.id}><span className="next-skill-level">LV {skill.unlock_level}</span><div className="next-skill-node"><span className="next-skill-node-mark">{skill.passive ? "◇" : "✦"}</span><div><strong>{skill.name}</strong><small>{skill.passive ? "Passive" : "Active"} · {formatId(skill.effect)} · {formatId(skill.target)} target</small><p>{skill.passive ? "This passive is granted when its level requirement is reached." : `Power ${skill.power} · range ${skill.range} · energy ${skill.cost} · cooldown ${skill.cooldown}${skill.duration > 0 ? ` · duration ${skill.duration}` : ""}`}</p>{skill.prerequisites.length > 0 && <small>Requires {skill.prerequisites.map((id) => currentHero.skills.find((item) => item.id === id)?.name ?? id).join(", ")}</small>}</div><span className="next-skill-plan-state">{selected ? `PLANNED · LEVEL ${skill.unlock_level}` : "OTHER BRANCH"}</span></div>{index < pathSkills.length - 1 && <span className="next-skill-connector" aria-hidden="true" />}</li>)}</ol></article>; })}</div><p className="next-skill-tree-note">The chosen branch is saved in the same five-slot setup and passed into the real Enbu Hero configuration. This screen does not mark future skills as already acquired.</p><div className="next-panel-footer"><span>Selected path: {skillNames(currentHero, activeSlotValue.skill_path).join(" → ")}</span><button className="next-secondary-button" onClick={() => setAtelierScreen("squads")} type="button">Arrange Squads <b>→</b></button></div></div> : <div className="next-catalog-empty">Select a populated Hero slot to plan its skill tree.</div>}
+            </div>}
+
+            {atelierScreen === "squads" && <div className="next-assembly-screen">
+              <div className="next-assembly-intro"><div><span className="next-eyebrow">SENRITSU · FIVE HEROES · SEVEN PARTITIONS</span><h4>Set the initial chain of command</h4><p>Choose a five-Hero partition, then select one shared starting node for each Squad.</p></div><span className="next-slot-counter">{currentSquadPattern || "—"}</span></div>
+              <div className="next-pattern-picker" aria-label="Legal five Hero Squad partitions">{SQUAD_PATTERNS.map((pattern) => <button aria-label={`Use squad split ${pattern.id}`} aria-pressed={currentSquadPattern === pattern.id} className={currentSquadPattern === pattern.id ? "is-active" : ""} key={pattern.id} onClick={() => applySquadPattern(pattern.sizes)} type="button"><strong>{pattern.id}</strong><small>{pattern.sizes.length} Squads</small></button>)}</div>
+              <section aria-label="Squad formation preview" className="next-assembly-groups"><div className="next-assembly-preview-label"><span className="next-eyebrow">FORMATION PREVIEW · {currentSquadPattern}</span><small>All five Hero identities remain assigned exactly once</small></div>{formationGroups.map(({ id, members }) => { const movement = nextRules.parameters[`squad_${members.length}_speed_milli`]; const starts = [...new Set(members.map((member) => member.node))]; return <article className="next-assembly-group" key={id}><header><div><span className="next-eyebrow">{formatId(id)} · {members.length} {members.length === 1 ? "HERO" : "HEROES"}</span><h5>{["Solo", "Duo", "Trio", "Quartet", "Quintet"][members.length - 1]} <small>· {members.length}-member Squad</small></h5></div><span className="next-speed-badge">MOVE ×{Number.isFinite(movement) ? (movement / 1000).toFixed(2) : "—"}</span></header><label className="next-field next-squad-node"><span>Shared starting node</span><select aria-label={`Starting node for ${formatId(id)}`} value={starts.length === 1 ? starts[0] : ""} onChange={(event) => moveSquad(id, event.target.value)}><option disabled value="">Resolve member node mismatch</option>{Object.keys(nextRules.map.nodes).map((node) => <option key={node} value={node}>{formatId(node)}{Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ? ` · ${formatId(Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ?? "")}` : ""}</option>)}</select></label><ol>{members.map((member) => { const index = slots.findIndex((slot) => slot.slot_id === member.slot_id); const hero = findHero(nextRules, member.catalog_id); return <li key={member.slot_id}><span className="next-hero-sigil">{hero?.placement === "backline" ? "⌁" : "◆"}</span><div><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id} · {formatId(hero?.placement ?? "unknown")}</small></div><label className="next-field"><span>Squad</span><select aria-label={`Squad for ${hero?.name ?? member.slot_id}`} value={member.squad} onChange={(event) => changeSlot(index, { squad: event.target.value })}>{[...new Set([...formationGroups.map((group) => group.id), `squad-${formationGroups.length + 1}`])].map((squad) => <option key={squad} value={squad}>{formatId(squad)}</option>)}</select></label></li>; })}</ol>{starts.length > 1 && <p className="next-assembly-error" role="alert">This Squad has multiple starting nodes. Choose a shared node to make its starting formation valid.</p>}<small className="next-assembly-rule">Movement ×{Number.isFinite(movement) ? (movement / 1000).toFixed(2) : "—"} · maturation {nextRules.parameters.squad_maturation_ticks} ticks</small></article>; })}</section>
+              <div className="next-assembly-note"><strong>One membership per Hero</strong><p>Each slot has one Squad ID. The seven presets cover every partition of five; changing a member’s Squad can create a custom grouping. A battle cannot start while members of one Squad have different initial nodes.</p></div>
+              <div className="next-panel-footer"><span>These membership and node values are the same values stored in the current Senkei draft.</span><button className="next-secondary-button" onClick={() => { setTab("jinrei"); }} type="button">Continue to Jinrei <b>→</b></button></div>
+            </div>}
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
