@@ -732,12 +732,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
 
   useEffect(() => {
     const host = rendererHost.current;
-    if (!host || !run || !displayState) return;
+    if (!host || !run || !player) return;
     let current: BattlefieldRenderer | null = null;
     try {
       current = new Battlefield(host, run.graphicsReplay, setSelectedEntityId, setRendererError);
       renderer.current = current;
-      current.update(displayState, isPlaying);
+      current.update(player.state, player.playing);
       current.select(selectedEntityId);
     } catch (cause) {
       setRendererError(cause instanceof Error ? cause.message : "The 3D renderer could not start.");
@@ -746,7 +746,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       current?.dispose();
       if (renderer.current === current) renderer.current = null;
     };
-  }, [run]);
+  }, [player, run]);
 
   useEffect(() => {
     renderer.current?.update(displayState ?? { tick: 0, entities: {}, cues: [], result: null }, isPlaying);
