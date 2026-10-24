@@ -23,6 +23,7 @@ Senkei（戦型）は、プレイヤーが軍備・3レーンへの配置・戦�
 - [戦場・ゲームループ](docs/GAMEPLAY.md)
 - [システムアーキテクチャ](docs/ARCHITECTURE.md)
 - [独自言語・共通IR・CUモデル](docs/TACTICS.md)
+- [コンパイル・論理CU・戦闘エンジンの入出力境界](docs/EXECUTION.md)
 - [決定論的シミュレーション・検証](docs/SIMULATION.md)
 - [将来の公式PvP・Cloudflare境界](docs/ONLINE.md)
 - [実装の順序・受入条件・未決事項](docs/DELIVERY.md)

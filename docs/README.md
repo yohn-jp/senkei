@@ -16,6 +16,7 @@
 | [GAMEPLAY.md](GAMEPLAY.md) | 3レーン戦略・兵力・攻守・戦闘ループ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Local-first、コンポーネント・境界・データ |
 | [TACTICS.md](TACTICS.md) | ノーコードと生コード、型付きIR、戦術VM、CU |
+| [EXECUTION.md](EXECUTION.md) | コンパイル方式、論理CU、物理最適化、戦闘エンジンの入出力・秘匿境界 |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
 | [ONLINE.md](ONLINE.md) | 将来の非同期PvP、公式戦、ランキング、Cloudflare |
 | [DELIVERY.md](DELIVERY.md) | 実装順・各段階の完了条件・未決定事項 |
