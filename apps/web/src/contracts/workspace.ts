@@ -79,6 +79,7 @@ export interface WorkspaceState {
   readonly scenarios: readonly LocalPveScenario[];
   readonly selected_scenario_id: string | null;
   readonly baseline_snapshot: import("./core").SimulationSnapshot | null;
+  readonly baseline_scenario_id: string | null;
   readonly active_document: LocalSenkeiDocument | null;
   readonly editor_draft: EditorDraft;
   readonly last_simulation: SimulationOutcome | null;

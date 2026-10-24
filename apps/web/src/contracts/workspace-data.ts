@@ -24,7 +24,10 @@ export interface LocalSenkeiWorkspaceData {
   readonly component_versions: ComponentVersions | null;
   readonly scenarios: readonly LocalPveScenario[];
   readonly simulation_snapshots: readonly SimulationSnapshot[];
+  /** Parallel to `simulation_snapshots`; null means no campaign scenario. */
+  readonly simulation_scenario_ids: readonly (string | null)[];
   readonly simulation_outcomes: readonly SimulationResponse[];
+  readonly baseline_scenario_id: string | null;
   readonly benchmark: BenchmarkOutcome | null;
   readonly benchmark_history: readonly BenchmarkOutcome[];
   /** Preserves fields owned by later local features without lossy migrations. */

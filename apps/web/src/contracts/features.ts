@@ -36,6 +36,7 @@ export interface BattleFeatureProps {
   readonly snapshot: SimulationSnapshot | null;
   /** Previous saved simulation input used as the `before` comparison case. */
   readonly baseline_snapshot: SimulationSnapshot | null;
+  readonly baseline_scenario_id: string | null;
   readonly outcome: SimulationOutcome | null;
   readonly benchmark: BenchmarkOutcome | null;
   readonly restricted_diagnostics: RestrictedDiagnostics | null;
