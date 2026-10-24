@@ -596,6 +596,7 @@ export interface MatchResult {
 }
 
 export interface PresentationReplay {
+  readonly perspective?: CombatantSide;
   readonly schema_version: import("./core").CoreVersion;
   readonly match_id: MatchId;
   readonly result_digest: ContentDigest;

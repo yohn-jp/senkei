@@ -59,12 +59,13 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
     }
     // Only remap explicitly allowed cue references already in the public frame.
     for (const cue of frame.events) {
-      const actor = cue.entity ? active.get(cue.entity) : undefined;
+      const actorRef = cue.payload.source?.kind === "entity" ? cue.payload.source.value : cue.entity;
+      const actor = actorRef ? active.get(actorRef) : undefined;
       const ref = cue.payload.target;
       const target = ref?.kind === "entity" ? active.get(ref.value) : undefined;
-      if (!actor || !target || !current[cue.entity!] || !current[ref!.kind === "entity" ? ref.value : ""]) continue;
-      if (cue.event === "attack" || cue.event === "basic_attack") emit({ type: "attack", tick: frame.tick, order: order++, entityId: actor.id, targetId: target.id });
-      if (cue.event === "skill" || cue.event === "skill_activated") {
+      if (!actor || !target || !current[actorRef!] || !current[ref!.kind === "entity" ? ref.value : ""]) continue;
+      if (cue.event === "next.attack" || cue.event === "attack" || cue.event === "basic_attack") emit({ type: "attack", tick: frame.tick, order: order++, entityId: actor.id, targetId: target.id });
+      if (cue.event === "next.skill" || cue.event === "skill" || cue.event === "skill_activated") {
         const skill = scalar(cue.payload.skill);
         if (typeof skill === "string") emit({ type: "skill", tick: frame.tick, order: order++, entityId: actor.id, targetId: target.id, skillKey: skill });
       }
@@ -82,7 +83,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
     }
   }
   emit({ type:"match-end", tick:result.tick, order:order++, result });
-  return decodeReplay({ schemaVersion:"0.2", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:"1.1.0",senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:"public" },
+  return decodeReplay({ schemaVersion:"0.2", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:"1.1.0",senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-next-1",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
     scene:{ bounds:{min:{x:Math.min(...nodes.map(n=>n.x))/scale-3,y:Math.min(...nodes.map(n=>n.y))/scale-3},max:{x:Math.max(...nodes.map(n=>n.x))/scale+3,y:Math.max(...nodes.map(n=>n.y))/scale+3}},
       lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(n=>({x:next.map.nodes[n].x/scale,y:next.map.nodes[n].y/scale}))})),

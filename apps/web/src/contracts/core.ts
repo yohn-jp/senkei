@@ -103,6 +103,8 @@ export interface SimulationOutcome {
 }
 
 export interface SimulationResponse {
+  /** Local attacker perspective, kept separate from the public replay. */
+  readonly owner_replay?: import("./core-model").PresentationReplay;
   readonly outcome: SimulationOutcome;
   /** Separate local-only channel; renderers receive SimulationOutcome instead. */
   readonly restricted_diagnostics?: RestrictedDiagnostics;

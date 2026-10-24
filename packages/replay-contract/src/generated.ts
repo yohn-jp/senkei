@@ -73,7 +73,7 @@ export interface PresentationReplay {
       id: string;
       digest: string;
     };
-    view: "public";
+    view: "public" | "attacker" | "defender";
   };
   presentation: {
     coordinates: "x-right-y-down";
@@ -99,10 +99,10 @@ export interface PresentationReplay {
     }[];
   };
   /**
-   * @minItems 1
+   * @minItems 0
    * @maxItems 2000
    */
-  initialView: [Entity, ...Entity[]];
+  initialView: Entity[];
   /**
    * @minItems 1
    * @maxItems 500000
