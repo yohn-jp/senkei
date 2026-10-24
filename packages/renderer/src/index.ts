@@ -1041,13 +1041,17 @@ export class Battlefield {
     if (this.state === state) return;
     this.state = state;
     this.changedAt = performance.now();
+    const recentDeaths = new Set(state.cues.flatMap(c => c.type === "destroy" ? [c.entityId] : []));
+    // Unit debris belongs to the death cue; permanent structure ruins remain.
+    const shown = (e: DisplayEntity | undefined) => Boolean(e && (!e.destroyed || e.kind !== "unit" || recentDeaths.has(e.id)));
     for (const [id, g] of this.units)
-      if (!state.entities[id]) {
+      if (!shown(state.entities[id])) {
         this.scene.remove(g);
         disposeTree(g);
         this.units.delete(id);
       }
     for (const e of Object.values(state.entities)) {
+      if (!shown(e)) continue;
       let g = this.units.get(e.id);
       if (!g || g.userData.signature !== `${e.hp}:${e.destroyed}`) {
         const position = g?.position.clone();
