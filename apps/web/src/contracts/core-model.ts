@@ -11,6 +11,10 @@ export type PhaseId = string;
 export type RulesetId = string;
 export type ContentDigest = string;
 
+/** Stable identifiers in the initial Senritsu lane schema. */
+export const SENRITSU_LANE_SYMBOL_DOMAIN_ID = "lane" as const;
+export const SENRITSU_LANE_FIELD_ID = "lane" as const;
+
 export type DomainValue =
   | { readonly kind: "null" }
   | { readonly kind: "bool"; readonly value: boolean }
@@ -332,6 +336,10 @@ export interface DiagnosticEvent {
   readonly tick: number;
   readonly side: CombatantSide;
   readonly sequence: number;
+  /** Null when a trace event cannot be associated with a tactical action. */
+  readonly action_id: string | null;
+  /** Entity link for schema-based lane attribution when the trace provides one. */
+  readonly entity_id: EntityId | null;
   readonly record: DiagnosticRecord;
 }
 

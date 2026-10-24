@@ -7,6 +7,8 @@ import type {
   TacticalInput,
 } from "./core";
 import type { RestrictedDiagnostics, RulePackage } from "./core-model";
+import type { StructuredTacticsAst } from "./core-model";
+import type { RulesetRef } from "./core";
 import type {
   EditorDraft,
   LocalSenkeiDocument,
@@ -14,6 +16,7 @@ import type {
   LocalSenkeiDocumentSummary,
   SenkeiDocumentDiffEntry,
   LocalPveScenario,
+  SenkeiDraft,
 } from "./workspace";
 
 export interface EditorFeatureProps {
@@ -21,13 +24,18 @@ export interface EditorFeatureProps {
   readonly draft: EditorDraft;
   readonly compilation: CompileOutcome | null;
   onDraftChange(draft: EditorDraft): void;
+  onParse(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
+  onFormat(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;
   onCompile(input: TacticalInput): Promise<void>;
 }
 
 export interface BattleFeatureProps {
+  readonly ruleset: RulePackage | null;
   readonly scenarios: readonly LocalPveScenario[];
   readonly selected_scenario_id: string | null;
   readonly snapshot: SimulationSnapshot | null;
+  /** Previous saved simulation input used as the `before` comparison case. */
+  readonly baseline_snapshot: SimulationSnapshot | null;
   readonly outcome: SimulationOutcome | null;
   readonly benchmark: BenchmarkOutcome | null;
   readonly restricted_diagnostics: RestrictedDiagnostics | null;
@@ -42,6 +50,8 @@ export interface BattleFeatureProps {
 
 export interface PersistenceFeatureProps {
   readonly documents: readonly LocalSenkeiDocumentSummary[];
+  readonly active_document: LocalSenkeiDocument | null;
+  readonly active_draft: SenkeiDraft | null;
   readonly history: readonly LocalSenkeiRevisionSummary[];
   readonly diff: readonly SenkeiDocumentDiffEntry[] | null;
   readonly selected_document_id: string | null;

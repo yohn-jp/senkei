@@ -11,7 +11,7 @@ export default function App() {
   const [view, setView] = useState<WorkspaceView>("editor");
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-testid="app-shell">
       <aside className="sidebar">
         <a className="wordmark" href="#workspace" aria-label="Senkei home">
           <span className="wordmark-mark">S</span>
@@ -22,11 +22,12 @@ export default function App() {
         </a>
 
         <div className="workspace-label">WORKSPACE</div>
-        <nav className="primary-nav" aria-label="Workspace">
+        <nav className="primary-nav" aria-label="Workspace" data-testid="workspace-nav">
           {navigation.map((item) => (
             <button
               aria-current={view === item.id ? "page" : undefined}
               className={`nav-item${view === item.id ? " is-active" : ""}`}
+              data-testid={`nav-${item.id}`}
               key={item.id}
               onClick={() => setView(item.id)}
               type="button"
@@ -51,7 +52,7 @@ export default function App() {
           <div className="local-badge"><span /> LOCAL MODE</div>
         </header>
 
-        <div className="page-content">
+        <div className="page-content" data-testid="workspace-view" data-view={view}>
           <div className="page-heading">
             <div>
               <div className="feature-eyebrow">DESIGN · TEST · REFINE</div>

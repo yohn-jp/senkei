@@ -77,11 +77,13 @@ export interface SimulationSnapshot {
 
 export interface BenchmarkCase {
   readonly case_id: string;
+  readonly case_role?: "before" | "current";
   readonly snapshot: SimulationSnapshot;
 }
 
 export interface CompileOutcome {
   readonly program: TacticalProgram;
+  readonly ast: StructuredTacticsAst;
   readonly estimated_cu: LogicalCu;
   readonly diagnostics: readonly CompileDiagnostic[];
 }
@@ -101,6 +103,7 @@ export interface BenchmarkOutcome {
   /** Entries are returned in input order. No wall-clock timing becomes game data. */
   readonly cases: readonly {
     readonly case_id: string;
+    readonly case_role?: "before" | "current";
     readonly outcome: SimulationOutcome;
   }[];
 }
@@ -126,6 +129,8 @@ export interface WorkerFailure {
 
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
+  parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
+  formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;
   compile(input: TacticalInput): Promise<CompileOutcome>;
   simulate(
     snapshot: SimulationSnapshot,

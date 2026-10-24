@@ -43,9 +43,19 @@ export interface SenkeiDocumentDiffEntry {
 /** Browser presentation wrapper; the battle payload itself remains a core DTO. */
 export interface LocalPveScenario {
   readonly id: string;
+  readonly campaign_id: string;
+  readonly campaign_title: string;
+  readonly order: number;
   readonly title: string;
   readonly description: string;
+  readonly objective: string;
+  readonly criteria: readonly LocalPveScenarioCriterion[];
   readonly snapshot: import("./core").SimulationSnapshot;
+}
+
+export interface LocalPveScenarioCriterion {
+  readonly id: string;
+  readonly label: string;
 }
 
 /** Browser editing state before compilation into a verified TacticalProgram. */
@@ -66,6 +76,7 @@ export interface WorkspaceState {
   readonly ruleset: RulePackage | null;
   readonly scenarios: readonly LocalPveScenario[];
   readonly selected_scenario_id: string | null;
+  readonly baseline_snapshot: import("./core").SimulationSnapshot | null;
   readonly active_document: LocalSenkeiDocument | null;
   readonly editor_draft: EditorDraft;
   readonly last_simulation: SimulationOutcome | null;

@@ -28,6 +28,17 @@ export type WebWorkerRequest =
       readonly payload: TacticalInput;
     })
   | (WorkerRequestBase & {
+      readonly operation: "parse_text";
+      readonly payload: { readonly source: string; readonly ruleset_ref: RulesetRef };
+    })
+  | (WorkerRequestBase & {
+      readonly operation: "format_ast";
+      readonly payload: {
+        readonly ast: import("./core-model").StructuredTacticsAst;
+        readonly ruleset_ref: RulesetRef;
+      };
+    })
+  | (WorkerRequestBase & {
       readonly operation: "simulate";
       readonly payload: {
         readonly snapshot: SimulationSnapshot;
@@ -57,6 +68,16 @@ export type WebWorkerResponse =
       readonly result: CompileOutcome;
     })
   | (WorkerResponseBase & {
+      readonly operation: "parse_text";
+      readonly ok: true;
+      readonly result: import("./core-model").StructuredTacticsAst;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "format_ast";
+      readonly ok: true;
+      readonly result: string;
+    })
+  | (WorkerResponseBase & {
       readonly operation: "simulate";
       readonly ok: true;
       readonly result: SimulationResponse;
@@ -84,6 +105,17 @@ export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "compile_text";
       readonly payload: { readonly ruleset_ref: RulesetRef; readonly source: string };
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "parse_text";
+      readonly payload: { readonly ruleset_ref: RulesetRef; readonly source: string };
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "format_ast";
+      readonly payload: {
+        readonly ruleset_ref: RulesetRef;
+        readonly ast: import("./core-model").StructuredTacticsAst;
+      };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "compile_ast";
