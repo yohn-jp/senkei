@@ -31,6 +31,7 @@ const palette = {
   azureLight: 0x74bdba,
   vermilion: 0xb65e48,
   vermilionLight: 0xd27b59,
+  captureAmber: 0xd4a756,
 } as const;
 
 type Faction = "azure" | "vermilion" | "neutral";
@@ -506,8 +507,29 @@ export function buildMidObservatory(
   const beacon = mesh(group, new THREE.OctahedronGeometry(0.6, 0), palette.neutral, "mid-observatory-beacon-crystal", [0, 2.83, 0], { emissive: palette.shadowStone, emissiveIntensity: 0.08 });
   beacon.scale.y = 1.35;
   const ownerBanner = addBanner(group, "neutral", "mid-observatory-owner-standard", [0, 2.05, 0.92], 0.86);
-  const progressRing = mesh(group, new THREE.TorusGeometry(2.31, 0.09, 5, 32), palette.neutral, "mid-observatory-capture-ring", [0, 0.59, 0], { transparent: true, opacity: 0.9 });
+  const contestedAzureStandard = addBanner(group, "azure", "mid-observatory-contested-standard-azure", [-1.18, 2.02, 0], 0.54);
+  const contestedVermilionStandard = addBanner(group, "vermilion", "mid-observatory-contested-standard-vermilion", [1.18, 2.02, 0], 0.54);
+  const progressRingRadius = 1.25;
+  const progressRingY = 2.48;
+  const progressRing = mesh(
+    group,
+    new THREE.TorusGeometry(progressRingRadius, 0.075, 6, 40),
+    palette.neutral,
+    "mid-observatory-capture-ring",
+    [0, progressRingY, 0],
+    { transparent: true, opacity: 0.96, depthWrite: false, side: THREE.DoubleSide, emissive: palette.neutral, emissiveIntensity: 0.42 },
+  );
   progressRing.rotation.x = Math.PI / 2;
+  const contestedRing = mesh(
+    group,
+    new THREE.TorusGeometry(1.49, 0.075, 6, 40),
+    palette.captureAmber,
+    "mid-observatory-contested-ring",
+    [0, 2.39, 0],
+    { transparent: true, opacity: 0.98, depthWrite: false, side: THREE.DoubleSide, emissive: palette.captureAmber, emissiveIntensity: 0.58 },
+  );
+  contestedRing.rotation.x = Math.PI / 2;
+  contestedRing.visible = false;
   const update = (entity: DisplayEntity | undefined, contested = false) => {
     const isVisible = entity !== undefined;
     if (entity) group.userData.entityId = entity.id;
@@ -516,17 +538,26 @@ export function buildMidObservatory(
     const captureSide = entity?.battlefield?.captureSide ?? "neutral";
     const capture = Math.max(0, entity?.battlefield?.captureProgress ?? 0);
     const progress = isVisible && capture > 0 ? Math.min(1, capture / Math.max(1, captureTicks)) : 0;
-    const color = factionColor(capture > 0 ? captureSide : owner);
-    beacon.material.color.set(isVisible ? factionColor(owner) : palette.neutral);
-    beacon.material.emissive.set(isVisible ? factionColor(owner) : palette.shadowStone);
-    beacon.material.emissiveIntensity = isVisible ? 0.3 : 0.04;
-    ownerBanner.group.visible = isVisible && owner !== "neutral";
+    const captureColor = factionColor(capture > 0 ? captureSide : owner);
+    const visibleOwnerColor = contested ? palette.captureAmber : factionColor(owner);
+    beacon.material.color.set(isVisible ? visibleOwnerColor : palette.neutral);
+    beacon.material.emissive.set(!isVisible ? palette.shadowStone : contested ? palette.captureAmber : capture > 0 ? captureColor : factionColor(owner));
+    beacon.material.emissiveIntensity = !isVisible ? 0.04 : contested ? 0.8 : capture > 0 ? 0.5 : 0.3;
+    ownerBanner.group.visible = isVisible && owner !== "neutral" && !contested;
     ownerBanner.flag.material.color.set(factionColor(owner));
+    contestedAzureStandard.group.visible = isVisible && contested;
+    contestedVermilionStandard.group.visible = isVisible && contested;
+    contestedRing.visible = isVisible && contested;
+    contestedRing.material.color.set(palette.captureAmber);
+    contestedRing.material.emissive.set(palette.captureAmber);
     progressRing.visible = progress > 0;
-    progressRing.material.color.set(color);
+    progressRing.material.color.set(captureColor);
+    progressRing.material.emissive.set(captureColor);
     progressRing.scale.set(1, 1, 1);
     progressRing.geometry.dispose();
-    progressRing.geometry = new THREE.TorusGeometry(2.31, 0.09, 5, 32, Math.PI * 2 * progress);
+    progressRing.geometry = new THREE.TorusGeometry(progressRingRadius, 0.075, 6, 40, Math.PI * 2 * progress);
+    group.userData.captureRingRadius = progressRingRadius;
+    group.userData.captureRingElevation = progressRingY;
     group.userData.state = isVisible ? contested ? "contested" : capture > 0 ? "capturing" : "visible" : "unknown";
     if (isVisible) group.userData.contested = contested;
     else delete group.userData.contested;

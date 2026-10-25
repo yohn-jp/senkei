@@ -97,30 +97,82 @@ describe("Battlefield architectural models", () => {
     expect(mid.group.userData.state).toBe("unknown");
     expect(mid.group.userData.owner).toBeUndefined();
     expect(mid.group.userData.contested).toBeUndefined();
+    const beacon = mid.group.getObjectByName("mid-observatory-beacon-crystal") as THREE.Mesh;
+    const ownerBanner = mid.group.getObjectByName("mid-observatory-owner-standard")!;
+    const progressRing = mid.group.getObjectByName("mid-observatory-capture-ring") as THREE.Mesh<THREE.TorusGeometry>;
+    const contestedRing = mid.group.getObjectByName("mid-observatory-contested-ring") as THREE.Mesh<THREE.TorusGeometry>;
+    const azureStandard = mid.group.getObjectByName("mid-observatory-contested-standard-azure")!;
+    const vermilionStandard = mid.group.getObjectByName("mid-observatory-contested-standard-vermilion")!;
+    expect(progressRing.visible).toBe(false);
+    expect(contestedRing.visible).toBe(false);
+    expect((beacon.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(0.04);
 
     mid.update(entity({
       id: "obs",
       kind: "observation",
       archetype: "observation",
-      battlefield: { facilityOwner: "azure", captureSide: "vermilion", captureProgress: 4 },
+      battlefield: { facilityOwner: "neutral", captureProgress: 0 },
+    }));
+    expect(mid.group.userData.state).toBe("visible");
+    expect(progressRing.visible).toBe(false);
+    expect(ownerBanner.visible).toBe(false);
+    expect((beacon.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0x8f9a8a);
+    expect((beacon.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(0.3);
+
+    mid.update(entity({
+      id: "obs",
+      kind: "observation",
+      archetype: "observation",
+      battlefield: { facilityOwner: "neutral", captureSide: "azure", captureProgress: 7 },
     }));
     expect(mid.group.userData.state).toBe("capturing");
-    expect(mid.group.userData.owner).toBe("azure");
-    expect(mid.group.userData.captureSide).toBe("vermilion");
-    expect(mid.group.userData.captureProgress).toBe(4);
+    expect(mid.group.userData.owner).toBe("neutral");
+    expect(mid.group.userData.captureSide).toBe("azure");
+    expect(mid.group.userData.captureProgress).toBe(7);
+    expect(progressRing.visible).toBe(true);
+    expect(progressRing.position.y).toBeGreaterThan(2.2);
+    expect(progressRing.geometry.parameters.radius).toBeCloseTo(1.25);
+    expect(progressRing.geometry.parameters.arc).toBeCloseTo(2 * Math.PI * 7 / 8);
+    expect((progressRing.material as THREE.MeshStandardMaterial).emissive.getHex()).toBe(0x4d9fa4);
+    expect((beacon.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(0.5);
 
     mid.update(entity({
       id: "obs",
       kind: "observation",
       archetype: "observation",
-      battlefield: { facilityOwner: "azure", captureSide: "vermilion", captureProgress: 4 },
+      battlefield: { facilityOwner: "azure", captureProgress: 0 },
+    }));
+    expect(mid.group.userData.state).toBe("visible");
+    expect(progressRing.visible).toBe(false);
+    expect(ownerBanner.visible).toBe(true);
+    expect((beacon.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0x4d9fa4);
+
+    mid.update(entity({
+      id: "obs",
+      kind: "observation",
+      archetype: "observation",
+      battlefield: { facilityOwner: "azure", captureSide: "vermilion", captureProgress: 7 },
     }), true);
     expect(mid.group.userData.state).toBe("contested");
+    expect(mid.group.userData.owner).toBe("azure");
+    expect(contestedRing.visible).toBe(true);
+    expect(ownerBanner.visible).toBe(false);
+    expect(azureStandard.visible).toBe(true);
+    expect(vermilionStandard.visible).toBe(true);
+    expect((beacon.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xd4a756);
+    expect((contestedRing.material as THREE.MeshStandardMaterial).emissive.getHex()).toBe(0xd4a756);
 
     mid.update(undefined);
     expect(mid.group.userData.state).toBe("unknown");
     expect(mid.group.userData.owner).toBeUndefined();
     expect(mid.group.userData.captureProgress).toBeUndefined();
+    expect(mid.group.userData.contested).toBeUndefined();
+    expect(progressRing.visible).toBe(false);
+    expect(contestedRing.visible).toBe(false);
+    expect(ownerBanner.visible).toBe(false);
+    expect(azureStandard.visible).toBe(false);
+    expect(vermilionStandard.visible).toBe(false);
+    expect((beacon.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(0.04);
     mid.dispose();
   });
 });
