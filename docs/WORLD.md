@@ -2,7 +2,7 @@
 
 ## 1. 位置づけと確定度
 
-この文書はSenkeiの**次期ゲームデザインとして合意した戦場構造**を整理する。ノード・エッジ・距離・橋・三トラック・ノード交戦の具体契約は [BATTLEFIELD.md](BATTLEFIELD.md) を正本とし、WorldデータとCompilerの責務は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を正本とする。戦場の具体的なRulePackageやマップデータを既に実装したという意味ではない。ゲームとルールの責務は [COMPONENTS.md](COMPONENTS.md)／[SENRITSU.md](SENRITSU.md)、戦闘は [COMBAT.md](COMBAT.md)、戦闘主体は [UNITS.md](UNITS.md)、係数・調整は [BALANCE.md](BALANCE.md) に従う。
+この文書はSenkeiの**次期ゲームデザインとして合意した戦場構造**を整理する。ノード・エッジ・距離・橋・三トラック・ノード交戦の具体契約は [BATTLEFIELD.md](BATTLEFIELD.md) を正本とし、WorldデータとCompilerの責務は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を正本とする。各成果物のidentityと接続は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) に従う。戦場の具体的なRulePackageやマップデータを既に実装したという意味ではない。ゲームとルールの責務は [COMPONENTS.md](COMPONENTS.md)／[SENRITSU.md](SENRITSU.md)、戦闘は [COMBAT.md](COMBAT.md)、戦闘主体は [UNITS.md](UNITS.md)、係数・調整は [BALANCE.md](BALANCE.md) に従う。
 
 用語：
 - **合意**: 会話で採用した規則・設計方向。
@@ -121,7 +121,7 @@ Rendererはレーン曲線・キャンプ・現在視界／Unknown・戦線の�
 
 ## 12. 地形・論理視界の効果（追加合意）
 
-**視界半径＋地形の論理遮蔽**を基本モデルとする。地形は移動だけでなく、観測や戦闘にも型付き効果を持てる。ただし全地形に全効果を必須にはしない。
+**視界半径＋地形の論理遮蔽**を基本モデルとする概念は合意済み。地形は移動だけでなく、観測や戦闘にも型付き効果を持てる。ただし全地形に全効果を必須にはしない。遮蔽を記述する形状・空間問い合わせ・境界時の意味論は未決定であり、[RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) の `DEC-TERRAIN-OCCLUSION-001` で選択肢と影響を管理する。
 
 - **森林／ジャングル**：視界・発見条件と機動の違いを生む。単なる移動係数だけの地形にしない。
 - **高台**：観測上の優位を与え得る。影響範囲・方向・有効半径は版付き地形効果で定義する。
@@ -129,8 +129,8 @@ Rendererはレーン曲線・キャンプ・現在視界／Unknown・戦線の�
 - **河川／橋**：渡河時間・被ダメに加え、必要なら局所観測を型付きで定義する。川の描画形状だけから通行や遮蔽を判断しない。
 - **MID観測基地**：周辺の局所視界と、**許可された観測から得る敵の実際の移動方向**を提供する。全マップの全敵表示、未観測の目的地・Jinrei・未来予測は提供しない。
 
-遮蔽形状は**World DefinitionのTerrain semantics**、半径・効果はSenritsuのルール値としてCompileする。Three.js Raycastや描画FPS・LODが観測判定を変更してはならない。敵の視認可否はEnbuの同一Tickの陣営別Snapshotが確定し、JinreiのKnown/Unknownへ投影する。
+遮蔽形状の論理表現は**World DefinitionのTerrain semantics**、半径・効果はSenritsuのルール値としてCompileする。どの論理形状／問い合わせを採るかは `DEC-TERRAIN-OCCLUSION-001` が決まるまで実装都合で確定しない。Three.js Raycastや描画FPS・LODが観測判定を変更してはならない。敵の視認可否はEnbuの同一Tickの陣営別Snapshotが確定し、JinreiのKnown/Unknownへ投影する。
 
-Minion視界によるHero移動速度×1.20（重複なし）、Lane×1.00/Jungle×0.80の合意を維持する。上記の**意味論は確定**、地形別半径・遮蔽マスク・高台補正・MID効果量等の**数値とマップ別データは版付きパラメータとして後から調整**する。
+Minion視界によるHero移動速度×1.20（重複なし）、Lane×1.00/Jungle×0.80、視界半径と論理遮蔽という**基本モデルは合意済み**。地形別半径・遮蔽geometry／query・高台補正・MID効果量等の**具体的な意味論とマップ別データは版付き契約として決める**。遮蔽の選択肢は `DEC-TERRAIN-OCCLUSION-001`、MID移動方向の選択肢は `DEC-MID-DIRECTION-001` を参照する。
 
 経路の合法性・経路選好の違い、見えていない敵を経路探索に利用しない制約は [BEHAVIOR.md](BEHAVIOR.md) を参照する。

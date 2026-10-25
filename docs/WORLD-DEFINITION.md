@@ -4,7 +4,7 @@
 
 本書はSenkeiの**World Definition → World Compiler → Canonical World**のアーキテクチャ正本。世界の値とエンジンコードを分離し、複数World、バランス調整、将来のWorld Editor、描画改善を同じ契約で扱う。
 
-- [BATTLEFIELD.md](BATTLEFIELD.md) は初期Worldのノード・エッジ・距離・橋・交戦ルールの正本、[WORLD.md](WORLD.md) は地形・視界のゲームデザイン、[SENRITSU.md](SENRITSU.md) はRulePackage、[ENBU.md](ENBU.md) は実行意味論の正本。
+- [BATTLEFIELD.md](BATTLEFIELD.md) は初期Worldのノード・エッジ・距離・橋・交戦ルールの正本、[WORLD.md](WORLD.md) は地形・視界のゲームデザイン、[SENRITSU.md](SENRITSU.md) はRulePackage、[ENBU.md](ENBU.md) は実行意味論の正本。各成果物間のID・digest・互換性・変換は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断正本。
 - [BATTLEFIELD-VISUAL.md](BATTLEFIELD-VISUAL.md)／[GRAPHICS.md](GRAPHICS.md) は美術・視覚受入、[REPLAY.md](REPLAY.md) は表示投影の権限境界。
 - **確定**：コードと値を分離したSchema検証済みの宣言的WorldをCompileする。World定義をRustのノード生成関数としてハードコードし続けない。
 - **未固定**：入力ファイルのYAML/JSON等の表層形式、ファイル分割数、Rustの具体的モジュール名、World EditorのUI。新しい独自DSLは要求しない。
@@ -33,7 +33,8 @@ Authored World Definition (宣言データ)
                              ├─ Canonical Simulation World + worldLogicDigest
                              └─ Canonical Presentation World + worldPresentationDigest
 
-Senritsu RulePackage + Simulation World
+Canonical Simulation World + explicit lossless BattleMap projection
+    + Senritsu RulePackage bound to WorldIdentity
     → validated RulePlan / observations / Capability catalog
     → Enbu (権威的なTick遷移)
     → authorized PresentationReplay
@@ -44,14 +45,14 @@ Senritsu RulePackage + Simulation World
 - **Compile**は型検査・正規化・参照解決・構造検証・安定した成果物生成だけを行う。マップ独自の任意コード、Jinrei実行、ゲームTick進行、ルールの暗黙導出をしない。
 - **Enbu**はCanonical Simulation WorldとSenritsuのRulePlanで通行・射程・視界を確定する。地形Meshの当たり判定やThree.js Raycastへ依存しない。
 - **Renderer**は許可されたReplayとPresentation Worldを表示する。未観測敵・橋状態・目標位置をPresentationから推測しない。
-- Compilerの成果物は**明示的な同一World identity**に結び付く。片側だけ別世代の成果物をロードしない。
+- Compilerの成果物は**明示的な同一World identity**に結び付く。片側だけ別世代の成果物をロードしない。RulePackage/RulePlan、BattleMap投影、PresentationReplayへの受け渡しに必要な参照と変換の正本は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) とする。
 
 ## 4. Authoring ModelとValidator
 
 World Definitionには最低限以下を要求する。
 
 1. World ID／schemaVersion／compatibility、静的ノードとエッジの一意ID、端点の存在と属性、有限な距離、合法なregion/terrain参照。
-2. ルール上許された進入・退出、橋サイトと河川交差、トラック範囲、観測遮蔽の型・参照、到達不能領域と意図しないショートカットの検出。
+2. ルール上許された進入・退出、橋サイトと河川交差、トラック範囲、観測遮蔽の型・参照、到達不能領域と意図しないショートカットの検出。論理遮蔽の具体的な形状・問い合わせ意味論は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) の `DEC-TERRAIN-OCCLUSION-001` が未決定として管理し、Presentation形状から補完しない。
 3. コンテンツは**固定された有限集合**。同じDefinitionでコンパイル順・HashMap列挙順・OS・Rust/WASM実行環境に依存しない。
 4. Worldの静的所属と動的占領／Unit位置を分ける。静的なNノードをMID占領によって別属性へ書き換えない。
 5. Presentation側の全ノード・全経路の参照整合、意図した河川と固定渡河との交差、画面外への逸脱・視覚交差による架空の経路の検出。
@@ -97,9 +98,10 @@ presentation:
 | **worldPresentationDigest** | 描画用座標・曲線・地形形状・外観パラメータ | Renderer・視覚回帰 |
 | **RulePackage digest** | Senritsuの完全な規則と、それが消費する検証済みLogic identity | 対戦・CU・観測の同一性 |
 
-- DigestはCanonical Serializationで計算し、識別に入力ファイルのコメント・key順・無関係な書式差を使わない。World LogicはRulePackageの完全Digestへ依存させず、RulePackageがWorld Logic identityを参照する一方向の関係とする。
+- Worldのpaired identityは `world_id`、schema version、compiler compatibility bounds、任意のvalidation-profile ID/version、`worldLogicDigest`、`worldPresentationDigest`で成立する。個々のdigest単独ではWorld ID・schema・compatibilityを代用しない。
+- DigestはCanonical Serializationで計算し、識別に入力ファイルのコメント・key順・無関係な書式差を使わない。World LogicはRulePackageの完全Digestへ依存させず、RulePackageがWorld Logic identityを参照する一方向の関係とする。RulePackageをRulePlanへ検証・正規化した後も、その完全なpackage identityとWorld referenceを保持する。
 - **Presentation-onlyの変更ではworldLogicDigestと同じ試合の結果・CU・論理軌跡を変えてはならない。** Presentation変更によりworldPresentationDigestは変わる。
-- Logic変更は適合性確認とRulePackageの互換性識別を更新する。古いJinreiを同じルールとして黙って流用しない。
+- Logic変更は適合性確認とRulePackageの互換性識別を更新する。古いJinreiを同じルールとして黙って流用しない。WorldからBattleMapへの変換はID・橋／河川の範囲・経路・施設の意味を失う場合に成功扱いせず、明示的な版付きマッピングを要求する。exact identityと損失のない変換条件は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が正本。
 - 公開Replayは許可されたWorld identityと**公開可能な**静的地理・確定イベントだけを含む。個体の非公開位置や敵の戦術実体は含まない。
 - 旧 `next_world.rs` 等のコード生成Mapは移行元であり、**現在すでに宣言的Compilerが存在すると主張しない**。既存バージョンの試合再現性は維持する。
 
@@ -123,4 +125,4 @@ Worldは進路候補とコストを提供するが**戦術の選好**までは�
 
 ## 9. 残る実装時選択
 
-表層フォーマット、ファイル名、Compilerの具体的言語／crate、地形幾何の生成アルゴリズム、描画座標の補間器は実装の選択。**Schema・一方向の責務・Digest分離・規範不変条件**は上位の合意事項として固定する。
+表層フォーマット、ファイル名、Compilerの具体的言語／crate、地形幾何の生成アルゴリズム、描画座標の補間器は実装の選択。World artifactをRulePackageへ格納するか内容アドレス参照にするかは `DEC-WORLD-BINDING-001`、canonical WorldからBattleMapへの損失なし変換の形は `DEC-WORLD-MAP-CONVERSION-001` として未決定。**Schema・一方向の責務・Digest分離・規範不変条件**は上位の合意事項として固定する。

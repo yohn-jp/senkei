@@ -7,6 +7,7 @@
 - Jinreiの文法・三値論理・同時評価・CUは[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)が正本。Editor都合の新しい構文は導入しない。
 - 利用可能な語彙・Profile・CapabilityはSenritsuの自己記述的[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)から取得する。
 - Hero/Squad/Army/Minionの行動選択と上書きは[BEHAVIOR.md](BEHAVIOR.md)。実行結果・公開性は[ENBU.md](ENBU.md)／[REPLAY.md](REPLAY.md)に従う。
+- World／RulePackage／Catalogのidentity、Worker/WASM互換性、カバレッジ証明範囲、診断の認可境界は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断正本。
 - 既存の[UI-DESIGN.md](UI-DESIGN.md)と[HERO-ATELIER.md](HERO-ATELIER.md)の編成・編集文脈を維持する。Desktopは情報を横断し、Mobileは専用の操作モデルとする。
 
 ## 2. 必須の4つの視点
@@ -27,7 +28,7 @@ Jinrei SourceとNo-codeは**同一の戦術の2表現**であり、暗黙の別�
 - **検証の即時性**：構文、型、有限集合、未定義シンボル、引数、観測権限、同点全順序、Capabilityスコープ、戦術予算をCompilerと同じ契約で検証する。
 - **現在値の出所**：実行時の値は同じRulePackageの、**自陣に認可されたEnbu Observation[t]**だけから表示する。Catalogに値が定義されていることと、現在Knownであることを分ける。
 - **Unknownの3区別**：(a) そのTickで観測不能（Unknown）、(b) スキーマ上参照不可（Type/Permission error）、(c) 実戦サンプルが未提供（NOT_CHECKED）。ゼロ・false・空集合へ勝手に変換しない。
-- **バージョン整合**：RulePackage・Catalog・World Logic・Jinrei CompilerのID/版/digestを表示／検証し、変更時は補完・カバレッジ・診断のキャッシュを無効化する。
+- **バージョン整合**：RulePackage・Catalog・World・Behavior extension・Jinrei Compiler・Worker/WASMのID/版/digestを表示／検証する。Catalog keyはpackage id/version/digestだけでなくCatalog schema/catalog digest/optional extension digest、engine/model/primitive-set、Jinrei language/AST/IR/bytecode versionを含む。変更時は補完・コンパイル・カバレッジ・診断の依存キャッシュを無効化する。キャッシュキーに完全identityがない状態で「一致」と表示しない。
 
 変数候補一覧をEditor専用の手作業リストとして管理しない。Capabilityの構文やScopeをEditorが推測して非公開機能を有効化しない。
 
@@ -39,19 +40,22 @@ Jinrei SourceとNo-codeは**同一の戦術の2表現**であり、暗黙の別�
 
 | Status | 意味 | 表示・受入 |
 | --- | --- | --- |
-| **Explicit** | Jinreiが対象を指定した合法Intentが実効判断を決める | 発火したstate/action、上書きフィールド、対象 |
+| **Explicit** | Jinreiが対象を指定した合法Intentが実効判断を決める。Packageが明示HOLD/WAIT Intentを宣言する場合も含む | 発火したstate/action、上書きフィールド、対象 |
 | **Inherited** | Army/Squad/共通Profileから有効選好を継承 | 継承元とHeroの固有差分 |
 | **Default** | 明示指定がなくHero/Senritsu既定行動を選ぶ | 「未設定＝何が実行されるか」を具体表示 |
-| **Blocked/Wait** | 合法な攻撃・移動がなくHOLD/WAIT等を選ぶ | 封鎖・射程・Cooldownなどの理由。単純に異常とはしない |
+| **Blocked/Wait** | 解決済み候補やDefaultに合法な状態変更がなく、RulePlanが最終HOLD/WAIT no-op fallbackを選ぶ | 封鎖・射程・Cooldownなどの理由。明示的IntentによるHOLD/WAITとは区別し、単純に異常とはしない |
 | **Ambiguous/Error** | 必須の同順位優先度や競合の規範が欠落 | 静的／RulePlan検証エラー。勝手にデフォルトで黙殺しない |
-| **Unknown/Not Proven** | 非公開・解析対象外・未実行等で判断を証明できない | 100%表示を拒否し、確認できていない範囲を説明 |
+| **Unknown** | 現在の認可済みObservationで値が確定しない | Known値へ補完せず、その条件での評価結果を示す |
+| **Not Proven** | 静的解析、到達性、非対応Domain等で一般化を証明できない | 未証明クラスとして残し、100%表示に含めない |
+| **Not Checked** | 要求された実行サンプルや検証を実施していない | 未実施であることを明示し、実測として扱わない |
+| **Restricted/Unavailable** | Traceが未収集・期限切れ・認可拒否等で閲覧できない | RestrictedDiagnosticsを再現・公開Replayから推測しない |
 
 **「カバレッジが100%」の意味を限定する。**
 
 - すべてのHP値、敵位置、Tick、Squad編成、観測、Skill効果の直積を網羅したと**主張しない**。
-- 有限な意思決定領域を、状態条件・値域・Known/Unknown・到達可能性によって**同値クラス**に分割する（例：HP閾値内外 × Enemy Known/Unknown × Attack Legal/Illegal × Track/Bridge状態）。
-- 完全に証明可能なクラスについて、**少なくとも一つの合法な実効行動（無動作HOLD/WAITを含む）**とその合成・全順序を説明できるなら、その**解析範囲**に限ってカバレッジ成立。
-- Unknownや未到達クラス、静的に導出不能な動的Skill条件、未検証の可能経路は「未証明」と明記し、分母から黙って除外して100%としない。
+- 有限な意思決定領域を、状態条件・値域・Known/Unknown・到達可能性・主体/スコープ・Capabilityの合法性・競合キーによって**同値クラス**に分割する（例：HP閾値内外 × Enemy Known/Unknown × Attack Legal/Illegal × Track/Bridge状態）。分割に使う述語が異なる結果を生む場合、それらを同じクラスへまとめない。
+- 完全に証明可能なクラスについて、**すべての表現状態**の有効な合成・全順序を説明し、少なくとも一つの合法な実効行動（無動作HOLD/WAITを含む）を確定できる場合に限り、その**宣言した解析範囲**でProofとなる。一つのテスト実行はクラス全体の証明ではない。
+- Unknownな実行値、未到達クラス、静的に導出不能な動的Skill条件、未検証の可能経路はそれぞれUnknownまたはNot Provenとして残し、分母から黙って除外して100%としない。
 - アクション数が多いだけでは網羅にならない。特定条件が有効になったときDefaultへ落ちるのか、拒否されるのか、意図的にHOLDするのかを区別する。
 - **「actionが一行もない」場合にもデフォルト動作を可視化**する。Jinreiソース中の全stateに明示actionがないことだけをエラーとしない。
 
@@ -65,7 +69,7 @@ Jinrei SourceとNo-codeは**同一の戦術の2表現**であり、暗黙の別�
 
 - Default対Effectiveでは**変更された判断クラスとHero/Squadだけを差分ハイライト**し、未変更の継承フィールドを明示する。
 - Effectiveは「その条件ならこう評価される」という**静的または選択Snapshot上の推論**。実行していない場合にObservedと表示しない。
-- Observedは試合ID、RulePackage/Jinrei digest、Tick、Actor ID、RestrictedDiagnosticsへの認可を確認した**実測のみ**。デバッグ用の架空の結果を実測のように提示しない。
+- Observedは試合ID、RulePackage/World/Catalog/Behavior/Jinrei identity、Tick、Subject ID、RestrictedDiagnosticsへのprincipal/purpose認可を確認した**実測のみ**。デバッグ用の架空の結果を実測のように提示しない。許可されない／入手できない診断はRestricted/Unavailableと表示する。
 - 可能なら該当Tick・EntityとReplay画面を同期させる。ただし公開Replayには相手の内部Decision Traceを埋め込まない。
 
 ## 6. Decision Traceの探索UI
@@ -85,7 +89,7 @@ RulePackage / Catalog / Profile
 ~~~
 
 - **編集時のテキスト**と、**実戦で評価したコード・行動根拠**を混同しない。ソース位置とIR上の安定action IDを関連付ける。
-- 拒否・上書き・Unknown・CU不足を、UIの成功通知へ変換しない。どこで不採用となったかを表示する。
+- 拒否・上書き・Unknown・CU不足を、UIの成功通知へ変換しない。どこで不採用となったかを表示する。診断の存在は閲覧権限を意味せず、公開PresentationReplayから相手の選択理由や候補を再構築しない。
 - 対戦相手の非公開戦術・条件評価・内部位置・診断を、敵方のクライアントや公開Replayで閲覧できるようにしない。
 - 診断収集が未有効・期限切れ・アクセス拒否なら、その理由を表示し、架空のTraceを補完しない。
 
