@@ -993,10 +993,11 @@ export class Battlefield {
           groupPoints.push(new THREE.Vector3(threat.position.x, 0, threat.position.y));
       }
     }
+    const unitFocus = entities.every(entity => entity.kind === "unit");
     const groupHalfHeight = THREE.MathUtils.clamp(
       this.projectedFrameHalfHeight(center, groupPoints, "follow", forward, 1.08),
-      this.mobile ? 6 : 5.5,
-      this.mobile ? 7.5 : 8,
+      unitFocus ? 4.2 : this.mobile ? 6 : 5.5,
+      unitFocus ? 5.2 : this.mobile ? 7.5 : 8,
     );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
