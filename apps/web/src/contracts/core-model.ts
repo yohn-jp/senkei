@@ -741,6 +741,10 @@ export interface BattleMap {
   readonly towers: readonly { readonly id:string; readonly node:string; readonly side:string; readonly lane:string }[];
 }
 export interface BattleMapWorldProjection {
+  readonly presentation_artifact: {
+    readonly schema_version: import("./core").CoreVersion;
+    readonly content: import("./core").CoreJsonValue;
+  };
   readonly schema_version: import("./core").CoreVersion;
   readonly source_identity: WorldIdentityRef;
   readonly node_ids: readonly string[];
