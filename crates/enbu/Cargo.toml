@@ -14,3 +14,4 @@ sha2.workspace = true
 [dev-dependencies]
 jinrei = { path = "../jinrei" }
 senritsu = { path = "../senritsu" }
+senkei-world = { path = "../senkei-world" }

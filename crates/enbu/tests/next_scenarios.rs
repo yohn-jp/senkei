@@ -15,6 +15,49 @@ fn rules() -> VerifiedRulePlan {
     .unwrap_or_else(|issues| panic!("published Next package must validate: {issues:?}"))
 }
 
+fn presentation_shifted_rules() -> VerifiedRulePlan {
+    let mut definition: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../senkei-world/fixtures/initial-battlefield.json"
+    ))
+    .expect("authored World fixture is JSON");
+    fn shift_points(value: &mut serde_json::Value) {
+        if let Some(object) = value.as_object_mut() {
+            for axis in ["x", "y"] {
+                if let Some(coordinate) = object.get(axis).and_then(serde_json::Value::as_i64) {
+                    object.insert(axis.into(), serde_json::Value::from(coordinate + 20));
+                }
+            }
+            for child in object.values_mut() { shift_points(child); }
+        } else if let Some(array) = value.as_array_mut() {
+            for child in array { shift_points(child); }
+        }
+    }
+    shift_points(&mut definition["presentation"]);
+    let world = senkei_world::compile_json(&serde_json::to_vec(&definition).unwrap())
+        .expect("translated presentation still compiles as a paired World");
+    let base_package = senritsu::next_package();
+    let metadata = senritsu::next_world::ExplicitBattleMapMetadata::from_runtime_map(
+        &base_package.next.as_ref().unwrap().map,
+    );
+    let projection = senritsu::next_world::project_verified_world(&world, Some(&metadata))
+        .expect("translated presentation has an exact runtime map projection");
+    let identity = world.identity().to_model_ref();
+    let mut package = base_package;
+    let next = package.next.as_mut().unwrap();
+    next.map = projection.runtime_map().clone();
+    next.world_identity = Some(identity.clone());
+    next.map.world_identity = Some(identity);
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    let mut resolver = senkei_world::WorldResolver::default();
+    resolver.insert(world).expect("resolved identity is unique");
+    senritsu::validate_with_world_resolver(
+        package,
+        &senritsu::next_engine_compatibility(),
+        &resolver,
+    )
+    .unwrap_or_else(|issues| panic!("paired translated World validates: {issues:?}"))
+}
+
 fn fragile_rules() -> VerifiedRulePlan {
     let mut package = senritsu::next_package();
     let next = package.next.as_mut().expect("published Next package contains finite mechanics");
@@ -137,6 +180,40 @@ fn run_partition(
     let (attacker, defender, context) = build_match(rules, partition, match_id, 1, None, None);
     let mut vm = Vm::new(rules);
     simulate(&attacker, &defender, rules, &context, &mut vm)
+}
+
+#[test]
+fn presentation_only_world_changes_preserve_enbu_logic_and_public_events() {
+    let baseline_rules = rules();
+    let shifted_rules = presentation_shifted_rules();
+    let baseline_map = &baseline_rules.plan().next.as_ref().unwrap().map;
+    let shifted_map = &shifted_rules.plan().next.as_ref().unwrap().map;
+    assert_eq!(
+        baseline_map.nodes.iter().map(|(id, node)| (id, node.x, node.y)).collect::<Vec<_>>(),
+        shifted_map.nodes.iter().map(|(id, node)| (id, node.x, node.y)).collect::<Vec<_>>(),
+        "authored logical positions do not move with presentation coordinates",
+    );
+    assert!(baseline_map.nodes.iter().any(|(id, node)| {
+        let shifted = &shifted_map.nodes[id];
+        (node.presentation_x, node.presentation_y) != (shifted.presentation_x, shifted.presentation_y)
+    }));
+
+    let (attacker, defender, context) = build_match(
+        &baseline_rules, &[5], "presentation-invariance", 30, None, None,
+    );
+    let mut baseline_vm = Vm::new(&baseline_rules);
+    let baseline = simulate(&attacker, &defender, &baseline_rules, &context, &mut baseline_vm).unwrap();
+    let (attacker, defender, context) = build_match(
+        &shifted_rules, &[5], "presentation-invariance", 30, None, None,
+    );
+    let mut shifted_vm = Vm::new(&shifted_rules);
+    let shifted = simulate(&attacker, &defender, &shifted_rules, &context, &mut shifted_vm).unwrap();
+
+    assert_eq!(baseline.result.outcome, shifted.result.outcome);
+    assert_eq!(baseline.result.final_tick, shifted.result.final_tick);
+    assert_eq!(baseline.result.final_state_digest, shifted.result.final_state_digest);
+    assert_eq!(baseline.result.cu_spent, shifted.result.cu_spent);
+    assert_eq!(baseline.replay.frames, shifted.replay.frames, "public replay events are logic-identical");
 }
 
 fn build_match(
