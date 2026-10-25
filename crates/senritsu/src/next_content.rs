@@ -1,4 +1,4 @@
-//! Provisional finite content for `senkei.next` 1.0.0.
+//! Provisional finite content for `senkei.next` 2.0.0.
 //!
 //! This module owns game data only. The numbers below are initial tuning
 //! values, not engine defaults; see `docs/implementation/NEXT-PARAMETERS.md`.
@@ -92,7 +92,6 @@ fn parameters() -> BTreeMap<String, i64> {
         ("bridge_expand_ticks".into(), 12),
         ("bridge_rebuild_ticks".into(), 24),
         ("bridge_destroy_ticks".into(), 8),
-        ("bridge_repair_ticks".into(), 8),
         ("bridge_work_energy".into(), 25),
         ("generic_squad_terrain_adapt_milli".into(), 900),
         ("specialist_jungle_adapt_milli".into(), 1_000),
@@ -648,6 +647,7 @@ mod tests {
             ("vision_graph_metric", 1), ("vision_occlusion_enabled", 0),
             ("attack_preparation_ticks", 0), ("attack_recovery_ticks", 1),
         ] { assert_eq!(rules.parameters[key], value, "{key}"); }
+        assert!(!rules.parameters.contains_key("bridge_repair_ticks"));
         assert_eq!(rules.parameters["minion_vision_speed_milli"], 1_200);
         assert_eq!(rules.parameters["squad_5_speed_milli"], 800);
         assert_eq!(rules.parameters["hero_max_level"], 6);

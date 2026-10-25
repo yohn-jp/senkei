@@ -29,7 +29,7 @@ npm run preview
 
 ワークスペースの **Next** を開き、12種類（前衛6・後衛6）から5体を選択します。Squad、初期位置、戦闘前のSkill Treeを設定し、既存のJinreiエディタでコンパイルして **Launch local battle** を実行します。3Dリプレイのシーク、HeroのXP・スキル・自分の診断、編成修正、再戦までローカルで完結します。**Save setup** は既存戦型と別の保存領域を使い、JSONの入出力とオフライン復元にも対応します。
 
-`senkei.next` 1.0.0は、Enbu 1.1.0の有限プリミティブを既存のシミュレーション経路で実行します。3レーン・ジャングル・Minion視界、Squadの分離／合流、通常戦闘・スキル・成長・Solo復活を含みます。`senkei.initial` の結果は既存の回帰ケースで維持しています。暫定値は [Nextパラメータ](docs/implementation/NEXT-PARAMETERS.md)、検証範囲は [Next検証記録](docs/implementation/NEXT-VERIFICATION.md) を参照してください。
+`senkei.next` 2.0.0はBattlefield mechanics 2.0.0を要求し、Enbu 1.2.0の有限プリミティブを既存のシミュレーション経路で実行します。35ノード／42エッジの斜めマップ、3トラック、固定橋と渡河、MID観測基地、ノード・エッジ上の戦闘を含みます。`senkei.initial` の結果は既存の回帰ケースで維持しています。規範仕様と統合検証は [Battlefield仕様](docs/BATTLEFIELD.md) と [Battlefield実装・検証記録](docs/implementation/BATTLEFIELD-CANONICAL.md)、暫定値は [Nextパラメータ](docs/implementation/NEXT-PARAMETERS.md) を参照してください。
 
 ## ヘッドレス実行
 
@@ -68,7 +68,7 @@ bash scripts/balance/run-next.sh
 - [将来の公式PvP・Cloudflare境界](docs/ONLINE.md)
 - [実装の順序・受入条件・未決事項](docs/DELIVERY.md)
 
-新しいHero／Squad／ジャングル／視界の合意は `senkei.next` に実装しています。旧 `senkei.initial` と `/graphics/` の合成Fixtureは別に維持しています。合意値と今回選択した暫定パラメータは [NEXT-PARAMETERS.md](docs/implementation/NEXT-PARAMETERS.md) で区別します。
+Hero／Squad／Battlefieldの規範は `senkei.next` 2.0.0に実装しています。旧 `senkei.initial` と `/graphics/` の合成Fixtureは別に維持しています。Battlefield v2の接続・遷移・検証範囲は [統合記録](docs/implementation/BATTLEFIELD-CANONICAL.md)、初期Rulesetの暫定パラメータは [NEXT-PARAMETERS.md](docs/implementation/NEXT-PARAMETERS.md) を参照してください。
 
 ## ライセンス
 

@@ -41,6 +41,18 @@ mod tests {
             .expect("versioned numeric tuning preserves canonical topology");
     }
     #[test]
+    fn canonical_battlefield_rejects_missing_digest_refreshed_parameters() {
+        let mut package = next_package();
+        package.next.as_mut().unwrap().parameters.remove("bridge_hp");
+        package.ruleset.digest = crate::canonical_digest(&package).unwrap();
+
+        let issues = crate::validate(package, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| {
+            issue.path == "next.parameters.bridge_hp"
+                && issue.message.contains("required canonical v2 parameter")
+        }), "freshly digested packages may not silently inherit engine parameter defaults: {issues:#?}");
+    }
+    #[test]
     fn canonical_battlefield_rejects_unlisted_shortcuts_even_with_a_fresh_digest() {
         let mut package = next_package();
         let next = package.next.as_mut().unwrap();

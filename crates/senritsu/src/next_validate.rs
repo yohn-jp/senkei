@@ -28,6 +28,20 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             "parameters must fit bounded nonnegative deterministic arithmetic",
         );
     }
+    // Canonical v2 behavior must be represented in the digest-covered package,
+    // not silently selected from Enbu's implementation fallback values. Keep
+    // the set tied to content so adding a canonical parameter makes it required
+    // automatically; values remain tunable within the bounded range above.
+    let required_parameters =
+        crate::next_content::content(crate::next_world::battle_map()).parameters;
+    for key in required_parameters.keys() {
+        let path = format!("next.parameters.{key}");
+        check(
+            r.parameters.contains_key(key),
+            &path,
+            "required canonical v2 parameter must be present in the versioned package",
+        );
+    }
     for unit in r.minions.iter().chain(r.monsters.iter()) {
         check(
             (0..=1_000_000).contains(&unit.xp),
