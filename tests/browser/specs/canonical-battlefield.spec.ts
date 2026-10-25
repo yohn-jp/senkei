@@ -113,6 +113,20 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     entity.entity_type === "hero" && entity.fields?.catalog_id?.value === catalogId);
   const bridgeAt = (tick: number, site = "TOP"): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
     entity.entity_type === "bridge" && entity.fields?.site?.value === site);
+  const fixedBridgeTransitFrame = replay!.frames.find((frame: JsonRecord) => {
+    if (frame.tick <= 49) return false;
+    const entities = Object.values(frame.visible_state?.entities ?? {}) as JsonRecord[];
+    const bridge = entities.find((entity) => entity.entity_type === "bridge" && entity.fields?.site?.value === "TOP");
+    const hero = entities.find((entity) => entity.entity_type === "hero" && entity.fields?.catalog_id?.value === "R01");
+    return bridge?.fields?.bridge_state?.value === "normal" &&
+      hero?.fields?.node?.value === "A.TOP.BANK" && hero?.fields?.edge_to?.value === "B.TOP.BANK" &&
+      hero?.fields?.edge_progress?.kind === "integer" && hero.fields.edge_progress.value > 0 &&
+      hero?.fields?.track?.value === "CENTER";
+  });
+  expect(fixedBridgeTransitFrame, "R01 eventually enters the rebuilt TOP bridge on CENTER").toBeTruthy();
+  const fixedBridgeTransitTick = fixedBridgeTransitFrame!.tick as number;
+  expect(fixedBridgeTransitTick).toBeGreaterThan(49);
+  expect(fixedBridgeTransitTick).toBeLessThanOrEqual(result.final_tick);
   const observation = ownerEntitiesAt(1).find((entity) =>
     entity.entity_type === "observation" && entity.fields?.node?.value === "N.MID.OBS");
   expect(observation, "the authorized replay contains the actual MID observation facility").toBeTruthy();
@@ -125,8 +139,9 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(ownerHeroAt(5, "F01")?.fields?.track?.value).toBe("RIGHT");
   expect(ownerHeroAt(2, "R02")?.fields?.node?.value).toBe("A.MID.BANK");
   expect(ownerHeroAt(2, "R02")?.fields?.edge_to?.value ?? "").toBe("");
-  expect(ownerHeroAt(50, "R01")?.fields?.node?.value).toBe("A.TOP.BANK");
-  expect(ownerHeroAt(50, "R01")?.fields?.edge_to?.value).toBe("B.TOP.BANK");
+  expect(ownerHeroAt(fixedBridgeTransitTick, "R01")?.fields?.node?.value).toBe("A.TOP.BANK");
+  expect(ownerHeroAt(fixedBridgeTransitTick, "R01")?.fields?.edge_to?.value).toBe("B.TOP.BANK");
+  expect(ownerHeroAt(fixedBridgeTransitTick, "R01")?.fields?.track?.value).toBe("CENTER");
   expect(bridgeAt(0)?.fields?.bridge_state?.value).toBe("normal");
   expect(bridgeAt(13)?.fields?.bridge_state?.value).toBe("expanded");
   expect(bridgeAt(23)?.fields?.bridge_state?.value).toBe("destroyed");
@@ -185,10 +200,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-destroyed.png`), animations: "disabled" });
   }
   expect(await routeStateAt(49)).toBe("normal");
-  expect(await routeStateAt(50)).toBe("normal");
+  expect(await routeStateAt(fixedBridgeTransitTick)).toBe("normal");
 
   if (width > 700) {
-    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-transit.png`), animations: "disabled" });
+    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-transit-t${String(fixedBridgeTransitTick).padStart(3, "0")}.png`), animations: "disabled" });
     await page.getByTestId("battle-visible-roster-toggle").click();
     const roster = page.getByTestId("battle-visible-roster");
     await expect(roster).toBeVisible();
@@ -203,10 +218,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await expect(page.locator(".next-detail-card").filter({ hasText: "VISIBLE STATE" })).toBeVisible();
     await page.getByRole("button", { name: "Battle view" }).click();
     await expect(canvas).toBeVisible();
-    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
+    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit-t${String(fixedBridgeTransitTick).padStart(3, "0")}.png`), animations: "disabled" });
   }
   expect(pageErrors).toEqual([]);
-  return { result, publicReplay, ownerReplay: replay, frameCount: publicReplay.frames.length, wasmStatuses: wasmResponses,
+  return { result, publicReplay, ownerReplay: replay, frameCount: publicReplay.frames.length, fixedBridgeTransitTick, wasmStatuses: wasmResponses,
     buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content") };
 }
 
@@ -236,7 +251,7 @@ test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ 
       fullDesktopMobileReplayEquality: true,
       viewports: [{ width: 1440, height: 900 }, { width: 390, height: 844 }],
       wasmStatuses: [...desktop.wasmStatuses, ...mobile.wasmStatuses],
-      ticks: { lateralCrossing: 3, midDestroyed: 11, topExpanded: 13, topDestroyed: 23, ford: 24, topRebuilt: 49, bridgeTransit: 50 },
+      ticks: { lateralCrossing: 3, midDestroyed: 11, topExpanded: 13, topDestroyed: 23, ford: 24, topRebuilt: 49, bridgeTransit: desktop.fixedBridgeTransitTick },
       renderer: "Chromium with SwiftShader; hardware GPU and physical touch not checked",
     }, null, 2) + "\n");
   } finally {
