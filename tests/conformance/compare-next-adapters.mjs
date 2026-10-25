@@ -94,6 +94,7 @@ for (const request of requests) {
   const ownerScenario = request.request_id === "next-battlefield-owner" ||
     request.request_id === "next-workbench-long-owner";
   if (request.operation !== "simulate" || request.payload?.include_diagnostics !== ownerScenario ||
+      (ownerScenario && request.payload?.diagnostics_side !== "attacker") ||
       typeof request.request_id !== "string") {
     fail(`${request.request_id ?? "fixture"} has an invalid operation, diagnostics scope, or request_id`);
   }
@@ -144,7 +145,7 @@ for (let index = 0; index < requests.length; index += 1) {
   if (request.request_id === "next-public-simulation") {
     if (!nativeResponse.ok) fail(`public scenario failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
-    if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay")) {
+    if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay") || Object.keys(result.owner_replays ?? {}).length !== 0 || result.authorized_side !== undefined) {
       fail("diagnostics=false exposed restricted diagnostics or the local owner replay");
     }
     const serialized = JSON.stringify(result);
@@ -156,7 +157,7 @@ for (let index = 0; index < requests.length; index += 1) {
     const result = nativeResponse.result;
     const match = result.result;
     const replay = result.replay;
-    if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay")) {
+    if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay") || Object.keys(result.owner_replays ?? {}).length !== 0 || result.authorized_side !== undefined) {
       fail("canonical public battle leaked restricted diagnostics or owner replay");
     }
     if (match.final_tick < 50 || typeof match.final_state_digest !== "string" ||
@@ -173,13 +174,23 @@ for (let index = 0; index < requests.length; index += 1) {
     if (!nativeResponse.ok) fail(`authorized owner battle failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
     const match = result.result;
-    const replay = result.owner_replay;
-    if (result.diagnostics === null || !replay || replay.perspective !== "attacker") {
+    const replay = result.owner_replays?.attacker;
+    if (result.authorized_side !== "attacker" || result.diagnostics === null || !replay || replay.perspective !== "attacker" ||
+        Object.keys(result.owner_replays).join(",") !== "attacker" || Object.hasOwn(result, "owner_replay")) {
       fail("explicit diagnostics-enabled request lacks its authorized attacker replay");
+    }
+    if (!replay.ruleset || !replay.world_identity || canonicalJson(replay.ruleset) !== canonicalJson(result.replay.ruleset) ||
+        canonicalJson(replay.world_identity) !== canonicalJson(result.replay.world_identity)) {
+      fail("owner and public replays do not carry the same complete ruleset and paired World identity");
     }
     if (match.final_tick < 50 || typeof match.final_state_digest !== "string" ||
         !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
       fail("authorized owner battle is missing its confirmed terminal state, digest, or side CU");
+    }
+    if (result.diagnostics.events.some(event => event.side !== "attacker") ||
+        Object.keys(result.diagnostics.cu_by_side).join(",") !== "attacker" ||
+        Object.keys(result.diagnostics.final_memory_by_side).join(",") !== "attacker") {
+      fail("attacker response contains diagnostics belonging to the defender");
     }
     const frameEntities = (tick) => {
       const entities = replay.frames.find((candidate) => candidate.tick === tick)?.visible_state?.entities;
@@ -220,7 +231,7 @@ for (let index = 0; index < requests.length; index += 1) {
     if (field(hero(2, "R02"), "node") !== "A.MID.BANK" || field(hero(2, "R02"), "edge_to") !== "") {
       fail("authorized attacker replay does not expose the retreat's adjacent-node arrival and tick boundary");
     }
-    const rebuiltEntry = result.owner_replay.frames.find(frame => frame.tick >= 50 &&
+    const rebuiltEntry = replay.frames.find(frame => frame.tick >= 50 &&
       field(hero(frame.tick, "R01"), "node") === "A.TOP.BANK" &&
       field(hero(frame.tick, "R01"), "edge_to") === "B.TOP.BANK" &&
       field(hero(frame.tick, "R01"), "track") === "CENTER" && integer(hero(frame.tick, "R01"), "edge_progress") > 0);
@@ -232,14 +243,24 @@ for (let index = 0; index < requests.length; index += 1) {
     if (!nativeResponse.ok) fail(`long authorized Workbench battle failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
     const match = result.result;
-    if (match.final_tick !== 600 || result.diagnostics === null || result.owner_replay?.perspective !== "attacker") {
+    const replay = result.owner_replays?.attacker;
+    if (match.final_tick !== 600 || result.authorized_side !== "attacker" || result.diagnostics === null || replay?.perspective !== "attacker" ||
+        Object.keys(result.owner_replays).join(",") !== "attacker" || Object.hasOwn(result, "owner_replay")) {
       fail("long Workbench battle is missing its timeout result, attacker owner replay, or diagnostics");
     }
-    if (result.owner_replay.frames.length !== 601 || result.replay.frames.length !== 601) {
+    if (!replay.ruleset || !replay.world_identity || canonicalJson(replay.ruleset) !== canonicalJson(result.replay.ruleset) ||
+        canonicalJson(replay.world_identity) !== canonicalJson(result.replay.world_identity)) {
+      fail("long owner and public replays lack the same complete ruleset and paired World identity");
+    }
+    if (replay.frames.length !== 601 || result.replay.frames.length !== 601) {
       fail("long Workbench battle does not retain the full deterministic replay for each tick");
     }
     if (result.diagnostics.events.some((event) => event.side !== "attacker")) {
       fail("long owner replay exposed opponent restricted diagnostics");
+    }
+    if (Object.keys(result.diagnostics.cu_by_side).join(",") !== "attacker" ||
+        Object.keys(result.diagnostics.final_memory_by_side).join(",") !== "attacker") {
+      fail("long owner response exposed opponent CU or tactical memory");
     }
     encodedResponseBytes = new TextEncoder().encode(JSON.stringify(nativeResponse)).byteLength;
     if (encodedResponseBytes <= 32_000_000 || encodedResponseBytes > 64_000_000) {
@@ -255,7 +276,7 @@ for (let index = 0; index < requests.length; index += 1) {
     ...(observedFacts ? { observed_facts: observedFacts } : {}),
     ...(match ? { final_tick: match.final_tick, final_state_digest: match.final_state_digest, cu_spent: match.cu_spent,
       public_replay_sha256: digest(nativeResponse.result.replay),
-      ...(nativeResponse.result.owner_replay ? { owner_replay_sha256: digest(nativeResponse.result.owner_replay) } : {}) } : {}) });
+      ...(nativeResponse.result.owner_replays?.attacker ? { attacker_owner_replay_sha256: digest(nativeResponse.result.owner_replays.attacker) } : {}) } : {}) });
   console.log(`PASS ${request.request_id} (${nativeResponse.ok ? request.payload.include_diagnostics ? "authorized owner simulation" : "public simulation" : "matching rejection"})`);
 }
 if (process.env.NEXT_ADAPTER_REPORT) {

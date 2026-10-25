@@ -1947,11 +1947,16 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
             ("next-battlefield-canonical", false),
             ("next-battlefield-owner", true),
         ] {
+            let mut payload = serde_json::json!({
+                "attacker": attacker, "defender": defender, "context": context,
+                "include_diagnostics": include_diagnostics,
+            });
+            if include_diagnostics { payload["diagnostics_side"] = serde_json::json!("attacker"); }
             let request = serde_json::json!({
                 "api_version": Version::new(1, 0, 0),
                 "request_id": request_id,
                 "operation": "simulate",
-                "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": include_diagnostics }
+                "payload": payload
             });
             let bytes = serde_json::to_vec_pretty(&request).expect("native/WASM battle input serializes");
             fs::write(directory.join(format!("{request_id}.request.json")), bytes)
