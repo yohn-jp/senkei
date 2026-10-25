@@ -1403,7 +1403,7 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
                 "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
                 "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
                 "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
-                "The eight full-length strategic cases contain six 600-tick timeouts and two mirrored base-destruction victories; timeout draws remain time-limited observations."
+                "The eight full-length strategic cases report their observed outcomes; 600-tick draws are time-limited observations. A separate controlled real-Enbu test verifies base destruction in both orientations."
             ]
         }));
     }

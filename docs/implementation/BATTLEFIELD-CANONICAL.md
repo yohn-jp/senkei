@@ -62,7 +62,7 @@ The controlled scenario uses actual compiled Jinrei and the canonical RulePackag
 
 Executed checks:
 
-- `cargo test --workspace --release --locked`: **144 passed**, including the 56-case scenario matrix, both orientations of full base destruction, real compiled Jinrei bridge/track/ford combat, typed Observation and Unknown probes.
+- `cargo test --workspace --release --locked`: **144 passed**, including the [56-case scenario matrix](../evidence/battlefield/canonical-scenarios.json), both orientations of full base destruction, real compiled Jinrei bridge/track/ford combat, typed Observation and Unknown probes.
 - Native-repeat / real WASM: **6 complete response comparisons passed**, covering canonical public/owner replay, CU and rejection semantics. Hashes: [adapter evidence](../evidence/battlefield/canonical-adapters.json). The separate **7 legacy adapter scenarios passed**; their result hashes and CU remained unchanged.
 - `npm test`: **50 passed across 9 files**. TypeScript checks and production build passed; Vite reports its existing large-chunk advisory.
 - Actual canonical browser scenario passed at **1440×900 and 390×844**, including public/owner response agreement, lateral crossing, movement, bridge destruction/rebuild, Jungle ford and replay controls. [Browser metadata](../evidence/battlefield/canonical-browser/metadata.json) records source/build revisions and hashes; [desktop destroyed bridge](../evidence/battlefield/canonical-browser/desktop-1440x900-bridge-destroyed.png) and [mobile destroyed bridge](../evidence/battlefield/canonical-browser/mobile-390x844-bridge-destroyed.png) show the rendered river gap. These screenshots use the corrected production river geometry.
