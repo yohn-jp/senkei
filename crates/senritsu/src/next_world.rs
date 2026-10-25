@@ -3,10 +3,731 @@
 //! Coordinates only arrange the authored battlefield. Edge identities,
 //! endpoint membership, length, terrain and fixed bridge site are the rules.
 
+// The adapter is intentionally staged without changing `next_package` until
+// World identities and runtime semantics are proven compatible.
+#![allow(dead_code)]
+
 use senkei_model::{BattleMap, MapEdge, MapNode, TowerPlacement};
-use std::collections::BTreeMap;
+use senkei_world::{
+    CanonicalPresentationWorld, CanonicalSimulationWorld, EdgeClass, NodeKind,
+    ObservationSemantics, RiverCrossingKind, TrackKind, TerrainKind, VerifiedWorld,
+    WorldIdentity, INITIAL_BATTLEFIELD_PROFILE_ID, INITIAL_BATTLEFIELD_PROFILE_VERSION,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const BATTLEFIELD_MAP_ID: &str = "senkei-battlefield-v2";
+
+/// Lane routes, bases, and tower sites are currently absent from World Definition.
+/// A caller must provide these values explicitly from an owned source when
+/// projecting a compiled World into the older `BattleMap` shape.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExplicitBattleMapMetadata {
+    pub attacker_base: String,
+    pub defender_base: String,
+    pub lanes: BTreeMap<String, Vec<String>>,
+    pub towers: Vec<TowerPlacement>,
+}
+
+impl ExplicitBattleMapMetadata {
+    /// Explicitly copy the runtime-only layout fields from an existing map.
+    /// This does not infer routes or sites from the compiled World.
+    pub(crate) fn from_runtime_map(map: &BattleMap) -> Self {
+        Self {
+            attacker_base: map.attacker_base.clone(),
+            defender_base: map.defender_base.clone(),
+            lanes: map.lanes.clone(),
+            towers: map.towers.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WorldMapAdapterError {
+    pub code: &'static str,
+    pub detail: String,
+}
+
+impl std::fmt::Display for WorldMapAdapterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.detail)
+    }
+}
+
+impl std::error::Error for WorldMapAdapterError {}
+
+/// A guarded projection into the legacy BattleMap data shape.
+///
+/// The canonical simulation and presentation artifacts remain attached, and
+/// the projected map is only exposed when an explicit compatibility check
+/// against the target runtime succeeds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WorldMapAdapter {
+    identity: WorldIdentity,
+    simulation: CanonicalSimulationWorld,
+    presentation: CanonicalPresentationWorld,
+    candidate_map: BattleMap,
+}
+
+impl WorldMapAdapter {
+    pub(crate) fn identity(&self) -> &WorldIdentity {
+        &self.identity
+    }
+
+    pub(crate) fn simulation_world(&self) -> &CanonicalSimulationWorld {
+        &self.simulation
+    }
+
+    pub(crate) fn presentation_world(&self) -> &CanonicalPresentationWorld {
+        &self.presentation
+    }
+
+    /// The candidate cannot enter the current runtime until every representable
+    /// field, stable identity, and runtime-only metadata item matches.
+    pub(crate) fn battle_map_if_compatible(
+        &self,
+        runtime_map: &BattleMap,
+    ) -> Result<&BattleMap, WorldMapCompatibilityReport> {
+        let report = self.compatibility_report(runtime_map);
+        if report.is_compatible() {
+            Ok(&self.candidate_map)
+        } else {
+            Err(report)
+        }
+    }
+
+    pub(crate) fn compatibility_report(
+        &self,
+        runtime_map: &BattleMap,
+    ) -> WorldMapCompatibilityReport {
+        compare_world_map(self, runtime_map)
+    }
+}
+
+/// Classification separates graph/distance agreement from full runtime
+/// compatibility, which also requires stable IDs and representable details.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WorldMapCompatibilityClass {
+    Exact,
+    GraphAndLengthsMatch,
+    Incompatible,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WorldMapCompatibilityReport {
+    pub class: WorldMapCompatibilityClass,
+    pub world_id_matches: bool,
+    pub node_ids_match: bool,
+    pub node_semantics_match: bool,
+    pub edge_ids_match: bool,
+    pub endpoint_pairs_match: bool,
+    pub endpoint_order_matches: bool,
+    pub logical_distances_match: bool,
+    pub edge_semantics_match: bool,
+    pub lane_routes_match: bool,
+    pub tower_sites_match: bool,
+    pub tracks_representable: bool,
+    pub terrain_representable: bool,
+    pub crossing_ranges_representable: bool,
+    pub missing_node_ids: Vec<String>,
+    pub unexpected_node_ids: Vec<String>,
+    pub missing_edge_ids: Vec<String>,
+    pub unexpected_edge_ids: Vec<String>,
+    pub missing_endpoint_pairs: Vec<String>,
+    pub unexpected_endpoint_pairs: Vec<String>,
+    pub edge_length_mismatches: Vec<String>,
+    pub bridge_site_mismatches: Vec<String>,
+    pub non_full_crossing_ranges: Vec<String>,
+    pub track_mismatches: Vec<String>,
+    pub terrain_mismatches: Vec<String>,
+}
+
+impl WorldMapCompatibilityReport {
+    pub(crate) fn is_compatible(&self) -> bool {
+        self.class == WorldMapCompatibilityClass::Exact
+    }
+}
+
+/// Compile a validated World projection for comparison with `BattleMap`.
+///
+/// The initial Battlefield profile is the only supported profile because the
+/// legacy adapter has finite node/edge and terrain conventions. Route and tower
+/// declarations must be provided explicitly; no path is derived from the
+/// presentation graph or synthesized from missing nodes.
+pub(crate) fn adapt_verified_world(
+    world: &VerifiedWorld,
+    metadata: Option<&ExplicitBattleMapMetadata>,
+) -> Result<WorldMapAdapter, WorldMapAdapterError> {
+    let identity = world.identity();
+    let profile = identity.validation_profile.as_ref().ok_or_else(|| {
+        adapter_error(
+            "missing_validation_profile",
+            "BattleMap projection requires an explicit supported validation profile",
+        )
+    })?;
+    if profile.id != INITIAL_BATTLEFIELD_PROFILE_ID
+        || profile.version != INITIAL_BATTLEFIELD_PROFILE_VERSION
+    {
+        return Err(adapter_error(
+            "unsupported_validation_profile",
+            format!(
+                "unsupported World profile {}@{}.{}.{}",
+                profile.id,
+                profile.version.major,
+                profile.version.minor,
+                profile.version.patch
+            ),
+        ));
+    }
+    let metadata = metadata.ok_or_else(|| {
+        adapter_error(
+            "missing_explicit_battle_map_metadata",
+            concat!(
+                "World Definition does not declare lane routes or tower placements; ",
+                "provide bases, lanes, and towers explicitly"
+            ),
+        )
+    })?;
+
+    let simulation = world.simulation_world();
+    let presentation = world.presentation_world();
+    validate_explicit_metadata(metadata, simulation)?;
+
+    let mut nodes = BTreeMap::new();
+    for (id, node) in &simulation.topology.nodes {
+        let view = presentation.node_positions.get(id).ok_or_else(|| {
+            adapter_error(
+                "missing_node_presentation",
+                format!("World presentation has no position for node '{id}'"),
+            )
+        })?;
+        nodes.insert(
+            id.clone(),
+            MapNode {
+                x: i64::from(view.position.x),
+                y: i64::from(view.position.y),
+                region: runtime_node_region(id, node.kind)?,
+                allegiance: match node.allegiance {
+                    senkei_world::Allegiance::A => "A",
+                    senkei_world::Allegiance::B => "B",
+                    senkei_world::Allegiance::Neutral => "N",
+                }
+                .into(),
+            },
+        );
+    }
+
+    let mut edges = Vec::with_capacity(simulation.topology.edges.len());
+    for (id, edge) in &simulation.topology.edges {
+        if edge.directionality != senkei_world::Directionality::Bidirectional {
+            return Err(adapter_error(
+                "unsupported_edge_directionality",
+                format!("BattleMap cannot represent one-way edge '{id}'"),
+            ));
+        }
+        let length = *simulation.metric.edge_lengths_wu.get(id).ok_or_else(|| {
+            adapter_error(
+                "missing_edge_length",
+                format!("World metric has no length for edge '{id}'"),
+            )
+        })?;
+        let length = i64::try_from(length).map_err(|_| {
+            adapter_error(
+                "edge_length_out_of_range",
+                format!("edge '{id}' length exceeds BattleMap's signed range"),
+            )
+        })?;
+        let tracks = simulation.metric.edge_tracks.get(id).ok_or_else(|| {
+            adapter_error(
+                "missing_edge_tracks",
+                format!("World metric has no track set for edge '{id}'"),
+            )
+        })?;
+        if !battle_map_track_semantics(edge.class, edge.river_crossing.as_ref(), tracks, length) {
+            return Err(adapter_error(
+                "unrepresentable_edge_tracks",
+                format!("edge '{id}' tracks do not match the finite BattleMap track contract"),
+            ));
+        }
+        validate_edge_terrain(simulation, id, edge.class)?;
+
+        let region = runtime_edge_region(
+            simulation,
+            edge.class,
+            edge.river_crossing.as_ref(),
+            edge.from.as_str(),
+            edge.to.as_str(),
+        )?;
+        let (bridge_site, ford) = match &edge.river_crossing {
+            Some(crossing) => match crossing.kind {
+                RiverCrossingKind::FixedBridge | RiverCrossingKind::FixedFacilityBridge => (
+                    crossing.bridge_site_id.clone().ok_or_else(|| {
+                        adapter_error(
+                            "bridge_without_site",
+                            format!("fixed crossing edge '{id}' has no bridge site"),
+                        )
+                    })?,
+                    false,
+                ),
+                RiverCrossingKind::FootFord => (String::new(), true),
+            },
+            None => (String::new(), false),
+        };
+        edges.push(MapEdge {
+            id: id.clone(),
+            bridge_site,
+            ford,
+            from: edge.from.clone(),
+            to: edge.to.clone(),
+            length,
+            region,
+            // World Definition has no static blocked flag. Runtime blockage is
+            // state, so a canonical authored edge starts unblocked.
+            blocked: false,
+        });
+    }
+
+    Ok(WorldMapAdapter {
+        identity: identity.clone(),
+        simulation: simulation.clone(),
+        presentation: presentation.clone(),
+        candidate_map: BattleMap {
+            // Preserve the authored stable identity; never rename a fixture to
+            // make it look like the production v2 map.
+            id: identity.world_id.clone(),
+            nodes,
+            edges,
+            lanes: metadata.lanes.clone(),
+            attacker_base: metadata.attacker_base.clone(),
+            defender_base: metadata.defender_base.clone(),
+            towers: metadata.towers.clone(),
+        },
+    })
+}
+
+fn adapter_error(code: &'static str, detail: impl Into<String>) -> WorldMapAdapterError {
+    WorldMapAdapterError {
+        code,
+        detail: detail.into(),
+    }
+}
+
+fn validate_explicit_metadata(
+    metadata: &ExplicitBattleMapMetadata,
+    simulation: &CanonicalSimulationWorld,
+) -> Result<(), WorldMapAdapterError> {
+    let node_ids: BTreeSet<_> = simulation.topology.nodes.keys().map(String::as_str).collect();
+    if !node_ids.contains(metadata.attacker_base.as_str())
+        || !node_ids.contains(metadata.defender_base.as_str())
+    {
+        return Err(adapter_error(
+            "invalid_explicit_bases",
+            "explicit attacker and defender bases must reference World nodes",
+        ));
+    }
+    let expected_lanes: BTreeSet<_> = ["top", "mid", "bot"].into_iter().collect();
+    let actual_lanes: BTreeSet<_> = metadata.lanes.keys().map(String::as_str).collect();
+    if actual_lanes != expected_lanes {
+        return Err(adapter_error(
+            "invalid_explicit_lanes",
+            "explicit route metadata must declare exactly top, mid, and bot",
+        ));
+    }
+    for (lane, route) in &metadata.lanes {
+        if route.len() < 2
+            || route.first() != Some(&metadata.attacker_base)
+            || route.last() != Some(&metadata.defender_base)
+            || route.iter().any(|node| !node_ids.contains(node.as_str()))
+        {
+            return Err(adapter_error(
+                "invalid_explicit_lane_route",
+                format!(
+                    "lane '{lane}' must explicitly connect both declared bases using World nodes"
+                ),
+            ));
+        }
+        let mut unique = BTreeSet::new();
+        if route.iter().any(|node| !unique.insert(node)) {
+            return Err(adapter_error(
+                "invalid_explicit_lane_route",
+                format!("lane '{lane}' repeats a node"),
+            ));
+        }
+        for pair in route.windows(2) {
+            if !simulation.topology.edges.values().any(|edge| {
+                (edge.from == pair[0] && edge.to == pair[1])
+                    || (edge.from == pair[1] && edge.to == pair[0])
+            }) {
+                return Err(adapter_error(
+                    "invalid_explicit_lane_route",
+                    format!("lane '{lane}' contains undeclared edge '{}'-'{}'", pair[0], pair[1]),
+                ));
+            }
+        }
+    }
+
+    let mut tower_ids = BTreeSet::new();
+    if metadata.towers.len() != 12
+        || metadata.towers.iter().any(|tower| {
+            !tower_ids.insert(tower.id.as_str())
+                || !node_ids.contains(tower.node.as_str())
+                || !expected_lanes.contains(tower.lane.as_str())
+                || !matches!(tower.side.as_str(), "attacker" | "defender")
+        })
+    {
+        return Err(adapter_error(
+            "invalid_explicit_towers",
+            concat!(
+                "exactly twelve unique tower placements on World nodes, with explicit side ",
+                "and lane, are required"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn runtime_node_region(id: &str, kind: NodeKind) -> Result<String, WorldMapAdapterError> {
+    let region = match kind {
+        NodeKind::Base => "base",
+        NodeKind::Bank => "riverbank",
+        NodeKind::JungleJunction => "jungle",
+        NodeKind::Camp => "camp",
+        NodeKind::ObservationBase => "observation",
+        NodeKind::Lane | NodeKind::Junction => {
+            match id.split('.').nth(1) {
+                Some("TOP") => "top",
+                Some("MID") => "mid",
+                Some("BOT") => "bot",
+                _ => {
+                    return Err(adapter_error(
+                        "unmapped_node_region",
+                        format!("node '{id}' has a lane or junction kind without a stable lane ID"),
+                    ));
+                }
+            }
+        }
+        NodeKind::Other => {
+            return Err(adapter_error(
+                "unsupported_node_kind",
+                format!("BattleMap has no typed projection for node '{id}'"),
+            ));
+        }
+    };
+    Ok(region.into())
+}
+
+fn runtime_edge_region(
+    simulation: &CanonicalSimulationWorld,
+    class: EdgeClass,
+    crossing: Option<&senkei_world::RiverCrossingDefinition>,
+    from: &str,
+    to: &str,
+) -> Result<String, WorldMapAdapterError> {
+    if let Some(crossing) = crossing {
+        match crossing.kind {
+            RiverCrossingKind::FixedBridge | RiverCrossingKind::FixedFacilityBridge => {
+                return Ok("bridge".into());
+            }
+            RiverCrossingKind::FootFord => return Ok("river_ford".into()),
+        }
+    }
+    match class {
+        EdgeClass::Lane => Ok("lane".into()),
+        EdgeClass::Jungle => {
+            let camp_endpoint = [from, to].into_iter().any(|node_id| {
+                simulation
+                    .topology
+                    .nodes
+                    .get(node_id)
+                    .is_some_and(|node| node.kind == NodeKind::Camp)
+            });
+            Ok(if camp_endpoint { "jungle_camp" } else { "jungle" }.into())
+        }
+        EdgeClass::Other => Err(adapter_error(
+            "unsupported_edge_class",
+            format!("BattleMap has no typed region projection for edge '{from}'-'{to}'"),
+        )),
+    }
+}
+
+fn validate_edge_terrain(
+    simulation: &CanonicalSimulationWorld,
+    edge_id: &str,
+    class: EdgeClass,
+) -> Result<(), WorldMapAdapterError> {
+    let profile_id = simulation
+        .terrain
+        .edge_profiles
+        .get(edge_id)
+        .ok_or_else(|| {
+            adapter_error(
+                "missing_edge_terrain",
+                format!("edge '{edge_id}' has no terrain profile"),
+            )
+        })?;
+    let profile = simulation.terrain.profiles.get(profile_id).ok_or_else(|| {
+        adapter_error(
+            "missing_terrain_profile",
+            format!("edge '{edge_id}' references missing terrain profile '{profile_id}'"),
+        )
+    })?;
+    let expected_kind = match class {
+        EdgeClass::Lane => TerrainKind::Lane,
+        EdgeClass::Jungle => TerrainKind::Jungle,
+        EdgeClass::Other => {
+            return Err(adapter_error(
+                "unsupported_edge_class",
+                format!("BattleMap cannot express terrain for edge '{edge_id}'"),
+            ));
+        }
+    };
+    if profile.kind != expected_kind {
+        return Err(adapter_error(
+            "unrepresentable_edge_terrain",
+            format!(
+                "edge '{edge_id}' terrain kind is not representable by the current BattleMap rules"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn battle_map_track_semantics(
+    class: EdgeClass,
+    crossing: Option<&senkei_world::RiverCrossingDefinition>,
+    tracks: &[senkei_world::TrackRangeDefinition],
+    length: i64,
+) -> bool {
+    let expected: BTreeSet<_> = match (class, crossing.map(|value| value.kind)) {
+        (
+            EdgeClass::Lane,
+            Some(RiverCrossingKind::FixedBridge | RiverCrossingKind::FixedFacilityBridge),
+        ) => {
+            [TrackKind::Center].into_iter().collect()
+        }
+        (EdgeClass::Lane, None) => [TrackKind::Left, TrackKind::Center, TrackKind::Right]
+            .into_iter()
+            .collect(),
+        (EdgeClass::Jungle, _) => [TrackKind::Single].into_iter().collect(),
+        (EdgeClass::Other, _) => return false,
+        (EdgeClass::Lane, Some(RiverCrossingKind::FootFord)) => return false,
+    };
+    let actual: BTreeSet<_> = tracks.iter().map(|track| track.kind).collect();
+    actual == expected
+        && tracks.iter().all(|track| {
+            track.start_progress_wu == 0
+                && i64::try_from(track.end_progress_wu).ok() == Some(length)
+                && match track.kind {
+                    TrackKind::Left => track.id == "left",
+                    TrackKind::Center => track.id == "center",
+                    TrackKind::Right => track.id == "right",
+                    TrackKind::Single => track.id == "single",
+                    TrackKind::Other => false,
+                }
+        })
+}
+
+fn compare_world_map(
+    adapter: &WorldMapAdapter,
+    runtime_map: &BattleMap,
+) -> WorldMapCompatibilityReport {
+    let source = &adapter.candidate_map;
+    let source_nodes: BTreeSet<_> = source.nodes.keys().cloned().collect();
+    let runtime_nodes: BTreeSet<_> = runtime_map.nodes.keys().cloned().collect();
+    let source_edges: BTreeSet<_> = source.edges.iter().map(|edge| edge.id.clone()).collect();
+    let runtime_edges: BTreeSet<_> = runtime_map.edges.iter().map(|edge| edge.id.clone()).collect();
+    let missing_node_ids = runtime_nodes.difference(&source_nodes).cloned().collect();
+    let unexpected_node_ids = source_nodes.difference(&runtime_nodes).cloned().collect();
+    let missing_edge_ids = runtime_edges.difference(&source_edges).cloned().collect();
+    let unexpected_edge_ids = source_edges.difference(&runtime_edges).cloned().collect();
+
+    let source_pairs = edge_pair_map(&source.edges);
+    let runtime_pairs = edge_pair_map(&runtime_map.edges);
+    let source_pair_ids: BTreeSet<_> = source_pairs.keys().cloned().collect();
+    let runtime_pair_ids: BTreeSet<_> = runtime_pairs.keys().cloned().collect();
+    let missing_endpoint_pairs = runtime_pair_ids
+        .difference(&source_pair_ids)
+        .map(|pair| format!("{}--{}", pair.0, pair.1))
+        .collect();
+    let unexpected_endpoint_pairs = source_pair_ids
+        .difference(&runtime_pair_ids)
+        .map(|pair| format!("{}--{}", pair.0, pair.1))
+        .collect();
+
+    let mut edge_length_mismatches = Vec::new();
+    let mut bridge_site_mismatches = Vec::new();
+    let mut edge_semantics_match = true;
+    let mut endpoint_order_matches = true;
+    for (pair, source_edge) in &source_pairs {
+        let Some(runtime_edge) = runtime_pairs.get(pair) else {
+            continue;
+        };
+        if source_edge.length != runtime_edge.length {
+            edge_length_mismatches.push(format!(
+                "{}--{}: World {} WU, runtime {} WU",
+                pair.0, pair.1, source_edge.length, runtime_edge.length
+            ));
+        }
+        if source_edge.from != runtime_edge.from || source_edge.to != runtime_edge.to {
+            endpoint_order_matches = false;
+        }
+        if source_edge.bridge_site != runtime_edge.bridge_site {
+            bridge_site_mismatches.push(format!(
+                "{}--{}: World '{}', runtime '{}'",
+                pair.0, pair.1, source_edge.bridge_site, runtime_edge.bridge_site
+            ));
+        }
+        edge_semantics_match &= source_edge.region == runtime_edge.region
+            && source_edge.bridge_site == runtime_edge.bridge_site
+            && source_edge.ford == runtime_edge.ford
+            && source_edge.blocked == runtime_edge.blocked;
+    }
+
+    let mut node_semantics_match = true;
+    for id in source_nodes.intersection(&runtime_nodes) {
+        let source_node = &source.nodes[id];
+        let runtime_node = &runtime_map.nodes[id];
+        node_semantics_match &= source_node.allegiance == runtime_node.allegiance
+            && source_node.region == runtime_node.region;
+    }
+    let track_mismatches = nonrepresentable_tracks(&adapter.simulation);
+    let terrain_mismatches = nonrepresentable_terrain(&adapter.simulation);
+    let non_full_crossing_ranges = non_full_crossings(&adapter.simulation);
+
+    let world_id_matches = adapter.identity.world_id == runtime_map.id;
+    let node_ids_match = source_nodes == runtime_nodes;
+    let edge_ids_match = source_edges == runtime_edges;
+    let endpoint_pairs_match = source_pair_ids == runtime_pair_ids;
+    let logical_distances_match = endpoint_pairs_match && edge_length_mismatches.is_empty();
+    let lane_routes_match = source.lanes == runtime_map.lanes
+        && source.attacker_base == runtime_map.attacker_base
+        && source.defender_base == runtime_map.defender_base;
+    let tower_sites_match = tower_map(&source.towers) == tower_map(&runtime_map.towers);
+    let tracks_representable = track_mismatches.is_empty();
+    let terrain_representable = terrain_mismatches.is_empty();
+    let crossing_ranges_representable = non_full_crossing_ranges.is_empty();
+    let node_exact = node_ids_match && node_semantics_match;
+    let edge_exact = edge_ids_match
+        && endpoint_pairs_match
+        && endpoint_order_matches
+        && logical_distances_match
+        && edge_semantics_match;
+    let exact = world_id_matches
+        && node_exact
+        && edge_exact
+        && lane_routes_match
+        && tower_sites_match
+        && tracks_representable
+        && terrain_representable
+        && crossing_ranges_representable;
+    let graph_and_lengths = node_ids_match
+        && endpoint_pairs_match
+        && logical_distances_match
+        && node_semantics_match;
+    let class = if exact {
+        WorldMapCompatibilityClass::Exact
+    } else if graph_and_lengths {
+        WorldMapCompatibilityClass::GraphAndLengthsMatch
+    } else {
+        WorldMapCompatibilityClass::Incompatible
+    };
+
+    WorldMapCompatibilityReport {
+        class,
+        world_id_matches,
+        node_ids_match,
+        node_semantics_match,
+        edge_ids_match,
+        endpoint_pairs_match,
+        endpoint_order_matches,
+        logical_distances_match,
+        edge_semantics_match,
+        lane_routes_match,
+        tower_sites_match,
+        tracks_representable,
+        terrain_representable,
+        crossing_ranges_representable,
+        missing_node_ids,
+        unexpected_node_ids,
+        missing_edge_ids,
+        unexpected_edge_ids,
+        missing_endpoint_pairs,
+        unexpected_endpoint_pairs,
+        edge_length_mismatches,
+        bridge_site_mismatches,
+        non_full_crossing_ranges,
+        track_mismatches,
+        terrain_mismatches,
+    }
+}
+
+fn edge_pair_map(edges: &[MapEdge]) -> BTreeMap<(String, String), &MapEdge> {
+    edges
+        .iter()
+        .map(|edge| {
+            let pair = if edge.from <= edge.to {
+                (edge.from.clone(), edge.to.clone())
+            } else {
+                (edge.to.clone(), edge.from.clone())
+            };
+            (pair, edge)
+        })
+        .collect()
+}
+
+fn tower_map(towers: &[TowerPlacement]) -> BTreeMap<&str, &TowerPlacement> {
+    towers.iter().map(|tower| (tower.id.as_str(), tower)).collect()
+}
+
+fn non_full_crossings(simulation: &CanonicalSimulationWorld) -> Vec<String> {
+    simulation
+        .metric
+        .river_crossing_ranges
+        .iter()
+        .filter_map(|(edge_id, crossing)| {
+            let length = simulation.metric.edge_lengths_wu.get(edge_id)?;
+            (crossing.start_progress_wu != 0 || crossing.end_progress_wu != *length).then(|| {
+                format!(
+                    "{edge_id}: [{}, {}] of [0, {length}] WU",
+                    crossing.start_progress_wu, crossing.end_progress_wu
+                )
+            })
+        })
+        .collect()
+}
+
+fn nonrepresentable_tracks(simulation: &CanonicalSimulationWorld) -> Vec<String> {
+    simulation
+        .topology
+        .edges
+        .iter()
+        .filter_map(|(edge_id, edge)| {
+            let length = i64::try_from(*simulation.metric.edge_lengths_wu.get(edge_id)?).ok()?;
+            let tracks = simulation.metric.edge_tracks.get(edge_id)?;
+            (!battle_map_track_semantics(
+                edge.class,
+                edge.river_crossing.as_ref(),
+                tracks,
+                length,
+            ))
+            .then(|| edge_id.clone())
+        })
+        .collect()
+}
+
+fn nonrepresentable_terrain(simulation: &CanonicalSimulationWorld) -> Vec<String> {
+    simulation
+        .topology
+        .edges
+        .iter()
+        .filter_map(|(edge_id, edge)| {
+            let profile_id = simulation.terrain.edge_profiles.get(edge_id)?;
+            let profile = simulation.terrain.profiles.get(profile_id)?;
+            (validate_edge_terrain(simulation, edge_id, edge.class).is_err()
+                || profile.observation != ObservationSemantics::Open)
+                .then(|| edge_id.clone())
+        })
+        .collect()
+}
 
 /// Construct the canonical 35-node, 42-edge battlefield from BATTLEFIELD.md.
 pub fn battle_map() -> BattleMap {
@@ -387,6 +1108,161 @@ pub fn normalized_route_time_milli(distance: i64, terrain_speed_milli: i64) -> O
 mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+
+    fn compiled_authored_world() -> VerifiedWorld {
+        senkei_world::compile_json(include_bytes!(
+            "../../senkei-world/fixtures/initial-battlefield.json"
+        ))
+        .expect("checked-in World Definition compiles")
+    }
+
+    fn authored_world_definition() -> senkei_world::WorldDefinition {
+        serde_json::from_str(include_str!(
+            "../../senkei-world/fixtures/initial-battlefield.json"
+        ))
+        .expect("checked-in World Definition parses")
+    }
+
+    fn rules_projection(map: &BattleMap) -> BattleMap {
+        let mut projection = map.clone();
+        for node in projection.nodes.values_mut() {
+            // `BattleMap` combines presentation coordinates with logic. Zero
+            // those fields to compare only the runtime rule projection.
+            node.x = 0;
+            node.y = 0;
+        }
+        projection
+    }
+
+    #[test]
+    fn authored_world_adapter_preserves_ids_and_reports_v2_non_equivalence() {
+        let world = compiled_authored_world();
+        let runtime = battle_map();
+        assert_eq!(world.simulation_world().topology.nodes.len(), 35);
+        assert_eq!(world.simulation_world().topology.edges.len(), 42);
+        assert_eq!(
+            world
+                .simulation_world()
+                .metric
+                .edge_lengths_wu
+                .values()
+                .sum::<u64>(),
+            7_020
+        );
+
+        let missing_metadata = adapt_verified_world(&world, None)
+            .expect_err("World has no authored lane-route or tower-placement fields");
+        assert_eq!(missing_metadata.code, "missing_explicit_battle_map_metadata");
+
+        let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
+        let adapted = adapt_verified_world(&world, Some(&metadata))
+            .expect("typed, explicit runtime metadata permits a candidate projection");
+        assert_eq!(adapted.identity().world_id, "senkei-battlefield");
+        assert_ne!(adapted.identity().world_id, BATTLEFIELD_MAP_ID);
+        assert_eq!(adapted.simulation_world(), world.simulation_world());
+        assert_eq!(
+            adapted
+                .candidate_map
+                .edges
+                .iter()
+                .map(|edge| edge.id.as_str())
+                .collect::<BTreeSet<_>>(),
+            world
+                .simulation_world()
+                .topology
+                .edges
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            "the adapter preserves stable World edge IDs instead of renaming them"
+        );
+
+        let report = adapted.compatibility_report(&runtime);
+        assert_eq!(report.class, WorldMapCompatibilityClass::GraphAndLengthsMatch);
+        assert!(!report.is_compatible());
+        assert!(!report.world_id_matches);
+        assert!(report.node_ids_match);
+        assert!(report.node_semantics_match);
+        assert!(!report.edge_ids_match);
+        assert_eq!(report.missing_edge_ids.len(), 42);
+        assert_eq!(report.unexpected_edge_ids.len(), 42);
+        assert!(report
+            .missing_edge_ids
+            .contains(&"lane.TOP.a-base-t1".to_owned()));
+        assert!(report
+            .unexpected_edge_ids
+            .contains(&"edge-a-base-a-top-t1".to_owned()));
+        assert!(report.endpoint_pairs_match);
+        assert!(report.logical_distances_match);
+        assert!(report.edge_length_mismatches.is_empty());
+        assert_eq!(report.bridge_site_mismatches.len(), 4);
+        assert_eq!(report.non_full_crossing_ranges.len(), 4);
+        assert!(report
+            .non_full_crossing_ranges
+            .iter()
+            .any(|range| range.starts_with("edge-a-mid-bank-n-mid-obs: [40, 50]")));
+        assert!(report
+            .non_full_crossing_ranges
+            .iter()
+            .any(|range| range.starts_with("edge-n-a-uj-n-b-uj: [260, 360]")));
+        assert!(!report.crossing_ranges_representable);
+        assert!(report.tracks_representable);
+        assert!(!report.terrain_representable);
+        assert_eq!(report.terrain_mismatches.len(), 14);
+        assert!(report.lane_routes_match);
+        assert!(report.tower_sites_match);
+        assert!(adapted.battle_map_if_compatible(&runtime).is_err());
+    }
+
+    #[test]
+    fn presentation_only_world_edit_changes_digest_not_runtime_rules() {
+        let first = compiled_authored_world();
+        let mut changed_definition = authored_world_definition();
+        changed_definition.presentation.lighting.key_percent += 1;
+        changed_definition
+            .presentation
+            .materials
+            .iter_mut()
+            .find(|material| material.id == "mat.node")
+            .expect("authored presentation includes node material")
+            .color = "#123456".into();
+        let changed = senkei_world::compile(changed_definition)
+            .expect("presentation-only edits remain a valid World");
+
+        assert_eq!(
+            first.identity().logic_digest,
+            changed.identity().logic_digest,
+            "presentation edits cannot alter the simulation digest"
+        );
+        assert_ne!(
+            first.identity().presentation_digest,
+            changed.identity().presentation_digest
+        );
+        assert_eq!(first.simulation_world(), changed.simulation_world());
+
+        let runtime = battle_map();
+        let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
+        let first_adapter = adapt_verified_world(&first, Some(&metadata)).unwrap();
+        let changed_adapter = adapt_verified_world(&changed, Some(&metadata)).unwrap();
+        assert_ne!(
+            first_adapter.presentation_world().materials["mat.node"].color,
+            changed_adapter.presentation_world().materials["mat.node"].color
+        );
+        assert_eq!(
+            first_adapter.candidate_map, changed_adapter.candidate_map,
+            "presentation color and lighting edits do not alter BattleMap rules"
+        );
+        assert_eq!(
+            rules_projection(&first_adapter.candidate_map),
+            rules_projection(&changed_adapter.candidate_map),
+            "the BattleMap rule projection excludes presentation coordinates"
+        );
+        assert_eq!(
+            first_adapter.compatibility_report(&runtime),
+            changed_adapter.compatibility_report(&runtime),
+            "presentation edits cannot change runtime compatibility classification"
+        );
+    }
 
     fn edge_exists(map: &BattleMap, a: &str, b: &str) -> bool {
         map.edges
