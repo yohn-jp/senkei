@@ -5,6 +5,7 @@ import { BATTLEFIELD_RIVER_SURFACE_WIDTH, buildBattlefieldWaterDetails } from ".
 import {
   buildBattlefieldBridge,
   buildMidObservatory,
+  battlefieldStructureDamageStage,
   type BattlefieldBridgeModel,
   type MidObservatoryModel,
 } from "./battlefield-architecture";
@@ -134,6 +135,7 @@ export class BattlefieldLandmarks {
       const facility = facilities.find((entity) => entity.battlefield?.bridgeSite === site);
       model.setState(facility?.battlefield?.bridgeState ?? "unknown", facility?.id);
       model.setWork(facility?.battlefield?.buildRemaining ?? 0, state?.tick ?? 0, facility?.id);
+      model.setIntegrity?.(facility ? battlefieldStructureDamageStage(facility) : "unknown");
     }
     const objective = Object.values(state?.entities ?? {}).find((entity) => entity.kind === "observation");
     const observationSides = new Set(Object.values(state?.entities ?? {})

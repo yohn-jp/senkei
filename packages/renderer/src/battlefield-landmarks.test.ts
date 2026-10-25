@@ -59,6 +59,18 @@ describe("canonical Battlefield landmarks", () => {
     expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(true);
     expect(bridge.userData.buildRemaining).toBe(3);
     expect(objective.userData.state).toBe("contested");
+    const damagedBridge = structuredClone(stateAt(replay, 0)) as {
+      tick: number;
+      entities: Record<string, Omit<DisplayEntity, "hp" | "maxHp"> & { hp: number; maxHp: number }>;
+      cues: DisplayState["cues"];
+      result: DisplayState["result"];
+    };
+    damagedBridge.entities["top-bridge"]!.hp = 300;
+    damagedBridge.entities["top-bridge"]!.maxHp = 500;
+    landmarks.update(damagedBridge as DisplayState);
+    expect(bridge.userData.damageStage).toBe("damaged");
+    expect(bridge.getObjectByName(`${bridge.name}-timber-fractures`)?.visible).toBe(true);
+
     const oneSided = structuredClone(stateAt(replay, 0)) as {
       tick: number;
       entities: Record<string, DisplayEntity>;

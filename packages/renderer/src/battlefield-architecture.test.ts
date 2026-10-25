@@ -6,6 +6,7 @@ import {
   buildBattlefieldBridge,
   buildBattlefieldTower,
   buildMidObservatory,
+  battlefieldStructureDamageStage,
 } from "./battlefield-architecture";
 
 function entity(overrides: Partial<DisplayEntity> = {}): DisplayEntity {
@@ -63,16 +64,29 @@ describe("Battlefield architectural models", () => {
     expect(sideDeck.visible).toBe(false);
     expect(bridge.group.userData.openWaterGap).toBe(false);
 
+    bridge.setIntegrity?.("damaged");
+    const fractures = bridge.group.getObjectByName(`${bridge.group.name}-timber-fractures`)!;
+    expect(bridge.group.userData.damageStage).toBe("damaged");
+    expect(fractures.visible).toBe(true);
+    expect(fractures.children.filter((child) => child.visible)).toHaveLength(1);
+    expect(centerDeck.visible).toBe(true);
+
     bridge.setState("expanded");
     expect(centerDeck.visible).toBe(true);
     expect(sideDeck.visible).toBe(true);
     expect(bridge.group.getObjectByName(`${bridge.group.name}-expanded-rails`)?.visible).toBe(true);
+    bridge.setIntegrity?.("critical");
+    expect(fractures.children.filter((child) => child.visible)).toHaveLength(6);
+    expect(centerDeck.visible).toBe(true);
+    expect(sideDeck.visible).toBe(true);
 
     bridge.setState("destroyed");
     expect(centerDeck.visible).toBe(false);
     expect(sideDeck.visible).toBe(false);
     expect(broken.visible).toBe(true);
     expect(bridge.group.userData.openWaterGap).toBe(true);
+    expect(bridge.group.userData.damageStage).toBe("destroyed");
+    expect(fractures.visible).toBe(false);
     bridge.dispose();
   });
 
@@ -89,6 +103,17 @@ describe("Battlefield architectural models", () => {
     expect(fortress.position.toArray()).toEqual([8, 0, 12]);
     expect(tower.position.toArray()).toEqual([0, 0, 0]);
 
+    const damagedFortress = buildBattlefieldBase(scene, entity({ id: "base-damaged", side: "vermilion", kind: "base", archetype: "base", hp: 300, maxHp: 500 }));
+    expect(damagedFortress.userData.damageStage).toBe("damaged");
+    expect(damagedFortress.getObjectByName("vermilion-battlefield-fortress-base-damaged-keep-impact-scar")).toBeDefined();
+    expect(damagedFortress.getObjectByName("vermilion-battlefield-fortress-base-damaged-breached-gate-rubble")).toBeUndefined();
+
+    const criticalFortress = buildBattlefieldBase(scene, entity({ id: "base-critical", side: "vermilion", kind: "base", archetype: "base", hp: 100, maxHp: 500 }));
+    expect(criticalFortress.userData.damageStage).toBe("critical");
+    expect(criticalFortress.getObjectByName("vermilion-battlefield-fortress-base-critical-gate-door")?.visible).toBe(false);
+    expect(criticalFortress.getObjectByName("vermilion-battlefield-fortress-base-critical-breached-gate-rubble")).toBeDefined();
+    expect(criticalFortress.getObjectByName("vermilion-battlefield-fortress-base-critical-keep-standard-cloth")).toBeUndefined();
+
     const worn = buildBattlefieldTower(scene, entity({ id: "tower-worn", kind: "tower", archetype: "tower", hp: 300, maxHp: 500 }));
     expect(worn.userData.damageStage).toBe("damaged");
     expect(worn.getObjectByName("neutral-battlefield-tower-tower-worn-impact-scar")).toBeDefined();
@@ -101,7 +126,12 @@ describe("Battlefield architectural models", () => {
     expect(critical.getObjectByName("neutral-battlefield-tower-tower-critical-standard-cloth")).toBeUndefined();
 
     const noVitals = buildBattlefieldTower(scene, entity({ id: "tower-no-vitals", kind: "tower", archetype: "tower", hp: 0, maxHp: 0 }));
-    expect(noVitals.userData.damageStage).toBe("intact");
+    expect(noVitals.userData.damageStage).toBe("unknown");
+    const noVitalsFortress = buildBattlefieldBase(scene, entity({ id: "base-no-vitals", kind: "base", archetype: "base", hp: 0, maxHp: 0 }));
+    expect(noVitalsFortress.userData.damageStage).toBe("unknown");
+    expect(noVitalsFortress.getObjectByName("neutral-battlefield-fortress-base-no-vitals-keep-impact-scar")).toBeUndefined();
+    expect(battlefieldStructureDamageStage(entity({ hp: 0, maxHp: 500, destroyed: false }))).toBe("critical");
+    expect(battlefieldStructureDamageStage(entity({ hp: 0, maxHp: 500, destroyed: true }))).toBe("destroyed");
   });
 
   it("reads MID owner and capture progress from the currently visible Replay entity", () => {

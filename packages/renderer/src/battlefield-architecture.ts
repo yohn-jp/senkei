@@ -2,11 +2,23 @@ import * as THREE from "three";
 import type { DisplayEntity, Replay, WorldPoint } from "@senkei/replay-contract";
 
 export type BridgeVisualState = "normal" | "expanded" | "destroyed" | "unknown";
+export type BattlefieldDamageStage = "unknown" | "intact" | "damaged" | "critical" | "destroyed";
+
+/** Damage stage from a visible Replay entity; HP never implies destruction. */
+export function battlefieldStructureDamageStage(
+  entity: Pick<DisplayEntity, "hp" | "maxHp" | "destroyed">,
+): BattlefieldDamageStage {
+  if (entity.destroyed) return "destroyed";
+  if (!Number.isFinite(entity.hp) || !Number.isFinite(entity.maxHp) || entity.maxHp <= 0) return "unknown";
+  const ratio = THREE.MathUtils.clamp(entity.hp / entity.maxHp, 0, 1);
+  return ratio <= 0.35 ? "critical" : ratio <= 0.7 ? "damaged" : "intact";
+}
 
 export interface BattlefieldBridgeModel {
   readonly group: THREE.Group;
   setState(state: BridgeVisualState, entityId?: string): void;
   setWork(remaining: number, tick: number, entityId?: string): void;
+  setIntegrity?(stage: BattlefieldDamageStage): void;
   dispose(): void;
 }
 
@@ -113,6 +125,38 @@ function addBanner(parent: THREE.Object3D, side: Faction, name: string, position
   return { group, flag };
 }
 
+function stoneScar(
+  parent: THREE.Object3D,
+  name: string,
+  position: readonly [number, number, number],
+  rotationY = 0,
+  scale = 1,
+) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.2, 0);
+  shape.lineTo(-0.04, 0.18);
+  shape.lineTo(-0.13, 0.39);
+  shape.lineTo(0.11, 0.53);
+  shape.lineTo(0.06, 0.71);
+  shape.lineTo(0.22, 0.88);
+  shape.lineTo(-0.07, 0.78);
+  shape.lineTo(-0.18, 0.56);
+  shape.lineTo(-0.09, 0.36);
+  shape.lineTo(-0.24, 0.22);
+  shape.closePath();
+  const scar = mesh(
+    parent,
+    new THREE.ShapeGeometry(shape),
+    palette.shadowStone,
+    name,
+    position,
+    { side: THREE.DoubleSide, roughness: 1 },
+  );
+  scar.scale.setScalar(scale);
+  scar.rotation.y = rotationY;
+  return scar;
+}
+
 function addCornerTower(parent: THREE.Object3D, side: Faction, name: string, x: number, z: number, scale = 1) {
   const root = new THREE.Group();
   root.name = name;
@@ -151,6 +195,8 @@ export function buildBattlefieldBase(parent: THREE.Object3D, entity: DisplayEnti
   group.name = `${entity.side}-battlefield-fortress-${entity.id}`;
   group.userData.entityId = entity.id;
   group.userData.destroyed = entity.destroyed;
+  const damageStage = battlefieldStructureDamageStage(entity);
+  group.userData.damageStage = damageStage;
   group.position.set(entity.position.x, 0, entity.position.y);
   group.rotation.y = facingRadians;
   parent.add(group);
@@ -195,9 +241,13 @@ export function buildBattlefieldBase(parent: THREE.Object3D, entity: DisplayEnti
   for (const sideX of [-1, 1]) {
     box(group, `${group.name}-wall-gatewing-${sideX}`, [1.92, 1.25, 0.42], [sideX * 2.12, wallY, 3.17], palette.sandstone);
   }
-  box(group, `${group.name}-gate-lintel`, [2.42, 0.38, 0.46], [0, 1.72, 3.17], palette.sandstoneLight);
-  box(group, `${group.name}-gate-door`, [1.45, 1.32, 0.15], [0, 0.83, 3.2], palette.agedWood);
+  const gateLintel = box(group, `${group.name}-gate-lintel`, [2.42, 0.38, 0.46], [0, 1.72, 3.17], palette.sandstoneLight);
+  const gateDoor = box(group, `${group.name}-gate-door`, [1.45, 1.32, 0.15], [0, 0.83, 3.2], palette.agedWood);
   box(group, `${group.name}-gate-bronze-crossbar`, [1.5, 0.12, 0.2], [0, 1.08, 3.12], palette.bronze);
+  if (damageStage === "critical") {
+    gateLintel.visible = false;
+    gateDoor.visible = false;
+  }
   for (const z of [-3.15, 3.15]) {
     for (let x = -2.45, index = 0; x <= 2.46; x += 0.64, index++) {
       if (z > 0 && Math.abs(x) < 1.0) continue;
@@ -206,10 +256,17 @@ export function buildBattlefieldBase(parent: THREE.Object3D, entity: DisplayEnti
   }
   for (const x of [-3.16, 3.16]) {
     for (let z = -2.45, index = 0; z <= 2.46; z += 0.64, index++) {
-      box(group, `${group.name}-side-merlon-${x}-${index}`, [0.32, 0.27, 0.3], [x, 1.7, z], palette.sandstoneLight);
+      const merlon = box(group, `${group.name}-side-merlon-${x}-${index}`, [0.32, 0.27, 0.3], [x, 1.7, z], palette.sandstoneLight);
+      if (damageStage === "critical" && x > 0 && index === 3) merlon.visible = false;
     }
   }
-  for (const x of [-3.18, 3.18]) for (const z of [-3.17, 3.17]) addCornerTower(group, side, `${group.name}-walltower-${x}-${z}`, x, z, 0.9);
+  for (const x of [-3.18, 3.18]) for (const z of [-3.17, 3.17]) {
+    const tower = addCornerTower(group, side, `${group.name}-walltower-${x}-${z}`, x, z, 0.9);
+    if (damageStage === "critical" && x > 0 && z < 0) {
+      tower.rotation.z = -0.28;
+      tower.position.y = 0.18;
+    }
+  }
 
   // Rear keep, raised above the courtyard with a split silhouette and colored pennants.
   box(group, `${group.name}-keep-foot`, [2.72, 0.42, 2.2], [0, 0.55, -2.08], palette.shadowStone);
@@ -219,8 +276,30 @@ export function buildBattlefieldBase(parent: THREE.Object3D, entity: DisplayEnti
     mesh(group, new THREE.CylinderGeometry(0.42, 0.56, 2.5, 6), palette.sandstoneLight, `${group.name}-keep-turret-${x}`, [x, 1.86, -2.08]);
     cone(group, `${group.name}-keep-roof-${x}`, 0.62, 1.0, [x, 3.55, -2.08], palette.slate, 5);
   }
-  cone(group, `${group.name}-keep-spire`, 1.35, 1.15, [0, 3.67, -2.08], side === "azure" ? palette.azure : palette.vermilion, 6);
-  addBanner(group, side, `${group.name}-keep-standard`, [0, 3.34, -0.96], 1.08);
+  const keepSpire = cone(group, `${group.name}-keep-spire`, 1.35, 1.15, [0, 3.67, -2.08], side === "azure" ? palette.azure : palette.vermilion, 6);
+  if (damageStage === "critical") {
+    keepSpire.rotation.z = -0.18;
+    keepSpire.position.x = 0.18;
+  }
+  if (damageStage === "damaged" || damageStage === "critical")
+    stoneScar(group, `${group.name}-keep-impact-scar`, [0.38, 1.32, -1.126], Math.PI, 1.05);
+  if (damageStage === "critical") {
+    const rubble = new THREE.Group();
+    rubble.name = `${group.name}-breached-gate-rubble`;
+    group.add(rubble);
+    for (let index = 0; index < 8; index++) {
+      const angle = index * 2.399963229728653;
+      box(
+        rubble,
+        `${rubble.name}-${index}`,
+        [0.38 + index % 3 * 0.12, 0.16 + index % 2 * 0.08, 0.3 + index % 2 * 0.1],
+        [Math.cos(angle) * 0.9, 0.23 + index % 2 * 0.05, 3.1 + Math.sin(angle) * 0.6],
+        index % 2 ? palette.sandstoneLight : palette.slateLight,
+        angle,
+      );
+    }
+  }
+  if (damageStage !== "critical") addBanner(group, side, `${group.name}-keep-standard`, [0, 3.34, -0.96], 1.08);
   return group;
 }
 
@@ -231,8 +310,7 @@ export function buildBattlefieldTower(parent: THREE.Object3D, entity: DisplayEnt
   group.userData.entityId = entity.id;
   group.userData.destroyed = entity.destroyed;
   parent.add(group);
-  const healthRatio = entity.maxHp > 0 ? THREE.MathUtils.clamp(entity.hp / entity.maxHp, 0, 1) : 1;
-  const damageStage = entity.destroyed ? "destroyed" : healthRatio <= 0.35 ? "critical" : healthRatio <= 0.7 ? "damaged" : "intact";
+  const damageStage = battlefieldStructureDamageStage(entity);
   group.userData.damageStage = damageStage;
   if (entity.destroyed) {
     for (let index = 0; index < 8; index++) {
@@ -291,27 +369,7 @@ export function buildBattlefieldTower(parent: THREE.Object3D, entity: DisplayEnt
   // A chipped masonry scar appears only after authorized HP loss. The shape
   // is flush with the front face and follows the tower's own facing.
   if (damageStage === "damaged" || damageStage === "critical") {
-    const scarShape = new THREE.Shape();
-    scarShape.moveTo(-0.2, 0);
-    scarShape.lineTo(-0.04, 0.18);
-    scarShape.lineTo(-0.13, 0.39);
-    scarShape.lineTo(0.11, 0.53);
-    scarShape.lineTo(0.06, 0.71);
-    scarShape.lineTo(0.22, 0.88);
-    scarShape.lineTo(-0.07, 0.78);
-    scarShape.lineTo(-0.18, 0.56);
-    scarShape.lineTo(-0.09, 0.36);
-    scarShape.lineTo(-0.24, 0.22);
-    scarShape.closePath();
-    const scar = mesh(
-      group,
-      new THREE.ShapeGeometry(scarShape),
-      palette.shadowStone,
-      `${group.name}-impact-scar`,
-      [0.08, 0.9, 1.075],
-      { side: THREE.DoubleSide, roughness: 1 },
-    );
-    scar.rotation.y = 0.04;
+    stoneScar(group, `${group.name}-impact-scar`, [0.08, 0.9, 1.075], 0.04);
   }
   if (damageStage === "critical") {
     const brokenFace = box(group, `${group.name}-broken-parapet-face`, [0.17, 0.78, 0.045], [-0.47, 1.67, 0.99], palette.shadowStone, 0.16);
@@ -344,6 +402,27 @@ function routeSpan(route: NonNullable<Replay["scene"]["routes"]>[number], island
     }
   }
   return [start, end];
+}
+
+function deckFracture(span: number, lateral: number, position: number): THREE.BufferGeometry {
+  const length = Math.min(0.78, Math.max(0.42, span * 0.12));
+  const radius = 0.038;
+  const shape = new THREE.Shape();
+  shape.moveTo(-length / 2, -radius);
+  shape.lineTo(-length * 0.19, radius * 0.25);
+  shape.lineTo(-length * 0.05, -radius * 0.5);
+  shape.lineTo(length * 0.16, radius * 0.4);
+  shape.lineTo(length / 2, radius * 0.1);
+  shape.lineTo(length / 2, radius);
+  shape.lineTo(length * 0.17, radius * 0.7);
+  shape.lineTo(-length * 0.04, radius * 1.5);
+  shape.lineTo(-length * 0.2, radius * 0.6);
+  shape.lineTo(-length / 2, radius * 1.2);
+  shape.closePath();
+  const geometry = new THREE.ShapeGeometry(shape);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(position, 0.388, lateral);
+  return geometry;
 }
 
 /** Route-derived bridge link; CENTER is the only deck in normal state. */
@@ -398,6 +477,22 @@ export function buildBattlefieldBridge(
       box(expandedDeck, `${group.name}-side-plank-${lateral}-${index}`, [boardLength * 0.87, 0.12, laneWidth], [x, 0.32, lateral], index % 3 === 0 ? palette.agedWoodLight : palette.agedWood);
     }
   }
+
+  const deckFractures = new THREE.Group();
+  deckFractures.name = `${group.name}-timber-fractures`;
+  group.add(deckFractures);
+  const fractureMaterial = material(palette.shadowStone, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const damageTracks = [0, -laneOffset, laneOffset];
+  for (const [trackIndex, lateral] of damageTracks.entries()) {
+    for (let index = 0; index < 2; index++) {
+      const fracture = new THREE.Mesh(deckFracture(span, lateral, span * (index === 0 ? -0.17 : 0.22)), fractureMaterial);
+      fracture.name = `${deckFractures.name}-track-${trackIndex}-${index}`;
+      fracture.castShadow = false;
+      fracture.receiveShadow = false;
+      deckFractures.add(fracture);
+    }
+  }
+  deckFractures.visible = false;
   const centerRails = new THREE.Group();
   centerRails.name = `${group.name}-center-rails`;
   group.add(centerRails);
@@ -466,6 +561,7 @@ export function buildBattlefieldBridge(
   box(workTools, `${workTools.name}-mallet-handle`, [0.08, 0.72, 0.08], [0, 0.36, 0], palette.agedWood, 0.22);
   box(workTools, `${workTools.name}-mallet-head`, [0.36, 0.14, 0.16], [0.06, 0.67, 0], palette.sandstoneLight, 0.22);
   const workFlagRest = workFlag.group.rotation.z;
+  let integrityStage: BattlefieldDamageStage = "unknown";
   centerDeck.visible = false;
   expandedDeck.visible = false;
   centerRails.visible = false;
@@ -486,6 +582,7 @@ export function buildBattlefieldBridge(
       else delete group.userData.entityId;
       group.userData.state = state;
       group.userData.openWaterGap = state === "destroyed";
+      updateDamagePresentation();
     },
     setWork(remaining, tick, entityId) {
       const active = remaining > 0;
@@ -503,12 +600,32 @@ export function buildBattlefieldBridge(
         if (group.userData.state === "unknown") delete group.userData.entityId;
       }
     },
+    setIntegrity(stage) {
+      integrityStage = stage;
+      updateDamagePresentation();
+    },
     dispose() {
       parent.remove(group);
       disposeGroup(group);
     },
   };
+  function updateDamagePresentation() {
+    const state = group.userData.state as BridgeVisualState | undefined;
+    const destroyed = state === "destroyed" || integrityStage === "destroyed";
+    group.userData.damageStage = destroyed ? "destroyed" : integrityStage;
+    const damaged = !destroyed && (integrityStage === "damaged" || integrityStage === "critical");
+    deckFractures.visible = damaged && (centerDeck.visible || expandedDeck.visible);
+    if (deckFractures.children.length) {
+      const visibleCount = integrityStage === "critical"
+        ? expandedDeck.visible ? deckFractures.children.length : 2
+        : integrityStage === "damaged" ? 1 : 0;
+      deckFractures.children.forEach((child, index) => {
+        child.visible = index < visibleCount;
+      });
+    }
+  }
   model.setState("unknown");
+  model.setIntegrity?.("unknown");
   return model;
 }
 
