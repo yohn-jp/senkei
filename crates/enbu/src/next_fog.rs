@@ -84,13 +84,15 @@ impl ProbePosition {
         }
     }
 
-    fn edge(from: &str, to: &str, progress: i64, length: i64) -> Self {
+    fn edge(from: &str, to: &str, progress: i64, length: i64, endpoint_aliasing: bool) -> Self {
         // For a valid positive-length edge, its endpoint probe has the same
-        // graph-geodesic position as the corresponding node probe.
-        if length > 0 && progress == 0 {
+        // graph-geodesic position as the corresponding node probe. Lane
+        // endpoints stay distinct because same-edge visibility can include a
+        // lateral track offset that node-to-edge visibility does not.
+        if endpoint_aliasing && length > 0 && progress == 0 {
             return Self::node(from);
         }
-        if length > 0 && progress == length {
+        if endpoint_aliasing && length > 0 && progress == length {
             return Self::node(to);
         }
         Self {
@@ -172,6 +174,7 @@ impl FogHistory {
                             &edge.to,
                             progress,
                             edge.length,
+                            edge.region != "lane",
                         ))
                         .or_insert_with(|| {
                             next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
@@ -740,7 +743,12 @@ mod tests {
                     "batched and authoritative visibility differ for {side:?} at {probe:?}",
                 );
             }
-            for edge in rules.map.edges.iter().filter(|edge| edge.length > 0) {
+            for edge in rules
+                .map
+                .edges
+                .iter()
+                .filter(|edge| edge.length > 0 && edge.region != "lane")
+            {
                 for (node, progress) in [(&edge.from, 0), (&edge.to, edge.length)] {
                     let (node_id, node) = rules.map.nodes.get_key_value(node).unwrap();
                     let node_probe = node_probe(node_id, node.x, node.y);
@@ -750,6 +758,52 @@ mod tests {
                         next_vision::visible(&world, &rules, side, &endpoint_probe),
                         "edge endpoint cache key must preserve authoritative visibility for {side:?} on {}",
                         edge.id,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fog_probe_cache_preserves_lateral_lane_endpoint_visibility_in_both_directions() {
+        let mut rules = rules();
+        let mut reverse = rules.map.edges[0].clone();
+        reverse.id = "edge-ba".into();
+        reverse.from = "b".into();
+        reverse.to = "a".into();
+        rules.map.edges.push(reverse);
+
+        for (from, to, track) in [("a", "b", "LEFT"), ("b", "a", "RIGHT")] {
+            let mut source = unit(CombatantSide::Attacker, from, 0, 0, 20);
+            source.entity_type = TypeId::from("hero");
+            source.fields.insert("edge_to".into(), DomainValue::String(to.into()));
+            source.fields.insert("edge_progress".into(), DomainValue::Integer(20));
+            source.fields.insert("track".into(), DomainValue::String(track.into()));
+            let mut world = WorldState::default();
+            world.entities.insert("lateral-source".into(), source);
+
+            let state = FogHistory::default().observe(&world, &rules, CombatantSide::Attacker, 0);
+            for (node_id, node) in &rules.map.nodes {
+                let probe = node_probe(node_id, node.x, node.y);
+                let expected = next_vision::visible(&world, &rules, CombatantSide::Attacker, &probe);
+                assert_eq!(state.nodes[node_id] == FogVisibility::Visible, expected);
+            }
+            for edge in &rules.map.edges {
+                let edge_id = if edge.id.is_empty() {
+                    format!("{}-{}", edge.from, edge.to)
+                } else {
+                    edge.id.clone()
+                };
+                for sample in 0..EDGE_SAMPLE_COUNT {
+                    let progress =
+                        edge.length.saturating_mul(sample as i64) / (EDGE_SAMPLE_COUNT as i64 - 1);
+                    let probe = edge_probe(&edge.from, &edge.to, progress);
+                    let expected = edge.length >= 0
+                        && next_vision::visible(&world, &rules, CombatantSide::Attacker, &probe);
+                    assert_eq!(
+                        state.edges[&edge_id][sample] == FogVisibility::Visible,
+                        expected,
+                        "cached Fog state differs from authoritative visibility for {track} on {edge_id} sample {sample}",
                     );
                 }
             }
