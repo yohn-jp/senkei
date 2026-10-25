@@ -1437,6 +1437,7 @@ export class Battlefield {
         (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
     });
     group.userData.focusMaterials = [...materials];
+    group.userData.focusBaseMaterials = [...materials];
     const modelBounds = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3());
     group.userData.modelHeight = modelBounds.y;
     group.userData.modelBounds = modelBounds.toArray();
@@ -2369,7 +2370,32 @@ export class Battlefield {
             Math.hypot(subject.position.x - entity.position.x, subject.position.y - entity.position.y) < 2.5);
           const opacity = companion ? 0.27 : 1;
           if (g.userData.focusOpacity !== opacity) {
-            for (const material of g.userData.focusMaterials as THREE.Material[]) {
+            const baseMaterials = g.userData.focusBaseMaterials as THREE.Material[];
+            let clones = g.userData.focusOpacityMaterials as Map<THREE.Material, THREE.Material> | undefined;
+            if (companion && !clones) {
+              clones = new Map(baseMaterials.map(material => [material, material.clone()]));
+              const replacements = new Map([...clones].map(([source, clone]) => [source, clone]));
+              g.traverse(object => {
+                if (!(object instanceof THREE.Mesh)) return;
+                object.material = Array.isArray(object.material)
+                  ? object.material.map(material => replacements.get(material) ?? material)
+                  : replacements.get(object.material) ?? object.material;
+              });
+              g.userData.focusOpacityMaterials = clones;
+            } else if (!companion && clones) {
+              const originals = new Map([...clones].map(([source, clone]) => [clone, source]));
+              g.traverse(object => {
+                if (!(object instanceof THREE.Mesh)) return;
+                object.material = Array.isArray(object.material)
+                  ? object.material.map(material => originals.get(material) ?? material)
+                  : originals.get(object.material) ?? object.material;
+              });
+              for (const material of clones.values()) material.dispose();
+              delete g.userData.focusOpacityMaterials;
+              clones = undefined;
+            }
+            const focusMaterials = clones ? [...clones.values()] : baseMaterials;
+            for (const material of focusMaterials) {
               material.opacity = opacity;
               material.transparent = companion;
               material.depthWrite = !companion;

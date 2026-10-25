@@ -107,6 +107,7 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     surfaces: [...SURFACES],
     animation: "replay-confirmed-unit-rig.v1",
     source: "project-authored-procedural-geometry",
+    license: "project-authored",
   } as const;
 }
 
