@@ -1565,6 +1565,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "retreat")
     }), "retreat is an explicit real Enbu intent");
     assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Defender && event.tick == 1
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "move")
+    }), "the defender submits a real move toward the A-side MID bank while contested at N.MID.OBS");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
         event.side == CombatantSide::Attacker && event.tick == 50
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "move")
     }), "a Hero takes an explicit move intent across the rebuilt fixed bridge");
@@ -1602,8 +1606,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         && entity.owner == Some(CombatantSide::Defender)
         && entity.fields.get(&FieldId::new("catalog_id")) == Some(&DomainValue::String("F04".into())))
         .expect("defender observation-node F04 is visible in attacker owner replay without exposing its private slot");
-    assert_eq!(entity_string(defender_mid, "node"), "N.MID.OBS",
-        "a B unit cannot leave the contested observation node directly into A territory");
+    assert_ne!(entity_string(defender_mid, "node"), "A.MID.BANK",
+        "a B unit cannot directly exit the contested observation node into A territory");
+    assert_ne!(entity_string(defender_mid, "edge_to"), "A.MID.BANK",
+        "route planning detours toward B.MID.BANK rather than traversing the blocked A-side connector");
     assert!(artifact.replay.frames.iter().any(|frame| frame.tick == 1 && frame.events.iter().any(|event| event.event.as_str() == "next.attack")),
         "units in the same node combat domain attack in the actual match");
 
