@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 senkei-model = { path = "../senkei-model" }
+senkei-world = { path = "../senkei-world" }
 serde_json.workspace = true
 sha2.workspace = true
 serde.workspace = true
