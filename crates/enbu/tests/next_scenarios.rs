@@ -1777,6 +1777,64 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
 }
 
 #[test]
+fn real_jinrei_enbu_capture_match_exports_visual_snapshot() {
+    let rules = rules();
+    let program = compile(IDLE_TACTICS, &rules)
+        .unwrap_or_else(|error| panic!("real Jinrei capture tactics compile: {error:?}"))
+        .program;
+    let attacker_nodes = ["N.MID.OBS", "A.BASE", "A.BASE", "A.BASE", "A.BASE"]
+        .map(str::to_owned);
+    let defender_nodes = ["B.BASE"; 5].map(str::to_owned);
+    let mut attacker = configured_snapshot(
+        &rules,
+        CombatantSide::Attacker,
+        &[1, 1, 1, 1, 1],
+        program.clone(),
+        Some(&attacker_nodes),
+    );
+    let mut defender = configured_snapshot(
+        &rules,
+        CombatantSide::Defender,
+        &[1, 1, 1, 1, 1],
+        program,
+        Some(&defender_nodes),
+    );
+    for (index, hero) in ["F01", "F03", "F06", "R02", "R04"].iter().enumerate() {
+        set_catalog(&mut attacker, index, hero, &rules);
+    }
+    for (index, hero) in ["R01", "R03", "R05", "F02", "F04"].iter().enumerate() {
+        set_catalog(&mut defender, index, hero, &rules);
+    }
+    let mut context = new_match_context(&rules, MatchId::new("battlefield-visual-mid-capture"));
+    context.max_ticks = 16;
+    let mut vm = Vm::new(&rules);
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("real Enbu MID capture match completes: {error:?}"));
+    assert_eq!(artifact.result.final_tick, 16);
+    let observation_at = |tick| {
+        presentation_entity(
+            owner_state_at(&artifact, tick),
+            "observation",
+            "node",
+            "N.MID.OBS",
+        )
+    };
+    assert_eq!(entity_integer(observation_at(1), "capture_progress"), 1);
+    assert_eq!(entity_integer(observation_at(7), "capture_progress"), 7);
+    assert_eq!(entity_string(observation_at(8), "capture_owner"), "attacker");
+
+    if let Some(path) = std::env::var_os("BATTLEFIELD_CAPTURE_SCENARIO_SNAPSHOT_PATH") {
+        let path = PathBuf::from(path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("visual capture snapshot directory exists");
+        }
+        let snapshot = serde_json::json!({ "attacker": attacker, "defender": defender, "context": context });
+        let bytes = serde_json::to_vec_pretty(&snapshot).expect("real capture match input serializes");
+        fs::write(path, bytes).expect("write real Jinrei and Enbu capture snapshot for browser WASM");
+    }
+}
+
+#[test]
 fn long_workbench_local_response_fits_versioned_output_limit() {
     let rules = rules();
     let own_slots = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"];

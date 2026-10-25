@@ -501,34 +501,62 @@ function semanticCueExpectationAt(
     : null;
 }
 
-async function assertCueSummaryGeometry(
+async function assertCueGlyphGeometry(
   page: import("@playwright/test").Page,
   tick: number,
-  requireVisible = false,
 ): Promise<void> {
-  const summary = page.locator(`.cue-summary-label[data-tick="${tick}"]`);
-  if (await summary.count() === 0) {
-    expect(requireVisible, `the T${tick} overflow summary should be present`).toBe(false);
-    return;
-  }
-  if (!requireVisible && !(await summary.isVisible())) return;
-  await expect(summary, `the overflow summary should represent the current T${tick} cues`).toHaveCount(1);
-  await expect(summary, `the T${tick} overflow summary should be visible`).toBeVisible();
-  const summaryBox = await summary.boundingBox();
-  expect(summaryBox, `the T${tick} overflow summary should have a rendered box`).not.toBeNull();
-  expect(summaryBox!.height, `the T${tick} summary must remain a compact strip`).toBeLessThan(36);
-
   const visibleCueLocators = await page.locator(`.cue-world-label[data-tick="${tick}"]`).all();
   const visibleCueBoxes = (await Promise.all(visibleCueLocators.map(async (cue) =>
     await cue.isVisible() ? cue.boundingBox() : null,
   ))).filter((box): box is NonNullable<typeof box> => box !== null);
-  const overlapsSummary = visibleCueBoxes.filter((cueBox) =>
-    summaryBox!.x < cueBox.x + cueBox.width &&
-    summaryBox!.x + summaryBox!.width > cueBox.x &&
-    summaryBox!.y < cueBox.y + cueBox.height &&
-    summaryBox!.y + summaryBox!.height > cueBox.y,
-  );
-  expect(overlapsSummary, `the T${tick} overflow summary must not intersect a visible cue label`).toEqual([]);
+  expect(visibleCueBoxes.length, `a semantic cue is visibly rendered for T${tick}`).toBeGreaterThan(0);
+  for (const box of visibleCueBoxes) {
+    expect(box.width, `the T${tick} cue remains a compact glyph`).toBeLessThanOrEqual(32);
+    expect(box.height, `the T${tick} cue remains a compact glyph`).toBeLessThanOrEqual(32);
+  }
+  for (let left = 0; left < visibleCueBoxes.length; left += 1) {
+    for (let right = left + 1; right < visibleCueBoxes.length; right += 1) {
+      const a = visibleCueBoxes[left]!;
+      const b = visibleCueBoxes[right]!;
+      const overlaps = a.x < b.x + b.width && a.x + a.width > b.x
+        && a.y < b.y + b.height && a.y + a.height > b.y;
+      expect(overlaps, `visible T${tick} cue glyphs must not collide`).toBe(false);
+    }
+  }
+}
+
+async function assertEventInReplayTimelineAndDetails(
+  page: import("@playwright/test").Page,
+  tick: number,
+  semantic: "attack" | "hero-death" | "tower-destroy" | "skill",
+  sourceEvent: string,
+): Promise<void> {
+  const eventName = (sourceEvent.split(".").at(-1) ?? sourceEvent).replaceAll("_", " ");
+  const timelineType = semantic === "attack" ? "attack" : semantic === "skill" ? "skill" : "destroy";
+  const tickLabel = `T${String(tick).padStart(2, "0")}`;
+  await page.locator("#next-tab-analysis").click();
+  const analysisRow = page.locator("#next-panel-analysis .next-timeline li")
+    .filter({ hasText: tickLabel })
+    .filter({ hasText: new RegExp(timelineType, "i") });
+  await expect(analysisRow, `${sourceEvent} is represented in the full Timeline at T${tick}`).not.toHaveCount(0);
+  await page.locator("#next-tab-battle").click();
+
+  const mobile = (page.viewportSize()?.width ?? Infinity) <= 700;
+  if (mobile) {
+    await page.getByRole("button", { name: "Timeline view" }).click();
+    const timelineRow = page.locator(`.next-mobile-timeline [data-event-tick="${tick}"]`)
+      .filter({ hasText: new RegExp(timelineType, "i") });
+    await expect(timelineRow, `${sourceEvent} is represented in the mobile Timeline at T${tick}`).not.toHaveCount(0);
+    await page.getByRole("button", { name: "Details view" }).click();
+  } else {
+    await page.getByRole("button", { name: "Battle situation details" }).click();
+  }
+  const eventCard = page.locator(".next-detail-card.next-event-card");
+  await expect(eventCard, `${sourceEvent} details are available at T${tick}`).toBeVisible();
+  const detailsRow = eventCard.locator(".next-event-list li").filter({ hasText: new RegExp(eventName, "i") });
+  await expect(detailsRow, `${sourceEvent} details retain their event identity at T${tick}`).not.toHaveCount(0);
+  if (mobile) await page.getByRole("button", { name: "Battle view" }).click();
+  else await page.getByRole("button", { name: "Battle situation details" }).click();
 }
 
 async function assertSemanticCueAtTick(
@@ -548,12 +576,12 @@ async function assertSemanticCueAtTick(
   await expect(canvas).toHaveAttribute("data-tick", String(tick));
   const cuesAtTick = (): import("@playwright/test").Locator =>
     page.locator(`.cue-world-label[data-tick="${tick}"][data-cue-type="${expected!.type}"]`);
-  const findExpectedCue = async (): Promise<{ locator: import("@playwright/test").Locator; text: string } | null> => {
+  const findExpectedCue = async (): Promise<{ locator: import("@playwright/test").Locator; accessibleLabel: string; glyph: string } | null> => {
     const candidates = await cuesAtTick().all();
     for (const locator of candidates) {
-      const text = (await locator.textContent() ?? "").replace(/\s+/g, " ").trim();
-      if (expected!.fragments.every((fragment) => text.toLowerCase().includes(fragment.toLowerCase()))) {
-        return { locator, text };
+      const accessibleLabel = (await locator.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim();
+      if (expected!.fragments.every((fragment) => accessibleLabel.toLowerCase().includes(fragment.toLowerCase()))) {
+        return { locator, accessibleLabel, glyph: (await locator.textContent() ?? "").trim() };
       }
     }
     return null;
@@ -564,9 +592,11 @@ async function assertSemanticCueAtTick(
     expectedCue!.locator,
     `${expected!.sourceEvent} should render the expected ${expected!.type} cue visibly at T${tick}`,
   ).toBeVisible();
-  const mobileTowerDestroy = semantic === "tower-destroy" && (page.viewportSize()?.width ?? Infinity) <= 700;
-  await assertCueSummaryGeometry(page, tick, mobileTowerDestroy);
-  const texts = await cuesAtTick().allInnerTexts();
+  await expect(expectedCue!.locator).toHaveAttribute("role", "note");
+  expect(Array.from(expectedCue!.glyph).length, "the visible cue is a compact icon while its accessible label retains event meaning").toBeLessThanOrEqual(2);
+  await assertCueGlyphGeometry(page, tick);
+  await assertEventInReplayTimelineAndDetails(page, tick, semantic, expected!.sourceEvent);
+  const accessibleLabels = await Promise.all((await cuesAtTick().all()).map((cue) => cue.getAttribute("aria-label")));
   const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
     elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
       tick: (element as HTMLElement).dataset.tick,
@@ -574,7 +604,7 @@ async function assertSemanticCueAtTick(
     })), tick,
   );
   expect(staleTickLabels, "cue labels from an adjacent replay frame must not linger").toEqual([]);
-  const captured = { ...expected!, tick, texts };
+  const captured = { ...expected!, tick, accessibleLabels };
 
   const adjacentTick = tick < Number(replay.frames.at(-1)?.tick) ? tick + 1 : Math.max(0, tick - 1);
   await seekToTick(page, adjacentTick);
