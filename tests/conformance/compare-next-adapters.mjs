@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -108,6 +109,8 @@ try {
 const wasmDispatch = await makeWasmDispatcher();
 const wasm = requests.map(wasmDispatch);
 
+const evidence = [];
+const digest = (value) => createHash("sha256").update(canonicalJson(value)).digest("hex");
 for (let index = 0; index < requests.length; index += 1) {
   const request = requests[index];
   const nativeResponse = native[index];
@@ -207,5 +210,16 @@ for (let index = 0; index < requests.length; index += 1) {
   } else if (nativeResponse.ok) {
     fail(`${request.request_id} should be rejected, but the adapter accepted it`);
   }
-  console.log(`PASS ${request.request_id} (${nativeResponse.ok ? "public simulation" : "matching rejection"})`);
+  const match = nativeResponse.ok ? nativeResponse.result.result : undefined;
+  evidence.push({ request_id: request.request_id, input_sha256: digest(request),
+    native_sha256: digest(nativeResponse), repeated_native_sha256: digest(repeatedNative[index]), wasm_sha256: digest(wasmResponse),
+    ok: nativeResponse.ok, ...(match ? { final_tick: match.final_tick, final_state_digest: match.final_state_digest, cu_spent: match.cu_spent,
+      public_replay_sha256: digest(nativeResponse.result.replay),
+      ...(nativeResponse.result.owner_replay ? { owner_replay_sha256: digest(nativeResponse.result.owner_replay) } : {}) } : {}) });
+  console.log(`PASS ${request.request_id} (${nativeResponse.ok ? request.payload.include_diagnostics ? "authorized owner simulation" : "public simulation" : "matching rejection"})`);
+}
+if (process.env.NEXT_ADAPTER_REPORT) {
+  const report = resolve(process.env.NEXT_ADAPTER_REPORT);
+  await mkdir(dirname(report), { recursive: true });
+  await writeFile(report, JSON.stringify({ schema: "senkei-battlefield-adapter-evidence/v1", cases: evidence }, null, 2) + "\n");
 }
