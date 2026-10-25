@@ -136,6 +136,9 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2, { timeout: 60_000 });
   await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 60_000 });
   await page.getByRole("button", { name: "Open latest comparison" }).click();
-  await expect(page.getByTestId("battle-analysis").locator(".battle-analysis-change-list")).toContainText("自軍のJinrei Program");
+  // The saved pair is the revised run and its exact Snapshot rematch. Their
+  // input identities must remain identical after the portable JSON round trip.
+  await expect(page.getByTestId("battle-analysis")).toContainText("Both completed Runs used the same complete SimulationSnapshot identity.");
+  await expect(page.getByTestId("battle-analysis").locator(".battle-analysis-result-identity code")).toHaveText(originalDigest);
   expect(pageErrors).toEqual([]);
 });
