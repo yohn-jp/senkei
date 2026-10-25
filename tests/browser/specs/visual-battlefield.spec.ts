@@ -98,10 +98,15 @@ const canonicalStates = [
   { id: "mid-bridge-destroyed", tick: 11 },
   { id: "top-bridge-expanded", tick: 13 },
   { id: "top-bridge-destroyed", tick: 23 },
-  { id: "ford-transit", tick: 24 },
   { id: "top-bridge-rebuilt", tick: 49 },
   { id: "draw-end", tick: 70 },
 ] as const;
+const bridgeSiteIds = { TOP: "bridge.top", MID: "bridge.mid", BOT: "bridge.bot" } as const;
+type BridgeLane = keyof typeof bridgeSiteIds;
+
+function bridgeKindFor(lane: BridgeLane): "lane" | "facility" {
+  return lane === "MID" ? "facility" : "lane";
+}
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -223,13 +228,20 @@ function entitiesAt(replay: JsonRecord, tick: number): [string, JsonRecord][] {
   return Object.entries(frameAt(replay, tick).visible_state?.entities ?? {}) as [string, JsonRecord][];
 }
 
-function bridgeAt(replay: JsonRecord, tick: number, site: string): JsonRecord | undefined {
-  return bridgeEntryAt(replay, tick, site)?.[1];
+function bridgeAt(replay: JsonRecord, tick: number, lane: BridgeLane): JsonRecord | undefined {
+  return bridgeEntryAt(replay, tick, lane)?.[1];
 }
 
-function bridgeEntryAt(replay: JsonRecord, tick: number, site: string): [string, JsonRecord] | undefined {
+function bridgeEntryAt(replay: JsonRecord, tick: number, lane: BridgeLane): [string, JsonRecord] | undefined {
+  const siteId = bridgeSiteIds[lane];
   return entitiesAt(replay, tick).find(([, entity]) =>
-    entity.entity_type === "bridge" && field(entity, "site") === site,
+    entity.entity_type === "bridge" && field(entity, "site") === siteId,
+  );
+}
+
+function bridgeEntryBySiteId(replay: JsonRecord, tick: number, siteId: string): [string, JsonRecord] | undefined {
+  return entitiesAt(replay, tick).find(([, entity]) =>
+    entity.entity_type === "bridge" && field(entity, "site") === siteId,
   );
 }
 
@@ -242,7 +254,7 @@ function catalogEntityEntryAt(replay: JsonRecord, tick: number, entityType: stri
 function firstCenterBridgeTransit(
   replay: JsonRecord,
   catalogId: string,
-  site: string,
+  site: BridgeLane,
   from: string,
   to: string,
   afterTick: number,
@@ -795,10 +807,22 @@ async function assertPausedUnitPose(
   return { paused: true, rendererEntityId, pose: renderedPose, sample, hit: hit ?? null };
 }
 
-async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonRecord, tick: number, site: "TOP" | "MID" | "BOT"): Promise<JsonRecord> {
+async function followBridgeSite(
+  page: Page,
+  viewport: Viewport,
+  replay: JsonRecord,
+  publicReplay: JsonRecord,
+  tick: number,
+  site: BridgeLane,
+): Promise<JsonRecord> {
   const bridgeEntry = bridgeEntryAt(replay, tick, site);
   expect(bridgeEntry, `owner replay authorizes the ${site} bridge at tick ${tick}`).toBeTruthy();
   const [ownerReplayEntityId, bridge] = bridgeEntry!;
+  const siteId = bridgeSiteIds[site];
+  const bridgeKind = bridgeKindFor(site);
+  const routeRoles = (publicReplay.scene.routes as JsonRecord[]).filter((route) => route.bridgeSite === siteId);
+  expect(routeRoles.length, `${site} has a route in the real replay`).toBeGreaterThan(0);
+  expect(routeRoles.every((route) => route.bridgeKind === bridgeKind), `${siteId} keeps its typed ${bridgeKind} bridge role`).toBe(true);
   const bridgeState = field(bridge, "bridge_state");
   expect(bridgeState, `${site} bridge has a confirmed public state at tick ${tick}`).toBeTruthy();
 
@@ -840,7 +864,7 @@ async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonReco
     await selectedRow.locator(".next-visible-entity-actions button[aria-label^='Select ']").click();
     const siteField = page.locator('[data-testid="logical-detail-field"][data-field="site"] strong');
     const stateField = page.locator('[data-testid="logical-detail-field"][data-field="bridge_state"] strong');
-    await expect(siteField).toHaveText(site);
+    await expect(siteField).toHaveText(siteId);
     await expect(stateField).toHaveText(String(bridgeState));
     await page.getByRole("button", { name: "Close details sheet" }).click();
 
@@ -866,7 +890,7 @@ async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonReco
       const siteField = page.locator('[data-testid="logical-detail-field"][data-field="site"] strong');
       const stateField = page.locator('[data-testid="logical-detail-field"][data-field="bridge_state"] strong');
       const candidateSite = (await siteField.textContent().catch(() => null))?.trim();
-      if (candidateSite !== site) continue;
+      if (candidateSite !== siteId) continue;
       expect((await stateField.textContent())?.trim()).toBe(String(bridgeState));
       rendererEntityId = id;
       break;
@@ -882,10 +906,10 @@ async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonReco
   await expect(canvas).toHaveAttribute("data-camera-mode", "tactical");
   await expect(canvas).toHaveAttribute("data-tracking", rendererEntityId!);
   await waitForSettledCamera(page);
-  return { id: rendererEntityId, site, bridgeState, ownerReplayEntityId };
+  return { id: rendererEntityId, site, bridgeSite: siteId, bridgeKind, bridgeState, ownerReplayEntityId };
 }
 
-async function assertMapContract(page: Page): Promise<void> {
+async function assertMapContract(page: Page, publicReplay: JsonRecord): Promise<void> {
   const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
   if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
   const nodes = page.getByTestId("battle-map-node");
@@ -897,6 +921,16 @@ async function assertMapContract(page: Page): Promise<void> {
   expect(await page.locator('[data-testid="battle-map-route"][data-bridge-site]').count()).toBe(4);
   expect(await page.locator('[data-testid="battle-map-route"][data-ford="true"]').count()).toBe(2);
   expect(nodeIds).toContain("N.MID.OBS");
+  const bridgeRoles = (publicReplay.scene.routes as JsonRecord[])
+    .filter((route) => route.bridgeSite)
+    .map((route) => [route.bridgeSite, route.bridgeKind]);
+  bridgeRoles.sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
+  expect(bridgeRoles).toEqual([
+    [bridgeSiteIds.TOP, "lane"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.BOT, "lane"],
+  ].sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)));
   await toggle.click();
 }
 
@@ -931,7 +965,7 @@ function normalBridgeCrossingSnapshots(replay: JsonRecord, edges: readonly { sit
   for (const frame of replay.frames as JsonRecord[]) {
     if (frame.tick >= beforeTick) break;
     const normalSites = new Set(edges
-      .filter((edge) => field(bridgeAt(replay, frame.tick, edge.site), "bridge_state") === "normal")
+      .filter((edge) => field(bridgeEntryBySiteId(replay, frame.tick, edge.site)?.[1], "bridge_state") === "normal")
       .map((edge) => edge.site));
     if (normalSites.size === 0) continue;
     const crossingHeroes = entitiesAt(replay, frame.tick).flatMap(([entityId, entity]) => {
@@ -977,11 +1011,39 @@ function fordTransitMidpoint(replay: JsonRecord, catalogId: string): JsonRecord 
   return edgeSamples?.[Math.floor((edgeSamples.length - 1) / 2)];
 }
 
+function firstFordEntry(replay: JsonRecord, catalogId: string): JsonRecord | undefined {
+  for (const frame of replay.frames as JsonRecord[]) {
+    const hero = catalogEntityEntryAt(replay, frame.tick, "hero", catalogId)?.[1];
+    if (integerField(hero, "ford_remaining") !== null && integerField(hero, "ford_remaining")! > 0) {
+      return { tick: frame.tick, hero };
+    }
+  }
+  return undefined;
+}
+
+function canonicalFordInterval(ruleset: JsonRecord): JsonRecord {
+  const next = requiredRecord(ruleset.next, "Next rules");
+  const map = requiredRecord(next.map, "Next map");
+  const edges = map.edges as JsonRecord[];
+  const edge = edges.find((candidate) => candidate.id === "edge-n-a-uj-n-b-uj" ||
+    (candidate.from === "N.A.UJ" && candidate.to === "N.B.UJ") ||
+    (candidate.from === "N.B.UJ" && candidate.to === "N.A.UJ"));
+  expect(edge, "the Worker ruleset identifies F02's canonical Jungle crossing edge").toBeTruthy();
+  const edgeId = edge!.id ?? "edge-n-a-uj-n-b-uj";
+  const projection = requiredRecord(map.world_projection, "paired World projection");
+  const facts = requiredRecord(projection.edge_facts, "paired World edge facts");
+  const interval = requiredRecord(requiredRecord(facts[edgeId], "Jungle edge facts").river_crossing, "Jungle crossing interval");
+  expect(interval.kind).toBe("foot_ford");
+  expect(interval.start_progress_wu).toBeLessThan(interval.end_progress_wu);
+  return { edgeId, ...interval };
+}
+
 async function assertBridgeRoute(page: Page, tick: number, site: string, state: string): Promise<void> {
   await seekToTick(page, tick);
   const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
   if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
-  await expect(page.locator(`[data-testid="battle-map-route"][data-bridge-site="${site}"]`).first())
+  const siteId = bridgeSiteIds[site as BridgeLane];
+  await expect(page.locator(`[data-testid="battle-map-route"][data-bridge-site="${siteId}"]`).first())
     .toHaveAttribute("data-bridge-state", state);
   await toggle.click();
 }
@@ -1127,6 +1189,32 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   expect(canonical.result.outcome).toBe("draw");
   expect(frameAt(canonical.publicReplay, 1).events.some((event: JsonRecord) => event.event === "next.attack"),
     "the actual tick-1 node encounter produces a confirmed Enbu attack").toBe(true);
+  const fordEntry = firstFordEntry(canonical.ownerReplay, "F02");
+  expect(fordEntry, "F02 enters its canonical ford interval in the authorized owner replay").toBeTruthy();
+  const fordEntryTick = fordEntry!.tick as number;
+  const fordEntryHero = fordEntry!.hero as JsonRecord;
+  const fordInterval = canonicalFordInterval(canonical.ruleset);
+  expect(integerField(fordEntryHero, "edge_progress"), "F02 begins ford delay at the source World crossing interval start")
+    .toBe(fordInterval.start_progress_wu);
+  expect(field(fordEntryHero, "node")).toBe("N.A.UJ");
+  expect(field(fordEntryHero, "edge_to")).toBe("N.B.UJ");
+  const fordTransit = fordTransitMidpoint(canonical.ownerReplay, "F02");
+  expect(fordTransit, "F02 advances through the real ford after its interval entry delay").toBeTruthy();
+  const fordTransitTick = fordTransit!.tick as number;
+  const fordTransitHero = heroAt(canonical.ownerReplay, fordTransitTick, "F02");
+  expect(integerField(fordTransitHero, "ford_active")).toBe(1);
+  expect(integerField(fordTransitHero, "ford_remaining")).toBe(0);
+  expect(integerField(fordTransitHero, "edge_progress")).toBeGreaterThan(0);
+  const bridgeRoles = (canonical.publicReplay.scene.routes as JsonRecord[])
+    .filter((route) => route.bridgeSite)
+    .map((route) => [route.bridgeSite, route.bridgeKind])
+    .sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
+  expect(bridgeRoles).toEqual([
+    [bridgeSiteIds.TOP, "lane"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.BOT, "lane"],
+  ].sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)));
   expect(field(bridgeAt(canonical.ownerReplay, 0, "TOP"), "bridge_state")).toBe("normal");
   expect(field(bridgeAt(canonical.ownerReplay, 13, "TOP"), "bridge_state")).toBe("expanded");
   expect(field(bridgeAt(canonical.ownerReplay, 23, "TOP"), "bridge_state")).toBe("destroyed");
@@ -1134,14 +1222,13 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   expect(field(bridgeAt(canonical.ownerReplay, 11, "MID"), "bridge_state")).toBe("destroyed");
   expect(integerField(heroAt(canonical.ownerReplay, 3, "F01"), "cross_remaining")).toBeGreaterThan(0);
   expect(field(heroAt(canonical.ownerReplay, 5, "F01"), "track")).toBe("RIGHT");
-  expect(integerField(heroAt(canonical.ownerReplay, 24, "F02"), "ford_remaining")).toBeGreaterThan(0);
   const fixedBridgeTransit = firstCenterBridgeTransit(canonical.ownerReplay, "R01", "TOP", "A.TOP.BANK", "B.TOP.BANK", 49);
   expect(fixedBridgeTransit, "R01 eventually enters the rebuilt, known TOP bridge on the CENTER track").toBeTruthy();
   expect(fixedBridgeTransit!.tick, "R01's real transit is observed after bridge rebuild and before match end")
     .toBeGreaterThan(49);
   expect(fixedBridgeTransit!.tick).toBeLessThanOrEqual(canonical.result.final_tick);
 
-  await assertMapContract(page);
+  await assertMapContract(page, canonical.publicReplay);
   for (const [tick, site, state] of [
     [0, "TOP", "normal"], [11, "MID", "destroyed"], [13, "TOP", "expanded"],
     [23, "TOP", "destroyed"], [49, "TOP", "normal"],
@@ -1152,13 +1239,14 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     await setView(page, viewport, "Tactical");
     const viewportStates = [
       ...canonicalStates,
+      { id: "ford-entry", tick: fordEntryTick },
       { id: "fixed-bridge-transit", tick: fixedBridgeTransit!.tick },
     ].sort((left, right) => left.tick - right.tick);
     const tacticalStates = viewport.name === "1440x900"
       ? viewportStates
       : viewport.name === "1920x1080"
-        ? viewportStates.filter(({ id }) => ["initial", "node-fight", "lane-crossing", "top-bridge-expanded", "top-bridge-destroyed", "ford-transit", "draw-end"].includes(id))
-        : viewportStates.filter(({ id }) => ["initial", "lane-crossing", "top-bridge-destroyed", "ford-transit", "draw-end"].includes(id));
+        ? viewportStates.filter(({ id }) => ["initial", "node-fight", "lane-crossing", "top-bridge-expanded", "top-bridge-destroyed", "ford-entry", "draw-end"].includes(id))
+        : viewportStates.filter(({ id }) => ["initial", "lane-crossing", "top-bridge-destroyed", "ford-entry", "draw-end"].includes(id));
     for (const state of tacticalStates) {
       await setView(page, viewport, "Tactical");
       await seekToTick(page, state.tick);
@@ -1214,9 +1302,6 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       crossRemaining: lateralCrossRemaining,
     }, captures);
 
-    const fordTransit = fordTransitMidpoint(canonical.ownerReplay, "F02");
-    expect(fordTransit, "F02 progresses through the real bridge-free ford with active transit after the entry timer").toBeTruthy();
-    const fordTransitTick = fordTransit!.tick as number;
     const fordHero = heroAt(canonical.ownerReplay, fordTransitTick, "F02");
     const fordRemaining = integerField(fordHero, "ford_remaining");
     expect(integerField(fordHero, "ford_active"), "the observed edge movement is an active ford crossing").toBe(1);
@@ -1269,10 +1354,12 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       { tick: 49, site: "TOP", state: "normal", id: "top-bridge-rebuilt" },
     ] as const;
     for (const bridgeState of bridgeFollowStates) {
-      const target = await followBridgeSite(page, viewport, canonical.ownerReplay, bridgeState.tick, bridgeState.site);
+      const target = await followBridgeSite(page, viewport, canonical.ownerReplay, canonical.publicReplay, bridgeState.tick, bridgeState.site);
       expect(target.bridgeState).toBe(bridgeState.state);
       await saveCapture(page, "canonical-real-battle", `${bridgeState.id}-follow`, bridgeState.tick, viewport, "Follow", {
-        bridgeSite: target.site,
+        bridgeLane: target.site,
+        bridgeSite: target.bridgeSite,
+        bridgeKind: target.bridgeKind,
         bridgeState: target.bridgeState,
         ownerReplayEntityId: target.ownerReplayEntityId,
         rendererEntityId: target.id,
@@ -1402,6 +1489,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
           wasmResponses: canonical.wasmResponses,
           nodes: 35,
           edges: 42,
+          bridgeRoutes: bridgeRoles,
           confirmedNodeAttackTick: 1,
           ticks: {
             initial: 0,
@@ -1410,10 +1498,18 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
             midBridgeDestroyed: 11,
             topBridgeExpanded: 13,
             topBridgeDestroyed: 23,
-            fordTransit: 24,
+            fordEntry: fordEntryTick,
+            fordTransit: fordTransitTick,
             topBridgeRebuilt: 49,
             fixedBridgeTransit: fixedBridgeTransit!.tick,
             end: 70,
+          },
+          fordEntry: {
+            tick: fordEntryTick,
+            edgeId: fordInterval.edgeId,
+            sourceWorldStartProgressWu: fordInterval.start_progress_wu,
+            sourceWorldEndProgressWu: fordInterval.end_progress_wu,
+            observedEntityProgressWu: integerField(fordEntryHero, "edge_progress"),
           },
           fixedBridgeTransit,
           pageErrors: canonical.pageErrors,
@@ -1918,9 +2014,11 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         wasmResponses: canonical.wasmResponses,
         nodes: 35,
         edges: 42,
+        bridgeRoutes: bridgeRoles,
         confirmedNodeAttackTick: 1,
         ticks: { initial: 0, nodeFight: 1, lateralCrossing: 3, midBridgeDestroyed: 11, topBridgeExpanded: 13,
-          topBridgeDestroyed: 23, fordTransit: 24, topBridgeRebuilt: 49, fixedBridgeTransit: fixedBridgeTransit!.tick, end: 70 },
+          topBridgeDestroyed: 23, fordEntry: fordEntryTick, fordTransit: fordTransitTick,
+          topBridgeRebuilt: 49, fixedBridgeTransit: fixedBridgeTransit!.tick, end: 70 },
         fixedBridgeTransit,
         normalBridgeEntryBeforeFirstHeroAttack: normalBridgeEntryFacts,
         closeFocusBridgeCaptureCount: captures.filter((capture) => capture.scenario === "canonical-real-battle" && capture.facts.cameraOperation !== undefined).length,
@@ -1928,7 +2026,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
           viewport.name,
           captures.filter((capture) => capture.scenario === "canonical-real-battle" &&
             capture.viewport.width === viewport.width && capture.facts.cameraOperation !== undefined)
-            .map((capture) => ({ tick: capture.tick, site: capture.facts.bridgeSite, state: capture.facts.bridgeState, path: capture.image.path })),
+            .map((capture) => ({ tick: capture.tick, site: capture.facts.bridgeSite, kind: capture.facts.bridgeKind,
+              lane: capture.facts.bridgeLane, state: capture.facts.bridgeState, path: capture.image.path })),
         ])),
       },
       observationCapture: {
@@ -2026,8 +2125,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     `| Mobile battlefield and matched T16 state | [6fa8296 baseline](${beforeImages.mobile}) | [actual T16 state](default-enbu-battle/390x844/matched-baseline-t016-tactical.png) | 390×844, T16, Tactical; movement facts in metadata |`,
     `| First confirmed Hero attack | — | [actual first attack](default-enbu-battle/390x844/first-hero-clash-t${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")}-tactical.png) | replay tick T${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")} |`,
     `| Same-Hero movement and attack Follow | — | [movement](default-enbu-battle/1440x900/confirmed-move-follow-t${String(defaultHeroMovement?.tick ?? 0).padStart(3, "0")}-follow.png), [attack](default-enbu-battle/1440x900/confirmed-attack-follow-t${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")}-follow.png) | ${defaultAttackHero?.side ?? "unknown"} ${defaultAttackHero?.catalogId ?? "unknown"}; actual replay entity IDs and position facts in metadata |`,
-    `| Follow lane and bridge-free ford movement | — | [F01 lateral transit](canonical-real-battle/1440x900/lateral-crossing-follow-t003-follow.png), [F02 ford transit](canonical-real-battle/1440x900/ford-transit-follow-t024-follow.png) | CENTER occupancy and ford remaining are confirmed in the authorized owner replay at all five viewports |`,
-    `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
+    `| Follow lane and bridge-free ford movement | — | [F01 lateral transit](canonical-real-battle/1440x900/lateral-crossing-follow-t003-follow.png), [F02 ford transit](canonical-real-battle/1440x900/ford-transit-follow-t${String(fordTransitTick).padStart(3, "0")}-follow.png) | CENTER occupancy and ford remaining are confirmed in the authorized owner replay at all five viewports |`,
+    `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford entry](canonical-real-battle/1440x900/ford-entry-t${String(fordEntryTick).padStart(3, "0")}-tactical.png) | F02 enters at the source World crossing interval and advances on its real bridge-free ford |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
     `| Close-focus facility Follow | — | [TOP normal](canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png), [MID destroyed](canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png), [TOP expanded](canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png), [TOP destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png), [TOP rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png) | camera follows an authorized visible bridge entity |`,
     `| Real base assault and destruction | — | [initial base](real-base-assault/1440x900/base-before-damage-follow-t000-follow.png), [damaged base](real-base-assault/1440x900/base-damaged-follow-t${String(baseAssaultFacts.firstDamage.tick).padStart(3, "0")}-follow.png), [destroyed base](real-base-assault/1440x900/enemy-base-destroyed-follow-t${String(baseAssaultFacts.terminal.tick).padStart(3, "0")}-follow.png) | controlled existing Enbu scenario: attacker Heroes start at B.BASE; defenders at N.B.UC; terminal event and HP 0 are replay-confirmed |`,

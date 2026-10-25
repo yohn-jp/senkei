@@ -10,6 +10,7 @@ type JsonRecord = Record<string, any>;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const snapshotPath = resolve(repoRoot, "target/next-balance/battlefield-canonical-browser-snapshot.json");
 const evidenceDirectory = resolve(repoRoot, "docs/evidence/battlefield/canonical-browser");
+const bridgeSiteIds = { TOP: "bridge.top", MID: "bridge.mid", BOT: "bridge.bot" } as const;
 const expectedNodes = [
   "A.BASE", "B.BASE", "N.MID.OBS",
   ...["TOP", "MID", "BOT"].flatMap((lane) => [
@@ -83,8 +84,15 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
           return;
         }
         super.addEventListener(type, (event: Event) => {
-          const data = (event as MessageEvent).data as { request_id?: unknown } | null;
-          const target = window as typeof window & { __canonicalRequest?: { request_id?: unknown }; __canonicalResponse?: unknown };
+          const data = (event as MessageEvent).data as { request_id?: unknown; operation?: unknown; ok?: unknown } | null;
+          const target = window as typeof window & {
+            __canonicalRequest?: { request_id?: unknown };
+            __canonicalResponse?: unknown;
+            __canonicalRulesetResponse?: unknown;
+          };
+          if (data?.operation === "next_ruleset" && data.ok === true) {
+            target.__canonicalRulesetResponse = structuredClone(data);
+          }
           if (data?.request_id !== undefined && data.request_id === target.__canonicalRequest?.request_id) {
             target.__canonicalResponse = structuredClone(data);
           }
@@ -112,8 +120,12 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   await expect(canvas).toHaveAttribute("data-tick", "0");
   await expect.poll(() => page.evaluate(() => Boolean((window as typeof window & { __canonicalResponse?: unknown }).__canonicalResponse))).toBe(true);
   const captured = await page.evaluate(() => {
-    const current = window as typeof window & { __canonicalRequest?: unknown; __canonicalResponse?: unknown };
-    return { request: current.__canonicalRequest, response: current.__canonicalResponse };
+    const current = window as typeof window & {
+      __canonicalRequest?: unknown;
+      __canonicalResponse?: unknown;
+      __canonicalRulesetResponse?: unknown;
+    };
+    return { request: current.__canonicalRequest, response: current.__canonicalResponse, rulesetResponse: current.__canonicalRulesetResponse };
   });
   const request = requiredRecord(captured.request, "Worker request identity");
   const requestId = requiredString(request.request_id, "Worker request ID");
@@ -124,6 +136,11 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(wasmResponses).toContain(200);
 
   const simulation = requiredRecord(response.result, "Worker simulation result");
+  const rulesetResponse = requiredRecord(captured.rulesetResponse, "WASM Next ruleset response");
+  if (rulesetResponse.operation !== "next_ruleset" || rulesetResponse.ok !== true) {
+    throw new Error("The browser did not capture the actual Next ruleset from the production Worker.");
+  }
+  const ruleset = requiredRecord(rulesetResponse.result, "WASM Next ruleset");
   const outcome = requiredRecord(simulation.outcome, "simulation outcome");
   const result = requiredRecord(outcome.result, "Enbu result");
   const publicReplay = requiredRecord(outcome.presentation_replay, "public presentation replay");
@@ -133,6 +150,9 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   const replay = requiredRecord(ownerChannels.attacker, "authorized owner replay");
   if (replay.perspective !== "attacker") throw new Error("The canonical owner replay is not the authorized attacker perspective.");
   const snapshotContext = requiredRecord(snapshot.context, "snapshot context");
+  const snapshotRuleset = requiredRecord(snapshotContext.ruleset, "snapshot ruleset identity");
+  const rulesetIdentity = requiredRecord(ruleset.ruleset, "WASM ruleset identity");
+  expect(rulesetIdentity.digest).toBe(snapshotRuleset.digest);
   const snapshotMatchId = requiredString(snapshotContext.match_id, "snapshot match ID");
   if (result.match_id !== snapshotMatchId) throw new Error(`The canonical Enbu result match ID does not match snapshot ${snapshotMatchId}.`);
   expect(result.final_tick).toBeGreaterThanOrEqual(50);
@@ -146,12 +166,12 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   };
   const ownerHeroAt = (tick: number, catalogId: string): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
     entity.entity_type === "hero" && entity.fields?.catalog_id?.value === catalogId);
-  const bridgeAt = (tick: number, site = "TOP"): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
-    entity.entity_type === "bridge" && entity.fields?.site?.value === site);
+  const bridgeAt = (tick: number, lane: keyof typeof bridgeSiteIds = "TOP"): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
+    entity.entity_type === "bridge" && entity.fields?.site?.value === bridgeSiteIds[lane]);
   const fixedBridgeTransitFrame = replay!.frames.find((frame: JsonRecord) => {
     if (frame.tick <= 49) return false;
     const entities = Object.values(frame.visible_state?.entities ?? {}) as JsonRecord[];
-    const bridge = entities.find((entity) => entity.entity_type === "bridge" && entity.fields?.site?.value === "TOP");
+    const bridge = entities.find((entity) => entity.entity_type === "bridge" && entity.fields?.site?.value === bridgeSiteIds.TOP);
     const hero = entities.find((entity) => entity.entity_type === "hero" && entity.fields?.catalog_id?.value === "R01");
     return bridge?.fields?.bridge_state?.value === "normal" &&
       hero?.fields?.node?.value === "A.TOP.BANK" && hero?.fields?.edge_to?.value === "B.TOP.BANK" &&
@@ -166,7 +186,26 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     entity.entity_type === "observation" && entity.fields?.node?.value === "N.MID.OBS");
   expect(observation, "the authorized replay contains the actual MID observation facility").toBeTruthy();
   expect(observation?.fields?.hp, "the authorized observation projection does not expose an HP field").toBeUndefined();
-  expect(ownerHeroAt(24, "F02")?.fields?.ford_remaining?.value).toBeGreaterThan(0);
+  const fordEntryFrame = replay!.frames.find((frame: JsonRecord) => ownerEntitiesAt(frame.tick).some((entity) =>
+    entity.entity_type === "hero" && entity.fields?.catalog_id?.value === "F02" &&
+    entity.fields?.ford_remaining?.kind === "integer" && entity.fields.ford_remaining.value > 0));
+  expect(fordEntryFrame, "the real owner replay contains F02's canonical ford-entry delay").toBeTruthy();
+  const fordEntryTick = fordEntryFrame!.tick as number;
+  const fordEntryHero = ownerHeroAt(fordEntryTick, "F02");
+  const nextRules = requiredRecord(ruleset.next, "Next rules");
+  const map = requiredRecord(nextRules.map, "Next map");
+  const edges = map.edges as JsonRecord[];
+  const fordEdge = edges.find((edge) => edge.id === "edge-n-a-uj-n-b-uj" ||
+    (edge.from === "N.A.UJ" && edge.to === "N.B.UJ") ||
+    (edge.from === "N.B.UJ" && edge.to === "N.A.UJ"));
+  expect(fordEdge, "the Worker ruleset identifies F02's canonical Jungle crossing edge").toBeTruthy();
+  const edgeId = fordEdge!.id ?? "edge-n-a-uj-n-b-uj";
+  const projection = requiredRecord(map.world_projection, "paired World projection");
+  const edgeFacts = requiredRecord(projection.edge_facts, "paired World edge facts");
+  const fordInterval = requiredRecord(requiredRecord(edgeFacts[edgeId], "Jungle edge facts").river_crossing, "Jungle crossing interval");
+  expect(fordInterval.kind).toBe("foot_ford");
+  expect(fordInterval.start_progress_wu).toBeLessThan(fordInterval.end_progress_wu);
+  expect(fordEntryHero?.fields?.edge_progress?.value).toBe(fordInterval.start_progress_wu);
   expect(ownerHeroAt(1, "F03")?.fields?.edge_to?.value).toBe("A.MID.J");
   expect(ownerHeroAt(2, "F01")?.fields?.track?.value).toBe("LEFT");
   expect(ownerHeroAt(2, "F01")?.fields?.edge_to?.value).toBe("A.TOP.T2");
@@ -196,15 +235,25 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await page.getByTestId("battle-map-river").count()).toBe(1);
   const bridgeRoutes = page.locator('[data-testid="battle-map-route"][data-bridge-site]');
   expect(await bridgeRoutes.count()).toBe(4);
-  expect(await page.locator('[data-bridge-site="TOP"]').count()).toBe(1);
-  expect(await page.locator('[data-bridge-site="MID"]').count()).toBe(2);
-  expect(await page.locator('[data-bridge-site="BOT"]').count()).toBe(1);
+  expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.TOP}"]`).count()).toBe(1);
+  expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.MID}"]`).count()).toBe(2);
+  expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.BOT}"]`).count()).toBe(1);
+  const publicScene = requiredRecord(publicReplay.scene, "public map scene");
+  const routeMetadata = publicScene.routes as JsonRecord[];
+  const bridgeRoles = routeMetadata.filter((route) => route.bridgeSite).map((route) => [route.bridgeSite, route.bridgeKind])
+    .sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
+  expect(bridgeRoles).toEqual([
+    [bridgeSiteIds.TOP, "lane"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.MID, "facility"],
+    [bridgeSiteIds.BOT, "lane"],
+  ].sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)));
   expect(await page.locator('[data-testid="battle-map-route"][data-ford="true"]').count()).toBe(2);
   const observationLabel = page.locator(".entity-world-label").filter({ hasText: /^MID OBSERVATION/ });
   await expect(observationLabel).toHaveCount(1);
   await expect(observationLabel).not.toContainText(/HP\s+1\/1|·\s*1\/1/);
 
-  const routeStateAt = async (tick: number, site = "TOP"): Promise<string> => {
+  const routeStateAt = async (tick: number, lane: keyof typeof bridgeSiteIds = "TOP"): Promise<string> => {
     const slider = page.getByRole("slider", { name: "Seek replay tick" });
     await slider.evaluate((element, targetTick) => {
       const input = element as HTMLInputElement;
@@ -214,7 +263,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     }, tick);
     await expect(slider).toHaveValue(String(tick));
     await expect(canvas).toHaveAttribute("data-tick", String(tick));
-    return await page.locator(`[data-testid="battle-map-route"][data-bridge-site="${site}"]`).first().getAttribute("data-bridge-state") ?? "";
+    return await page.locator(`[data-testid="battle-map-route"][data-bridge-site="${bridgeSiteIds[lane]}"]`).first().getAttribute("data-bridge-state") ?? "";
   };
   expect(await routeStateAt(3)).toBe("normal");
   if (width > 700) {
@@ -256,7 +305,17 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
   }
   expect(pageErrors).toEqual([]);
-  return { result, publicReplay, ownerReplay: replay, frameCount: publicReplay.frames.length, fixedBridgeTransitTick, wasmStatuses: wasmResponses,
+  return {
+    result,
+    publicReplay,
+    ownerReplay: replay,
+    frameCount: publicReplay.frames.length,
+    fixedBridgeTransitTick,
+    fordEntryTick,
+    fordInterval,
+    fordEntryProgressWu: fordEntryHero?.fields?.edge_progress?.value,
+    bridgeRoles,
+    wasmStatuses: wasmResponses,
     buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content") };
 }
 
@@ -274,6 +333,9 @@ test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ 
   try {
     const mobile = await runBattle(mobilePage, snapshot, 390, 844);
     expect(mobile.result.final_state_digest).toBe(desktop.result.final_state_digest);
+    expect(mobile.fordEntryTick).toBe(desktop.fordEntryTick);
+    expect(mobile.fordInterval).toEqual(desktop.fordInterval);
+    expect(mobile.bridgeRoles).toEqual(desktop.bridgeRoles);
     expect(mobile.publicReplay).toEqual(desktop.publicReplay);
     expect(mobile.ownerReplay).toEqual(desktop.ownerReplay);
     const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -286,7 +348,16 @@ test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ 
       fullDesktopMobileReplayEquality: true,
       viewports: [{ width: 1440, height: 900 }, { width: 390, height: 844 }],
       wasmStatuses: [...desktop.wasmStatuses, ...mobile.wasmStatuses],
-      ticks: { lateralCrossing: 3, midDestroyed: 11, topExpanded: 13, topDestroyed: 23, ford: 24, topRebuilt: 49, bridgeTransit: desktop.fixedBridgeTransitTick },
+      bridgeRoutes: desktop.bridgeRoles,
+      fordEntry: {
+        tick: desktop.fordEntryTick,
+        edgeId: desktop.fordInterval.edgeId,
+        sourceWorldStartProgressWu: desktop.fordInterval.start_progress_wu,
+        sourceWorldEndProgressWu: desktop.fordInterval.end_progress_wu,
+        observedEntityProgressWu: desktop.fordEntryProgressWu,
+      },
+      ticks: { lateralCrossing: 3, midDestroyed: 11, topExpanded: 13, topDestroyed: 23,
+        fordEntry: desktop.fordEntryTick, topRebuilt: 49, bridgeTransit: desktop.fixedBridgeTransitTick },
       renderer: "Chromium with SwiftShader; hardware GPU and physical touch not checked",
     }, null, 2) + "\n");
   } finally {
