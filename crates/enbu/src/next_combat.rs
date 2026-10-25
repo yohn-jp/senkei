@@ -770,7 +770,8 @@ fn distribute_rewards(
                     hero.entity_type.as_str() == "hero"
                         && hero.owner == Some(side)
                         && support::alive(hero)
-                        && support::distance2(hero, target) <= i128::from(range) * i128::from(range)
+                        && support::world_distance2(hero, target, rules)
+                            .is_some_and(|distance| distance <= i128::from(range) * i128::from(range))
                 })
                 .map(|(id, _)| id.clone())
         }).collect();
@@ -1610,6 +1611,14 @@ mod tests {
         let mut minion = entity("minion", Some(CombatantSide::Defender), 1, 1, 0, 0);
         support::set_int(&mut minion, "xp_reward", 1);
         insert(&mut world, "minion", minion);
+
+        // Keep attacker visibility intact, then move the other Heroes far in
+        // presentation space without changing their graph positions. XP
+        // membership must follow graph distance rather than renderer X/Y.
+        support::set_int(world.entities.get_mut(&EntityId::from("hero.a")).unwrap(), "x", 100_000);
+        support::set_int(world.entities.get_mut(&EntityId::from("hero.b")).unwrap(), "x", 500_000);
+        support::set_int(world.entities.get_mut(&EntityId::from("hero.c")).unwrap(), "x", -500_000);
+        support::set_int(world.entities.get_mut(&EntityId::from("minion")).unwrap(), "x", 100_001);
 
         resolve(&mut world, &rules(), &[], 0);
 
