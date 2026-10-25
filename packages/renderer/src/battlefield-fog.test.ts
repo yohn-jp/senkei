@@ -8,20 +8,34 @@ import { BattlefieldFog } from "./battlefield-fog";
 describe("battlefield fog presentation", () => {
   it("has no mask for legacy inputs, then draws only authorized historical facilities", () => {
     const input = structuredClone(basic);
-    Object.assign(input.scene, { routes: [{ id: "r", region: "lane", bridgeSite: "TOP", points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }] });
+    Object.assign(input.scene, {
+      nodes: [
+        { id: "known", allegiance: "A", position: { x: 0, y: 0 } },
+        { id: "unknown", allegiance: "B", position: { x: 2, y: 4 } },
+      ],
+      routes: [{ id: "r", region: "lane", bridgeSite: "TOP", points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }],
+    });
     const replay = decodeReplay(input);
     const fog = new BattlefieldFog(new THREE.Scene(), replay);
     fog.update(stateAt(replay, 0));
     expect(fog.group.visible).toBe(false);
     const state: DisplayState = { ...stateAt(replay, 2), fog: { worldUnitsPerRenderUnit: 25, state: {
-      schema_version: 1, tick: 2, side: "attacker", nodes: {}, edges: {}, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "TOP", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
+      schema_version: 1, tick: 2, side: "attacker", nodes: { known: "explored", unknown: "unexplored" }, edges: { r: ["unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored"] }, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "TOP", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
     } } };
     fog.update(state);
     expect(fog.group.visible).toBe(true);
-    fog.setEnabled(false);
-    expect(fog.group.visible).toBe(false);
-    fog.setEnabled(true);
+    const concealment = fog.group.getObjectByName("mandatory-unexplored-concealment")!;
+    const annotations = fog.group.getObjectByName("explored-vision-annotation")!;
+    expect(concealment.visible).toBe(true);
+    expect(annotations.visible).toBe(true);
+    fog.setVisionAnnotationsEnabled(false);
     expect(fog.group.visible).toBe(true);
+    expect(concealment.visible).toBe(true);
+    expect(annotations.visible).toBe(false);
+    expect((concealment.children[0] as THREE.InstancedMesh).count).toBeGreaterThan(0);
+    fog.setVisionAnnotationsEnabled(true);
+    expect(concealment.visible).toBe(true);
+    expect(annotations.visible).toBe(true);
     const ring = fog.group.getObjectByName("last-known-facility-1-tick-1") as THREE.Line;
     expect(ring).toBeInstanceOf(THREE.Line);
     const box = new THREE.Box3().setFromObject(ring);

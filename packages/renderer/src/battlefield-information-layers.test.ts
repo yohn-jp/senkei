@@ -5,7 +5,7 @@ import { applyBattlefieldInformationLayers } from "./battlefield-information-lay
 
 describe("battlefield information layer controls", () => {
   it("toggles vision, lane guides and engagements independently", () => {
-    const fog = { setEnabled: vi.fn() } as unknown as BattlefieldFog;
+    const fog = { setVisionAnnotationsEnabled: vi.fn() } as unknown as BattlefieldFog;
     const laneGuides = new THREE.Group();
     const effects = new THREE.Group();
     const label = (): HTMLElement => ({ style: { visibility: "visible" } }) as HTMLElement;
@@ -20,7 +20,7 @@ describe("battlefield information layer controls", () => {
     };
 
     applyBattlefieldInformationLayers({ vision: true, lanes: false, engagements: true }, targets);
-    expect(fog.setEnabled).toHaveBeenLastCalledWith(true);
+    expect(fog.setVisionAnnotationsEnabled).toHaveBeenLastCalledWith(true);
     expect(laneGuides.visible).toBe(false);
     expect(laneLabel.style.visibility).toBe("hidden");
     expect(effects.visible).toBe(true);
@@ -28,7 +28,7 @@ describe("battlefield information layer controls", () => {
     expect(cueLabel.style.visibility).toBe("visible");
 
     applyBattlefieldInformationLayers({ vision: false, lanes: true, engagements: false }, targets);
-    expect(fog.setEnabled).toHaveBeenLastCalledWith(false);
+    expect(fog.setVisionAnnotationsEnabled).toHaveBeenLastCalledWith(false);
     expect(laneGuides.visible).toBe(true);
     expect(laneLabel.style.visibility).toBe("visible");
     expect(effects.visible).toBe(false);

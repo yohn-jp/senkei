@@ -4,10 +4,12 @@ import type { DisplayState, Replay, WorldPoint } from "@senkei/replay-contract";
 /** Graph visibility only. Off-graph terrain never gains invented sight rules. */
 export class BattlefieldFog {
   readonly group = new THREE.Group();
+  private readonly unexploredLayer = new THREE.Group();
+  private readonly exploredLayer = new THREE.Group();
   private masks: { matrix: THREE.Matrix4; node?: string; edge?: string; sample?: number }[] = [];
   private batches: { nodes: THREE.InstancedMesh; edges: THREE.InstancedMesh; state: "unexplored" | "explored" }[] = [];
   private contacts = new THREE.Group();
-  private enabled = true;
+  private annotationsEnabled = true;
   private hasFogState = false;
   private materials = {
     unexplored: new THREE.MeshBasicMaterial({ color: 0x14232d, transparent: true, opacity: 0.82, depthWrite: false, side: THREE.DoubleSide }),
@@ -19,6 +21,9 @@ export class BattlefieldFog {
   constructor(scene: THREE.Scene, private replay: Replay) {
     this.group.name = "authorized-graph-fog";
     this.group.visible = false;
+    this.unexploredLayer.name = "mandatory-unexplored-concealment";
+    this.exploredLayer.name = "explored-vision-annotation";
+    this.group.add(this.unexploredLayer, this.exploredLayer);
     for (const node of replay.scene.nodes ?? []) {
       const mesh = new THREE.Mesh(new THREE.CircleGeometry(1.3, 8), this.materials.unexplored);
       mesh.rotation.x = -Math.PI / 2;
@@ -51,16 +56,17 @@ export class BattlefieldFog {
       nodes.renderOrder = 3;
       edges.renderOrder = 2;
       this.batches.push({ nodes, edges, state });
-      this.group.add(nodes, edges);
+      (state === "unexplored" ? this.unexploredLayer : this.exploredLayer).add(nodes, edges);
     }
     this.contacts.name = "historical-facility-observations";
     this.group.add(this.contacts);
+    this.exploredLayer.add(this.contacts);
     scene.add(this.group);
   }
 
   update(state: DisplayState): void {
     this.hasFogState = Boolean(state.fog);
-    this.group.visible = this.enabled && this.hasFogState;
+    this.group.visible = this.hasFogState;
     if (!state.fog) return;
     const fog = state.fog.state;
     for (const batch of this.batches) {
@@ -92,12 +98,14 @@ export class BattlefieldFog {
       ring.userData.lastSeenTick = contact.last_seen_tick;
       this.contacts.add(ring);
     }
+    this.exploredLayer.visible = this.annotationsEnabled;
   }
 
-  /** Hides or shows the authorized fog presentation without changing its source state. */
-  setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    this.group.visible = this.enabled && this.hasFogState;
+  /** Toggles explanatory explored/contact annotations; unexplored concealment stays active. */
+  setVisionAnnotationsEnabled(enabled: boolean): void {
+    this.annotationsEnabled = enabled;
+    this.exploredLayer.visible = enabled && this.hasFogState;
+    this.unexploredLayer.visible = this.hasFogState;
   }
 
   dispose(): void {

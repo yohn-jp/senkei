@@ -21,7 +21,7 @@ export function applyBattlefieldInformationLayers(
   layers: BattlefieldInformationLayers,
   targets: BattlefieldInformationLayerTargets,
 ): void {
-  targets.fog.setEnabled(layers.vision);
+  targets.fog.setVisionAnnotationsEnabled(layers.vision);
   targets.laneGuides.visible = layers.lanes;
   for (const label of targets.laneLabels) label.style.visibility = layers.lanes ? "visible" : "hidden";
   for (const label of targets.entityLabels) label.style.visibility = layers.engagements ? "visible" : "hidden";
