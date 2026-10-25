@@ -127,6 +127,31 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     };
     return { request: current.__canonicalRequest, response: current.__canonicalResponse, rulesetResponse: current.__canonicalRulesetResponse };
   });
+  const modeControls = page.getByRole("group", { name: "Presentation mode", exact: true });
+  const tacticalCamera = await canvas.getAttribute("data-camera");
+  const cameraContext = await canvas.getAttribute("data-camera-mode");
+  const fogNodes = await canvas.getAttribute("data-fog-nodes");
+  await modeControls.getByRole("button", { name: "Cinematic", exact: true }).click();
+  await expect(canvas).toHaveAttribute("data-presentation-mode", "cinematic");
+  await expect.poll(() => canvas.getAttribute("data-camera")).not.toBe(tacticalCamera);
+  const cinematicCamera = await canvas.getAttribute("data-camera");
+  await expect(canvas).toHaveAttribute("data-tick", "0");
+  await expect(canvas).toHaveAttribute("data-camera-mode", cameraContext!);
+  await expect(canvas).toHaveAttribute("data-fog", "authorized-graph-samples");
+  await expect(canvas).toHaveAttribute("data-fog-nodes", fogNodes!);
+  await page.screenshot({ path: join(evidenceDirectory, `${width > 700 ? "desktop" : "mobile"}-${width}x${height}-cinematic-t000.png`), animations: "disabled" });
+  const visionLayer = page.getByRole("group", { name: "Information layers", exact: true }).getByRole("checkbox", { name: "Vision", exact: true });
+  await visionLayer.uncheck();
+  await expect.poll(async () => JSON.parse(await canvas.getAttribute("data-information-layers") ?? "{}").vision).toBe(false);
+  await expect(canvas).toHaveAttribute("data-fog", "authorized-graph-samples");
+  await expect(canvas).toHaveAttribute("data-fog-nodes", fogNodes!);
+  await visionLayer.check();
+  await modeControls.getByRole("button", { name: "Tactical", exact: true }).click();
+  await expect(canvas).toHaveAttribute("data-presentation-mode", "tactical");
+  await expect(canvas).toHaveAttribute("data-tick", "0");
+  const responseAfterModes = await page.evaluate(() => (window as typeof window & { __canonicalResponse?: unknown }).__canonicalResponse);
+  const responseDigest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  expect(responseDigest(responseAfterModes), "presentation and layer changes preserve the exact authorized Worker response").toBe(responseDigest(captured.response));
   const request = requiredRecord(captured.request, "Worker request identity");
   const requestId = requiredString(request.request_id, "Worker request ID");
   const response = requiredRecord(captured.response, "Worker response");
@@ -315,6 +340,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     fordInterval,
     fordEntryProgressWu: fordEntryHero?.fields?.edge_progress?.value,
     bridgeRoles,
+    presentationModes: { tacticalCamera, cinematicCamera, cameraContext, tick: 0, authorizedResponseUnchanged: true, fogUnchanged: true },
     wasmStatuses: wasmResponses,
     buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content") };
 }
@@ -346,6 +372,7 @@ test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ 
       ruleset: snapshot.context.ruleset, engineVersion: snapshot.context.versions.engine,
       result: desktop.result, publicReplaySha256: digest(desktop.publicReplay), ownerReplaySha256: digest(desktop.ownerReplay),
       fullDesktopMobileReplayEquality: true,
+      presentationModes: { desktop: desktop.presentationModes, mobile: mobile.presentationModes },
       viewports: [{ width: 1440, height: 900 }, { width: 390, height: 844 }],
       wasmStatuses: [...desktop.wasmStatuses, ...mobile.wasmStatuses],
       bridgeRoutes: desktop.bridgeRoles,
