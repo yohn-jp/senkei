@@ -31,7 +31,6 @@ listed, not an assertion that missing domain producers now exist.
 | S13 | Actual result, immutable run roster, Hero/Squad/event filters, paged event timeline, event → exact Replay Tick, attacker-only diagnostics, previous/current Snapshot comparison and edit routes. A real exact rematch preserves both the Snapshot/result digest and a separate pending, uncompiled Draft. |
 | S14 | Unified entry to pinned Next setup, Recovery copy and Legacy. Save/select/restore, JSON export/import, current-package compatibility gating and separate pinned/recovery copies survive reload. |
 | S15 | Corrupt original bytes export unchanged; incompatible data refuses restore; replacement/clear require explicit confirmation. Quota failure keeps Draft exportable; storage and Core retries preserve editing state. |
-| S16 | Actual existing Legacy Library and G1 sample navigation; return to Next retains the recovered Draft. No implicit conversion between storage formats. |
 
 ## Integration guarantees
 

@@ -19,9 +19,9 @@ Branch: `feat/ux-first-pve`.
 
 S04–S09 continue to use the existing Hero Collection, Detail, Skill Tree, Squad Assembly, Jinrei editor and Catalog/Coverage panel. They share the same NextWorkspace slots and Draft; no second player model or alternate compiler was introduced.
 
-S13 uses existing analysis and diagnostics. Rematch returns to Ready, retaining the previous Run for comparison. S14 is the existing Next save/restore/import/export control set, exposed directly from Continue and Ready. Recovery Copy and pinned Restore Point keep their existing distinct LocalStorage keys and format version. S15 connects Core/Catalog reload, Draft repair, saved-data compatibility messages and existing renderer retry. S16 keeps G1 and initial Tactics/Battle lab/Library explicit and separate.
+S13 uses existing analysis and diagnostics. Rematch returns to Ready, retaining the previous Run for comparison. S14 is the existing Next save/restore/import/export control set, exposed directly from Continue and Ready. Recovery Copy and pinned Restore Point keep their existing distinct LocalStorage keys and format version. S15 connects Core/Catalog reload, Draft repair, saved-data compatibility messages and existing renderer retry. The old G1/initial-app navigation has since been retired; IndexedDB records remain exportable from the separate data-recovery route.
 
-S13–S16 have **not** received a full redesign. S09 remains the existing Catalog/Coverage panel rather than a newly implemented standalone Coverage screen. There is no new unified Library or migration between initial/Next. These are intentional scope boundaries, not completed broader Issue #5 acceptance.
+S13–S15 had **not** received a full redesign at this session's baseline. S09 remains the existing Catalog/Coverage panel rather than a newly implemented standalone Coverage screen. There is no migration between initial/Next. These are scope boundaries, not completed broader Issue #5 acceptance.
 
 ## Start-validation and invalidation
 

@@ -52,14 +52,6 @@
 
 .persistence-list-panel { overflow: hidden; }
 
-.persistence-create {
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-}
-
-.persistence-create label,
 .persistence-compare label {
   color: #94a1a2;
   font-family: "DM Mono", monospace;
@@ -68,9 +60,6 @@
   text-transform: uppercase;
 }
 
-.persistence-input-row { align-items: stretch; gap: 7px; }
-
-.persistence-input-row input,
 .persistence-compare select {
   background: #10191f;
   border: 1px solid rgba(214,225,218,.16);
@@ -80,10 +69,6 @@
   min-width: 0;
   padding: 9px 10px;
 }
-
-.persistence-input-row input { flex: 1; width: 100%; }
-.persistence-input-row input::placeholder { color: #68777d; }
-.persistence-create small { color: #748388; font-size: 10px; line-height: 1.5; }
 
 .persistence-button {
   background: var(--accent);
@@ -214,8 +199,6 @@
 @media (max-width: 580px) {
   .persistence-toolbar { align-items: flex-start; flex-direction: column; gap: 16px; }
   .persistence-card { padding: 16px; }
-  .persistence-input-row { align-items: stretch; flex-direction: column; }
-  .persistence-input-row .persistence-button { width: 100%; }
   .persistence-action-row { align-items: stretch; flex-direction: column; }
   .persistence-action-row .persistence-button { width: 100%; }
   .persistence-diff-values { grid-template-columns: 1fr; }

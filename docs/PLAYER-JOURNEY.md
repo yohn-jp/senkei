@@ -63,7 +63,7 @@
 - **復旧**：明示保存したRestore Pointと未保存のRecovery Copyを分離。読めない旧設定は**保全・エクスポート・互換性理由表示**し、黙って消さない。
 - **再戦**：分析→変更せず同条件を再実行／Hero・Skill・Squad・Jinreiを変更→無効化されたコンパイルを更新→同条件比較の実験へ。
 - **保存と共有**：保存・Exportは便利な操作だが、1戦目を始めるための強制Stepではない。
-- **Legacy/G1**：旧初期Ruleset、Battle Lab、G1 Fixtureは明示的な「旧版／サンプル」導線。NextのHero編成データと互換のふりをしない。移行には明示的なConverterと検証が必要。
+- **旧保存データ**：旧初期RulesetのIndexedDB文書はLegacy Recoveryから一覧・履歴確認・Export・削除できる。Nextでは実行・変換せず、明示的なConverterと検証が用意されるまで原形式を保全する。G1 Fixtureは独立Renderer入口であり、戦型の対戦導線には含めない。
 
 ## 4. 開始可否の単一契約（Preflight）
 

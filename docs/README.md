@@ -41,7 +41,7 @@
 | [REPLAY.md](REPLAY.md) | **Enbu/Renderer表示契約**：Schema、Tick、投影・秘匿性 |
 | [UI-DESIGN.md](UI-DESIGN.md) | Desktop/Mobile別のUI・操作・状態設計 |
 | [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md) | **ゲーム開始前UXの正本**：プレイヤー必須入力、初回・Custom・復元、開始可能性 |
-| [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) | **全画面遷移図の正本**：S00〜S16、Quick/Custom/Resume/開始/失敗/再戦、Desktop/Mobile |
+| [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) | **全画面遷移図の正本**：S00〜S15、Quick/Custom/Resume/開始/失敗/再戦、Desktop/Mobile |
 | [PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) | **画面別契約・低忠実度ワイヤフレーム**：表示/操作/戻り/検証/復旧、受入テスト |
 | [JINREI-EDITOR.md](JINREI-EDITOR.md) | **Jinrei編集UX正本**：Domain探索、Hero別Coverage、Default/Effective/Observed、Trace |
 | [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |

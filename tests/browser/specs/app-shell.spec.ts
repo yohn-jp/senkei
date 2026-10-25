@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("production app navigation stays local", async ({ page, baseURL }) => {
+test("production app opens the Next workspace and keeps legacy documents on a recovery path", async ({ page, baseURL }) => {
   const externalRequests: string[] = [];
   const pageErrors: string[] = [];
 
@@ -11,15 +11,17 @@ test("production app navigation stays local", async ({ page, baseURL }) => {
 
   await page.goto("/");
   await expect(page).toHaveTitle(/Senkei/);
-  await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible();
-
   const navigation = page.getByRole("navigation", { name: "Workspace" });
-  await navigation.getByRole("button", { name: /Tactics/ }).click();
-  await expect(navigation.getByRole("button", { name: /Tactics/ })).toHaveAttribute("aria-current", "page");
-  await navigation.getByRole("button", { name: /Battle lab/ }).click();
-  await expect(navigation.getByRole("button", { name: /Battle lab/ })).toHaveAttribute("aria-current", "page");
-  await navigation.getByTestId("nav-persistence").click();
-  await expect(navigation.getByTestId("nav-persistence")).toHaveAttribute("aria-current", "page");
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByTestId("nav-next")).toBeVisible();
+  await expect(navigation.getByTestId("nav-library")).toBeVisible();
+  await expect(navigation.getByTestId("nav-editor")).toHaveCount(0);
+  await expect(navigation.getByTestId("nav-battle")).toHaveCount(0);
+  await expect(navigation.getByTestId("nav-persistence")).toHaveCount(0);
+
+  await navigation.getByTestId("nav-legacy-library").click();
+  await expect(page.getByRole("heading", { name: "Legacy documents." })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Legacy document recovery" })).toBeVisible();
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);

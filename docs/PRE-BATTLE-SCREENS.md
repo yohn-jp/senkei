@@ -4,7 +4,7 @@
 
 [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md) が「プレイヤーが何を決めるか」、[PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) が「どこからどこへ移動するか」を所有する。本書は**各画面の主目的・表示情報・編集できる設定・操作・ガード・戻る先・Desktop/Mobileの異なる操作モデル**を所有する。
 
-- **画面構成の提案**：Screen ID S00〜S16と下記のワイヤフレーム。「一画面にすべてのフォームを詰め込む」という合意ではない。
+- **画面構成の提案**：Screen ID S00〜S15と下記のワイヤフレーム。「一画面にすべてのフォームを詰め込む」という合意ではない。
 - **確定済みドメイン**：Hero 5体固定、初期12種、Skill Plan、7種類のSquad分割、RulePackageとCatalog、Jinrei v0.1、ローカルPvE、自動Enbu、診断の可視権限。詳細は[HERO-ATELIER.md](HERO-ATELIER.md)、[UNITS.md](UNITS.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md)等を優先。
 - **未実装の提案画面**：「開始・再開Home」「Quick Preset確認」「シナリオ・NPC選択」「準備確認」「包括的な復旧」は現行の存在を主張しない。**新規UIの見た目・操作はまだ受入未了**。
 - **実装の現在値**：現行シェルはTactics / Next / Battle lab / Library、Next内部はFormation(Collection/Detail/Skills/Squads) / Jinrei / Battle / Analysis。Nextには初期5 Heroと相手側Starter、Jinrei compile、LocalStorageの保存・Recovery Copyがある。旧Library(IndexedDB)とは別。以下のワイヤフレームを既実装完了とは扱わない。
@@ -28,7 +28,7 @@
 | Screen | 第1視線／中心タスク | 主要操作と次の画面 | エラー・戻り先 |
 | --- | --- | --- | --- |
 | **S00 起動** | Local Core／RulePackage／Catalogの読込状態 | 利用可能なG2へS01 | 不可ならS15。「偽の読込％」を出さない |
-| **S01 Home** | 初戦を始める、編集を続ける、保存から復帰 | Quick→S02→S03、Custom→S02→S04、Continue→S14、Sample→S16 | 未保存Draftがあれば変更/破棄の影響を明示 |
+| **S01 Home** | 初戦を始める、編集を続ける、保存から復帰 | Quick→S02→S03、Custom→S02→S04、Continue→S14 | 未保存Draftがあれば変更/破棄の影響を明示 |
 | **S02 対戦条件** | Local PvE・NPC・RulePackageと何を相手に戦うか | 検証済みNPC/Scenarioを確認し、QuickならS03、CustomならS04、Readyから戻るならS10 | 無効NPC／非対応Rulesetなら選択不可・S15 |
 | **S03 Quick確認** | 自動入力済み5 Hero、Skill、Squad、Jinrei、NPC | 設定を見る→S04/S06/S07/S08、現在値で準備確認→S10 | Preset欠落・不正なら「すぐ戦う」不可、修正可能な画面へ |
 | **S04 Hero Collection** | Catalogの12種類と現在5枠の差分 | 枠の選択→Hero採用／差替え、詳細→S05、Skill→S06 | 未知Hero／重複制約はSenritsu判定、フィルター0件は解除 |
@@ -42,8 +42,7 @@
 | **S12 Battle** | 実Replay、現在Tick、Fog/Unknown、カメラ、再生操作 | 再生/停止/seek、分析→S13、再戦→S10 | Renderer/GPU失敗はReplayを保持して再試行 |
 | **S13 Analysis** | 勝敗、観測イベント、Decision Trace、前回との比較 | 同条件再戦→S10、修正→S04/S06/S07/S08、保存→S14 | 診断がRestricted/Not Checkedなら明示、非公開敵情報を出さない |
 | **S14 Library** | 保存物、Recovery、Revision、Import/Export | 互換性確認→S03/S04/S08、作業へ戻る | 破損・旧版・容量不足→S15、元データ保全 |
-| **S15 Recovery** | なぜ進行不能か、どこへ戻るか | 読込再試行、正しいRuleset再選択、修正画面・Exportへ | 破棄や移行は明示確認、黙って消さない |
-| **S16 Sample/Legacy** | G1 Fixture・旧初期Rulesetの独立したサンプル | 実サンプル起動、Homeへ戻ってG2開始 | 初期JinreiデータをNextの5 Heroへ暗黙変換しない |
+| **S15 Recovery** | Nextの保存互換性・失敗理由、または旧IndexedDB文書の保全 | Nextデータの再試行・Export、旧文書の一覧・履歴・Export・削除 | 旧文書は実行・変換しない。元データを明示せず消さない |
 
 ### Screenを訪れただけではDoneではない
 

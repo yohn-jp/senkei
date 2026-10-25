@@ -1,13 +1,9 @@
 import type {
-  BenchmarkOutcome,
   CoreJsonValue,
   CoreVersion,
   RulesetRef,
-  SimulationOutcome,
 } from "./core";
-import type { DomainValue, RestrictedDiagnostics, RulePackage, TacticalSource } from "./core-model";
-
-export type WorkspaceView = "editor" | "battle" | "persistence";
+import type { DomainValue, TacticalSource } from "./core-model";
 
 /** A browser-owned storage wrapper around a core-owned Senkei JSON document. */
 export interface LocalSenkeiDocument {
@@ -72,17 +68,3 @@ export interface SenkeiDraft {
 }
 
 export type EditorDraft = SenkeiDraft | null;
-
-export interface WorkspaceState {
-  readonly view: WorkspaceView;
-  readonly ruleset: RulePackage | null;
-  readonly scenarios: readonly LocalPveScenario[];
-  readonly selected_scenario_id: string | null;
-  readonly baseline_snapshot: import("./core").SimulationSnapshot | null;
-  readonly baseline_scenario_id: string | null;
-  readonly active_document: LocalSenkeiDocument | null;
-  readonly editor_draft: EditorDraft;
-  readonly last_simulation: SimulationOutcome | null;
-  readonly restricted_diagnostics: RestrictedDiagnostics | null;
-  readonly benchmark: BenchmarkOutcome | null;
-}
