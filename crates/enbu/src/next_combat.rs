@@ -165,6 +165,8 @@ pub fn prepare_actions(
         if reserved.contains(actor_id) || explicit_movement_action_for(actor_id, accepted, snapshot) {
             continue;
         }
+        if cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
+            .is_some_and(|member| crate::next_navigation::forced_transit(member, rules))) { continue; }
         if active_skill_target(intent, *side, snapshot, rules, tick).is_none() { continue; }
         if cohort_action_lock_until(world, snapshot, actor_id) > i64::from(tick) {
             continue;
@@ -577,6 +579,8 @@ fn collect_skill_activations(
             support::int(entity, "prepared_action_tick") == i64::from(tick).saturating_add(1)
         });
         if used.contains(actor_id)
+            || cohort_member_ids(start, actor_id).iter().any(|id| start.entities.get(id)
+                .is_some_and(|member| crate::next_navigation::forced_transit(member, rules)))
             || moved_this_tick
             || issued_other_action
             || (support::int(actor, "action_lock_until").max(current_action_lock) > i64::from(tick)
@@ -1659,6 +1663,15 @@ mod tests {
         assert_eq!(support::int(&moving_world.entities[&actor_id], "action_lock_until"), 0);
         resolve_from_snapshot(&mut moving_world, &moving_snapshot, &rules, &accepted, 0);
         assert_eq!(support::int(&moving_world.entities[&actor_id], "shield"), 0);
+
+        let mut crossing = moving_snapshot.clone();
+        support::set_int(crossing.entities.get_mut(&actor_id).unwrap(), "cross_remaining", 2);
+        let crossing_start = crossing.clone();
+        let crossing_intents = [accepted[0].clone()];
+        prepare_actions(&mut crossing, &crossing_start, &rules, &crossing_intents, 0);
+        resolve_from_snapshot(&mut crossing, &crossing_start, &rules, &crossing_intents, 0);
+        assert_eq!(support::int(&crossing.entities[&actor_id], "action_lock_until"), 0);
+        assert_eq!(support::int(&crossing.entities[&actor_id], "shield"), 0);
     }
 
     #[test]
