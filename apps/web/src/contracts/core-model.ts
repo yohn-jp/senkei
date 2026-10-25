@@ -465,6 +465,7 @@ export type TacticalExecutionStatus = "completed" | "budget_exceeded";
 
 /** Full, validated Senritsu package JSON returned by the core adapter. */
 export interface RulePackage {
+  readonly catalog_semantics_digest?: ContentDigest;
   readonly next?: NextRules;
   readonly ruleset: import("./core").RulesetRef;
   readonly minimum_engine_version: import("./core").CoreVersion;
@@ -598,6 +599,7 @@ export interface MatchResult {
 }
 
 export interface PresentationReplay {
+  readonly ruleset?: import("./core").RulesetRef;
   readonly world_identity?: WorldIdentityRef;
   readonly perspective?: CombatantSide;
   readonly schema_version: import("./core").CoreVersion;
@@ -728,14 +730,30 @@ export interface NextRules {
   readonly parameters: Readonly<Record<string, number>>;
 }
 export interface BattleMap {
+  readonly world_projection?: BattleMapWorldProjection;
   readonly world_identity?: WorldIdentityRef;
   readonly id: string;
-  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string; readonly allegiance?:string }>>;
+  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string; readonly presentation_x?:number; readonly presentation_y?:number; readonly allegiance?:string }>>;
   readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean; readonly id?:string; readonly bridge_site?:string; readonly ford?:boolean }[];
   readonly lanes: Readonly<Record<string, readonly string[]>>;
   readonly attacker_base:string;
   readonly defender_base:string;
   readonly towers: readonly { readonly id:string; readonly node:string; readonly side:string; readonly lane:string }[];
+}
+export interface BattleMapWorldProjection {
+  readonly schema_version: import("./core").CoreVersion;
+  readonly source_identity: WorldIdentityRef;
+  readonly node_ids: readonly string[];
+  readonly edge_facts: Readonly<Record<string, {
+    readonly directionality: string;
+    readonly class: string;
+    readonly tracks: readonly { readonly id: string; readonly kind: string; readonly start_progress_wu: number; readonly end_progress_wu: number }[];
+    readonly river_crossing: { readonly river_id: string; readonly kind: string; readonly bridge_site_id: string | null; readonly start_progress_wu: number; readonly end_progress_wu: number } | null;
+    readonly terrain_profile_id: string;
+    readonly terrain_kind: string;
+    readonly observation_semantics: string;
+  }>>;
+  readonly bridge_sites: Readonly<Record<string, readonly string[]>>;
 }
 export interface UnitStats { readonly hp:number; readonly attack:number; readonly defense:number; readonly speed:number; readonly range:number; readonly attack_interval:number; readonly vision:number }
 export interface HeroDefinition {

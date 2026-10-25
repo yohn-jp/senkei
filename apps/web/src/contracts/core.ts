@@ -121,6 +121,7 @@ export interface SimulationOutcome {
 }
 
 export interface SimulationResponse {
+  readonly authorized_side?: import("./core-model").CombatantSide;
   /** Side-scoped local views, kept out of public outcomes and benchmark exports. */
   readonly owner_replays?: Partial<Readonly<Record<import("./core-model").CombatantSide, PresentationReplay>>>;
   /** Local attacker perspective, kept separate from the public replay. */
@@ -171,7 +172,7 @@ export interface CoreClient {
   preflight(snapshot: SimulationSnapshot): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
-    options?: { readonly include_diagnostics?: boolean },
+    options?: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("./core-model").CombatantSide },
   ): Promise<SimulationResponse>;
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome>;
   dispose(): void;
