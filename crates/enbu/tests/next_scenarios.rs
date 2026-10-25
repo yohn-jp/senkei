@@ -1688,8 +1688,8 @@ fn canonical_battlefield_topology_conforms() {
     assert_eq!(map.edges.len(), 42, "all explicit lane, bridge, jungle, camp and ford edges exist");
     assert_eq!(actual_edges, expected_edges, "the edge set has no hidden shortcut or missing crossing");
     let bridge_sites = map.edges.iter().filter(|edge| !edge.bridge_site.is_empty()).map(|edge| edge.bridge_site.as_str()).collect::<Vec<_>>();
-    assert_eq!(bridge_sites.iter().filter(|site| **site == "MID").count(), 2, "MID observation plaza has two separately managed connectors");
-    assert_eq!(bridge_sites.iter().copied().collect::<std::collections::BTreeSet<_>>(), ["TOP", "MID", "BOT"].into_iter().collect());
+    assert_eq!(bridge_sites.iter().filter(|site| **site == "bridge.mid").count(), 2, "MID observation plaza has two separately managed connectors");
+    assert_eq!(bridge_sites.iter().copied().collect::<std::collections::BTreeSet<_>>(), ["bridge.top", "bridge.mid", "bridge.bot"].into_iter().collect());
     assert_eq!(rules.plan().next.as_ref().unwrap().camps.len(), 4, "four dead-end camps are configured");
     for lane in ["top", "mid", "bot"] {
         let path = &map.lanes[lane];
@@ -1713,10 +1713,10 @@ fn battlefield_interaction_tactics() -> (String, String) {
         r#"senkei battlefield_integration {{
             action choose_left {{ when match.tick == 1, do select_track({}, LEFT), }},
             action move_left {{ when match.tick == 2, do move({}, "A.TOP.T2"), }},
-            action expand_top_bridge {{ when match.tick == 1, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, expand), }},
-            action destroy_top_bridge {{ when match.tick == 15, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, destroy), }},
-            action destroy_mid_bridge {{ when match.tick == 3, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "MID", }} by bridge.hp then bridge.id, destroy), }},
-            action rebuild_top_bridge {{ when match.tick == 25, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, rebuild), }},
+            action expand_top_bridge {{ when match.tick == 1, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "bridge.top", }} by bridge.hp then bridge.id, expand), }},
+            action destroy_top_bridge {{ when match.tick == 15, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "bridge.top", }} by bridge.hp then bridge.id, destroy), }},
+            action destroy_mid_bridge {{ when match.tick == 3, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "bridge.mid", }} by bridge.hp then bridge.id, destroy), }},
+            action rebuild_top_bridge {{ when match.tick == 25, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "bridge.top", }} by bridge.hp then bridge.id, rebuild), }},
             action ford_crossing {{ when match.tick == 24, do move({}, "N.B.UJ"), }},
             action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
             action node_retreat {{ when match.tick == 2, do retreat({}), }},
@@ -1886,7 +1886,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         })
         .expect("real Jinrei F02 enters the canonical Jungle ford");
     let ford_entry = owner_hero_at(&artifact, ford_entry_tick, "slot-3");
-    assert_eq!(entity_integer(ford_entry, "edge_progress"), 0);
+    let ford_start = rules.plan().next.as_ref().unwrap().map.world_projection.as_ref().unwrap()
+        .edge_facts["edge-n-a-uj-n-b-uj"].river_crossing.as_ref().unwrap().start_progress_wu;
+    assert_eq!(entity_integer(ford_entry, "edge_progress"), i64::try_from(ford_start).unwrap(),
+        "the one-time ford delay begins at the canonical crossing interval, not at the remote edge endpoint");
     let ford_progress_tick = (ford_entry_tick..=artifact.result.final_tick)
         .find(|tick| {
             let hero = owner_hero_at(&artifact, *tick, "slot-3");
@@ -1918,8 +1921,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert!(artifact.replay.frames.iter().any(|frame| frame.tick == 1 && frame.events.iter().any(|event| event.event.as_str() == "next.attack")),
         "units in the same node combat domain attack in the actual match");
 
-    let bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "TOP");
-    let mid_bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "MID");
+    let bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "bridge.top");
+    let mid_bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "bridge.mid");
     assert_eq!(entity_string(bridge_at(0), "bridge_state"), "normal");
     assert_eq!(entity_integer(bridge_at(12), "build_remaining"), 1);
     assert_eq!(entity_string(bridge_at(13), "bridge_state"), "expanded");
