@@ -195,11 +195,11 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     const heroLabel = (await observer.locator("option").allTextContents()).find((label) => label.includes("F01"));
     expect(heroLabel, "the replay exposes an actual visible F01 Hero").toBeTruthy();
     await observer.selectOption({ label: heroLabel! });
-    await expect(page.locator(".next-detail-card")).toContainText("F01");
+    await expect(page.locator(".next-detail-card").filter({ hasText: "VISIBLE STATE" })).toContainText("F01");
   } else {
     await expect(page.getByTestId("battle-mobile-console")).toBeVisible();
     await page.getByRole("button", { name: "Details view" }).click();
-    await expect(page.locator(".next-detail-card")).toBeVisible();
+    await expect(page.locator(".next-detail-card").filter({ hasText: "VISIBLE STATE" })).toBeVisible();
     await page.getByRole("button", { name: "Battle view" }).click();
     await expect(canvas).toBeVisible();
     await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
