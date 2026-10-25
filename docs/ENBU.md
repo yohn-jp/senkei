@@ -91,3 +91,13 @@ EnbuはJinreiテキストの字句解析・パーサやノーコード編集面�
 - 未対応Capability、規則や戦術のバージョン不一致を拒否する。
 - 公開描画データに非公開コードや内部トレースが混入しない。
 - ブラウザWASM版とRustネイティブ版でゴールデンケースが一致する。
+
+## 8. Declarative World・Behavior・Decision Traceとの接続
+
+EnbuのRuntimeは**検証済みのCanonical Simulation WorldとRulePlan**を消費する。入力Worldは[WORLD-DEFINITION.md](WORLD-DEFINITION.md)のCompilerで定義・検証し、地形MeshやEditorから直接経路・戦闘ルールを補完しない。
+
+行動調停では[BEHAVIOR.md](BEHAVIOR.md)のHero Default、Army/Squad有効選好、Jinrei条件付きOverride、合法なIntentを同じTickの陣営別観測Snapshotから解決する。**Army/Squad/Hero/Minionの作用主体を明示**し、一主体の移動と通常攻撃を同時に成立させない。既存の同時評価、規範Tie-break、固定小数点、CUの独立性は維持する。
+
+**Decision TraceはRestrictedDiagnostics**：各Tick／作用主体について、適用Profile、発火候補、採用・拒否・ブロック理由、最終行動、確定結果への参照を権威的に記録する。診断の上限・認可・Lifetimeを定義し、公開PresentationReplayへ内部トレースを丸ごと書き出さない。Editorへの現在値は[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)と一致する認可済みObservationから投影する。
+
+本項は将来実装の契約であり、現在のEnbuの全分岐にDecision Traceが実装済みだと主張しない。

@@ -5,7 +5,7 @@
 本書は次期SenritsuのBattlefieldについて、**ノードとエッジの接続、通路、動的な橋・渡河、三トラック移動、ノード交戦、射程、Squadとの関係**を定義する設計正本とする。単なる描画仕様ではない。
 
 - [COMPONENTS.md](COMPONENTS.md)／[SENRITSU.md](SENRITSU.md)：コンポーネント責務、版付きRulePackage／Capability。戦場の意味論はSenritsuが所有し、Enbuの有限な遷移プリミティブが実行する。
-- [WORLD.md](WORLD.md)：地形・Minion視界・Fog of Warなどの上位原則。本書を**具体的なBattlefieldのトポロジーと交戦境界の正本**とする。
+- [WORLD.md](WORLD.md)：地形・Minion視界・Fog of Warなどの上位原則。宣言的World/CompilerとLogic/Presentationの分離は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) が正本。本書を**具体的なBattlefieldのトポロジーと交戦境界の正本**とする。
 - [COMBAT.md](COMBAT.md)：基本攻撃、成長、追撃、Skill、Squad遷移。[UNITS.md](UNITS.md)：Hero／Squadと編成。[BALANCE.md](BALANCE.md)：既存の合意済み係数と調整。
 - [ENBU.md](ENBU.md)／[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)：決定論的Tickと宣言的戦術評価。[REPLAY.md](REPLAY.md)／[GRAPHICS.md](GRAPHICS.md)／[UI-DESIGN.md](UI-DESIGN.md)：認可された表示・描画・操作。
 - **合意した規範**は本書の各節に記述する。**初期マップ案**のノード数・距離・塔数・渡河時間・射程幅・効果値は調整用パラメータであり、既存ルールの実装済み事実や確定バランス値を意味しない。
@@ -279,3 +279,22 @@ MID観測基地の初期案：中立基地内に単一陣営が継続滞在し�
 **これ以上ゲームコンセプトを再審議する必要はない。** ただし最終実装前に、暫定距離の座標埋め込み、トラック占有の粒度・横断時間、橋と渡河の移動中状態、攻撃の準備／硬直、橋の建設コスト・耐久・修復、MID占拠の詳細、地形Skillの優先度、固定小数点端数・同Tick効果順を**版付きRulesetパラメータと適合テスト**として固定する。
 
 数値の再調整はパラメータ変更として扱い、トポロジー（ID・接続・固定橋位置）や交戦意味論の変更とは区別する。トポロジー／能力／公開観測を変える場合は互換性・digest・検証を更新する。実際の実装が本書と一致しない箇所を、画面の見た目や既存Fixtureを根拠として「合意済み」とみなさない。
+
+## 15. World Definition・経路選好・施設の追加契約
+
+本書の35ノード／42エッジ、論理距離、3トラック、河川・橋の通行、Combat Domainは変更しない。その**宣言的なデータ表現とCompiler**は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を正本とする。画面上の位置・曲線・高低差は比率を保った別Presentationであり、論理WUを1:1で描く義務はない。Topology・Metric・Terrain semanticsとPresentationでDigestを分離し、見た目だけの変更が戦闘結果を変えない。
+
+### 経路の自律選択
+
+- Jinreiは**目的地＋経路方針**を指定するのが基本。fastest、safest、avoid_combat等の名前付き選好をSenritsuで型付けする。必要なら**合法な経由ノード列**を追加できる。実際の隣接エッジを飛ばさない。
+- 最短距離だけでなく、地形適応・ジャングル速度・橋の状態・渡河時間・観測された危険を使う。敵の非公開位置や未来の移動を隠れた重みとして使用しない。
+- 選好の共通Default、Heroごとの差、Squad集約、Jinrei上書き、再計画契機とConflict処理は [BEHAVIOR.md](BEHAVIOR.md) を正本とする。
+
+### 橋・ノード・MID基地
+
+- 固定橋は**公共施設**。A/Bいずれが拡張／再建しても、状態に応じた通路は両陣営へ開放される。相手だけの通行禁止や所有側だけの追加トラックを暗黙に設けない。
+- **通常ノードは所有権を持たない**。静的なA/B/N属性と、第6節の敵の現在存在による退出ブロックだけを使う。特殊施設（MID観測基地等）だけに動的占拠を導入する。
+- MID観測基地は**全域監視装置ではない**。局所視界と、その観測で確認できた敵の移動方向を得られる。敵の予定経路・Jinrei・未観測の目標は分からない。可視性・遮蔽の意味論は [WORLD.md](WORLD.md) の第12節に従う。
+- 本項の値（経路選好重み、橋の耐久・建設Tick、MID視界の半径・持続）はRulePackageの版付きパラメータであり、既存の確定トポロジーを書き換えない。
+
+本項は**将来も残す仕様**であり、特定のPRへ対する作業指示ではない。

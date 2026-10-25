@@ -100,7 +100,7 @@
 
 ## 9. 次期MOBA型マップとの境界
 
-戦場の具体的なノード・エッジ、固定橋、河上MID基地、三トラックと交戦領域は [BATTLEFIELD.md](BATTLEFIELD.md) が正本。Rendererは通行・射程・隊列・建設状態を推定または再計算しない。
+戦場の具体的なノード・エッジ、固定橋、河上MID基地、三トラックと交戦領域は [BATTLEFIELD.md](BATTLEFIELD.md) が正本。宣言的なWorld Logicと表示用の座標・幾何の分離は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を正本とする。Rendererは通行・射程・隊列・建設状態を推定または再計算しない。
 
 現行のGraphics G1はコンパクトな三レーンの固定Fixtureであり、最新のゲームマップそのものではない。[WORLD.md](WORLD.md) で合意した次期Senritsuの戦場は、対角側に本拠地を置く**広いMOBA型のTOP/MID/BOT三レーン**と、レーン間の**複数の中立モンスター地点**を持つ。新規Fixture／Enbu Adapterでこれを表示できるようにするが、Rendererから通行権、敵位置、XP、移動倍率を計算し直さない。
 

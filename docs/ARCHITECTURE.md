@@ -106,3 +106,25 @@ Enbuは、検証済み攻撃戦型・防衛戦型と不変のSenritsu／戦場�
 Enbuの結果から、ゲームロジックと分離したバージョン付きの`PresentationReplay`を生成し、`Replay Decoder → Replay Player → read-only View State → Scene Adapter → Renderer`の順に消費する。**これはHTTP APIではなくデータ契約**。RendererはEnbu、Jinrei、Senritsuの内部実装に依存せず、勝敗やダメージを再計算しない。
 
 画風はプロシージャル3D＋Pixel 3D（[GRAPHICS.md](GRAPHICS.md)）を第一候補とし、データ契約は [REPLAY.md](REPLAY.md)、Desktop/Mobile UIは [UI-DESIGN.md](UI-DESIGN.md) に分離する。Replay Schemaと固定Fixtureにより、Enbu完成前でも描画を独立実装・テストできる。初期のG1範囲は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) による。
+
+## 10. 宣言的World・Behavior・自己記述Catalogの契約
+
+本製品における追加の長期責務境界は次のとおり。
+
+~~~text
+World Definition → Validator / Compiler
+                    ├─ Canonical Simulation World + Logic Digest → Senritsu / Enbu
+                    └─ Canonical Presentation World + Presentation Digest → Renderer
+
+Senritsu RulePackage → Typed Public Domain Catalog → Jinrei Compiler / Editor
+                    → RulePlan → Enbu
+
+Hero Default + Army/Squad profiles + Jinrei Intent → Senritsu arbitration → Enbu
+Enbu authorized Observation → Editor current values
+Enbu restricted Decision Trace → owner/editor analysis
+Enbu PresentationReplay → public-authorized Renderer
+~~~
+
+[WORLD-DEFINITION.md](WORLD-DEFINITION.md)、[BEHAVIOR.md](BEHAVIOR.md)、[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md) が詳細正本。定義ファイルと実行コードを分離するが、**新しいゲームルール用スクリプト言語は導入しない**。Jinrei v0.1を変えず、RulePackageのCatalogから型とCapabilityを共有する。
+
+Worldの表示だけが変更された場合はLogic Digest・Enbu結果・CUを維持し、Presentation Digestだけ変化させる。非公開の状態／戦術TraceをRenderer・他陣営のEditorへ送ることは禁止する。
