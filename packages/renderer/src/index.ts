@@ -308,6 +308,8 @@ export class Battlefield {
   private playing = false;
   private changedAt = 0;
   private frame = 0;
+  private performanceWindowStart = 0;
+  private performanceFrameCount = 0;
   private resize: ResizeObserver;
   private mobile = false;
   private pixel = true;
@@ -350,6 +352,7 @@ export class Battlefield {
     );
     this.canvas.addEventListener("webglcontextlost", this.contextLost);
     this.gl.setPixelRatio(1);
+    this.gl.info.autoReset = false;
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -2284,6 +2287,8 @@ export class Battlefield {
   private render = () => {
     if (this.destroyed) return;
     try {
+      const frameStarted = performance.now();
+      this.gl.info.reset();
       this.controls.update();
       const tracked = this.trackedIds
         .map((id) => this.state?.entities[id])
@@ -2798,6 +2803,17 @@ export class Battlefield {
         ? [pose.walk, pose.strike, pose.hit, pose.attackLean].map((value) => value.toFixed(3)).join(",")
         : "";
       this.canvas.dataset.rendered = "true";
+      this.canvas.dataset.drawCalls = String(this.gl.info.render.calls);
+      this.canvas.dataset.triangles = String(this.gl.info.render.triangles);
+      this.canvas.dataset.renderCpuMs = (performance.now() - frameStarted).toFixed(2);
+      if (!this.performanceWindowStart) this.performanceWindowStart = frameStarted;
+      this.performanceFrameCount++;
+      const windowMs = frameStarted - this.performanceWindowStart;
+      if (windowMs >= 1000) {
+        this.canvas.dataset.fps = (this.performanceFrameCount * 1000 / windowMs).toFixed(1);
+        this.performanceWindowStart = frameStarted;
+        this.performanceFrameCount = 0;
+      }
       this.frame = requestAnimationFrame(this.render);
     } catch (error) {
       this.onFailure(error instanceof Error ? error.message : "WebGL描画失敗");
