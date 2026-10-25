@@ -837,6 +837,35 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &["B.BASE";5], &["A.BASE";5]),
     ];
 
+    // Preserve every measured case before checking historical regression
+    // baselines. If a real engine or canonical World change alters an outcome,
+    // the run still leaves a complete, reviewable artifact instead of losing
+    // all measurements at the first stale expectation.
+    if let Some(path) = std::env::var_os("NEXT_STRATEGIC_REPORT").map(PathBuf::from) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .unwrap_or_else(|error| panic!("could not create {}: {error}", parent.display()));
+        }
+        write_report(
+            &path,
+            &serde_json::json!({
+                "schema": "senkei-next-strategic-measurements/v1",
+                "ruleset_id": rules.ruleset().id.as_str(),
+                "ruleset_version": rules.ruleset().version,
+                "mechanics_version": rules.plan().next.as_ref().expect("Next rules are validated").mechanics_version,
+                "package_digest": rules.package_digest().as_str(),
+                "baseline_assertions_run": false,
+                "measurement_source": "eight distinct authored inputs simulated by production Enbu",
+                "case_count": cases.len(),
+                "cases": cases,
+                "limits": [
+                    "These measured outcomes are observations for fixed authored inputs, not a win-rate estimate.",
+                    "A timeout is reported as a time-limited observation and does not imply an ideal match duration."
+                ]
+            }),
+        );
+    }
+
     let case = |id: &str| cases.iter().find(|case| case["case_id"] == id)
         .unwrap_or_else(|| panic!("strategic case {id} is included"));
     let structure_hp = |case: &serde_json::Value, catalog_id: &str| {
