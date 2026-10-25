@@ -855,6 +855,38 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       }, captures);
     }
 
+    const lateralHero = heroAt(canonical.ownerReplay, 3, "F01");
+    const lateralCrossRemaining = integerField(lateralHero, "cross_remaining");
+    expect(lateralCrossRemaining, "F01 is in the real three-tick LEFT-to-RIGHT transit at T3").toBeGreaterThan(0);
+    expect(field(lateralHero, "track"), "lateral crossing occupies the CENTER track").toBe("CENTER");
+    const lateralTarget = await followHero(page, viewport, canonical.ownerReplay, 3, "F01", "Azure");
+    await saveCapture(page, "canonical-real-battle", "lateral-crossing-follow", 3, viewport, "Follow", {
+      catalogId: lateralTarget.catalogId,
+      side: lateralTarget.side,
+      rendererEntityId: lateralTarget.id,
+      node: field(lateralHero, "node"),
+      edgeTo: field(lateralHero, "edge_to"),
+      edgeProgress: integerField(lateralHero, "edge_progress"),
+      track: field(lateralHero, "track"),
+      crossRemaining: lateralCrossRemaining,
+    }, captures);
+
+    const fordHero = heroAt(canonical.ownerReplay, 24, "F02");
+    const fordRemaining = integerField(fordHero, "ford_remaining");
+    expect(fordRemaining, "F02 occupies the actual bridge-free Jungle ford at T24").toBeGreaterThan(0);
+    const fordTarget = await followHero(page, viewport, canonical.ownerReplay, 24, "F02", "Azure");
+    await saveCapture(page, "canonical-real-battle", "ford-transit-follow", 24, viewport, "Follow", {
+      catalogId: fordTarget.catalogId,
+      side: fordTarget.side,
+      rendererEntityId: fordTarget.id,
+      node: field(fordHero, "node"),
+      edgeTo: field(fordHero, "edge_to"),
+      edgeProgress: integerField(fordHero, "edge_progress"),
+      track: field(fordHero, "track"),
+      fordRemaining,
+      bridgeFree: true,
+    }, captures);
+
     const overviewTicks = viewport.width > 700 ? [0, 23, 70] : [0, 23];
     for (const tick of overviewTicks) {
       await setView(page, viewport, "Overview");
@@ -1414,6 +1446,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       desktopTacticalOverviewFollow: true,
       followAuthorizedBridgeFacility: true,
       followActualHeroMovementAndAttack: true,
+      followActualLateralAndFordTransit: true,
       actualEnbuBaseDamageAndDestruction: true,
       mobileBattleOverviewFollowTimelineDetails: true,
       mapRoutesAndRiver: true,
@@ -1438,6 +1471,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     `| Mobile battlefield and matched T16 state | [6fa8296 baseline](${beforeImages.mobile}) | [actual T16 state](default-enbu-battle/390x844/matched-baseline-t016-tactical.png) | 390×844, T16, Tactical; movement facts in metadata |`,
     `| First confirmed Hero attack | — | [actual first attack](default-enbu-battle/390x844/first-hero-clash-t${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")}-tactical.png) | replay tick T${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")} |`,
     `| Same-Hero movement and attack Follow | — | [movement](default-enbu-battle/1440x900/confirmed-move-follow-t${String(defaultHeroMovement?.tick ?? 0).padStart(3, "0")}-follow.png), [attack](default-enbu-battle/1440x900/confirmed-attack-follow-t${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")}-follow.png) | ${defaultAttackHero?.side ?? "unknown"} ${defaultAttackHero?.catalogId ?? "unknown"}; actual replay entity IDs and position facts in metadata |`,
+    `| Follow lane and bridge-free ford movement | — | [F01 lateral transit](canonical-real-battle/1440x900/lateral-crossing-follow-t003-follow.png), [F02 ford transit](canonical-real-battle/1440x900/ford-transit-follow-t024-follow.png) | CENTER occupancy and ford remaining are confirmed in the authorized owner replay at all five viewports |`,
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
     `| Close-focus facility Follow | — | [TOP normal](canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png), [MID destroyed](canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png), [TOP expanded](canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png), [TOP destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png), [TOP rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png) | camera follows an authorized visible bridge entity |`,
