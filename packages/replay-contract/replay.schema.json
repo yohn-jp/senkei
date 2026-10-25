@@ -54,6 +54,12 @@
             "digest"
           ]
         },
+        "ruleset": {
+          "$ref": "#/$defs/RulesetIdentity"
+        },
+        "world": {
+          "$ref": "#/$defs/WorldIdentityRef"
+        },
         "view": {
           "enum": [
             "public",
@@ -262,6 +268,48 @@
     "result"
   ],
   "$defs": {
+    "Version": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "major": { "type": "integer", "minimum": 0 },
+        "minor": { "type": "integer", "minimum": 0 },
+        "patch": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["major", "minor", "patch"]
+    },
+    "RulesetIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "version": { "$ref": "#/$defs/Version" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "required": ["id", "version", "digest"]
+    },
+    "WorldIdentityRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "world_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "schema_version": { "$ref": "#/$defs/Version" },
+        "minimum_compiler": { "$ref": "#/$defs/Version" },
+        "maximum_compiler_exclusive": {
+          "anyOf": [{ "$ref": "#/$defs/Version" }, { "type": "null" }]
+        },
+        "validation_profile_id": { "type": ["string", "null"], "minLength": 1, "maxLength": 100 },
+        "validation_profile_version": {
+          "anyOf": [{ "$ref": "#/$defs/Version" }, { "type": "null" }]
+        },
+        "logic_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "presentation_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "required": [
+        "world_id", "schema_version", "minimum_compiler", "maximum_compiler_exclusive",
+        "validation_profile_id", "validation_profile_version", "logic_digest", "presentation_digest"
+      ]
+    },
     "WorldPoint": {
       "type": "object",
       "additionalProperties": false,
@@ -429,7 +477,7 @@
             "$ref": "#/$defs/WorldPoint"
           },
           "minItems": 2,
-          "maxItems": 2
+          "maxItems": 256
         },
         "bridgeSite": {
           "enum": [

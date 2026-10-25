@@ -16,7 +16,7 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 
 | 論理セクション | 必要情報 |
 | --- | --- |
-| Header | schemaVersion、出力由来（sample／official等）、Enbu版、SenritsuのID／digest、観測ビュー種別 |
+| Header | schemaVersion、出力由来（sample／official等）、Enbu版、RulePackageのID／version／digest、paired World identity、観測ビュー種別 |
 | Scene | 描画に許可された地形、レーン、中立地点、Senritsuの通行可能経路、施設、本拠地等の初期構造 |
 | InitialView | プレゼンテーションID、所属、表示種別、位置、見えている初期状態 |
 | Timeline | Tick、同一Tickの全順序キー、許可されたイベント |
@@ -24,7 +24,7 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 | Result | 公開可能な勝敗、終局理由、終局Tick |
 | Presentation metadata | 表示の座標規約、appearanceKey、アセットカタログ版 |
 
-上記は**実装時にv0.1 Schemaへ具体化する必要のある契約事項**。フィールド名・JSON構造・バイナリ形式はまだ実装で確定していないため、設計段階の例を既存APIと呼ばない。
+Replay 0.3では、`header.ruleset` が `ruleset_id`／version／digestを持ち、`header.world` がWorld ID、schema/compiler compatibility、validation profile、logic digest、presentation digestを持つ。Enbu Replay、RulePackage、BattleMapのpaired World identityが完全一致しないNext Replayは拒否する。旧sample Fixtureはidentityを持たない形でも読み込めるが、official／local Replay 0.3では省略できない。
 
 ## 3. 座標・時間とイベント
 
@@ -64,6 +64,8 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 
 
 公開Replayは**許可リスト方式で生成**する。内部診断トレースをまるごと出力してからクライアント側で隠す方式は禁止する。相手の非公開Jinreiソース、IR、条件、戦術メモリ、内部CU内訳、未観測状態を含めない。
+
+EnbuはPublic Replayと、Attacker／Defender別のOwner Replayを分けて生成する。Owner Replayはその陣営の現在認可済みViewとFog履歴を持つ。Public ReplayはFog履歴やOwner-only fieldを持たない。RestrictedDiagnosticsは別の認可経路であり、ローカルworkerではOwner Replayの返却をRestrictedDiagnosticsを要求したsimulation responseに限定する。
 
 自軍のCU・ルール発火等の分析は別のRestrictedDiagnostics契約を経由し、可視権限を検証する。Default/Inherited/Explicitの行動根拠、候補の採否、拒否理由、CU等を含むDecision Traceは [BEHAVIOR.md](BEHAVIOR.md) で定義する**認可済み内部診断**であり、公開PresentationReplayへ埋め込まない。Editorへの現在観測値も同じ権限境界を維持する。リプレイの挙動から相手の戦術を推測される可能性は残るが、直接ソースを配布してはならない。
 

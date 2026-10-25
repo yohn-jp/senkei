@@ -1,15 +1,37 @@
 import { describe, expect, it } from "vitest";
 import type {
+  DomainValue,
   MatchResult,
   PresentationReplay as CoreReplay,
   RulePackage,
 } from "../../../apps/web/src/contracts/core-model";
 import {
-  NEXT_BATTLEFIELD_PRESENTATION_WORLD,
   presentationToGraphics,
-  type NextPresentationWorldDefinition,
 } from "./next-adapter";
 import { decodeReplay, type PresentationReplay } from "./index";
+import type { RulesetIdentity, WorldIdentityRef } from "./generated";
+
+const WORLD: WorldIdentityRef = {
+  world_id: "fixture-world", schema_version: { major: 1, minor: 0, patch: 0 },
+  minimum_compiler: { major: 1, minor: 0, patch: 0 }, maximum_compiler_exclusive: null,
+  validation_profile_id: null, validation_profile_version: null,
+  logic_digest: "d".repeat(64), presentation_digest: "e".repeat(64),
+};
+const RULESET: RulesetIdentity = { id: "senkei.next", version: { major: 2, minor: 0, patch: 0 }, digest: "a".repeat(64) };
+type TestRiverAnchor =
+  | { readonly kind: "bridge-midpoint"; readonly edgeId: string; readonly site: "TOP" | "MID" | "BOT" }
+  | { readonly kind: "ford-midpoint"; readonly edgeId: string }
+  | { readonly kind: "node"; readonly nodeId: string; readonly region: string };
+interface TestPresentationWorld { readonly river: { readonly anchors: readonly TestRiverAnchor[]; readonly terminalExtension: number } }
+const TEST_PRESENTATION_WORLD: TestPresentationWorld = { river: { anchors: [
+  { kind: "bridge-midpoint", edgeId: "bridge.TOP", site: "TOP" },
+  { kind: "ford-midpoint", edgeId: "ford.jungle.upper" },
+  { kind: "node", nodeId: "N.MID.OBS", region: "observation" },
+  { kind: "ford-midpoint", edgeId: "ford.jungle.lower" },
+  { kind: "bridge-midpoint", edgeId: "bridge.BOT", site: "BOT" },
+], terminalExtension: 8 } };
+const value = (kind: "integer" | "string", value: number | string): DomainValue => ({ kind, value } as DomainValue);
+const viewEntity = (entity_type: string, fields: Record<string, DomainValue>) => ({ entity_type, owner: "attacker", fields });
 
 function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; ford?:boolean }[] = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
@@ -18,15 +40,29 @@ function project(edges: readonly { from:string; to:string; length:number; region
   attacker: { x: 0, y: 0, region: "base" },
   camp: { x: 250, y: 125, region: "jungle" },
   defender: { x: 500, y: 250, region: "base" },
-}, presentationWorld: NextPresentationWorldDefinition = NEXT_BATTLEFIELD_PRESENTATION_WORLD, lanes: Record<string, string[]> = { mid: ["attacker", "camp", "defender"] }) {
+}, presentationWorld: TestPresentationWorld = TEST_PRESENTATION_WORLD, lanes: Record<string, string[]> = { mid: ["attacker", "camp", "defender"] }, sourceWorld: WorldIdentityRef | null = WORLD, packageWorld: WorldIdentityRef | null = WORLD, mapWorld: WorldIdentityRef | null = packageWorld, sourceRuleset: RulesetIdentity | null = RULESET, presentationNodes: Record<string, { x: number; y: number }> = Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { x: node.x, y: node.y }])), presentationPaths: Record<string, { points: { x: number; y: number }[] }> = {}) {
+  const edgePaths = Object.fromEntries(edges.map(edge => [edge.id || `${edge.from}-${edge.to}`, presentationPaths[edge.id || `${edge.from}-${edge.to}`] ?? {
+    points: [{ x: presentationNodes[edge.from]?.x ?? nodes[edge.from]?.x ?? 0, y: presentationNodes[edge.from]?.y ?? nodes[edge.from]?.y ?? 0 },
+      { x: presentationNodes[edge.to]?.x ?? nodes[edge.to]?.x ?? 0, y: presentationNodes[edge.to]?.y ?? nodes[edge.to]?.y ?? 0 }],
+  }]));
+  const riverPoints = testRiverPoints(edges, nodes, presentationNodes, presentationWorld);
   const ruleset = {
-    ruleset: { id: "senkei.next", digest: "a".repeat(64) },
+    ruleset: RULESET,
     minimum_engine_version: { major: 1, minor: 2, patch: 0 },
     next: {
       parameters: { tick_duration_ms: 100 },
+      world_identity: packageWorld,
       map: {
+        world_identity: mapWorld,
+        world_projection: { source_identity: mapWorld, presentation_artifact: { schema_version: { major: 1, minor: 0, patch: 0 }, content: {
+          node_positions: Object.fromEntries(Object.entries(presentationNodes).map(([id, position]) => [id, { position }])),
+          edge_paths: edgePaths,
+          rivers: riverPoints.length >= 2 ? { "river.fixture": { points: riverPoints } } : {},
+        } } },
         attacker_base: "attacker", defender_base: "defender",
-        nodes,
+        nodes: Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, {
+          ...node, presentation_x: presentationNodes[id]?.x, presentation_y: presentationNodes[id]?.y,
+        }])),
         edges,
         lanes,
       },
@@ -37,6 +73,8 @@ function project(edges: readonly { from:string; to:string; length:number; region
   const replay = {
     schema_version: { major: 1, minor: 0, patch: 0 },
     match_id: "match-1",
+    ...(sourceRuleset ? { ruleset: sourceRuleset } : {}),
+    ...(sourceWorld ? { world_identity: sourceWorld } : {}),
     result_digest: "b".repeat(64),
     frames,
   } as unknown as CoreReplay;
@@ -49,7 +87,25 @@ function project(edges: readonly { from:string; to:string; length:number; region
     cu_spent: { attacker: 0, defender: 0 },
     final_state_digest: "c".repeat(64),
   } as unknown as MatchResult;
-  return presentationToGraphics(replay, ruleset, result, ruleset.minimum_engine_version, presentationWorld);
+  return presentationToGraphics(replay, ruleset, result, ruleset.minimum_engine_version);
+}
+
+function testRiverPoints(edges: readonly { id?: string; from: string; to: string; bridge_site?: string; ford?: boolean }[], nodes: Record<string, { x:number; y:number; region:string }>, presentationNodes: Record<string,{x:number;y:number}>, world: TestPresentationWorld): {x:number;y:number}[] {
+  const anchors = world.river.anchors.map(anchor => {
+    if (anchor.kind === "node") {
+      const node = nodes[anchor.nodeId]; const point = presentationNodes[anchor.nodeId];
+      return node?.region === anchor.region && point ? point : undefined;
+    }
+    const edge = edges.find(item => item.id === anchor.edgeId);
+    if (!edge || (anchor.kind === "ford-midpoint" && !edge.ford) || (anchor.kind === "bridge-midpoint" && edge.bridge_site !== anchor.site)) return undefined;
+    const from = presentationNodes[edge.from] ?? nodes[edge.from]; const to = presentationNodes[edge.to] ?? nodes[edge.to];
+    return from && to ? { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 } : undefined;
+  });
+  if (anchors.length < 2 || anchors.some(point => !point)) return [];
+  const points = anchors as {x:number;y:number}[];
+  const first=points[0]!,second=points[1]!,last=points.at(-1)!,before=points.at(-2)!;
+  const extend=(from:{x:number;y:number},toward:{x:number;y:number},distance:number)=>{const dx=toward.x-from.x,dy=toward.y-from.y,length=Math.hypot(dx,dy)||1;return{x:from.x+dx/length*distance,y:from.y+dy/length*distance};};
+  return [extend(first,second,-world.river.terminalExtension),...points,extend(last,before,-world.river.terminalExtension)];
 }
 
 describe("Next map graph projection", () => {
@@ -76,6 +132,37 @@ describe("Next map graph projection", () => {
       { x: 10, y: 5 },
       { x: 20, y: 10 },
     ]);
+  });
+
+  it("maps graph progress through presentation coordinates and ignores logical entity x/y for rendering", () => {
+    const hero = viewEntity("hero", {
+      hp: { kind: "integer", value: 100 }, max_hp: { kind: "integer", value: 100 },
+      x: { kind: "integer", value: 999_999 }, y: { kind: "integer", value: -999_999 },
+      node: { kind: "string", value: "attacker" }, edge_to: { kind: "string", value: "camp" },
+      edge_progress: { kind: "integer", value: 125 },
+    });
+    const frame = { tick: 0, events: [], visible_state: { entities: { hero }, global_fields: {} } } as unknown as CoreReplay["frames"][number];
+    const visual = {
+      attacker: { x: 1000, y: 0 }, camp: { x: 2000, y: 500 }, defender: { x: 3000, y: 1000 },
+    };
+    const replay = project(undefined, [frame], undefined, undefined, undefined, WORLD, WORLD, WORLD, RULESET, visual);
+    expect(replay.scene.nodes?.[0]?.position).toEqual({ x: 40, y: 0 });
+    expect(replay.initialView[0]?.position).toEqual({ x: 60, y: 10 });
+  });
+
+  it("renders the paired World route path and projects entity progress along its authored geometry", () => {
+    const hero = viewEntity("hero", {
+      hp: { kind: "integer", value: 100 }, max_hp: { kind: "integer", value: 100 },
+      node: { kind: "string", value: "attacker" }, edge_to: { kind: "string", value: "camp" },
+      edge_progress: { kind: "integer", value: 125 },
+    });
+    const frame = { tick: 0, events: [], visible_state: { entities: { hero }, global_fields: {} } } as unknown as CoreReplay["frames"][number];
+    const replay = project(undefined, [frame], undefined, undefined, undefined, WORLD, WORLD, WORLD, RULESET, undefined, {
+      "attacker-camp": { points: [{ x: 0, y: 0 }, { x: 125, y: 200 }, { x: 250, y: 125 }] },
+    });
+    expect(replay.scene.routes?.[0]?.points).toEqual([{ x: 0, y: 0 }, { x: 5, y: 8 }, { x: 10, y: 5 }]);
+    expect(replay.initialView[0]?.position.x).toBeCloseTo(4.045199, 5);
+    expect(replay.initialView[0]?.position.y).toBeCloseTo(6.472319, 5);
   });
 
   it("rejects graph edges that reference a missing Senritsu node", () => {
@@ -138,7 +225,7 @@ describe("Next map graph projection", () => {
   });
 
   it("does not treat an edge ID with the wrong crossing role as a river anchor", () => {
-    const presentationWorld: NextPresentationWorldDefinition = {
+    const presentationWorld: TestPresentationWorld = {
       river: {
         anchors: [
           { kind: "bridge-midpoint", edgeId: "bridge.TOP", site: "TOP" },
@@ -214,7 +301,7 @@ describe("Next map graph projection", () => {
       mid: ["A.MID.J", "N.MID.OBS", "B.MID.J"],
       bot: ["A.BOT.J", "B.BOT.J"],
     };
-    const forward = project(edges, [], nodes, NEXT_BATTLEFIELD_PRESENTATION_WORLD, lanes);
+    const forward = project(edges, [], nodes, TEST_PRESENTATION_WORLD, lanes);
 
     expect(forward.scene.nodes).toHaveLength(35);
     expect(forward.scene.routes).toHaveLength(42);
@@ -310,7 +397,7 @@ describe("Next map graph projection", () => {
       mid: lanes.mid.map(rotateId),
       top: lanes.bot.map(rotateId),
     };
-    const rotated = project(rotatedEdges, [], rotatedNodes, NEXT_BATTLEFIELD_PRESENTATION_WORLD, rotatedLanes).scene.river!;
+    const rotated = project(rotatedEdges, [], rotatedNodes, TEST_PRESENTATION_WORLD, rotatedLanes).scene.river!;
     const rotateBack = [...river].reverse().map(point => ({ x: 64 - point.x, y: 64 - point.y }));
     rotated.forEach((point, index) => {
       expect(point.x).toBeCloseTo(rotateBack[index]!.x, 8);
@@ -368,6 +455,19 @@ describe("Next map graph projection", () => {
     expect(replay.initialView.find(entity => entity.archetype === "hero")?.battlefield?.remaining).toBe(0);
     expect(replay.timeline.some(event => event.type === "facility-state" && event.battlefield.captureSide === "vermilion" && event.battlefield.facilityOwner === "azure")).toBe(true);
   });
+});
+
+it("rejects incomplete or mismatched paired World identity", () => {
+  const wrong = { ...WORLD, presentation_digest: "f".repeat(64) };
+  expect(() => project(undefined, undefined, undefined, undefined, undefined, { ...WORLD, logic_digest: "f".repeat(64) }, WORLD, WORLD))
+    .toThrow("World identities do not match");
+  expect(() => project(undefined, undefined, undefined, undefined, undefined, WORLD, WORLD, wrong))
+    .toThrow("World identities do not match");
+  expect(() => project(undefined, undefined, undefined, undefined, undefined, null, WORLD, WORLD))
+    .toThrow("complete RulePackage and paired World identity");
+  expect(() => project(undefined, undefined, undefined, undefined, undefined, WORLD, WORLD, WORLD,
+    { ...RULESET, digest: "d".repeat(64) }))
+    .toThrow("RulePackage identity does not match");
 });
 
 

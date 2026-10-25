@@ -81,6 +81,8 @@ export interface PresentationReplay {
       id: string;
       digest: string;
     };
+    ruleset?: RulesetIdentity;
+    world?: WorldIdentityRef;
     view: "public" | "attacker" | "defender";
   };
   presentation: {
@@ -166,6 +168,26 @@ export interface PresentationReplay {
     frames: [FogFrame, ...FogFrame[]];
   };
 }
+export interface RulesetIdentity {
+  id: string;
+  version: Version;
+  digest: string;
+}
+export interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+}
+export interface WorldIdentityRef {
+  world_id: string;
+  schema_version: Version;
+  minimum_compiler: Version;
+  maximum_compiler_exclusive: Version | null;
+  validation_profile_id: string | null;
+  validation_profile_version: Version | null;
+  logic_digest: string;
+  presentation_digest: string;
+}
 export interface WorldPoint {
   x: number;
   y: number;
@@ -185,9 +207,9 @@ export interface Route {
   region: string;
   /**
    * @minItems 2
-   * @maxItems 2
+   * @maxItems 256
    */
-  points: [WorldPoint, WorldPoint];
+  points: [WorldPoint, WorldPoint, ...WorldPoint[]];
   bridgeSite?: "TOP" | "MID" | "BOT";
   ford?: boolean;
 }

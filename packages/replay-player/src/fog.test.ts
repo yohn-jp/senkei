@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeReplay, type PresentationReplay } from "@senkei/replay-contract";
-import { stateAt } from "./index";
+import { ReplayPlayer, stateAt } from "./index";
 import basic from "../../replay-contract/fixtures/basic-three-lane.json";
 
 const samples = (s: "visible" | "explored") => [s, s, s, s, s, s, s, s, s] as [typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s];
@@ -36,6 +36,34 @@ describe("authorized fog projection and seek", () => {
     expect(() => decodeReplay(unknown)).toThrow("node");
     const mutable = input(); Object.assign(mutable.fog!.frames[1].facilities[0], { hp: 99 });
     expect(() => decodeReplay(mutable)).toThrow("additional properties");
+  });
+  it("requires complete map masks and never forgets explored geography", () => {
+    const missingNode = input(); delete missingNode.fog!.frames[0].nodes.n;
+    expect(missingNode.fog!.frames[0].nodes).toEqual({});
+    expect(() => decodeReplay(missingNode)).toThrow("every map node");
+    const regressedNode = input(); regressedNode.fog!.frames[1].nodes.n = "unexplored";
+    expect(() => decodeReplay(regressedNode)).toThrow("cannot become unexplored");
+    const regressedEdge = input(); regressedEdge.fog!.frames[1].edges.r[0] = "unexplored";
+    expect(() => decodeReplay(regressedEdge)).toThrow("cannot become unexplored");
+  });
+  it("reconstructs the same fog and display state sequentially and after reverse seeks", () => {
+    const replay = decodeReplay(input());
+    const sequential = Array.from({ length: replay.result.tick + 1 }, (_, tick) => stateAt(replay, tick));
+    const player = new ReplayPlayer(replay);
+    expect(player.state).toEqual(sequential[0]);
+    player.play();
+    for (let tick = 1; tick <= replay.result.tick; tick++) {
+      player.advance(replay.presentation.tickDurationMs);
+      expect(player.state).toEqual(sequential[tick]);
+    }
+    player.pause();
+    for (let tick = replay.result.tick; tick >= 0; tick--) {
+      player.seek(tick);
+      expect(player.state).toEqual(sequential[tick]);
+    }
+    for (let tick = 0; tick <= replay.result.tick; tick++) {
+      expect(stateAt(replay, tick)).toEqual(sequential[tick]);
+    }
   });
   it("keeps legacy replay compatibility without fabricating a fog mask", () => {
     expect(stateAt(decodeReplay(basic), 1).fog).toBeUndefined();

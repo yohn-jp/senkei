@@ -25,6 +25,13 @@ a new identifier after respawn. World coordinates use the exported
 Empty initial views are valid under fog. Unit debris lasts for the death cue;
 destroyed structure ruins can remain for the match.
 
+Replay 0.3 carries `header.ruleset` (ID, version, digest) and the complete
+paired `header.world` reference (World/schema/compiler/profile and logic plus
+presentation digests). The adapter requires exact identity equality between
+the Enbu replay, RulePackage and runtime BattleMap before projecting scene or
+entities. Executed local/official 0.3 replays without both references are
+rejected; sample fixtures remain identity-free.
+
 Replay 0.3 adds the versioned battlefield topology (`scene.nodes`, edge IDs,
 bridge-site and ford metadata, the river line, and the lane-track offset),
 logical node/edge/track positions on move events, and authorized bridge and MID

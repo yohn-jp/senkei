@@ -42,6 +42,7 @@ Tick 18に通常橋を観測、Tick 25に視界を失い、視界外のTick 40�
 
 - **World／Senritsu**：視界提供者、不変の地理、論理遮蔽、観測可能な型を定義。
 - **Enbu**：同じTickの陣営別Observationを確定し、Public／Owner／Restrictedに分け、見えていない実状態を開示しない。
+- **Enbu Owner Replay**：Attacker／Defenderごとに独立したFogHistoryを持つ。片方の探索記憶や施設最終観測を他方へ共有しない。Public ReplayにはFog履歴を入れず、RestrictedDiagnosticsは別フィールド／認可経路にする。
 - **PresentationReplay**：許可されたScene、出現／消失、施設変化だけを投影。未観測の破壊イベントを流してUIで隠す方式は禁止。
 - **Replay Player**：認可済み履歴からExploredと最終観測を再構成。直接シークと順再生の同Tick View Stateは同じでなければならない。
 - **Renderer**：視界の3状態を描くのみ。GPU Raycastや見た目の重なりから論理視界・敵位置を再計算しない。
@@ -60,5 +61,6 @@ Tick 18に通常橋を観測、Tick 25に視界を失い、視界外のTick 40�
 7. Owner／Public／RestrictedのProjectionが権限どおりであり、表示モードで昇格しない。
 8. Jinreiの三値Known／Unknownと表示用Exploredを混同しない。
 9. Fog描画・LOD・FPSはEnbu結果と論理CUを変えない。
+10. 各Fog frameはシーン内の全node／routeを分類し、一度Exploredになった地理をUnexploredへ戻さない。
 
 **未決**：DEC-TERRAIN-OCCLUSION-001、DEC-MID-DIRECTION-001、初期地図公開範囲、観測履歴の保持・Jinrei公開条件。未実装ケースはNOT_CHECKED。

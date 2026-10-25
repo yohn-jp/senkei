@@ -55,6 +55,24 @@ export function decodeReplay(input: unknown): Replay {
     fail("Sample must not claim an Enbu execution");
   if ((r.header.origin === "official" || r.header.origin === "local") && !r.header.enbuVersion)
     fail("Official replay requires an Enbu version");
+  if (r.schemaVersion === "0.3" && r.header.origin !== "sample" && (!r.header.ruleset || !r.header.world))
+    fail("Replay 0.3 requires complete RulePackage and paired World identity");
+  if (r.header.ruleset && (r.header.ruleset.id !== r.header.senritsu.id ||
+      `sha256:${r.header.ruleset.digest}` !== r.header.senritsu.digest))
+    fail("Ruleset identity does not match the Senritsu reference");
+  if (r.header.world) {
+    const world = r.header.world;
+    if ((world.validation_profile_id === null) !== (world.validation_profile_version === null))
+      fail("World validation profile identity must be complete");
+    const version = (value: { major: number; minor: number; patch: number }) =>
+      [value.major, value.minor, value.patch] as const;
+    const minimum = version(world.minimum_compiler);
+    const maximum = world.maximum_compiler_exclusive && version(world.maximum_compiler_exclusive);
+    if (maximum && (maximum[0] < minimum[0] ||
+        (maximum[0] === minimum[0] && maximum[1] < minimum[1]) ||
+        (maximum[0] === minimum[0] && maximum[1] === minimum[1] && maximum[2] <= minimum[2])))
+      fail("World compiler compatibility range is empty");
+  }
   const { min, max } = r.scene.bounds;
   if (min.x >= max.x || min.y >= max.y) fail("Invalid scene bounds");
   const point = (p: WorldPoint) => {
@@ -83,12 +101,32 @@ export function decodeReplay(input: unknown): Replay {
   if (r.fog) {
     if (r.header.view === "public") fail("Fog requires a side-authorized replay");
     let priorFogTick = -1;
+    const exploredNodes = new Set<string>();
+    const exploredEdges = new Set<string>();
+    const routeIdsInScene = new Set((r.scene.routes ?? []).map((route) => route.id));
     for (const frame of r.fog.frames) {
       if (frame.tick <= priorFogTick || frame.tick > r.result.tick || frame.side !== r.header.view)
         fail("Invalid authorized fog frame");
       priorFogTick = frame.tick;
       for (const id of Object.keys(frame.nodes)) if (!nodeIds.has(id)) fail("Unknown fog node");
       for (const id of Object.keys(frame.edges)) if (!routeIds.has(id)) fail("Unknown fog route");
+      if (Object.keys(frame.nodes).length !== nodeIds.size ||
+          [...nodeIds].some((id) => !Object.hasOwn(frame.nodes, id)))
+        fail("Fog frame must classify every map node");
+      if (Object.keys(frame.edges).length !== routeIdsInScene.size ||
+          [...routeIdsInScene].some((id) => !Object.hasOwn(frame.edges, id)))
+        fail("Fog frame must classify every rendered route");
+      for (const [id, state] of Object.entries(frame.nodes)) {
+        if (state !== "unexplored") exploredNodes.add(id);
+        else if (exploredNodes.has(id)) fail("Explored fog node cannot become unexplored");
+      }
+      for (const [id, samples] of Object.entries(frame.edges)) {
+        for (let sample = 0; sample < samples.length; sample++) {
+          const key = `${id}:${sample}`;
+          if (samples[sample] !== "unexplored") exploredEdges.add(key);
+          else if (exploredEdges.has(key)) fail("Explored fog route sample cannot become unexplored");
+        }
+      }
       const facilities = new Set<string>();
       for (const facility of frame.facilities) {
         if (facilities.has(facility.id) || facility.last_seen_tick >= frame.tick)

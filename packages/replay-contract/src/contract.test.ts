@@ -47,6 +47,26 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
       r.timeline[19].tick = 0;
     }, "Event order");
   });
+  it("requires and cross-checks complete RulePackage and paired World identity on executed 0.3 replays", () => {
+    const r = structuredClone(basic) as PresentationReplay;
+    r.schemaVersion = "0.3";
+    r.header.origin = "local";
+    r.header.enbuVersion = "1.2.0";
+    r.scene.nodes = [{ id: "a", allegiance: "A", position: { x: 1, y: 1 } }];
+    r.scene.routes = [{ id: "r", region: "lane", points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }];
+    expect(() => decodeReplay(r)).toThrow("complete RulePackage");
+    r.header.ruleset = { id: r.header.senritsu.id, version: { major: 2, minor: 0, patch: 0 }, digest: "a".repeat(64) };
+    r.header.world = {
+      world_id: "world-a", schema_version: { major: 1, minor: 0, patch: 0 },
+      minimum_compiler: { major: 1, minor: 0, patch: 0 }, maximum_compiler_exclusive: null,
+      validation_profile_id: null, validation_profile_version: null,
+      logic_digest: "b".repeat(64), presentation_digest: "c".repeat(64),
+    };
+    r.header.senritsu.digest = `sha256:${"a".repeat(64)}`;
+    expect(decodeReplay(r).header.world?.presentation_digest).toBe("c".repeat(64));
+    r.header.ruleset.digest = "d".repeat(64);
+    expect(() => decodeReplay(r)).toThrow("does not match the Senritsu reference");
+  });
   it("rejects noninteger, negative, beyond-end and out-of-bounds values", () => {
     invalid((r) => {
       r.timeline[0].tick = 0.5;
