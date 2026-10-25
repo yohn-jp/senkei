@@ -172,6 +172,7 @@ pub fn intents(
             }
         }
         affected.sort(); affected.dedup();
+        if affected.iter().any(|id| world.entities.get(id).is_some_and(|entity| support::int(entity, "action_lock_until") > i64::from(_tick))) { continue; }
         let before = affected.iter().filter_map(|id| world.entities.get(id).map(|entity| (id.clone(), support::string(entity, "squad")))).collect::<Vec<_>>();
         match intent.capability.as_str() {
             "split" => split(world, rules, *side, &actor_id, _tick),
@@ -184,7 +185,7 @@ pub fn intents(
         if before.iter().any(|(id, prior)| world.entities.get(id).is_some_and(|entity| support::string(entity, "squad") != *prior)) {
             for id in affected {
                 if let Some(entity) = world.entities.get_mut(&id) {
-                    support::set_int(entity, "action_lock_until", i64::from(_tick) + 1);
+                    support::set_int(entity, "action_lock_until", support::int(entity, "action_lock_until").max(i64::from(_tick) + 1));
                 }
             }
         }
