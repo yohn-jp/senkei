@@ -47,6 +47,9 @@ pub fn distance2(a: &EntityState, b: &EntityState) -> i128 {
 /// Logical combat distance. Presentation coordinates are intentionally ignored:
 /// only actors in the same Node or on the same graph edge can engage.
 pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> Option<i128> {
+    if !valid_graph_position(a, rules) || !valid_graph_position(b, rules) {
+        return None;
+    }
     let a_node = string(a, "node");
     let a_to = string(a, "edge_to");
     let b_node = string(b, "node");
@@ -63,8 +66,11 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     if !((b_node == edge.from && b_to == edge.to) || (b_node == edge.to && b_to == edge.from)) {
         return None;
     }
-    let a_progress = int(a, "edge_progress").clamp(0, edge.length);
-    let b_progress = int(b, "edge_progress").clamp(0, edge.length);
+    if edge.length <= 0 {
+        return None;
+    }
+    let a_progress = int(a, "edge_progress");
+    let b_progress = int(b, "edge_progress");
     let a_canonical = if a_node == edge.from { a_progress } else { edge.length - a_progress };
     let b_canonical = if b_node == edge.from { b_progress } else { edge.length - b_progress };
     let dx = i128::from(a_canonical) - i128::from(b_canonical);
@@ -80,11 +86,38 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     }
     Some(distance2)
 }
+
+fn valid_graph_position(entity: &EntityState, rules: &NextRules) -> bool {
+    let node = string(entity, "node");
+    let edge_to = string(entity, "edge_to");
+    if node.is_empty() || !rules.map.nodes.contains_key(&node) {
+        return false;
+    }
+    let progress = int(entity, "edge_progress");
+    if edge_to.is_empty() {
+        // Node positions have no progress; stale edge-progress payloads are
+        // ignored once the graph position says Node.
+        return true;
+    }
+    if !rules.map.nodes.contains_key(&edge_to) {
+        return false;
+    }
+    rules.map.edges.iter().any(|edge| {
+        edge.length > 0
+            && progress >= 0
+            && progress <= edge.length
+            && ((edge.from == node && edge.to == edge_to)
+                || (edge.to == node && edge.from == edge_to))
+    })
+}
 /// Graph-geodesic distance for vision, independent of renderer coordinates.
 /// Unlike combat range, observers may see through a chain of adjacent graph
 /// edges according to their logical range.
 pub fn world_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> Option<i128> {
     if param(rules, "vision_graph_metric", 1) != 1 || param(rules, "vision_occlusion_enabled", 0) != 0 {
+        return None;
+    }
+    if !valid_graph_position(a, rules) || !valid_graph_position(b, rules) {
         return None;
     }
     if let Some(distance) = combat_distance2(a, b, rules) {
@@ -169,7 +202,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn world_distance_checks_all_weighted_target_edge_endpoints() {
+    fn world_distance_checks_all_weighted_target_edge_endpoints_and_rejects_bad_positions() {
         let nodes = ["a", "b", "c", "d", "x"].into_iter().map(|id| {
             (id.to_owned(), MapNode { x: 0, y: 0, region: "lane".into(), ..Default::default() })
         }).collect();
@@ -215,6 +248,33 @@ mod tests {
         // while D is reached later but has only 10 WU remaining (70 + 10 = 80).
         let target = on_edge("c", "d", 90);
         assert_eq!(world_distance2(&source, &target, &rules), Some(80 * 80));
+
+        let unpositioned = on_edge("", "", 0);
+        assert_eq!(combat_distance2(&unpositioned, &unpositioned, &rules), None);
+        assert_eq!(world_distance2(&unpositioned, &unpositioned, &rules), None);
+
+        let unknown_node = on_edge("unknown", "", 0);
+        assert_eq!(combat_distance2(&unknown_node, &unknown_node, &rules), None);
+        assert_eq!(world_distance2(&unknown_node, &unknown_node, &rules), None);
+
+        let dangling_edge = on_edge("a", "missing", 25);
+        assert_eq!(combat_distance2(&dangling_edge, &dangling_edge, &rules), None);
+        assert_eq!(world_distance2(&dangling_edge, &source, &rules), None);
+
+        let malformed_progress = on_edge("a", "b", 101);
+        assert_eq!(combat_distance2(&malformed_progress, &source, &rules), None);
+        assert_eq!(world_distance2(&malformed_progress, &source, &rules), None);
+
+        // The transition snapshot can show a destroyed site before navigation
+        // has had a chance to mark this incumbent as ford_active.
+        let mut bridge_rules = rules.clone();
+        bridge_rules.map.edges[0].bridge_site = "TOP".into();
+        let mut bridge = EntityState { entity_type: "bridge".into(), owner: None, fields: BTreeMap::new() };
+        set_string(&mut bridge, "bridge_state", "destroyed");
+        let mut snapshot = WorldState::default();
+        snapshot.entities.insert("bridge.TOP".into(), bridge);
+        let incumbent = on_edge("a", "b", 50);
+        assert!(is_ford_position(&incumbent, &snapshot, &bridge_rules));
     }
 }
 pub fn in_combat_range(a: &EntityState, b: &EntityState, range: i64, rules: &NextRules) -> bool {
@@ -223,7 +283,7 @@ pub fn in_combat_range(a: &EntityState, b: &EntityState, range: i64, rules: &Nex
 /// Ford damage state is explicit for broken constructed bridges and can also
 /// be derived from permanent Jungle ford edges. Navigation owns and advances
 /// `ford_remaining`, so a destroyed/rebuilt bridge never relocates an actor.
-pub fn is_ford_position(entity: &EntityState, rules: &NextRules) -> bool {
+pub fn is_ford_position(entity: &EntityState, snapshot: &WorldState, rules: &NextRules) -> bool {
     if int(entity, "ford_active") > 0 || int(entity, "ford_remaining") > 0 {
         return true;
     }
@@ -233,10 +293,22 @@ pub fn is_ford_position(entity: &EntityState, rules: &NextRules) -> bool {
         return false;
     }
     rules.map.edges.iter().any(|edge| {
-        edge.ford
-            && ((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to))
-            && int(entity, "edge_progress") > 0
-            && int(entity, "edge_progress") < edge.length
+        let interior = int(entity, "edge_progress") > 0
+            && int(entity, "edge_progress") < edge.length;
+        if !interior || !((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)) {
+            return false;
+        }
+        if edge.ford {
+            return true;
+        }
+        if edge.bridge_site.is_empty() {
+            return false;
+        }
+        let bridge_id = EntityId::from(format!("bridge.{}", edge.bridge_site));
+        snapshot.entities.get(&bridge_id).is_some_and(|bridge| {
+            bridge.entity_type.as_str() == "bridge"
+                && string(bridge, "bridge_state") == "destroyed"
+        })
     })
 }
 pub fn unit(

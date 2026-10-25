@@ -341,7 +341,7 @@ fn resolve_snapshot_with_events(
             hit.raw_power
         };
         let mut damage = power.saturating_sub(defense).max(1);
-        if support::is_ford_position(target_start, rules) {
+        if support::is_ford_position(target_start, &combat_start, rules) {
             let received = support::param(rules, "ford_received_damage_milli", 1_500).max(0);
             damage = i64::try_from(
                 (i128::from(damage) * i128::from(received) + 999) / 1_000,
