@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "typecheck": "tsc -b && tsc --noEmit -p tsconfig.graphics.json",
+    "typecheck": "tsc -b && tsc --noEmit -p tsconfig.graphics.json && tsc --noEmit -p packages/jinrei-editor/tsconfig.json",
     "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "test:browser": "playwright test",
