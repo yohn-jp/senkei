@@ -727,6 +727,7 @@
 }
 
 .is-battle-workspace .next-visible-roster-trigger { align-items: center; background: rgba(8,15,19,.88); border: 1px solid rgba(214,225,218,.17); border-radius: 4px; bottom: 14px; color: #c4d2c6; cursor: pointer; display: inline-flex; gap: 8px; left: 11px; min-height: 38px; padding: 0 11px; position: absolute; z-index: 4; }
+.next-mobile-render-mode { display: none; }
 .is-battle-workspace .next-visible-roster-trigger > span { color: #bdcfb2; font: 10px "DM Mono",monospace; letter-spacing: .08em; }
 .is-battle-workspace .next-visible-roster-trigger > b { align-items: center; background: rgba(189,237,149,.12); border-radius: 10px; color: #c9e5bb; display: inline-flex; font: 11px "DM Mono",monospace; height: 21px; justify-content: center; min-width: 21px; padding: 0 4px; }
 .is-battle-workspace .next-visible-roster-panel[hidden] { display: none; }
@@ -773,4 +774,26 @@
   .is-battle-workspace .next-visible-entity-copy > small { font-size: 9px; }
   .is-battle-workspace .next-visible-entity-copy > b { font-size: 11px; }
   .is-battle-workspace .next-visible-entity-actions button { min-height: 44px; min-width: 52px; }
+}
+
+/* Mobile keeps a readable transport and on-demand information around the scene. */
+@media (max-width: 760px) {
+  .is-battle-workspace .next-battle-header { min-height: 46px; gap: 8px; }
+  .is-battle-workspace .next-battle-header .next-eyebrow,
+  .is-battle-workspace .next-battle-header p,
+  .is-battle-workspace .next-match-badge { display: none; }
+  .is-battle-workspace .next-battle-header h3 { font-size: 17px; line-height: 1.2; }
+  .is-battle-workspace .next-battle-actions .next-secondary-button,
+  .is-battle-workspace .next-battle-actions .next-launch-button { font-size: 11px; min-height: 44px; padding-inline: 9px; }
+  .is-battle-workspace .next-battle-options > summary { font-size: 10px; padding-block: 4px; }
+  .is-battle-workspace .next-battle-setup { min-height: 22px; }
+  .is-battle-workspace .next-stage-hud { font-size: 10px; }
+  .is-battle-workspace .next-result-disclosure { font-size: 10px; min-height: 24px; }
+  .is-battle-workspace .next-result-disclosure > summary { gap: 6px; }
+  .is-battle-workspace .next-result-disclosure > summary > small { display: none; }
+  .is-battle-workspace .next-mobile-render-mode { align-items: center; background: rgba(12,22,27,.9); border: 1px solid rgba(214,225,218,.2); border-radius: 5px; bottom: 10px; color: #d3dfd2; cursor: pointer; display: flex; font-size: 11px; justify-content: center; min-height: 44px; padding: 0 12px; position: absolute; right: 8px; z-index: 3; }
+}
+@media (max-width: 380px) {
+  .is-battle-workspace .next-battle-header h3 { font-size: 15px; }
+  .is-battle-workspace .next-battle-actions .next-launch-button { font-size: 10px; padding-inline: 8px; }
 }
