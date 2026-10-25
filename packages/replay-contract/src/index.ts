@@ -141,7 +141,10 @@ export function decodeReplay(input: unknown): Replay {
         current.position = e.position;
         if (e.logicalPosition) current.battlefield = e.logicalPosition;
       }
-      if (e.type === "facility-state") current.battlefield = e.battlefield;
+      if (e.type === "facility-state") {
+        current.battlefield = e.battlefield;
+        if (e.battlefield.facilityOwner) current.side = e.battlefield.facilityOwner;
+      }
       if (e.type === "vitals") {
         if (e.hp > e.maxHp) fail("HP exceeds maximum");
         current.hp = e.hp; current.maxHp = e.maxHp;

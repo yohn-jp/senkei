@@ -62,6 +62,8 @@ describe("read-only replay projection and transport", () => {
       position: { x: 0, y: 0 }, hp: 500, maxHp: 500,
       battlefield: { bridgeSite: "TOP", bridgeState: "normal" },
     });
+    replay.initialView.push({ id: "mid-observation", side: "neutral", kind: "observation", archetype: "observation", appearanceKey: "observation",
+      position: { x: 0, y: 0 }, hp: 1, maxHp: 1, battlefield: { facilityOwner: "neutral", captureProgress: 0 } });
     const end = replay.timeline.find(event => event.type === "match-end");
     if (end?.type === "match-end") end.order = 1;
     const facilityEvent = {
@@ -69,9 +71,13 @@ describe("read-only replay projection and transport", () => {
       battlefield: { bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0 },
     } as const;
     const damageEvent = { type: "damage", tick: replay.result.tick, order: 1, entityId: "top-bridge", hp: 0 } as const;
-    if (end?.type === "match-end") end.order = 2;
-    replay.timeline.splice(replay.timeline.indexOf(end!), 0, facilityEvent, damageEvent);
+    if (end?.type === "match-end") end.order = 3;
+    const captureEvent = { type: "facility-state", tick: replay.result.tick, order: 2, entityId: "mid-observation",
+      battlefield: { facilityOwner: "azure", captureProgress: 0 } } as const;
+    replay.timeline.splice(replay.timeline.indexOf(end!), 0, facilityEvent, damageEvent, captureEvent);
     const state = stateAt(decodeReplay(replay), replay.result.tick);
+    expect(stateAt(decodeReplay(replay), 0).entities["mid-observation"].side).toBe("neutral");
+    expect(state.entities["mid-observation"].side).toBe("azure");
     expect(state.entities["top-bridge"]).toMatchObject({ hp: 0, maxHp: 500, destroyed: false, battlefield: {
       bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0,
     } });

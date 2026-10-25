@@ -35,7 +35,8 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
           ...(event.logicalPosition ? { battlefield: event.logicalPosition } : {}),
         };
       if (event.type === "facility-state")
-        entities[event.entityId] = { ...current, battlefield: event.battlefield };
+        entities[event.entityId] = { ...current, battlefield: event.battlefield,
+          ...(event.battlefield.facilityOwner ? { side: event.battlefield.facilityOwner } : {}) };
       if (event.type === "vitals")
         entities[event.entityId] = { ...current, hp: event.hp, maxHp: event.maxHp };
       if (event.type === "damage")
