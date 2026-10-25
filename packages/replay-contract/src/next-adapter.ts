@@ -29,6 +29,10 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
   const track = maybeString(raw, "track");
   const crossRemaining = maybeNum(raw, "cross_remaining") ?? 0;
   const fordRemaining = maybeNum(raw, "ford_remaining") ?? 0;
+  // The canonical Enbu field is an integer 0/1. Keep this tolerant of absent
+  // values in older replays, while only a positive authorized value signals
+  // that the unit is still in the ford crossing state.
+  const fordActive = (maybeNum(raw, "ford_active") ?? 0) > 0;
   const edge = edgeTo && node ? edges.find(item => (item.from === node && item.to === edgeTo) || (item.to === node && item.from === edgeTo)) : undefined;
   const site = maybeString(raw, "site");
   const bridgeState = maybeString(raw, "bridge_state");
@@ -50,7 +54,7 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
     };
   }
   if (!node) return undefined;
-  const crossing = fordRemaining > 0 ? "ford" : crossRemaining > 0 ? "track" : edge?.bridge_site ? "bridge" : "none";
+  const crossing = fordActive || fordRemaining > 0 ? "ford" : crossRemaining > 0 ? "track" : edge?.bridge_site ? "bridge" : "none";
   return {
     node,
     edgeTo: edgeTo ?? "",
@@ -86,9 +90,8 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
     if (!["hero", "minion", "monster", "tower", "base", "bridge", "observation"].includes(kind)) throw new ReplayError("Unknown presentation entity type");
     const catalog = scalar(raw.fields.catalog_id);
     const definition = next.heroes.find(h => h.id === catalog);
-    const persistentFacility = kind === "bridge" || kind === "observation";
-    const hp = persistentFacility ? 1 : maybeNum(raw, "hp") ?? 1;
-    const maxHp = persistentFacility ? 1 : maybeNum(raw, "max_hp") ?? 1;
+    const hp = maybeNum(raw, "hp") ?? 1;
+    const maxHp = maybeNum(raw, "max_hp") ?? 1;
     const side = raw.owner === "attacker" ? "azure" : raw.owner === "defender" ? "vermilion" : "neutral";
     const battlefield = battlefieldState(raw, kind, side, next.map.edges);
     return {
@@ -141,8 +144,8 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
       const old = active.get(rawId); if (!old) continue;
       const position = point(raw);
       const persistentFacility = raw.entity_type === "bridge" || raw.entity_type === "observation";
-      const hp = persistentFacility ? 1 : maybeNum(raw,"hp") ?? old.hp;
-      const maxHp = persistentFacility ? 1 : maybeNum(raw,"max_hp") ?? old.maxHp;
+      const hp = maybeNum(raw,"hp") ?? old.hp;
+      const maxHp = maybeNum(raw,"max_hp") ?? old.maxHp;
       const battlefield = battlefieldState(raw, raw.entity_type, raw.owner === "attacker" ? "azure" : raw.owner === "defender" ? "vermilion" : "neutral", next.map.edges);
       const positionChanged = position.x !== old.position.x || position.y !== old.position.y;
       const battlefieldChanged = JSON.stringify(battlefield) !== JSON.stringify(old.battlefield);
@@ -154,7 +157,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
         if (hp <= old.hp && maxHp === old.maxHp) emit({ type:"damage",tick:frame.tick,order:order++,entityId:old.id,hp });
         else emit({type:"vitals",tick:frame.tick,order:order++,entityId:old.id,hp,maxHp});
       }
-      if (hp <= 0) { emit({type:"destroy",tick:frame.tick,order:order++,entityId:old.id}); active.delete(rawId); }
+      if (hp <= 0 && !persistentFacility) { emit({type:"destroy",tick:frame.tick,order:order++,entityId:old.id}); active.delete(rawId); }
       else active.set(rawId,{...old,position,hp,maxHp,...(battlefield ? {battlefield} : {})});
     }
   }

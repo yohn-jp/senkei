@@ -59,7 +59,7 @@ describe("read-only replay projection and transport", () => {
     replay.scene.routes = [{ id: "edge-top", region: "lane", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], bridgeSite: "TOP" }];
     replay.initialView.push({
       id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge",
-      position: { x: 0, y: 0 }, hp: 1, maxHp: 1,
+      position: { x: 0, y: 0 }, hp: 500, maxHp: 500,
       battlefield: { bridgeSite: "TOP", bridgeState: "normal" },
     });
     const end = replay.timeline.find(event => event.type === "match-end");
@@ -68,11 +68,13 @@ describe("read-only replay projection and transport", () => {
       type: "facility-state", tick: replay.result.tick, order: 0, entityId: "top-bridge",
       battlefield: { bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0 },
     } as const;
-    replay.timeline.splice(replay.timeline.indexOf(end!), 0, facilityEvent);
+    const damageEvent = { type: "damage", tick: replay.result.tick, order: 1, entityId: "top-bridge", hp: 0 } as const;
+    if (end?.type === "match-end") end.order = 2;
+    replay.timeline.splice(replay.timeline.indexOf(end!), 0, facilityEvent, damageEvent);
     const state = stateAt(decodeReplay(replay), replay.result.tick);
-    expect(state.entities["top-bridge"]?.battlefield).toEqual({
+    expect(state.entities["top-bridge"]).toMatchObject({ hp: 0, maxHp: 500, destroyed: false, battlefield: {
       bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0,
-    });
+    } });
   });
   it("pauses without consuming time, seeks, resumes, resets and restarts at end", () => {
     const p = new ReplayPlayer(decodeReplay(tower));

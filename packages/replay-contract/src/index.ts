@@ -89,7 +89,8 @@ export function decodeReplay(input: unknown): Replay {
   const seen = new Set<string>();
   const add = (e: Entity) => {
     if (seen.has(e.id)) fail(`Entity ID reused: ${e.id}`);
-    if (e.hp <= 0 || e.hp > e.maxHp) fail(`Invalid initial HP: ${e.id}`);
+    const persistentFacility = e.kind === "bridge" || e.kind === "observation";
+    if ((e.hp <= 0 && !persistentFacility) || e.hp > e.maxHp) fail(`Invalid initial HP: ${e.id}`);
     point(e.position);
     seen.add(e.id);
     entities.set(e.id, structuredClone(e));
@@ -133,7 +134,7 @@ export function decodeReplay(input: unknown): Replay {
       entities.delete(e.entityId);
     } else if (e.type === "disappear") entities.delete(e.entityId);
     else {
-      if (current.hp === 0)
+      if (current.hp === 0 && current.kind !== "bridge" && current.kind !== "observation")
         fail("Zero HP entity requires destroy or disappear");
       if (e.type === "move") {
         point(e.position);

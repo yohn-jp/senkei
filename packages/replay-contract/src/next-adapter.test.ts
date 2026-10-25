@@ -83,7 +83,7 @@ describe("Next map graph projection", () => {
   it("projects only authorized logical position and facility changes, including destroyed bridges", () => {
     const value = (kind: "integer" | "string", value: number | string) => ({ kind, value });
     const viewEntity = (entity_type: string, fields: Record<string, ReturnType<typeof value>>) => ({ entity_type, owner: null, fields });
-    const common = { hp: value("integer", 0), max_hp: value("integer", 100), x: value("integer", 125), y: value("integer", 60) };
+    const common = { hp: value("integer", 500), max_hp: value("integer", 500), x: value("integer", 125), y: value("integer", 60) };
     const mapEdges = [
       { from: "attacker", to: "camp", length: 250, region: "lane", blocked: false, id: "edge_top", bridge_site: "TOP", ford: false },
       { from: "camp", to: "defender", length: 250, region: "jungle", blocked: false, id: "edge_ford", bridge_site: "", ford: true },
@@ -92,9 +92,15 @@ describe("Next map graph projection", () => {
       hp: value("integer", 100), max_hp: value("integer", 100), x: value("integer", x), y: value("integer", 25),
       node: value("string", "attacker"), edge_to: value("string", "camp"), edge_progress: value("integer", x), track: value("string", track),
       cross_remaining: value("integer", 0), ford_remaining: value("integer", 0),
+      ford_active: value("integer", 0),
     });
-    const bridge = (state: string) => viewEntity("bridge", {
-      ...common, site: value("string", "TOP"), bridge_state: value("string", state), build_remaining: value("integer", 0),
+    const bridge = (state: string, hp: number) => viewEntity("bridge", {
+      ...common, hp: value("integer", hp), site: value("string", "TOP"), bridge_state: value("string", state), build_remaining: value("integer", 0),
+    });
+    const fordTraveler = () => viewEntity("hero", {
+      hp: value("integer", 100), max_hp: value("integer", 100), x: value("integer", 260), y: value("integer", 130),
+      node: value("string", "camp"), edge_to: value("string", "defender"), edge_progress: value("integer", 20),
+      ford_remaining: value("integer", 0), ford_active: value("integer", 1),
     });
     const observation = (captureOwner: string, progress: number, side: string) => viewEntity("observation", {
       hp: value("integer", 1), max_hp: value("integer", 1), x: value("integer", 250), y: value("integer", 125), node: value("string", "camp"),
@@ -102,8 +108,8 @@ describe("Next map graph projection", () => {
     });
     const frame = (tick: number, entities: Record<string, ReturnType<typeof viewEntity>>) => ({ tick, events: [], visible_state: { entities, global_fields: {} } }) as unknown as CoreReplay["frames"][number];
     const replay = project(mapEdges, [
-      frame(0, { hero: hero("RIGHT", 1), bridge: bridge("normal"), obs: observation("neutral", 0, "") }),
-      frame(1, { hero: hero("LEFT", 10), bridge: bridge("destroyed"), obs: observation("attacker", 4, "defender") }),
+      frame(0, { hero: hero("RIGHT", 1), fordTraveler: fordTraveler(), bridge: bridge("normal", 500), obs: observation("neutral", 0, "") }),
+      frame(1, { hero: hero("LEFT", 10), fordTraveler: fordTraveler(), bridge: bridge("destroyed", 0), obs: observation("attacker", 4, "defender") }),
     ]);
     expect(replay.header.enbuVersion).toBe("1.2.0");
     expect(replay.scene.nodes).toHaveLength(3);
@@ -115,7 +121,11 @@ describe("Next map graph projection", () => {
     expect(move).toMatchObject({ type: "move", logicalPosition: { node: "attacker", edgeTo: "camp", progress: 10, track: "LEFT" } });
     const bridgeState = replay.timeline.find(event => event.type === "facility-state" && event.battlefield.bridgeSite === "TOP");
     expect(bridgeState).toMatchObject({ type: "facility-state", battlefield: { bridgeState: "destroyed" } });
-    expect(replay.initialView.find(entity => entity.kind === "bridge")).toMatchObject({ hp: 1, maxHp: 1, battlefield: { bridgeState: "normal" } });
+    expect(replay.initialView.find(entity => entity.kind === "bridge")).toMatchObject({ hp: 500, maxHp: 500, battlefield: { bridgeState: "normal" } });
+    expect(replay.timeline.find(event => event.type === "damage" && event.entityId === replay.initialView.find(entity => entity.kind === "bridge")?.id)).toMatchObject({ type: "damage", hp: 0 });
+    expect(replay.timeline.some(event => event.type === "destroy" && event.entityId === replay.initialView.find(entity => entity.kind === "bridge")?.id)).toBe(false);
+    expect(replay.initialView.find(entity => entity.archetype === "hero")?.battlefield?.crossing).toBe("ford");
+    expect(replay.initialView.find(entity => entity.archetype === "hero")?.battlefield?.remaining).toBe(0);
     expect(replay.timeline.some(event => event.type === "facility-state" && event.battlefield.captureSide === "vermilion" && event.battlefield.facilityOwner === "azure")).toBe(true);
   });
 });
