@@ -824,13 +824,13 @@ fn reveal_expiry_case() {
             ford_start.y + (ford_end.y - ford_start.y) * progress / 620,
         ));
     };
-    for (side, slot, progress) in [
-        (CombatantSide::Attacker, "slot-1", 0_i64),
-        (CombatantSide::Defender, "slot-1", 340_i64),
+    for (side, catalog_id, progress) in [
+        (CombatantSide::Attacker, "R03", 0_i64),
+        (CombatantSide::Defender, "F01", 340_i64),
     ] {
         let hero = context.initial_world.entities.values_mut().find(|entity| {
             entity.entity_type.as_str() == "hero" && entity.owner == Some(side)
-                && entity.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String(slot.into()))
+                && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String(catalog_id.into()))
         }).expect("configured Hero exists in initial World");
         edge_progress(hero, progress);
     }
@@ -1588,7 +1588,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     }), "a Hero takes an explicit move intent across the rebuilt fixed bridge");
 
     let track_at_tick_1 = owner_hero_at(&artifact, 1, "slot-1");
-    assert_eq!(entity_string(track_at_tick_1, "track"), "LEFT", "the lane's selected side persists in logical state");
+    assert_eq!(entity_string(track_at_tick_1, "track"), "", "a node has no active lane track");
+    assert_eq!(entity_string(track_at_tick_1, "track_goal"), "LEFT", "the lane choice persists as the next-edge track goal");
     let lane_mover = owner_hero_at(&artifact, 2, "slot-1");
     assert_eq!(entity_string(lane_mover, "edge_to"), "A.TOP.T2");
     assert_eq!(entity_string(lane_mover, "track"), "LEFT");
