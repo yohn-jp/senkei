@@ -58,8 +58,7 @@ interface VisibleBattleTarget {
   readonly role: string;
   readonly category: string;
   readonly side: string;
-  readonly hp: number;
-  readonly maxHp: number;
+  readonly healthLabel: string | null;
   readonly position: WorldPoint;
 }
 
@@ -707,16 +706,16 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
       const category = entity.archetype === "hero" ? "Hero" : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
       const side = formatId(entity.side);
+      const healthLabel = entity.kind === "observation" ? null : `HP ${entity.hp}/${entity.maxHp}`;
       return {
         id: entity.id,
-        label: `${side} · ${identity} · ${role} · HP ${entity.hp}/${entity.maxHp} · ID ${entity.id}`,
+        label: `${side} · ${identity} · ${role}${healthLabel ? ` · ${healthLabel}` : ""} · ID ${entity.id}`,
         identity,
         catalogId: entity.catalogId ?? null,
         role,
         category,
         side,
-        hp: entity.hp,
-        maxHp: entity.maxHp,
+        healthLabel,
         position: entity.position,
       };
     }), [displayState, nextRules]);
@@ -1348,7 +1347,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             <span><strong>{countLabel}</strong><small>{composition} · {clusterAnnotation}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
           </button>
           {expanded && <ul className="next-visible-cluster-entities">{cluster.entities.map((entity) => <li className={selectedEntityId === entity.id ? "is-selected" : ""} key={entity.id}>
-            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id} · X {Math.round(entity.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y {Math.round(entity.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}</small></div></div>
+            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div>{entity.healthLabel && <b>{entity.healthLabel}</b>}<small>ID {entity.id} · X {Math.round(entity.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y {Math.round(entity.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}</small></div></div>
             <div className="next-visible-entity-actions"><button aria-label={`Select ${entity.identity}, replay entity ${entity.id}`} aria-pressed={selectedEntityId === entity.id} onClick={() => {
               selectBattleEntity(entity.id);
               setBattleInspectorOpen(true);

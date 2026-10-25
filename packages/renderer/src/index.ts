@@ -1202,6 +1202,11 @@ export class Battlefield {
     }
     return appearance.toUpperCase();
   }
+  private entityHealthSuffix(e: DisplayEntity) {
+    // Observation facilities are capture objectives. Their Replay entity needs
+    // structural identity, but HP is not an authorized/applicable objective field.
+    return e.kind === "observation" ? "" : ` · ${e.hp}/${e.maxHp}`;
+  }
   private isHero(e: DisplayEntity) {
     const appearance = this.canonicalAppearance(e);
     return e.kind === "unit" &&
@@ -1672,7 +1677,7 @@ export class Battlefield {
         this.entityLabels.set(e.id, label);
       }
       const labelName = this.entityLabel(e);
-      label.textContent = `${labelName} · ${e.hp}/${e.maxHp}`;
+      label.textContent = `${labelName}${this.entityHealthSuffix(e)}`;
       g.userData.from = g.position.clone();
       const point = this.renderPoint(e);
       g.userData.to = new THREE.Vector3(point.x, this.height(point), point.y);
@@ -2334,11 +2339,12 @@ export class Battlefield {
         if (!visible || !group) continue;
         const identity = this.entityLabel(entity!).replace(/^HERO · /, "");
         const sideMarker = this.sideMarker(entity!.side);
+        const healthSuffix = this.entityHealthSuffix(entity!);
         element.textContent = groupedHeroes && focused
-          ? `${sideMarker} · ${heroStack.length} visible Heroes · ${identity} · ${entity!.hp}/${entity!.maxHp}`
+          ? `${sideMarker} · ${heroStack.length} visible Heroes · ${identity}${healthSuffix}`
           : groupedHeroes
             ? `${sideMarker} · ${heroStack.length} visible Heroes`
-            : `${focused ? `${sideMarker} · ` : ""}${this.entityLabel(entity!)} · ${entity!.hp}/${entity!.maxHp}`;
+            : `${focused ? `${sideMarker} · ` : ""}${this.entityLabel(entity!)}${healthSuffix}`;
         const height = entity?.kind === "base"
           ? this.replay.scene.routes?.length ? 2.6 : 4.6
           : entity?.kind === "tower" ? 4 : 2.8;
