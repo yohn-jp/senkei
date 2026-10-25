@@ -74,7 +74,7 @@ jobs:
       - name: Check generated replay contract types
         run: npm run contract:types && git diff --exit-code -- packages/replay-contract/src/generated.ts
       - run: npm test
-      - run: node --test scripts/ci/verify-browser-captures.test.mjs
+      - run: node --test scripts/ci/verify-browser-captures.test.mjs scripts/ci/verify-first-run-coverage.test.mjs
       - run: npm run build
 
   browser-build:
@@ -94,6 +94,8 @@ jobs:
       - run: npm ci
       - run: bash scripts/wasm/build.sh
       - run: npm run build
+      - name: Generate immutable native browser scenarios once
+        run: bash scripts/ci/prepare-browser-scenarios.sh target/browser-scenarios
       - name: Record the exact browser build
         run: |
           git rev-parse HEAD > dist/browser-build-revision.txt
@@ -106,37 +108,74 @@ jobs:
           path: |
             dist/
             apps/web/public/wasm/
+            target/browser-scenarios/
 
   browser-shard:
     name: Browser / ${{ matrix.name }}
     needs: browser-build
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     strategy:
       # Keep all evidence when one group fails. Each runner has one GPU worker.
       fail-fast: false
       matrix:
         include:
-          - name: journeys
+          - name: journeys-analysis
             suite: journeys
+            grep: S13 uses real Enbu
+          - name: journeys-workbench
+            suite: journeys
+            grep: real WASM Next workbench
+          - name: journeys-ui
+            suite: journeys
+            grep_invert: S13 uses real Enbu|first-run Quick|real WASM Next workbench
+            graphics_g1: true
+          - name: quick-mobile-320
+            suite: journeys
+            grep: first-run Quick
+            first_run_viewports: mobile-320
+          - name: quick-mobile-390
+            suite: journeys
+            grep: first-run Quick
+            first_run_viewports: mobile-390
+          - name: quick-mobile-430
+            suite: journeys
+            grep: first-run Quick
+            first_run_viewports: mobile-430
+          - name: quick-desktop-1440
+            suite: journeys
+            grep: first-run Quick
+            first_run_viewports: desktop-1440
+          - name: quick-desktop-1920
+            suite: journeys
+            grep: first-run Quick
+            first_run_viewports: desktop-1920
           - name: verification-desktop
             suite: verification
             verification_viewports: 1920x1080,1440x900
           - name: verification-mobile
             suite: verification
             verification_viewports: 430x932,390x844,320x844
-          - name: visual-desktop
+          - name: visual-desktop-1440
             suite: visual
-            visual_viewports: 1440x900,1920x1080
-          - name: visual-mobile-375-390
+            visual_viewports: 1440x900
+          - name: visual-desktop-1920
             suite: visual
-            visual_viewports: 375x812,390x844
-          - name: visual-mobile-430-320
+            visual_viewports: 1920x1080
+          - name: visual-mobile-375
             suite: visual
-            visual_viewports: 430x932,320x740
+            visual_viewports: 375x812
+          - name: visual-mobile-390
+            suite: visual
+            visual_viewports: 390x844
+          - name: visual-mobile-430
+            suite: visual
+            visual_viewports: 430x932
+          - name: visual-mobile-320
+            suite: visual
+            visual_viewports: 320x740
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -153,12 +192,19 @@ jobs:
           sha256sum --check dist/browser-build-sha256.txt
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - name: Install root Graphics G1 Playwright browser
-        if: matrix.suite == 'journeys'
+        if: matrix.graphics_g1 == true
         run: npx playwright install --with-deps chromium
       - name: Run browser group
-        run: npm run test:e2e --prefix tests/browser -- --workers=1
+        run: |
+          if [ -z "$SENKEI_FIRST_RUN_VIEWPORTS" ]; then unset SENKEI_FIRST_RUN_VIEWPORTS; fi
+          npm run test:e2e --prefix tests/browser -- --workers=1 --retries=0
         env:
           SENKEI_BROWSER_SUITE: ${{ matrix.suite }}
+          SENKEI_BROWSER_GREP: ${{ matrix.grep }}
+          SENKEI_BROWSER_GREP_INVERT: ${{ matrix.grep_invert }}
+          SENKEI_FIRST_RUN_VIEWPORTS: ${{ matrix.first_run_viewports }}
+          SENKEI_UX_EVIDENCE_DIR: ${{ github.workspace }}/test-results/ci-browser/journey
+          BATTLEFIELD_PREBUILT_SCENARIO_DIR: ${{ github.workspace }}/target/browser-scenarios
           BATTLEFIELD_VIEWPORTS: ${{ matrix.verification_viewports }}
           BATTLEFIELD_VISUAL_VIEWPORTS: ${{ matrix.visual_viewports }}
           BATTLEFIELD_EXPECT_BUILD_REVISION: "true"
@@ -167,7 +213,7 @@ jobs:
           BATTLEFIELD_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/verification
           BATTLEFIELD_VISUAL_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/visual
       - name: Run Graphics G1 replay browser suite
-        if: matrix.suite == 'journeys'
+        if: matrix.graphics_g1 == true
         run: npm run test:browser -- --workers=1
         env:
           SENKEI_GRAPHICS_EVIDENCE_DIR: ${{ github.workspace }}/test-results/ci-browser/graphics-g1
@@ -186,7 +232,13 @@ jobs:
           name: browser-capture-metadata-${{ matrix.name }}
           path: test-results/ci-browser/visual/**/metadata.json
       - uses: actions/upload-artifact@v4
-        if: always() && matrix.suite == 'journeys'
+        if: always() && matrix.first_run_viewports != ''
+        with:
+          name: browser-first-run-coverage-${{ matrix.name }}
+          path: test-results/ci-browser/journey/first-run-report.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.graphics_g1 == true
         with:
           name: browser-journey-legacy-evidence
           compression-level: 0
@@ -220,3 +272,9 @@ jobs:
         env:
           CAPTURE_SOURCE_REVISION: ${{ github.sha }}
         run: node scripts/ci/verify-browser-captures.mjs visual-capture-metadata "$CAPTURE_SOURCE_REVISION"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: browser-first-run-coverage-*
+          path: first-run-coverage
+      - name: Verify every first-run viewport executed a real confirmed match
+        run: node scripts/ci/verify-first-run-coverage.mjs first-run-coverage "${{ github.sha }}"

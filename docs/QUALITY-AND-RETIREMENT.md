@@ -15,6 +15,10 @@
 
 CIの証拠は次の単位で読む。`Native Rust build and tests`と`Web application build`はContract／型・ロジック回帰、`Native and real WebAssembly conformance`はDeterminism、browser shardの`journeys`（Next journeyとProduction Graphics G1 replay suite）はJourneyと操作回帰、`verification-*`と`visual-*`はそれぞれ実行・画面の別証拠、Next scenario reportはGameplayの固定ケース証拠である。Graphics G1の単体Workflowが重複していた`npm ci`／Contract／unit test／production buildを削除し、固有の実画面suiteをProduction browser buildから実行する。Visual shardはChromium/SwiftShaderのソフトウェア描画を用いるため、GPU性能の根拠にしない。CIはハードウェア性能受入を行わず、その判定はNOT_CHECKED。
 
+CIのBrowserは16組へ分割する。Quickは5画面幅を1組ずつ、Visualは6画面幅を1組ずつ、S13・編集再戦・その他UI・Desktop検証・Mobile検証を独立実行する。その他UI組だけがGraphics G1を実行する。従来の35ケースと全画面幅のassertionを保持し、集約gateがQuickの5幅・Visualの6幅、source/build revision、WASM／Replay identityを照合する。長い失敗の自動二重実行を避けるためBrowserのretryは0。
+
+Canonical／MID capture／base assaultのNative snapshotはproduction browser buildで一度だけ生成し、source revision・SHA-256付きmanifestと共に全Browser組へ配布する。各組はmanifestとsnapshotを照合した上で実Worker／WASMを実行する。Browser組内のRust toolchain設定・Nativeビルド・同一シナリオ再生成を削除する。
+
 **G01**：合法戦型の結果差をまず計測。**G03保留**：現行の600 TickとDraw600は単なる観測値であり、意図的な理想試合時間と解釈しない。**G04**：戦術課題型PvEと難易度進行を組み合わせる。数値調整にはSenritsuの版／Digestと複数シナリオの実測が必要。
 
 ## Q03 — 原則削除
