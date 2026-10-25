@@ -131,6 +131,7 @@ async function verifyCanonicalReplayAdapter(nativeResponses) {
   } finally {
     await server.close();
   }
+  return packageResponse.result;
 }
 
 async function makeWasmDispatcher() {
@@ -172,6 +173,7 @@ for (const request of requests) {
 
 let native;
 let repeatedNative;
+let canonicalPackage;
 async function timedNative(label) {
   console.error(`${label}: starting ${requests.length} requests with ${process.env.SENKEI_NATIVE_DISPATCHER ?? "cargo run --release"}`);
   const started = performance.now();
@@ -182,7 +184,7 @@ async function timedNative(label) {
 try {
   native = await timedNative("Native comparison");
   repeatedNative = await timedNative("Native determinism repeat");
-  await verifyCanonicalReplayAdapter(native);
+  canonicalPackage = await verifyCanonicalReplayAdapter(native);
 } catch (error) {
   fail(`native dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
 }
@@ -292,8 +294,18 @@ for (let index = 0; index < requests.length; index += 1) {
     if (field(hero(5, "F01"), "track") !== "RIGHT") {
       fail("authorized attacker replay does not expose completion of the three-tick LEFT-to-RIGHT lane crossing");
     }
-    if (!Number.isSafeInteger(integer(hero(24, "F02"), "ford_remaining")) || integer(hero(24, "F02"), "ford_remaining") <= 0) {
-      fail("authorized attacker replay contains no Hero in the actual Jungle ford transit state");
+    const fordEntry = replay.frames.find((frame) => (integer(hero(frame.tick, "F02"), "ford_remaining") ?? 0) > 0);
+    if (!fordEntry) fail("authorized attacker replay contains no Hero in the actual Jungle ford transit state");
+    const fordHero = hero(fordEntry.tick, "F02");
+    const from = field(fordHero, "node");
+    const to = field(fordHero, "edge_to");
+    const fordEdge = canonicalPackage?.next.map.edges.find((edge) => edge.ford &&
+      ((edge.from === from && edge.to === to) || (edge.to === from && edge.from === to)));
+    const fordRange = fordEdge && canonicalPackage.next.map.world_projection.edge_facts[fordEdge.id].river_crossing;
+    const entryProgress = fordEdge?.from === from ? fordRange?.start_progress_wu
+      : fordEdge && fordRange ? fordEdge.length - fordRange.end_progress_wu : undefined;
+    if (!Number.isSafeInteger(entryProgress) || integer(fordHero, "edge_progress") !== entryProgress) {
+      fail("authorized Hero ford delay does not start at the exact authored World crossing boundary");
     }
     if (field(hero(1, "F03"), "node") !== "A.MID.T2" || field(hero(1, "F03"), "edge_to") !== "A.MID.J" ||
         integer(hero(1, "F03"), "edge_progress") <= 0) {
@@ -309,7 +321,7 @@ for (let index = 0; index < requests.length; index += 1) {
     if (!rebuiltEntry) {
       fail("authorized attacker replay does not expose the rebuilt fixed bridge.top transit");
     }
-    observedFacts = { rebuilt_bridge_entry_tick: rebuiltEntry.tick };
+    observedFacts = { rebuilt_bridge_entry_tick: rebuiltEntry.tick, ford_entry_tick: fordEntry.tick, ford_entry_progress: entryProgress };
   } else if (request.request_id === "next-workbench-long-owner") {
     if (!nativeResponse.ok) fail(`long authorized Workbench battle failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
