@@ -180,7 +180,7 @@ fn graph_distance_cached(map: &BattleMap, from: &[(String, i64)], to: &[(String,
     let key = vision_graph_key(map);
     VISION_GRAPH_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if cache.as_ref().is_none_or(|(cached_key, _)| *cached_key != key) {
+        if cache.as_ref().map_or(true, |(cached_key, _)| *cached_key != key) {
             *cache = Some((key, build_vision_graph_distances(map)));
         }
         let (_, graph) = cache.as_ref()?;
