@@ -1,0 +1,30 @@
+{
+  "viewport": {
+    "width": 320,
+    "height": 780
+  },
+  "result": "passed",
+  "screens": [
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08",
+    "S09",
+    "S14",
+    "S15",
+    "S16"
+  ],
+  "checks": [
+    "seven partitions",
+    "keyboard tabs",
+    "No-code/Text conversion",
+    "real compiler reject/repair",
+    "coverage evidence boundary",
+    "catalog scope",
+    "save/export",
+    "restore/reload",
+    "pinned/recovery separation"
+  ],
+  "verifiedAt": "2026-10-25T10:43:16.627Z"
+}

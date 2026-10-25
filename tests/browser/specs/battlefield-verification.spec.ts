@@ -770,7 +770,8 @@ function storeCanonicalJson(directory: string, name: string, json: string, priva
 }
 
 test("captures fixed-tick real Enbu replay and battlefield views", async ({ page, baseURL }) => {
-  test.setTimeout(300_000);
+  // Keep a full budget for each selected viewport after the CI split.
+  test.setTimeout(180_000 + selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS).length * 120_000);
   if (!baseURL) throw new Error("The browser runner must provide its local preview URL.");
 
   const outputDirectory = resolve(process.env.BATTLEFIELD_OUTPUT_DIR ?? join(repoRoot, "docs/evidence/battlefield/local-capture"));

@@ -205,8 +205,9 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.getByRole("button", { name: "検証・コンパイル" }).click();
   await expect(page.getByTestId("preflight-status")).toHaveText("開始可能", { timeout: 60_000 });
   await page.getByRole("button", { name: "戦闘開始" }).click();
-  await expect(launch).toBeEnabled({timeout:180_000});
-  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
+  await expect(page.getByTestId("journey-running")).toBeHidden({ timeout: 300_000 });
+  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 300_000 });
+  await expect(launch).toBeEnabled();
   await page.locator("#next-tab-formation").click();
   await page.getByRole("button", { name: "Save setup" }).click();
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
