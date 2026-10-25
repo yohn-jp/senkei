@@ -487,9 +487,10 @@ fn jungle_respawn_case(rules: &VerifiedRulePlan) -> serde_json::Value {
         Some(&nodes),
         None,
     );
-    // Heroes stop at top_1: still close enough to observe the camp, but outside
-    // their configured basic-attack range once the full-HP monster returns.
-    let departures = (1..=5).map(|slot| (format!("slot-{slot}"), "A.TOP.T1".to_owned())).collect::<Vec<_>>();
+    // Heroes stop at the adjacent Jungle junction: they remain within the
+    // camp's vision radius but occupy a different Combat Domain, so they do
+    // not attack the full-HP respawned monster.
+    let departures = (1..=5).map(|slot| (format!("slot-{slot}"), "N.A.UJ".to_owned())).collect::<Vec<_>>();
     let leave_camp = movement_tactics(&departures)
         .replace("match.tick == 1", "match.tick == 2");
     attacker.program = compile(&leave_camp, rules)
