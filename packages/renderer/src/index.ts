@@ -16,6 +16,7 @@ import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 import { battlefieldModelGeometrySignature } from "./battlefield-model-signature";
+import { presentationCameraOffset, transitionCameraOffset } from "./battlefield-presentation-camera";
 import { overlapsProtectedSilhouette, screenRectsOverlap } from "./battlefield-label-collision.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
@@ -334,6 +335,7 @@ export class Battlefield {
   private pixel = true;
   private destroyed = false;
   private cameraMode: BattlefieldCameraMode = "tactical";
+  private presentationMode: BattlefieldPresentationMode = "tactical";
   private userCameraChanged = false;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
@@ -647,24 +649,29 @@ export class Battlefield {
     purpose: "strategic" | "overview" | "follow" = "strategic",
     forward?: THREE.Vector2 | null,
   ) {
+    let offset: THREE.Vector3;
     if (purpose === "follow" && forward) {
       const horizontal = this.mobile ? 22 : 24;
       const height = this.mobile ? 28 : 27;
       // A quarter view reveals single-file equipment and keeps the route ahead.
-      return new THREE.Vector3(
+      offset = new THREE.Vector3(
         -forward.x * horizontal * 0.7 + forward.y * horizontal * 0.8,
         height,
         -forward.y * horizontal * 0.7 - forward.x * horizontal * 0.8,
       );
-    }
-    if (purpose === "overview" && !this.mobile)
-      return new THREE.Vector3(12, 68, 48);
-    if (this.mobile)
-      return purpose === "follow"
+    } else if (purpose === "overview" && !this.mobile) {
+      offset = new THREE.Vector3(12, 68, 48);
+    } else if (this.mobile) {
+      offset = purpose === "follow"
         ? new THREE.Vector3(22, 28, 0)
         : new THREE.Vector3(32, 50, 0);
-    if (purpose === "follow") return new THREE.Vector3(0, 27, 24);
-    return new THREE.Vector3(0, 55, 32);
+    } else if (purpose === "follow") {
+      offset = new THREE.Vector3(0, 27, 24);
+    } else {
+      offset = new THREE.Vector3(0, 55, 32);
+    }
+    const adjusted = presentationCameraOffset(offset, this.presentationMode);
+    return new THREE.Vector3(adjusted.x, adjusted.y, adjusted.z);
   }
   private projectedFrameHalfHeight(
     center: THREE.Vector3,
@@ -915,9 +922,26 @@ export class Battlefield {
   }
   /** Selects the rendering emphasis without changing the replay or information authorization. */
   setPresentationMode(mode: BattlefieldPresentationMode) {
+    const previous = this.presentationMode;
+    this.presentationMode = mode;
     this.canvas.dataset.presentationMode = mode;
     this.gl.toneMappingExposure = mode === "tactical" ? 0.96 : 1.04;
     this.scene.background = new THREE.Color(mode === "tactical" ? 0x263f4e : 0x22353d);
+    if (previous === mode || !this.replay.scene.routes?.length) return;
+    if (!this.userCameraChanged) {
+      if (this.trackedIds.length) this.frameTracked(this.trackedIds);
+      else this.fitAuthoredCamera(this.cameraMode);
+      return;
+    }
+    this.controls.enableDamping = false;
+    this.controls.update();
+    const target = this.controls.target.clone();
+    const currentOffset = this.camera.position.clone().sub(target);
+    const adjusted = transitionCameraOffset(currentOffset, previous, mode);
+    this.camera.position.copy(target).add(new THREE.Vector3(adjusted.x, adjusted.y, adjusted.z));
+    this.camera.lookAt(target);
+    this.controls.update();
+    this.controls.enableDamping = true;
   }
   setInformationLayers(layers: BattlefieldInformationLayers) {
     this.informationLayers = { ...layers };
