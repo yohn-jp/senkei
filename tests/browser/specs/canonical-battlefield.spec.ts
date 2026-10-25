@@ -232,7 +232,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await routeStateAt(fixedBridgeTransitTick)).toBe("normal");
 
   if (width > 700) {
-    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-transit-t${String(fixedBridgeTransitTick).padStart(3, "0")}.png`), animations: "disabled" });
+    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-transit.png`), animations: "disabled" });
     await page.getByTestId("battle-visible-roster-toggle").click();
     const roster = page.getByTestId("battle-visible-roster");
     await expect(roster).toBeVisible();
@@ -247,7 +247,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await expect(page.locator(".next-detail-card").filter({ hasText: "VISIBLE STATE" })).toBeVisible();
     await page.getByRole("button", { name: "Battle view" }).click();
     await expect(canvas).toBeVisible();
-    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit-t${String(fixedBridgeTransitTick).padStart(3, "0")}.png`), animations: "disabled" });
+    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
   }
   expect(pageErrors).toEqual([]);
   return { result, publicReplay, ownerReplay: replay, frameCount: publicReplay.frames.length, fixedBridgeTransitTick, wasmStatuses: wasmResponses,
