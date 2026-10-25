@@ -276,6 +276,8 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
 
     let owner = first.owner_replay.as_ref().expect("attacker owner replay exists");
     assert_eq!(first.owner_replays.len(), 2, "both teams receive separately authorized replay projections");
+    assert_eq!(first.replay.world_identity, rules.world_identity().cloned());
+    assert_eq!(first.replay.ruleset.as_ref(), Some(rules.ruleset()));
     assert_eq!(
         first.owner_replays[&CombatantSide::Attacker].perspective,
         Some(CombatantSide::Attacker),
@@ -286,6 +288,7 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
     );
     for (side, replay) in &first.owner_replays {
         assert_eq!(replay.world_identity, rules.world_identity().cloned());
+        assert_eq!(replay.ruleset.as_ref(), Some(rules.ruleset()));
         let state = replay.frames[0].visible_state.as_ref().unwrap();
         assert!(state.entities.values().any(|entity| {
             entity.entity_type == TypeId::new("hero") && entity.owner == Some(*side)
@@ -305,6 +308,16 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
             CombatantSide::Defender => "defender",
         }.into()));
     }
+    let authorized = first.diagnostic_response(CombatantSide::Attacker);
+    assert_eq!(authorized.authorized_side, Some(CombatantSide::Attacker));
+    assert!(authorized.owner_replay.is_none(), "the ambiguous legacy alias is omitted from the authorized wire response");
+    assert_eq!(authorized.owner_replays.keys().copied().collect::<Vec<_>>(), vec![CombatantSide::Attacker]);
+    assert!(authorized.diagnostics.as_ref().unwrap().events.iter().all(|event| event.side == CombatantSide::Attacker));
+    assert!(authorized.diagnostics.as_ref().unwrap().cu_by_side.keys().all(|side| *side == CombatantSide::Attacker));
+    let defender_authorized = first.diagnostic_response(CombatantSide::Defender);
+    assert_eq!(defender_authorized.authorized_side, Some(CombatantSide::Defender));
+    assert_eq!(defender_authorized.owner_replays.keys().copied().collect::<Vec<_>>(), vec![CombatantSide::Defender]);
+    assert!(defender_authorized.diagnostics.as_ref().unwrap().events.iter().all(|event| event.side == CombatantSide::Defender));
     assert!(owner.frames.iter().all(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| {
             state.entities.values().all(|entity| entity.entity_type != TypeId::new("bridge"))

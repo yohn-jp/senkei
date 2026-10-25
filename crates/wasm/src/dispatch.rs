@@ -296,29 +296,20 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         &mut vm,
     )?;
     let public = artifact.public_response();
-    let response = LocalSimulationResponse {
-        owner_replay: request.include_diagnostics.then(||artifact.owner_replay.clone()).flatten(),
-        owner_replays: if request.include_diagnostics {
-            artifact.owner_replays.iter()
-                .filter(|(side, _)| **side == senkei_model::CombatantSide::Attacker)
-                .map(|(side, replay)| (*side, replay.clone()))
-                .collect()
-        } else {
-            Default::default()
-        },
-        result: public.result,
-        replay: public.replay,
-        diagnostics: request
-            .include_diagnostics
-            .then(|| {
-                let mut diagnostics=artifact.diagnostics.clone();
-                if rules.plan().next.is_some() {
-                    diagnostics.events.retain(|event| event.side == senkei_model::CombatantSide::Attacker);
-                    diagnostics.cu_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
-                    diagnostics.final_memory_by_side.retain(|side,_| *side == senkei_model::CombatantSide::Attacker);
-                }
-                diagnostics
-            }),
+    if !request.include_diagnostics && request.diagnostics_side.is_some() {
+        return Err(ApiError::new(ApiErrorCode::InvalidRequest, "diagnostics_side requires include_diagnostics"));
+    }
+    let response = if request.include_diagnostics {
+        artifact.diagnostic_response(request.diagnostics_side.unwrap_or(senkei_model::CombatantSide::Attacker))
+    } else {
+        LocalSimulationResponse {
+            authorized_side: None,
+            owner_replay: None,
+            owner_replays: Default::default(),
+            result: public.result,
+            replay: public.replay,
+            diagnostics: None,
+        }
     };
     Ok((encode(&response, "result")?, max_output_bytes))
 }

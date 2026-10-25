@@ -2111,19 +2111,9 @@ fn long_workbench_local_response_fits_versioned_output_limit() {
     let mut vm = Vm::new(&rules);
     let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm).unwrap();
     let public_bytes = serde_json::to_vec(&artifact.public_response()).unwrap().len();
-    let owner_bytes = serde_json::to_vec(&artifact.owner_replay).unwrap().len();
-    let mut local_diagnostics = artifact.diagnostics.clone();
-    local_diagnostics.events.retain(|event| event.side == CombatantSide::Attacker);
-    local_diagnostics.cu_by_side.retain(|side, _| *side == CombatantSide::Attacker);
-    local_diagnostics.final_memory_by_side.retain(|side, _| *side == CombatantSide::Attacker);
-    let diagnostic_bytes = serde_json::to_vec(&Some(&local_diagnostics)).unwrap().len();
-    let local = LocalSimulationResponse {
-        owner_replay: artifact.owner_replay.clone(),
-        owner_replays: artifact.owner_replays.clone(),
-        result: artifact.result.clone(),
-        replay: artifact.replay.clone(),
-        diagnostics: Some(local_diagnostics),
-    };
+    let owner_bytes = serde_json::to_vec(&artifact.owner_replays[&CombatantSide::Attacker]).unwrap().len();
+    let local = artifact.diagnostic_response(CombatantSide::Attacker);
+    let diagnostic_bytes = serde_json::to_vec(&local.diagnostics).unwrap().len();
     let local_bytes = serde_json::to_vec(&local).unwrap().len();
     eprintln!("workbench long response: tick={} public={} owner={} diagnostics={} local={} bytes", artifact.result.final_tick, public_bytes, owner_bytes, diagnostic_bytes, local_bytes);
     assert_eq!(artifact.result.final_tick, 600, "this regression must exercise the configured timeout boundary");
@@ -2137,7 +2127,7 @@ fn long_workbench_local_response_fits_versioned_output_limit() {
             "api_version": WASM_API_VERSION,
             "request_id": "next-workbench-long-owner",
             "operation": "simulate",
-            "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": true }
+            "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": true, "diagnostics_side": "attacker" }
         });
         let bytes = serde_json::to_vec_pretty(&request).expect("long real Enbu match input serializes");
         fs::write(directory.join("next-workbench-long-owner.request.json"), bytes)
