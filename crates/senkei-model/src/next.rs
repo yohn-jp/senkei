@@ -26,12 +26,24 @@ pub struct BattleMap {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapNode {
+    /// Static geography: A, B, or N; never changes on capture.
+    #[serde(default = "neutral_allegiance")]
+    pub allegiance: String,
     pub x: i64,
     pub y: i64,
     pub region: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapEdge {
+    /// Stable, versioned logical edge identity.
+    #[serde(default)]
+    pub id: String,
+    /// Fixed construction site TOP, MID, BOT; empty for non-bridge edges.
+    #[serde(default)]
+    pub bridge_site: String,
+    /// Permanent river crossing without a bridge site.
+    #[serde(default)]
+    pub ford: bool,
     pub from: String,
     pub to: String,
     pub length: i64,
@@ -109,4 +121,12 @@ pub struct CampDefinition {
     pub node: String,
     pub monster: String,
     pub respawn_ticks: i64,
+}
+
+fn neutral_allegiance() -> String { "N".into() }
+impl Default for MapNode {
+    fn default() -> Self { Self { allegiance: neutral_allegiance(), x: 0, y: 0, region: String::new() } }
+}
+impl Default for MapEdge {
+    fn default() -> Self { Self { id: String::new(), bridge_site: String::new(), ford: false, from: String::new(), to: String::new(), length: 0, region: String::new(), blocked: false } }
 }

@@ -714,8 +714,8 @@ export interface NextRules {
 }
 export interface BattleMap {
   readonly id: string;
-  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string }>>;
-  readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean }[];
+  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string; readonly allegiance?:string }>>;
+  readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean; readonly id?:string; readonly bridge_site?:string; readonly ford?:boolean }[];
   readonly lanes: Readonly<Record<string, readonly string[]>>;
   readonly attacker_base:string;
   readonly defender_base:string;

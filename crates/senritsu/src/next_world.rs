@@ -142,6 +142,7 @@ pub fn battle_map() -> BattleMap {
 
 fn node(x: i64, y: i64, region: &str) -> MapNode {
     MapNode {
+        allegiance: "N".into(),
         x,
         y,
         region: region.into(),
@@ -155,7 +156,8 @@ fn edge(from: &str, to: &str, length: i64, region: &str) -> MapEdge {
         length,
         region: region.into(),
         blocked: false,
-    }
+    ..Default::default()
+}
 }
 
 #[cfg(test)]

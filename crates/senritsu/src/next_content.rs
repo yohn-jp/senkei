@@ -534,7 +534,8 @@ mod tests {
                         x: 100,
                         y: 100,
                         region: "jungle".into(),
-                    },
+                    ..Default::default()
+},
                 )
             })
             .collect();

@@ -801,7 +801,8 @@ mod tests {
                     x: 0,
                     y: 0,
                     region: "lane".into(),
-                },
+                ..Default::default()
+},
             ),
             (
                 "a1".to_string(),
@@ -809,7 +810,8 @@ mod tests {
                     x: 10,
                     y: 0,
                     region: "lane".into(),
-                },
+                ..Default::default()
+},
             ),
             (
                 "d0".to_string(),
@@ -817,7 +819,8 @@ mod tests {
                     x: 20,
                     y: 0,
                     region: "lane".into(),
-                },
+                ..Default::default()
+},
             ),
         ]);
         NextRules {

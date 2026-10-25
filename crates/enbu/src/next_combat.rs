@@ -1499,10 +1499,14 @@ mod tests {
     #[test]
     fn objectives_respawn_and_bases_determine_match_outcome() {
         let mut rules = rules();
-        rules.map.nodes.insert("attacker_home".into(), senkei_model::MapNode { x: 0, y: 0, region: "base".into() });
-        rules.map.nodes.insert("defender_home".into(), senkei_model::MapNode { x: 100, y: 0, region: "base".into() });
-        rules.map.nodes.insert("top_tower".into(), senkei_model::MapNode { x: 50, y: 0, region: "lane".into() });
-        rules.map.nodes.insert("jungle".into(), senkei_model::MapNode { x: 50, y: 50, region: "jungle".into() });
+        rules.map.nodes.insert("attacker_home".into(), senkei_model::MapNode { x: 0, y: 0, region: "base".into() ..Default::default()
+});
+        rules.map.nodes.insert("defender_home".into(), senkei_model::MapNode { x: 100, y: 0, region: "base".into() ..Default::default()
+});
+        rules.map.nodes.insert("top_tower".into(), senkei_model::MapNode { x: 50, y: 0, region: "lane".into() ..Default::default()
+});
+        rules.map.nodes.insert("jungle".into(), senkei_model::MapNode { x: 50, y: 50, region: "jungle".into() ..Default::default()
+});
         rules.map.towers.push(senkei_model::TowerPlacement {
             id: "top_1".into(), node: "top_tower".into(), side: "defender".into(), lane: "top".into(),
         });

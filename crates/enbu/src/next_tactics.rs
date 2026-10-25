@@ -196,7 +196,8 @@ mod tests {
     fn rules() -> NextRules {
         let nodes = ["attacker_base", "defender_base", "mid_a", "mid_b"]
             .into_iter()
-            .map(|node| (node.to_owned(), MapNode { x: 0, y: 0, region: "mid".into() }))
+            .map(|node| (node.to_owned(), MapNode { x: 0, y: 0, region: "mid".into() ..Default::default()
+}))
             .collect();
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
@@ -209,7 +210,8 @@ mod tests {
                     length: 10,
                     region: "mid".into(),
                     blocked: false,
-                }],
+                ..Default::default()
+}],
                 lanes: BTreeMap::new(),
                 attacker_base: "attacker_base".into(),
                 defender_base: "defender_base".into(),

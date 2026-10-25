@@ -593,7 +593,8 @@ mod tests {
             length,
             region: region.into(),
             blocked,
-        }
+        ..Default::default()
+}
     }
 
     fn rules(map: BattleMap) -> NextRules {
