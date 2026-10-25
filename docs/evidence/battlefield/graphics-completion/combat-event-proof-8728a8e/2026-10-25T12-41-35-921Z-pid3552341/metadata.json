@@ -1,0 +1,469 @@
+{
+  "schema": "senkei-battlefield-combat-event-proof/v1",
+  "status": "COMPLETE",
+  "sourceRevision": "8728a8e47fd3c6669458445c2bb250701dd41166",
+  "browser": "156.0.8078.47",
+  "wasmSha256": "f1889c3686ef3d62de53e206709c7f36177cdf1a27bbb13ea3a0c5bef07b7a18",
+  "expectedWasmSha256": "f1889c3686ef3d62de53e206709c7f36177cdf1a27bbb13ea3a0c5bef07b7a18",
+  "scenario": {
+    "provenance": "previously captured real current-ruleset default Jinrei battle input, re-submitted through the current browser Worker and current WASM; no replay/event injection",
+    "sourcePath": "docs/evidence/battlefield/visual-acceptance/root-20261025025946/2026-10-25T02-59-54-115Z-pid2972976/default-enbu-victory-input.json.gz",
+    "sourceGzipSha256": "e157b2f498b786b1e3b473ad1e3f5d43e715375986eec9daea3fcb8a6e3c8b42",
+    "sourceInputSha256": "1f73d71c44f945ad08c1d02df624883d0f17cf352baca6c293346b5bfad612b7",
+    "requestSnapshotSha256": "1f73d71c44f945ad08c1d02df624883d0f17cf352baca6c293346b5bfad612b7",
+    "matchId": "next-8727546e20d43a0fc5d2cade5923b86c",
+    "ruleset": {
+      "digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+      "id": "senkei.next",
+      "version": {
+        "major": 2,
+        "minor": 0,
+        "patch": 0
+      }
+    },
+    "maxTicks": 600,
+    "outcome": "draw",
+    "finalTick": 600,
+    "finalStateDigest": "a97a6d5616d259cc06ed6e53377aa1ea14be5f62e833a4b631a70ff9475529f3",
+    "workerRequestId": "senkei-1-9",
+    "ownerReplayDigest": "082b3617ee7ada3e97c88db8edc0a6d2a52a23fa1f03df3a9627c94e7f1fa50a",
+    "publicReplayDigest": "082b3617ee7ada3e97c88db8edc0a6d2a52a23fa1f03df3a9627c94e7f1fa50a",
+    "wasmResponses": [
+      {
+        "status": 200,
+        "url": "http://127.0.0.1:4196/wasm/senkei_wasm.wasm?rev=f1889c3686ef3d62de53e206709c7f36177cdf1a27bbb13ea3a0c5bef07b7a18"
+      },
+      {
+        "status": 200,
+        "url": "http://127.0.0.1:4196/wasm/senkei_wasm.wasm?rev=f1889c3686ef3d62de53e206709c7f36177cdf1a27bbb13ea3a0c5bef07b7a18"
+      }
+    ],
+    "wasmArtifacts": {
+      "input": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/actual-worker-snapshot.json.gz",
+        "uncompressedBytes": 326763,
+        "compressedBytes": 7124,
+        "sha256": "1f73d71c44f945ad08c1d02df624883d0f17cf352baca6c293346b5bfad612b7"
+      },
+      "ownerReplay": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/actual-owner-presentation-replay.json.gz",
+        "uncompressedBytes": 30626812,
+        "compressedBytes": 1367613,
+        "sha256": "64110b979e01a2951c915d5235f8d98cfd1a4dd26cbad9b3e37195d1c166a9ee"
+      },
+      "publicReplay": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/actual-public-presentation-replay.json.gz",
+        "uncompressedBytes": 13183367,
+        "compressedBytes": 184773,
+        "sha256": "81fc45c9f366a7f7cc9021eb3d7daec7369f75837c411ba4c9ffbfdfa9e4923c"
+      }
+    }
+  },
+  "eventProofs": {
+    "skillDamage": {
+      "tick": 468,
+      "skillKey": "r01_a_active",
+      "sourceId": "visible-340",
+      "source": {
+        "entityType": "hero",
+        "replayEntityId": "visible-340",
+        "catalogId": "R01",
+        "owner": "defender",
+        "hp": 222,
+        "node": "B.MID.T2",
+        "edgeTo": "",
+        "position": {
+          "x": 1090,
+          "y": 510,
+          "track": "",
+          "edgeProgress": 0
+        }
+      },
+      "targetId": "visible-287",
+      "target": {
+        "entityType": "hero",
+        "replayEntityId": "visible-287",
+        "catalogId": "F03",
+        "owner": "attacker",
+        "hp": 131,
+        "node": "B.MID.T2",
+        "edgeTo": "",
+        "position": {
+          "x": 1090,
+          "y": 510,
+          "track": "",
+          "edgeProgress": 0
+        }
+      },
+      "targetHpBefore": 173,
+      "targetHpAfter": 131,
+      "skillEvent": {
+        "entity": "visible-340",
+        "event": "next.skill",
+        "payload": {
+          "skill": {
+            "kind": "string",
+            "value": "r01_a_active"
+          },
+          "source": {
+            "kind": "entity",
+            "value": "visible-340"
+          },
+          "target": {
+            "kind": "entity",
+            "value": "visible-287"
+          }
+        }
+      },
+      "damageEvent": {
+        "entity": "visible-287",
+        "event": "next.skill_damage",
+        "payload": {
+          "amount": {
+            "kind": "integer",
+            "value": 23
+          },
+          "source": {
+            "kind": "entity",
+            "value": "visible-340"
+          },
+          "target": {
+            "kind": "entity",
+            "value": "visible-287"
+          }
+        }
+      }
+    },
+    "heroDeath": {
+      "tick": 37,
+      "sourceId": "visible-9",
+      "source": {
+        "entityType": "hero",
+        "replayEntityId": "visible-9",
+        "catalogId": "F06",
+        "owner": "attacker",
+        "hp": 190,
+        "node": "A.BOT.J",
+        "edgeTo": "A.BOT.BANK",
+        "position": {
+          "x": 1157,
+          "y": 1263,
+          "track": "LEFT",
+          "edgeProgress": 43
+        }
+      },
+      "targetId": "visible-22",
+      "target": {
+        "entityType": "hero",
+        "replayEntityId": "visible-22",
+        "catalogId": "R05",
+        "owner": "defender",
+        "hp": 0,
+        "node": "A.BOT.BANK",
+        "edgeTo": "A.BOT.J",
+        "position": {
+          "x": 1097,
+          "y": 1323,
+          "track": "LEFT",
+          "edgeProgress": 41
+        }
+      },
+      "attackEvent": {
+        "entity": "visible-22",
+        "event": "next.attack",
+        "payload": {
+          "amount": {
+            "kind": "integer",
+            "value": 13
+          },
+          "source": {
+            "kind": "entity",
+            "value": "visible-9"
+          },
+          "target": {
+            "kind": "entity",
+            "value": "visible-22"
+          }
+        }
+      },
+      "deathEvent": {
+        "entity": "visible-22",
+        "event": "next.death",
+        "payload": {
+          "amount": {
+            "kind": "integer",
+            "value": 13
+          },
+          "source": {
+            "kind": "entity",
+            "value": "visible-9"
+          },
+          "target": {
+            "kind": "entity",
+            "value": "visible-22"
+          }
+        }
+      }
+    },
+    "visibilityLoss": {
+      "tick": 94,
+      "previousTick": 93,
+      "entityId": "visible-23",
+      "entity": {
+        "entityType": "hero",
+        "replayEntityId": "visible-23",
+        "catalogId": "F04",
+        "owner": "defender",
+        "hp": 85,
+        "node": "A.BOT.J",
+        "edgeTo": "",
+        "position": {
+          "x": 1080,
+          "y": 1340,
+          "track": "",
+          "edgeProgress": 0
+        }
+      },
+      "lastSeenHp": 85,
+      "currentViewState": "absent",
+      "confirmedDeathEventForEntity": false,
+      "interpretation": "last seen with positive HP; absent from current authorized view; no confirmed death event",
+      "noCurrentEntityWithSameOwnerAndCatalogId": true
+    },
+    "displacementAudit": {
+      "comparedHeroAttackSources": 919,
+      "skippedVisibilityOrIdentityGaps": 989,
+      "skippedDeadOrRespawning": 16,
+      "positionDefinition": "same continuously visible Hero identity; compare authorized final x/y, track and edge_progress at consecutive replay ticks",
+      "confirmedAttackWithActualDisplacement": []
+    }
+  },
+  "captures": [
+    {
+      "name": "confirmed-hero-hit-death",
+      "tick": 37,
+      "cameraMode": "tactical",
+      "tracking": "entity-18",
+      "poseEntityId": "entity-18",
+      "pose": "attack",
+      "poseSample": "0.000,1.000,0.000,0.160",
+      "cueLabels": [
+        "APPEARED · MINION · MELEE",
+        "ATTACK · HERO · F06 Pathfinder → HERO · R05 Conductor",
+        "ATTACK · HERO · R03 Farwatch → HERO · F03 Breach",
+        "DAMAGE · HERO · R05 Conductor · HP 0/180",
+        "HERO DEFEATED · HERO · R05 Conductor",
+        "DAMAGE · HERO · F03 Breach · HP 0/220",
+        "HERO DEFEATED · HERO · F03 Breach"
+      ],
+      "facts": {
+        "selectedActor": {
+          "replayEntityId": "visible-9",
+          "rendererEntityId": "entity-18",
+          "catalogId": "F06",
+          "side": "Azure"
+        },
+        "attackEvent": {
+          "entity": "visible-22",
+          "event": "next.attack",
+          "payload": {
+            "amount": {
+              "kind": "integer",
+              "value": 13
+            },
+            "source": {
+              "kind": "entity",
+              "value": "visible-9"
+            },
+            "target": {
+              "kind": "entity",
+              "value": "visible-22"
+            }
+          }
+        },
+        "deathEvent": {
+          "entity": "visible-22",
+          "event": "next.death",
+          "payload": {
+            "amount": {
+              "kind": "integer",
+              "value": 13
+            },
+            "source": {
+              "kind": "entity",
+              "value": "visible-9"
+            },
+            "target": {
+              "kind": "entity",
+              "value": "visible-22"
+            }
+          }
+        },
+        "targetStateAtTick": {
+          "entityType": "hero",
+          "replayEntityId": "visible-22",
+          "catalogId": "R05",
+          "owner": "defender",
+          "hp": 0,
+          "node": "A.BOT.BANK",
+          "edgeTo": "A.BOT.J",
+          "position": {
+            "x": 1097,
+            "y": 1323,
+            "track": "LEFT",
+            "edgeProgress": 41
+          }
+        },
+        "deathCue": "HERO DEFEATED · HERO · R05 Conductor",
+        "attackCueLabels": [
+          "ATTACK · HERO · F06 Pathfinder → HERO · R05 Conductor",
+          "ATTACK · HERO · R03 Farwatch → HERO · F03 Breach"
+        ]
+      },
+      "image": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/confirmed-hero-hit-death-t037.png",
+        "sha256": "0271194bc8fb4fb54683d1374a4d737b1394fd8dbe643f685efa5e7d218f0bd7"
+      }
+    },
+    {
+      "name": "confirmed-skill-and-hit",
+      "tick": 468,
+      "cameraMode": "tactical",
+      "tracking": "entity-338",
+      "poseEntityId": "entity-338",
+      "pose": "skill",
+      "poseSample": "0.000,0.000,0.000,0.000",
+      "cueLabels": [
+        "SKILL r01_a_active · HERO · R01 Tempest → HERO · F03 Breach",
+        "ATTACK · MINION · MELEE → MINION · MELEE",
+        "ATTACK · HERO · F02 Stoneheart → HERO · F03 Breach",
+        "DAMAGE · HERO · F03 Breach · HP 131/274",
+        "DAMAGE · MINION · MELEE · HP 62/90"
+      ],
+      "facts": {
+        "selectedActor": {
+          "replayEntityId": "visible-340",
+          "rendererEntityId": "entity-338",
+          "catalogId": "R01",
+          "side": "Vermilion"
+        },
+        "targetHpBefore": 173,
+        "targetHpAfter": 131,
+        "selectedActorPose": "skill",
+        "selectedActorPoseSample": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "skillEvent": {
+          "entity": "visible-340",
+          "event": "next.skill",
+          "payload": {
+            "skill": {
+              "kind": "string",
+              "value": "r01_a_active"
+            },
+            "source": {
+              "kind": "entity",
+              "value": "visible-340"
+            },
+            "target": {
+              "kind": "entity",
+              "value": "visible-287"
+            }
+          }
+        },
+        "skillDamageEvent": {
+          "entity": "visible-287",
+          "event": "next.skill_damage",
+          "payload": {
+            "amount": {
+              "kind": "integer",
+              "value": 23
+            },
+            "source": {
+              "kind": "entity",
+              "value": "visible-340"
+            },
+            "target": {
+              "kind": "entity",
+              "value": "visible-287"
+            }
+          }
+        },
+        "skillCue": "SKILL r01_a_active · HERO · R01 Tempest → HERO · F03 Breach",
+        "hitCueLabels": [
+          "DAMAGE · HERO · F03 Breach · HP 131/274",
+          "DAMAGE · MINION · MELEE · HP 62/90"
+        ]
+      },
+      "image": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/confirmed-skill-and-hit-t468.png",
+        "sha256": "600a004de1906e9c624aeba6dad2b1351488768be70008000dc7d2ebc6feedf6"
+      }
+    },
+    {
+      "name": "visibility-loss-is-not-death",
+      "tick": 94,
+      "cameraMode": "tactical",
+      "tracking": "",
+      "poseEntityId": "",
+      "pose": "none",
+      "poseSample": "",
+      "cueLabels": [
+        "APPEARED · HERO · F01 Bannerhold",
+        "ATTACK · MINION · MELEE → MINION · RANGED",
+        "ATTACK · MINION · MELEE → MINION · MELEE",
+        "DAMAGE · MINION · RANGED · HP 10/62",
+        "DAMAGE · MINION · MELEE · HP 10/90",
+        "DAMAGE · HERO · F06 Pathfinder · HP 0/190",
+        "HERO DEFEATED · HERO · F06 Pathfinder"
+      ],
+      "facts": {
+        "followedBeforeLoss": {
+          "replayEntityId": "visible-23",
+          "rendererEntityId": "entity-23",
+          "catalogId": "F04",
+          "side": "Vermilion"
+        },
+        "disappearance": {
+          "tick": 94,
+          "previousTick": 93,
+          "entityId": "visible-23",
+          "entity": {
+            "entityType": "hero",
+            "replayEntityId": "visible-23",
+            "catalogId": "F04",
+            "owner": "defender",
+            "hp": 85,
+            "node": "A.BOT.J",
+            "edgeTo": "",
+            "position": {
+              "x": 1080,
+              "y": 1340,
+              "track": "",
+              "edgeProgress": 0
+            }
+          },
+          "lastSeenHp": 85,
+          "currentViewState": "absent",
+          "confirmedDeathEventForEntity": false,
+          "interpretation": "last seen with positive HP; absent from current authorized view; no confirmed death event",
+          "noCurrentEntityWithSameOwnerAndCatalogId": true
+        },
+        "confirmedDeathEventForLostEntity": false,
+        "interpretation": "last seen with positive HP; absent from current authorized view; no confirmed death event",
+        "poseAfterLoss": "none",
+        "destroyCueLabelsAtLoss": [
+          "HERO DEFEATED · HERO · F06 Pathfinder"
+        ]
+      },
+      "image": {
+        "path": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/visibility-loss-is-not-death-t094.png",
+        "sha256": "ad255a0da8e46c8c9375769baef5278c9c29e8df0e47c458041b40061541194b"
+      }
+    }
+  ],
+  "pageErrors": []
+}
