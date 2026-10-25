@@ -472,6 +472,7 @@ describe("Next map graph projection", () => {
     expect(replay.timeline.some(event => event.type === "destroy" && event.entityId === replay.initialView.find(entity => entity.kind === "bridge")?.id)).toBe(false);
     expect(replay.initialView.find(entity => entity.archetype === "hero")?.battlefield?.crossing).toBe("ford");
     expect(replay.initialView.find(entity => entity.archetype === "hero")?.battlefield?.remaining).toBe(0);
+    expect(replay.initialView.find(entity => entity.kind === "observation")?.battlefield?.node).toBe("camp");
     expect(replay.timeline.some(event => event.type === "facility-state" && event.battlefield.captureSide === "vermilion" && event.battlefield.facilityOwner === "azure")).toBe(true);
   });
 });

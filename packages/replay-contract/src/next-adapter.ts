@@ -69,6 +69,7 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
   if (kind === "observation") {
     const captureOwner = maybeString(raw, "capture_owner");
     return {
+      ...(node ? { node } : {}),
       ...(captureProgress !== undefined ? { captureProgress } : {}),
       ...(captureSide ? { captureSide: publicSide(captureSide) } : {}),
       ...(captureOwner ? { facilityOwner: publicSide(captureOwner) } : {}),
