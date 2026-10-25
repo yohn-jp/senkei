@@ -210,7 +210,8 @@ export interface Route {
    * @maxItems 256
    */
   points: [WorldPoint, WorldPoint, ...WorldPoint[]];
-  bridgeSite?: "TOP" | "MID" | "BOT";
+  bridgeSite?: string;
+  bridgeKind?: "lane" | "facility";
   ford?: boolean;
 }
 export interface MapNode {
@@ -237,7 +238,7 @@ export interface BattlefieldState {
   track?: "LEFT" | "CENTER" | "RIGHT";
   crossing?: "none" | "track" | "bridge" | "ford";
   remaining?: number;
-  bridgeSite?: "TOP" | "MID" | "BOT";
+  bridgeSite?: string;
   bridgeState?: "normal" | "expanded" | "destroyed";
   buildRemaining?: number;
   captureProgress?: number;

@@ -61,7 +61,7 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
   const captureProgress = maybeNum(raw, "capture_progress");
   const captureSide = maybeString(raw, "capture_progress_side");
   if (kind === "bridge") return {
-    ...(site ? { bridgeSite: site as "TOP" | "MID" | "BOT" } : {}),
+    ...(site ? { bridgeSite: site } : {}),
     ...(bridgeState ? { bridgeState: bridgeState as "normal" | "expanded" | "destroyed" } : {}),
     ...(buildRemaining !== undefined ? { buildRemaining } : {}),
     facilityOwner: owner,
@@ -239,7 +239,16 @@ export function presentationToGraphics(
           else throw new ReplayError(`World presentation route endpoints do not match map edge: ${id}`);
         }
         if(points.at(-1)!.x!==nodePoint(edge.to).x || points.at(-1)!.y!==nodePoint(edge.to).y) throw new ReplayError(`World presentation route endpoints do not match map edge: ${id}`);
-        return [{id,region:edge.region,points,...(edge.bridge_site?{bridgeSite:edge.bridge_site as "TOP"|"MID"|"BOT"}:{}),...(edge.ford?{ford:true}:{})}];
+        const crossing = projection.edge_facts?.[id]?.river_crossing;
+        let bridgeKind: "lane" | "facility" | undefined;
+        if (edge.bridge_site) {
+          if (!crossing || crossing.bridge_site_id !== edge.bridge_site)
+            throw new ReplayError(`Missing paired World bridge crossing facts: ${id}`);
+          if (crossing.kind === "fixed_lane_bridge" || crossing.kind === "fixed_bridge") bridgeKind = "lane";
+          else if (crossing.kind === "fixed_facility_bridge") bridgeKind = "facility";
+          else throw new ReplayError(`Unsupported paired World bridge crossing kind: ${id}`);
+        }
+        return [{id,region:edge.region,points,...(edge.bridge_site?{bridgeSite:edge.bridge_site,bridgeKind}:{}),...(edge.ford?{ford:true}:{})}];
       }) },initialView,timeline,result });
 }
 

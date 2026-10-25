@@ -480,10 +480,13 @@
           "maxItems": 256
         },
         "bridgeSite": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$"
+        },
+        "bridgeKind": {
           "enum": [
-            "TOP",
-            "MID",
-            "BOT"
+            "lane",
+            "facility"
           ]
         },
         "ford": {
@@ -898,11 +901,8 @@
           "maximum": 1000000
         },
         "bridgeSite": {
-          "enum": [
-            "TOP",
-            "MID",
-            "BOT"
-          ]
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$"
         },
         "bridgeState": {
           "enum": [

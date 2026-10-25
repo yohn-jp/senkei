@@ -33,7 +33,7 @@ const TEST_PRESENTATION_WORLD: TestPresentationWorld = { river: { anchors: [
 const value = (kind: "integer" | "string", value: number | string): DomainValue => ({ kind, value } as DomainValue);
 const viewEntity = (entity_type: string, fields: Record<string, DomainValue>) => ({ entity_type, owner: "attacker", fields });
 
-function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; ford?:boolean }[] = [
+function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; bridge_kind?:string; ford?:boolean }[] = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
   { from: "camp", to: "defender", length: 250, region: "jungle", blocked: true },
 ], frames: CoreReplay["frames"] = [], nodes: Record<string, { x: number; y: number; region: string }> = {
@@ -46,7 +46,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
       { x: presentationNodes[edge.to]?.x ?? nodes[edge.to]?.x ?? 0, y: presentationNodes[edge.to]?.y ?? nodes[edge.to]?.y ?? 0 }],
   }]));
   const edgeFacts = Object.fromEntries(edges.map(edge => [edge.id || `${edge.from}-${edge.to}`, { river_crossing:
-    edge.bridge_site ? { kind: "fixed_facility_bridge", bridge_site_id: edge.bridge_site, start_progress_wu: 0, end_progress_wu: edge.length }
+    edge.bridge_site ? { kind: edge.bridge_kind ?? "fixed_facility_bridge", bridge_site_id: edge.bridge_site, start_progress_wu: 0, end_progress_wu: edge.length }
       : edge.ford ? { kind: "foot_ford", bridge_site_id: null, start_progress_wu: 0, end_progress_wu: edge.length }
         : null,
   }]));
@@ -117,6 +117,17 @@ function testRiverPoints(edges: readonly { id?: string; from: string; to: string
 }
 
 describe("Next map graph projection", () => {
+  it("preserves opaque canonical bridge site IDs and derives route kind from paired World edge facts", () => {
+    const replay = project([
+      { id: "edge-lane", from: "attacker", to: "camp", length: 250, region: "lane", blocked: false, bridge_site: "bridge.top", bridge_kind: "fixed_bridge" },
+      { id: "edge-facility", from: "camp", to: "defender", length: 250, region: "bridge", blocked: false, bridge_site: "bridge.mid", bridge_kind: "fixed_facility_bridge" },
+    ]);
+    expect(replay.scene.routes?.map(({ id, bridgeSite, bridgeKind }) => [id, bridgeSite, bridgeKind])).toEqual([
+      ["edge-lane", "bridge.top", "lane"],
+      ["edge-facility", "bridge.mid", "facility"],
+    ]);
+  });
+
   it("projects traversable map edges and camps from their real world nodes", () => {
     const replay = project();
     expect(replay.scene.routes).toEqual([
@@ -446,8 +457,8 @@ describe("Next map graph projection", () => {
     ]);
     expect(replay.header.enbuVersion).toBe("1.2.0");
     expect(replay.scene.nodes).toHaveLength(3);
-    expect(replay.scene.routes?.map(route => [route.id, route.bridgeSite, route.ford])).toEqual([
-      ["edge_top", "TOP", undefined], ["edge_ford", undefined, true],
+    expect(replay.scene.routes?.map(route => [route.id, route.bridgeSite, route.bridgeKind, route.ford])).toEqual([
+      ["edge_top", "TOP", "facility", undefined], ["edge_ford", undefined, undefined, true],
     ]);
     // A partial topology lacks the authored river landmarks, so the adapter
     // does not invent a course by sorting whatever crossings happen to exist.
