@@ -29,7 +29,7 @@ UIデータの正本は [REPLAY.md](REPLAY.md)。ゲームの意味論は [COMPO
 ~~~
 
 - **演武**: 中央の戦場を最大化。左の編成情報・右の分析は折りたたみ可能で、戦場を全画面にできる。
-- **陣令**: コードまたはノーコードのエディタへ主表示を切替。戦場とトレースの参照は残すが、小さな常設コード欄に押し込まない。
+- **陣令**: コードまたはノーコードのエディタへ主表示を切替。戦場とトレースの参照は残すが、小さな常設コード欄に押し込まない。編集・Domain Catalog・Behavior Coverage・Decision Traceの具体的なUXは [JINREI-EDITOR.md](JINREI-EDITOR.md) が正本。
 - **戦型**: 兵科・数・配置・レーン配分を編集するワークスペース。
 - **分析**: 選択イベントと戦闘Tickを結合。観測された事実と敗因の推測を区別する。
 - ヘッダーの高さや戦場の位置がエラーやサンプル通知によって跳ねないようにする。
@@ -99,3 +99,9 @@ Desktopを縦積みするだけのレイアウトは禁止。同じドメイン�
 ## 8. Hero専用ワークスペース
 
 Hero Collection、Hero Detail、Skill Tree、Squad Assemblyは [HERO-ATELIER.md](HERO-ATELIER.md) の専用デザイン契約に従う。DesktopのHero展示・成長経路・Squad構成は別々の主役を持ち、Mobileでは独立した操作画面を用いる。戦闘前に設定するスキル取得予定と、戦闘中の取得済みスキルを混同しない。Heroのモデルは戦場と同じidentityを用いる。
+
+## 9. Jinrei Editor・Coverage・診断の専用導線
+
+[JINREI-EDITOR.md](JINREI-EDITOR.md) をJinrei Workbenchの**独立した製品体験の正本**とする。DesktopはSource/No-code、Domain Catalog、Hero/Squad/Army別のBehavior Coverage、認可済みDecision Traceを横断できる。MobileはDesktopの縮小ではなく、編集／Catalog／Coverage／Traceを各専用面として提供する。
+
+「何も書かなければどう行動するか」「Squad/Armyから何を継承したか」「Jinreiの上書きによって何が変わるか」「実戦の採用・拒否理由」を同じRulePackageで提示する。画面の100%表示は全実世界状態を証明したかのように誤認させず、解析対象の状態同値クラス、Unknown、未証明の範囲を併記する。全ての変数・定数・CapabilityはSenritsu [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md) から取得し、Editor専用の重複辞書を持たない。

@@ -141,6 +141,9 @@ Soloを有利にするための無条件攻撃倍率は**現時点で合意さ�
 | Battle | Tick幅・通常攻撃間隔・対象選択・ダメージ・同時解決順 | COMBAT |
 | Structures | 塔射程・拠点HP・破壊順序・同時終局・時間切れ | WORLD / COMBAT |
 | Jinrei | 初期Senritsuの観測Capability、CU料金表・上限 | SENRITSU / JINREI-GRAMMAR |
+| Behavior | Hero既定Profile、Squad集約・Named Presetの評価重み、Tick単位のOverride | BEHAVIOR / SENRITSU |
+| Visibility | 地形ごとの論理遮蔽・半径・高台効果、MID局所視界と移動方向の観測 | WORLD / BATTLEFIELD |
+| Attack Timing | Windup／Impact／Recoveryの長さ、キャンセル条件、Tick境界 | COMBAT / ENBU |
 
 この表にない新システムをゲームデザインの穴埋めとして無断で加えない。既に合意した項目を「未決定」へ戻さない。
 

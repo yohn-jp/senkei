@@ -2,7 +2,7 @@
 
 ## 1. 位置づけ
 
-この文書はSenkeiの**戦闘主体、5体のHero選択、Squad編成・連携、死亡と復活、Hero属性**を定義する次期Senritsu向けゲームデザイン仕様である。既存のsenkei.initialにHero CatalogやSquad機能が実装されていると主張するものではない。ゲーム上の事実はSenritsu、状態遷移はEnbu、判断はJinrei、視覚的表現はRendererがそれぞれ所有する。[WORLD.md](WORLD.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) を併読する。
+この文書はSenkeiの**戦闘主体、5体のHero選択、Squad編成・連携、死亡と復活、Hero属性**を定義する次期Senritsu向けゲームデザイン仕様である。既存のsenkei.initialにHero CatalogやSquad機能が実装されていると主張するものではない。ゲーム上の事実はSenritsu、状態遷移はEnbu、判断はJinrei、視覚的表現はRendererがそれぞれ所有する。[WORLD.md](WORLD.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) を併読する。HeroごとのDefault BehaviorとSquad内の意思決定の合成は [BEHAVIOR.md](BEHAVIOR.md) を正本とする。
 
 **合意**と記した内容は会話で固定したもの。**候補／未確定**は詳細設計または数値調整の対象。前回の提案のうち後から変更されたものは、この文書に記した最新の内容を優先する。
 
@@ -166,3 +166,13 @@ Jinreiが観測できるのはSenritsuのObservation Schemaで許された情報
 Hero重複選択の可否、5体の初期スポーン位置、基礎ステータスと成長量、スキルツリーの解放・分岐、XP対象判定の距離と死亡時の資格、Squadごとの隊列形状、低速メンバーと編隊速度の関係、連携成熟時間と非線形効果値、分離・合流の距離・時間・コスト・優先順位、死者の進行状況保持、復活クールタイム、合流IDの取り扱い、中立Unitの特殊な状態。
 
 合意済みの5体固定・初期12種6対6・人数別速度倍率・死亡→Solo復活の規則を、調整用の未決定値と混同しない。
+
+## 13. 自律行動の単位（追加合意）
+
+Hero Catalogは能力値・スキルとは別に**Hero固有Default Behavior Profile**を持つ。共通Defaultとの差分でNavigation、Engagement、Targeting、Pursuit、Survival、Objectiveなどの選好を型付きで表し、個性を与える。
+
+Squadは**一つの移動／撤退／交戦モード**を持ち、構成Heroの既定選好をSenritsuが決定論的に集約する。個々のHeroは部隊として停止・合法な交戦中に、対象やSkillを個別選択できる。合流・分離・死亡とSolo復活で現在の所属から実効Profileを再評価する。
+
+Minionは基本的に自動進軍・CENTER補給路維持を担い、JinreiはArmyまたはLaneに限定された制御を提供する。個体MinionにHeroと同一の全面自由指揮を許す合意ではない。
+
+詳細な継承、Jinrei条件付き上書き、優先度、固定された文法との境界、分析Traceは [BEHAVIOR.md](BEHAVIOR.md) を正本とし、Hero Catalogの数値とは独立して版管理する。

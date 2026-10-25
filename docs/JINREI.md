@@ -34,4 +34,12 @@ Jinreiは**プレイヤーが戦型を作るための静的型付きの専用戦
 
 ## 4. 表層文法・意味論（確定）
 
-[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) を **v0.1の規範文法・評価意味論の正本**とする。stateは観測由来の名前付き三値述語、actionは必須のwhen/doからなる。波括弧とカンマ、インデント非依存、state直下AND、and/or/not、Known/Unknown、強Kleene三値論理、集合演算、同時評価と明示的なordered評価を採用する。具体的なDomain Schema・Capability・CU単価はSenritsuの版付き契約で定める。
+[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) を **v0.1の規範文法・評価意味論の正本**とする。Hero／Squad／Armyの行動選好の継承と条件付き上書きは [BEHAVIOR.md](BEHAVIOR.md)、利用可能な語彙は [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)、編集・可視化の体験は [JINREI-EDITOR.md](JINREI-EDITOR.md) に従う。stateは観測由来の名前付き三値述語、actionは必須のwhen/doからなる。波括弧とカンマ、インデント非依存、state直下AND、and/or/not、Known/Unknown、強Kleene三値論理、集合演算、同時評価と明示的なordered評価を採用する。具体的なDomain Schema・Capability・CU単価はSenritsuの版付き契約で定める。
+
+## 5. Action scopeとBehavior Profile（追加合意）
+
+Jinreiは**一つの宣言型プログラム**とし、Army/Squad/Hero/限定Minionの型付き作用対象を持つ。Army方針、Squadの移動・交戦、Heroの個別Skill／Targeting、Minionのレーン単位指示を、**Senritsuが宣言するCapabilityと対象型**により区別する。個別MinionにHero同等の自由な制御を標準追加しない。
+
+Hero CatalogのDefault BehaviorとSquadの継承は**設定データの差分合成**であって言語クラス継承ではない。Jinreiに `extends`／`override`／`super`／代入などの新構文を増やさない。既存の `state`／`action`／`when`／`do` による型付きIntentから、該当Tickの選好上書きを行う。明示した永続効果だけはSenritsuのCapabilityで持続を宣言する。
+
+同時評価・Unknown・CU・行動競合を変えず、コンパイル対象とEditorの語彙は同じSenritsu Domain Catalogに由来する。Editorは [JINREI-EDITOR.md](JINREI-EDITOR.md) を正本とする。
