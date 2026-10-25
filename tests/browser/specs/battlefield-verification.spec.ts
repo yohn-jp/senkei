@@ -225,11 +225,11 @@ function replayHeroPosition(
   const z = readInteger(entity, "y");
   if (!id || x === null || z === null) return null;
 
-  // A Hero on an ordinary lane is rendered on its selected lateral track.
-  // Derive that display-only offset from the actual ruleset returned by WASM,
-  // the authorized replay fields, and the authored static edge orientation.
-  // Crossing, ford, bridge, jungle, and node states remain on their logical
-  // centerline. The replay's integer x/y stays the source of truth.
+  // Moving entities are projected by the replay adapter onto the canonical
+  // World presentation polyline using logical edge_progress/edge.length.
+  // The renderer then offsets ordinary lane LEFT/RIGHT tracks along the
+  // nearest segment tangent. Reproduce those two production steps from the
+  // same World presentation payload and authorized fields.
   const rawField = (key: string): JsonRecord | undefined => entity.fields?.[key];
   const stringField = (key: string): string | null => {
     const field = rawField(key);
@@ -248,30 +248,95 @@ function replayHeroPosition(
   const next = ruleset.next as JsonRecord | undefined;
   const map = next?.map as JsonRecord | undefined;
   const parameters = next?.parameters as Record<string, number> | undefined;
-  const nodes = map?.nodes as Record<string, { x?: number; y?: number }> | undefined;
+  const projection = map?.world_projection as JsonRecord | undefined;
+  const artifact = projection?.presentation_artifact as JsonRecord | undefined;
+  const presentation = artifact?.content as JsonRecord | undefined;
+  const nodePositions = presentation?.node_positions as Record<string, { position?: { x?: number; y?: number } }> | undefined;
+  const edgePaths = presentation?.edge_paths as Record<string, { points?: { x: number; y: number }[] }> | undefined;
   const edges = map?.edges as { from?: string; to?: string; region?: string; bridge_site?: string }[] | undefined;
-  let laneTrackOffset = { x: 0, z: 0 };
-  if (node && edgeTo && (track === "LEFT" || track === "RIGHT") && !crossingActive) {
-    const edge = edges?.find((candidate) =>
+  let position = { x: x / nextWorldUnitsPerRenderUnit, y: z / nextWorldUnitsPerRenderUnit };
+  let edge: { from?: string; to?: string; id?: string; length?: number; region?: string; bridge_site?: string } | undefined;
+  let points: { x: number; y: number }[] | undefined;
+  if (node && edgeTo) {
+    edge = edges?.find((candidate) =>
       (candidate.from === node && candidate.to === edgeTo) ||
       (candidate.to === node && candidate.from === edgeTo),
     );
-    const from = edge?.from ? nodes?.[edge.from] : undefined;
-    const to = edge?.to ? nodes?.[edge.to] : undefined;
-    if (edge?.region === "lane" && !edge.bridge_site && from && to &&
-      Number.isFinite(from.x) && Number.isFinite(from.y) && Number.isFinite(to.x) && Number.isFinite(to.y)) {
-      const dx = to.x! - from.x!;
-      const dy = to.y! - from.y!;
-      const length = Math.hypot(dx, dy) || 1;
+    if (!edge || typeof edge.from !== "string" || typeof edge.to !== "string") return null;
+    const edgeId = edge.id || `${edge.from}-${edge.to}`;
+    const sourcePoints = edgePaths?.[edgeId]?.points;
+    const fromPosition = nodePositions?.[node]?.position;
+    if (!sourcePoints || sourcePoints.length < 2 || !fromPosition ||
+      !Number.isFinite(fromPosition.x) || !Number.isFinite(fromPosition.y)) return null;
+    points = sourcePoints.map((point) => ({
+      x: point.x / nextWorldUnitsPerRenderUnit,
+      y: point.y / nextWorldUnitsPerRenderUnit,
+    }));
+    const first = points[0]!;
+    const last = points.at(-1)!;
+    const from = { x: fromPosition.x! / nextWorldUnitsPerRenderUnit, y: fromPosition.y! / nextWorldUnitsPerRenderUnit };
+    const samePoint = (left: { x: number; y: number }, right: { x: number; y: number }) =>
+      Math.hypot(left.x - right.x, left.y - right.y) <= 1e-5;
+    if (samePoint(last, from)) points.reverse();
+    else if (!samePoint(first, from)) return null;
+
+    const edgeLength = edge.length;
+    const progress = integerField("edge_progress");
+    if (!Number.isFinite(edgeLength) || edgeLength! <= 0) return null;
+    const fraction = Math.max(0, Math.min(1, progress / edgeLength!));
+    const segmentLengths = points.slice(1).map((point, index) => Math.hypot(point.x - points![index]!.x, point.y - points![index]!.y));
+    const totalLength = segmentLengths.reduce((sum, length) => sum + length, 0);
+    if (totalLength <= 0) return null;
+    let remaining = fraction * totalLength;
+    for (let index = 0; index < segmentLengths.length; index += 1) {
+      const length = segmentLengths[index]!;
+      if (remaining <= length || index === segmentLengths.length - 1) {
+        const fromPoint = points[index]!;
+        const toPoint = points[index + 1]!;
+        const amount = length <= 0 ? 0 : Math.max(0, Math.min(1, remaining / length));
+        position = {
+          x: fromPoint.x + (toPoint.x - fromPoint.x) * amount,
+          y: fromPoint.y + (toPoint.y - fromPoint.y) * amount,
+        };
+        break;
+      }
+      remaining -= length;
+    }
+  } else if (node) {
+    const nodePosition = nodePositions?.[node]?.position;
+    if (!nodePosition || !Number.isFinite(nodePosition.x) || !Number.isFinite(nodePosition.y)) return null;
+    position = { x: nodePosition.x! / nextWorldUnitsPerRenderUnit, y: nodePosition.y! / nextWorldUnitsPerRenderUnit };
+  }
+  let laneTrackOffset = { x: 0, z: 0 };
+  if (node && edgeTo && points && edge?.region === "lane" && !edge.bridge_site &&
+    (track === "LEFT" || track === "RIGHT") && !crossingActive) {
+    let bestDistance = Infinity;
+    let tangent: { x: number; y: number } | undefined;
+    for (let index = 0; index + 1 < points.length; index += 1) {
+      const start = points[index]!;
+      const end = points[index + 1]!;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared <= 1e-12) continue;
+      const amount = Math.max(0, Math.min(1, ((position.x - start.x) * dx + (position.y - start.y) * dy) / lengthSquared));
+      const distance = Math.hypot(position.x - (start.x + dx * amount), position.y - (start.y + dy * amount));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        const length = Math.sqrt(lengthSquared);
+        tangent = { x: dx / length, y: dy / length };
+      }
+    }
+    if (tangent) {
       const side = track === "LEFT" ? -1 : 1;
       const offset = (parameters?.lane_track_offset_wu ?? 20) / nextWorldUnitsPerRenderUnit * side;
-      laneTrackOffset = { x: dy / length * offset, z: -dx / length * offset };
+      laneTrackOffset = { x: tangent.y * offset, z: -tangent.x * offset };
     }
   }
   return {
     id,
-    x: x / nextWorldUnitsPerRenderUnit + laneTrackOffset.x,
-    z: z / nextWorldUnitsPerRenderUnit + laneTrackOffset.z,
+    x: position.x + laneTrackOffset.x,
+    z: position.y + laneTrackOffset.z,
     sourceX: x,
     sourceY: z,
     laneTrackOffset,
