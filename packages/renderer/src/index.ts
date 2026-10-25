@@ -2761,6 +2761,15 @@ export class Battlefield {
         element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
         if (element.hidden) continue;
         const rect = element.getBoundingClientRect();
+        // A partly clipped nameplate cannot identify its unit. Keep the body
+        // visible and let selection expose its full peripheral identity.
+        if (
+          rect.left < hostRect.left + 4 || rect.right > hostRect.right - 4 ||
+          rect.top < hostRect.top + 4 || rect.bottom > hostRect.bottom - 4
+        ) {
+          element.hidden = true;
+          continue;
+        }
         const entityPriority = focused ? 0 : groupedHeroes ? 40 : 45;
         const collisions = labelPlacements.filter((other) => overlaps(rect, other));
         if (collisions.some((other) => other.priority <= entityPriority)) {
