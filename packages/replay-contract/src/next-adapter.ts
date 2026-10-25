@@ -15,6 +15,10 @@ type CanonicalPresentationContent = {
 };
 type MapWorldProjection = {
   readonly source_identity: WorldIdentityRef;
+  readonly edge_facts: Readonly<Record<string, { readonly river_crossing?: {
+    readonly kind: string; readonly bridge_site_id?: string | null; readonly start_progress_wu: number; readonly end_progress_wu: number;
+  } | null }>>;
+  readonly bridge_sites: Readonly<Record<string, readonly string[]>>;
   readonly presentation_artifact: {
     readonly schema_version: { readonly major: number; readonly minor: number; readonly patch: number };
     readonly content: CanonicalPresentationContent;
@@ -142,7 +146,7 @@ export function presentationToGraphics(
       kind: kind === "tower" || kind === "base" || kind === "bridge" || kind === "observation" ? kind : "unit", archetype: kind,
       appearanceKey: definition?.appearance_key ?? (typeof catalog === "string" && catalog ? catalog : kind),
       ...(typeof catalog === "string" && catalog ? { catalogId: catalog } : {}),
-      position: presentationPosition(raw, kind, next.map.nodes, next.map.edges, worldPresentation, nodePoint),
+      position: presentationPosition(raw, kind, next.map.nodes, next.map.edges, projection, worldPresentation, nodePoint),
       hp, maxHp, ...(battlefield ? { battlefield } : {}),
     };
   };
@@ -193,7 +197,7 @@ export function presentationToGraphics(
     }
     for (const [rawId, raw] of Object.entries(current).sort(([a], [b]) => a.localeCompare(b))) {
       const old = active.get(rawId); if (!old) continue;
-      const position = presentationPosition(raw, raw.entity_type, next.map.nodes, next.map.edges, worldPresentation, nodePoint);
+      const position = presentationPosition(raw, raw.entity_type, next.map.nodes, next.map.edges, projection, worldPresentation, nodePoint);
       const persistentFacility = raw.entity_type === "bridge" || raw.entity_type === "observation";
       const hp = maybeNum(raw,"hp") ?? old.hp;
       const maxHp = maybeNum(raw,"max_hp") ?? old.maxHp;
@@ -244,19 +248,27 @@ function presentationPosition(
   kind: string,
   nodes: StaticMap["nodes"],
   edges: readonly StaticEdge[],
+  projection: MapWorldProjection,
   presentation: CanonicalPresentationContent,
   nodePoint: (id: string) => { x: number; y: number },
 ): { x: number; y: number } {
   const site = maybeString(entity, "site");
   if (kind === "bridge" && site) {
-    const edge = edges.find((candidate) => candidate.bridge_site === site);
-    if (edge) {
-      const length = edge.length;
-      const from = edge.from, to = edge.to;
-      const source = presentation.edge_paths[edge.id || `${from}-${to}`]?.points;
-      if (!source || source.length < 2 || !Number.isSafeInteger(length) || length <= 0) throw new ReplayError("Missing canonical bridge route presentation");
-      return polylinePosition(source, 0.5);
-    }
+    const centers = (projection.bridge_sites[site] ?? []).map(edgeId => {
+      const edge = edges.find(candidate => (candidate.id || `${candidate.from}-${candidate.to}`) === edgeId);
+      const crossing = projection.edge_facts[edgeId]?.river_crossing;
+      if (!edge || !crossing || crossing.bridge_site_id !== site || edge.length <= 0)
+        throw new ReplayError(`Invalid paired World bridge site geometry: ${site}`);
+      const points = presentation.edge_paths[edgeId]?.points;
+      if (!points || points.length < 2) throw new ReplayError(`Missing canonical bridge route presentation: ${edgeId}`);
+      const from = nodePoint(edge.from);
+      const isForward = points[0]!.x === from.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT && points[0]!.y === from.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT;
+      const oriented = isForward ? points : [...points].reverse();
+      const amount = ((crossing.start_progress_wu + crossing.end_progress_wu) / 2) / edge.length;
+      return polylinePosition(oriented, amount);
+    });
+    if (centers.length === 0) throw new ReplayError(`Missing paired World bridge site geometry: ${site}`);
+    return { x: centers.reduce((sum, point) => sum + point.x, 0) / centers.length, y: centers.reduce((sum, point) => sum + point.y, 0) / centers.length };
   }
   const fromId = maybeString(entity, "node");
   const toId = maybeString(entity, "edge_to");

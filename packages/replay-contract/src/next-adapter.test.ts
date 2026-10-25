@@ -45,6 +45,14 @@ function project(edges: readonly { from:string; to:string; length:number; region
     points: [{ x: presentationNodes[edge.from]?.x ?? nodes[edge.from]?.x ?? 0, y: presentationNodes[edge.from]?.y ?? nodes[edge.from]?.y ?? 0 },
       { x: presentationNodes[edge.to]?.x ?? nodes[edge.to]?.x ?? 0, y: presentationNodes[edge.to]?.y ?? nodes[edge.to]?.y ?? 0 }],
   }]));
+  const edgeFacts = Object.fromEntries(edges.map(edge => [edge.id || `${edge.from}-${edge.to}`, { river_crossing:
+    edge.bridge_site ? { kind: "fixed_facility_bridge", bridge_site_id: edge.bridge_site, start_progress_wu: 0, end_progress_wu: edge.length }
+      : edge.ford ? { kind: "foot_ford", bridge_site_id: null, start_progress_wu: 0, end_progress_wu: edge.length }
+        : null,
+  }]));
+  const bridgeSites = Object.fromEntries([...new Set(edges.flatMap(edge => edge.bridge_site ? [edge.bridge_site] : []))].map(site => [site,
+    edges.filter(edge => edge.bridge_site === site).map(edge => edge.id || `${edge.from}-${edge.to}`),
+  ]));
   const riverPoints = testRiverPoints(edges, nodes, presentationNodes, presentationWorld);
   const ruleset = {
     ruleset: RULESET,
@@ -54,7 +62,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
       world_identity: packageWorld,
       map: {
         world_identity: mapWorld,
-        world_projection: { source_identity: mapWorld, presentation_artifact: { schema_version: { major: 1, minor: 0, patch: 0 }, content: {
+        world_projection: { source_identity: mapWorld, edge_facts: edgeFacts, bridge_sites: bridgeSites, presentation_artifact: { schema_version: { major: 1, minor: 0, patch: 0 }, content: {
           node_positions: Object.fromEntries(Object.entries(presentationNodes).map(([id, position]) => [id, { position }])),
           edge_paths: edgePaths,
           rivers: riverPoints.length >= 2 ? { "river.fixture": { points: riverPoints } } : {},
