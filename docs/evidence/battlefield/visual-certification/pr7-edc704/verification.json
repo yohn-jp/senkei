@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-25T05:38:22.911Z",
+  "applicationProducer": {
+    "baseCommit": "edc70466f4bcfdf76199d07bcd485b314f576f4b",
+    "browserBuildRevision": "edc70466f4bcfdf76199d07bcd485b314f576f4b",
+    "rendererSourceChanged": false
+  },
+  "runtimeIdentity": {
+    "senritsu": {
+      "id": "senkei.next",
+      "version": {
+        "major": 2,
+        "minor": 0,
+        "patch": 0
+      },
+      "digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481"
+    },
+    "enbuEngine": {
+      "major": 1,
+      "minor": 2,
+      "patch": 0
+    },
+    "jinreiLanguage": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "bytecode": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "costSchedule": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    },
+    "browser": "Nix Chromium 153.0.8010.52, SwiftShader",
+    "wasmBinaryHttpStatus": 200
+  },
+  "realReplayFacts": {
+    "canonical": {
+      "status": "PASS",
+      "matchId": "battlefield-canonical-interactions",
+      "outcome": "draw",
+      "finalTick": 70
+    },
+    "bridges": [
+      {
+        "site": "TOP",
+        "state": "normal",
+        "tick": 0
+      },
+      {
+        "site": "MID",
+        "state": "destroyed",
+        "tick": 11
+      },
+      {
+        "site": "TOP",
+        "state": "expanded",
+        "tick": 13
+      },
+      {
+        "site": "TOP",
+        "state": "destroyed",
+        "tick": 23
+      },
+      {
+        "site": "TOP",
+        "state": "normal",
+        "tick": 49
+      }
+    ],
+    "laneCrossing": {
+      "status": "PASS",
+      "catalogId": "F01",
+      "tick": 3,
+      "crossRemaining": "positive"
+    },
+    "fordTransit": {
+      "status": "PASS",
+      "catalogId": "F02",
+      "entryTick": 24,
+      "followedTransitTick": 56,
+      "bridgeFree": true
+    },
+    "midObservationCapture": {
+      "status": "PASS",
+      "progressTick": 7,
+      "capturedTick": 8,
+      "owner": "attacker",
+      "visualFocus": "NOT_CHECKED"
+    },
+    "defaultMovementAttack": {
+      "status": "PASS",
+      "movementTick": 17,
+      "attackTick": 18,
+      "catalogId": "F03",
+      "viewport": "1440x900"
+    },
+    "controlledEnemyBaseAssault": {
+      "snapshotExport": "PASS",
+      "browserWasmAndVisualDestruction": "NOT_CHECKED"
+    }
+  },
+  "checks": {
+    "initialFullMatrix": {
+      "status": "FAIL",
+      "viewports": [
+        "1440x900",
+        "1920x1080",
+        "390x844",
+        "430x932",
+        "320x740"
+      ],
+      "reached": [
+        "canonical bridge/ford/lane route checks",
+        "MID owner capture state",
+        "default T17 movement and T18 attack at 1440x900"
+      ],
+      "failure": "The test found F03 on a lateral lane at T50 without checking HP, then tried to follow it; the authorized replay/UI correctly rejected the dead Hero.",
+      "classification": "test-target liveness assumption; not a renderer failure"
+    },
+    "focused1440AfterTestFix": {
+      "statusAtReportCreation": "RUNNING",
+      "result": "NOT_CHECKED"
+    },
+    "viewport375x812": {
+      "status": "NOT_CHECKED"
+    },
+    "ci": {
+      "status": "NOT_CHECKED"
+    },
+    "physicalGpuTouchIme": {
+      "status": "NOT_CHECKED"
+    }
+  },
+  "acceptance": {
+    "functional": "PARTIAL_PASS",
+    "visual": "FAIL",
+    "interaction": "PARTIAL_PASS",
+    "ci": "NOT_CHECKED",
+    "physicalDevice": "NOT_CHECKED"
+  },
+  "visualFindings": [
+    "At 1440x900 T23, the destroyed crossing is visible and the PR #7 center damage card is gone, but the Overview remains a sparse low-poly ground plane with ribbon roads, a flat water strip, and limited camp/forest architecture.",
+    "At 320x740 T0 Tactical, selected-Hero and visible-Hero labels plus the Pixel 3D control occupy the battlefield area around MID.",
+    "The MID capture values are Replay-confirmed, but the captured overview camera does not provide a close visual read of the observatory state."
+  ],
+  "knownLimits": [
+    "Terrain occlusion is disabled and not certified by these captures.",
+    "Nonzero attack preparation resolves at action start; these captures do not establish delayed start-to-impact timing.",
+    "The MID replay has capture owner/progress but no typed enemy movement-direction field; no direction behavior is claimed."
+  ],
+  "baseline": {
+    "commit": "6fa8296de8c3f85a50b064012f5a0bf3b891600e",
+    "image": "https://github.com/yohn-jp/senkei/blob/6fa8296de8c3f85a50b064012f5a0bf3b891600e/docs/evidence/battlefield/canonical-browser/desktop-1440x900-bridge-destroyed.png",
+    "comparisonViewport": "1440x900",
+    "comparisonTick": 23,
+    "comparisonCamera": "Overview"
+  },
+  "captures": [
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-attack-follow-t018.png",
+      "viewport": "1440x900",
+      "tick": 18,
+      "camera": "Follow",
+      "sha256": "4fb2c344604ccd112fb247566df97ef121631dbfe05fefda56e2888dd2ecc9f2",
+      "bytes": 171048
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-bridge-destroyed-overview-t023.png",
+      "viewport": "1440x900",
+      "tick": 23,
+      "camera": "Overview",
+      "sha256": "c532035b0a8f3f7f25abe501aca5a84f13ba791d30dc504739e67d0d9e925ec4",
+      "bytes": 177113
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-bridge-destroyed-t023.png",
+      "viewport": "1440x900",
+      "tick": 23,
+      "camera": "Tactical",
+      "sha256": "3baf6fee23fcc4c72c58e181c465a56bfa1e07c0c71ede2dd484e69a2c50dc52",
+      "bytes": 214192
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-bridge-expanded-t013.png",
+      "viewport": "1440x900",
+      "tick": 13,
+      "camera": "Tactical",
+      "sha256": "fbc27d401d753717e08187b4751b0dcc76effd228e9c156f8d031394bad6db7f",
+      "bytes": 255933
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-bridge-rebuilt-t049.png",
+      "viewport": "1440x900",
+      "tick": 49,
+      "camera": "Tactical",
+      "sha256": "3f2657d8d862398828d38b5ac8546ce7063f0c672516dac002943579cb6654e5",
+      "bytes": 250443
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-ford-follow-t056.png",
+      "viewport": "1440x900",
+      "tick": 56,
+      "camera": "Follow",
+      "sha256": "cf601b41f51511d1534cb19930da4894fdf74586b9535a206fdf1812ca7c7b6e",
+      "bytes": 177774
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-lane-crossing-t003.png",
+      "viewport": "1440x900",
+      "tick": 3,
+      "camera": "Tactical",
+      "sha256": "4a6c38a96d54a7fc01a461e08c809a5bff30eef0e452c7c6549d915f7b9ad513",
+      "bytes": 246710
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-mid-bridge-destroyed-t011.png",
+      "viewport": "1440x900",
+      "tick": 11,
+      "camera": "Tactical",
+      "sha256": "0fc8dc5c0d2237a4860f96c8a0c8ceba12cfcaa7fa9643ed3bb64ac308f3142e",
+      "bytes": 189582
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-movement-follow-t017.png",
+      "viewport": "1440x900",
+      "tick": 17,
+      "camera": "Follow",
+      "sha256": "044d685d076eaff8d156044940d7c20b3f9383618a39aba534fe39380cee8ec9",
+      "bytes": 162136
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-top-bridge-normal-t000.png",
+      "viewport": "1440x900",
+      "tick": 0,
+      "camera": "Tactical",
+      "sha256": "a717fbcd77dab7c3bbfa113414158a97ec3ed9827402a8c04eacb17c009028e9",
+      "bytes": 153539
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/1440x900-world-overview-t000.png",
+      "viewport": "1440x900",
+      "tick": 0,
+      "camera": "Overview",
+      "sha256": "9be60775d9892c95e18ffcf96a008af2ee53671f37b4902dd1ac15652ea72b0e",
+      "bytes": 171085
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/320x740-initial-t000.png",
+      "viewport": "320x740",
+      "tick": 0,
+      "camera": "Tactical",
+      "sha256": "4ec09610ac7e084e4ea26be8b36707c4f3baf8153efa56ca47ee7526bc1eacb5",
+      "bytes": 80435
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/390x844-world-overview-t000.png",
+      "viewport": "390x844",
+      "tick": 0,
+      "camera": "Overview",
+      "sha256": "1336ddcc2aeef714913d70396ef83a62355f96e31acd84dd5636742f868dcc9f",
+      "bytes": 103192
+    },
+    {
+      "path": "docs/evidence/battlefield/visual-certification/pr7-edc704/430x932-lane-crossing-t003.png",
+      "viewport": "430x932",
+      "tick": 3,
+      "camera": "Tactical",
+      "sha256": "e0cb65b24dfdb1c973271fbee652c3a08f61a906596243d9afc3eba7e17ca354",
+      "bytes": 104343
+    }
+  ]
+}
