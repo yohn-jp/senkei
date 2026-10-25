@@ -612,6 +612,8 @@ fn merge(
         for right_id in members.iter().skip(index + 1) {
             let right = &world.entities[right_id];
             if support::combat_distance2(left, right, rules).is_none()
+                || support::string(left, "node") != support::string(right, "node")
+                || support::string(left, "edge_to") != support::string(right, "edge_to")
                 || support::string(left, "track") != support::string(right, "track")
             { return; }
         }
