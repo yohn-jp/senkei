@@ -149,6 +149,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "senkei-world"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "senritsu"
 version = "0.1.0"
 dependencies = [
