@@ -618,7 +618,12 @@ export class Battlefield {
     if (purpose === "follow" && forward) {
       const horizontal = this.mobile ? 22 : 24;
       const height = this.mobile ? 28 : 27;
-      return new THREE.Vector3(-forward.x * horizontal, height, -forward.y * horizontal);
+      // A quarter view reveals single-file equipment and keeps the route ahead.
+      return new THREE.Vector3(
+        -forward.x * horizontal * 0.7 + forward.y * horizontal * 0.8,
+        height,
+        -forward.y * horizontal * 0.7 - forward.x * horizontal * 0.8,
+      );
     }
     if (purpose === "overview" && !this.mobile)
       return new THREE.Vector3(42, 68, 42);
@@ -1426,6 +1431,12 @@ export class Battlefield {
       [...Object.values(rig.joints), ...Object.values(rig.weaponPivots)]
         .map(joint => [joint, joint.rotation.clone()]),
     );
+    const materials = new Set<THREE.Material>();
+    group.traverse(object => {
+      if (object instanceof THREE.Mesh)
+        (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
+    });
+    group.userData.focusMaterials = [...materials];
   }
   private entityHeight(entity: DisplayEntity, point: WorldPoint): number {
     if (entity.kind === "unit") {
@@ -2311,6 +2322,20 @@ export class Battlefield {
             lod.autoUpdate = !focused;
             if (focused) lod.levels.forEach((level, index) => { level.object.visible = index === 0; });
           }
+          const subject = this.trackedIds.length === 1 ? this.state?.entities[this.trackedIds[0]!] : undefined;
+          const entity = this.state?.entities[g.userData.entityId];
+          const companion = Boolean(subject && entity && subject.id !== entity.id &&
+            Math.hypot(subject.position.x - entity.position.x, subject.position.y - entity.position.y) < 2.5);
+          const opacity = companion ? 0.27 : 1;
+          if (g.userData.focusOpacity !== opacity) {
+            for (const material of g.userData.focusMaterials as THREE.Material[]) {
+              material.opacity = opacity;
+              material.transparent = companion;
+              material.depthWrite = !companion;
+              material.needsUpdate = true;
+            }
+            g.userData.focusOpacity = opacity;
+          }
           const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
           for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
           const active = this.playing && !this.reducedMotion;
@@ -2418,7 +2443,16 @@ export class Battlefield {
         label.element.hidden =
           !zoomVisible || Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
         if (label.element.hidden) continue;
-        const rect = label.element.getBoundingClientRect();
+        let rect = label.element.getBoundingClientRect();
+        const shiftX = rect.left < hostRect.left + 6 ? hostRect.left + 6 - rect.left
+          : rect.right > hostRect.right - 6 ? hostRect.right - 6 - rect.right : 0;
+        const shiftY = rect.top < hostRect.top + 34 ? hostRect.top + 34 - rect.top
+          : rect.bottom > hostRect.bottom - 10 ? hostRect.bottom - 10 - rect.bottom : 0;
+        if (shiftX || shiftY) {
+          label.element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2 + shiftX}px`;
+          label.element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2 + shiftY}px`;
+          rect = label.element.getBoundingClientRect();
+        }
         if (labelPlacements.some((other) => overlaps(rect, other))) {
           label.element.hidden = true;
           continue;
@@ -2660,7 +2694,7 @@ export class Battlefield {
         const visible = Boolean(
           entity &&
             group &&
-            (focused || groupedHeroes || individualHero),
+            (focused || (this.trackedIds.length !== 1 && (groupedHeroes || individualHero))),
         );
         element.hidden = !visible;
         element.dataset.focused = String(focused);
@@ -2668,8 +2702,8 @@ export class Battlefield {
         const identity = this.entityLabel(entity!).replace(/^HERO · /, "");
         const sideMarker = this.sideMarker(entity!.side);
         const healthSuffix = this.entityHealthSuffix(entity!);
-        element.textContent = groupedHeroes && focused
-          ? `${sideMarker} · ${heroStack.length} visible Heroes · ${identity}${healthSuffix}`
+        element.textContent = focused
+          ? `${sideMarker} · ${identity}${healthSuffix}`
           : groupedHeroes
             ? `${sideMarker} · ${heroStack.length} visible Heroes`
             : `${focused ? `${sideMarker} · ` : ""}${this.entityLabel(entity!)}${healthSuffix}`;
@@ -2678,6 +2712,16 @@ export class Battlefield {
           : entity?.kind === "tower" ? 4 : 2.8;
         const modelOffset = this.modelOffsets.get(id);
         const p = group.position.clone().add(new THREE.Vector3(modelOffset?.x ?? 0, height, modelOffset?.y ?? 0)).project(this.camera);
+        if (focused && this.replay.scene.routes?.length) {
+          element.style.left = this.mobile ? "8px" : "182px";
+          element.style.top = "auto";
+          element.style.bottom = "10px";
+          element.style.transform = "none";
+          element.style.maxWidth = this.mobile ? "calc(100% - 112px)" : "min(380px, calc(100% - 210px))";
+          element.hidden = false;
+          continue;
+        }
+        element.style.bottom = "auto";
         element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
         const separateSelectedIdentity = Boolean(

@@ -689,7 +689,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
   const heroes = nextRules?.heroes ?? [];
   const visibleCameraTargets = useMemo<VisibleBattleTarget[]>(() => Object.values(displayState?.entities ?? {})
-    .filter((entity) => !entity.destroyed && entity.hp > 0)
+    .filter((entity) => !entity.destroyed && (entity.hp > 0 || entity.kind === "bridge" || entity.kind === "observation"))
     .sort((left, right) => {
       const priority = (entity: DisplayState["entities"][string]) => entity.archetype === "hero" ? 0 : entity.kind === "unit" ? 1 : entity.kind === "tower" ? 2 : 3;
       return priority(left) - priority(right) || left.side.localeCompare(right.side) || left.id.localeCompare(right.id);
@@ -1284,6 +1284,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     if (view === "timeline") player?.pause();
     if (view === "battle" || view === "overview") {
       setBattleRosterOpen(false);
+      setBattleInspectorOpen(false);
       const nextMode = view === "overview" ? "overview" : "tactical";
       setCameraMode(nextMode);
       setFollowedEntityId(null);
@@ -1295,8 +1296,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const closeBattleSheet = (): void => setBattleMobileView(cameraMode === "overview" ? "overview" : "battle");
   const followVisibleEntity = (id: string): void => {
     setSelectedEntityId(id);
-    const mobile = window.matchMedia("(max-width: 760px)").matches;
-    setBattleMobileView(mobile ? "follow" : "battle");
+    setBattleMobileView("battle");
+    setBattleInspectorOpen(false);
     setBattleRosterOpen(false);
     setCameraMode("tactical");
     setFollowedEntityId(id);
@@ -1562,7 +1563,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   <div aria-label="Entity side markers: A attacker, D defender, N neutral" className="next-minimap-legend"><span aria-label="Attacker"><i className="side-azure" /><b>A</b></span><span aria-label="Defender"><i className="side-vermilion" /><b>D</b></span><span aria-label="Neutral"><i className="side-neutral" /><b>N</b></span></div>
                   </div>}
                 </aside>
-                <button aria-expanded={battleRosterOpen} aria-label={`Visible entity roster, ${visibleCameraTargets.length} living visible entities`} className="next-visible-roster-trigger" data-testid="battle-visible-roster-toggle" onClick={() => setBattleRosterOpen((open) => !open)} type="button"><span>VISIBLE ROSTER</span><b>{visibleCameraTargets.length}</b></button>
+                <button aria-expanded={battleRosterOpen} aria-label={`Visible entity roster, ${visibleCameraTargets.length} visible entities`} className="next-visible-roster-trigger" data-testid="battle-visible-roster-toggle" onClick={() => setBattleRosterOpen((open) => !open)} type="button"><span>VISIBLE ROSTER</span><b>{visibleCameraTargets.length}</b></button>
                 <section aria-label="Visible entity cluster roster" className="next-visible-roster-panel" data-testid="battle-visible-roster" hidden={!battleRosterOpen}>
                   <header><div><span className="next-eyebrow">CURRENT DISPLAY · TICK {displayState?.tick ?? 0}</span><h4>Visible entities <small>{visibleCameraTargets.length}</small></h4></div><button aria-label="Close visible entity roster" onClick={() => setBattleRosterOpen(false)} type="button">×</button></header>
                   {renderVisibleEntityClusters("desktop")}

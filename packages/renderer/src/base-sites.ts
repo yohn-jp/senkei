@@ -47,7 +47,7 @@ export class KnownBaseSites {
         position: "absolute", pointerEvents: "none", zIndex: "1", padding: "3px 6px",
         color: site.side === "azure" ? "#b0e2df" : "#f3c1aa", background: "#101d20ed",
         borderLeft: `3px solid #${color.toString(16)}`, font: "600 11px/1.35 system-ui",
-        width: "144px", boxSizing: "border-box", textAlign: "center", whiteSpace: "nowrap", transform: "translate(-50%, 12px)",
+        width: "176px", boxSizing: "border-box", textAlign: "center", whiteSpace: "normal", transform: "translate(-50%, 12px)",
       });
       host.appendChild(label);
       this.entries.push({ site, label, marker });
@@ -85,7 +85,9 @@ export class KnownBaseSites {
         label.replaceChildren(document.createTextNode(title), document.createElement("br"), document.createTextNode(status));
       }
       const point = marker.position.clone().project(camera);
-      label.style.left = `${Math.min(width - 74, Math.max(74, (point.x + 1) * width / 2))}px`;
+      label.style.width = `${Math.min(width < 700 ? 160 : 176, width - 16)}px`;
+      const halfLabel = label.getBoundingClientRect().width / 2;
+      label.style.left = `${Math.min(width - halfLabel - 8, Math.max(halfLabel + 8, (point.x + 1) * width / 2))}px`;
       const bottomReserve = width < 700 ? 112 : 48;
       label.style.top = `${Math.max(4, Math.min(height - bottomReserve, (1 - point.y) * height / 2))}px`;
       label.hidden = Math.abs(point.x) > 1 || Math.abs(point.y) > 1 || point.z < -1 || point.z > 1;
