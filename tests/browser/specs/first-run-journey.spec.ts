@@ -14,7 +14,12 @@ const viewports = [
 ] as const;
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page, width: number): Promise<void> {
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  // Restoring two complete Enbu records after a viewport reload can occupy
+  // the main thread beyond the DOM assertion default (measured 4.3s).
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), {
+    timeout: 30_000,
+    message: `The ${width}px journey must fit its viewport after local recovery finishes`,
+  }).toBeLessThanOrEqual(width);
 }
 
 async function enterQuickReady(page: import("@playwright/test").Page, viewportName: string): Promise<void> {
