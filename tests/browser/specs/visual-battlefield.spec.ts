@@ -631,7 +631,17 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     expect(integerField(observationAt(captureRun.ownerReplay, 1), "capture_progress")).toBe(1);
     expect(integerField(observationAt(captureRun.ownerReplay, 7), "capture_progress")).toBe(7);
     expect(field(observationAt(captureRun.ownerReplay, 8), "capture_owner")).toBe("attacker");
-    expect(frameAt(captureRun.publicReplay, 8).events.some((event: JsonRecord) => event.event === "next.observation_capture")).toBe(true);
+    for (const tick of [1, 7, 8]) {
+      expect(observationAt(captureRun.publicReplay, tick), `unseen MID facility state remains private at public tick ${tick}`).toBeUndefined();
+      expect(
+        frameAt(captureRun.publicReplay, tick).events.some((event: JsonRecord) => event.event === "next.observation_capture"),
+        `capture event remains private at public tick ${tick}`,
+      ).toBe(false);
+    }
+    expect(
+      frameAt(captureRun.ownerReplay, 8).events.some((event: JsonRecord) => event.event === "next.observation_capture"),
+      "authorized owner replay contains the real capture event",
+    ).toBe(true);
     await assertMapContract(capturePage);
     for (const viewport of [viewports[0], viewports[2], viewports[4]]) {
       await ensureViewport(capturePage, viewport);
@@ -737,7 +747,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       commit: beforeCommit,
       desktop: beforeImages.desktop,
       mobile: beforeImages.mobile,
-      afterDesktop: "canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png",
+      afterDesktop: "canonical-real-battle/1440x900/destroyed-bridge-overview-t023-overview.png",
       afterMobile: `default-enbu-victory/390x844/first-node-clash-t${String(defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame))?.tick ?? 0).padStart(3, "0")}-tactical.png`,
     },
     viewports,
@@ -810,7 +820,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     "",
     "| Scene | Before | After | Evidence |",
     "| --- | --- | --- | --- |",
-    `| Desktop battlefield and destroyed crossing | [6fa8296 baseline](${beforeImages.desktop}) | [real destroyed crossing](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png) | 1440×900, T23, Tactical |`,
+    `| Desktop battlefield and destroyed crossing | [6fa8296 baseline](${beforeImages.desktop}) | [real destroyed crossing](canonical-real-battle/1440x900/destroyed-bridge-overview-t023-overview.png) | 1440×900, T23, Overview |`,
     `| Mobile battlefield and first Hero clash | [6fa8296 baseline](${beforeImages.mobile}) | [real Hero clash](default-enbu-victory/390x844/first-node-clash-t016-tactical.png) | 390×844, T16, Tactical |`,
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
