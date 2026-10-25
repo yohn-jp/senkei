@@ -123,12 +123,21 @@ fn graph_distance_between(map: &BattleMap, from: &[(String, i64)], to: &[(String
             queue.insert((distance, node.clone()), ());
         }
     }
+    let mut best_destination = None;
     while let Some(((distance, node), ())) = queue.pop_first() {
         if best.get(&node).copied() != Some(distance) {
             continue;
         }
+        // All edge lengths and target offsets are non-negative, so no
+        // remaining queue entry can beat a destination once its lower bound
+        // reaches the best complete source-to-position distance.
+        if best_destination.is_some_and(|known| distance >= known) {
+            return best_destination;
+        }
         if let Some(offset) = destinations.get(&node) {
-            return distance.checked_add(*offset);
+            if let Some(candidate) = distance.checked_add(*offset) {
+                best_destination = Some(best_destination.map_or(candidate, |known: i64| known.min(candidate)));
+            }
         }
         for edge in &map.edges {
             // Traversal blockages do not imply vision occlusion.
@@ -152,7 +161,61 @@ fn graph_distance_between(map: &BattleMap, from: &[(String, i64)], to: &[(String
             }
         }
     }
-    None
+    best_destination
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn world_distance_checks_all_weighted_target_edge_endpoints() {
+        let nodes = ["a", "b", "c", "d", "x"].into_iter().map(|id| {
+            (id.to_owned(), MapNode { x: 0, y: 0, region: "lane".into(), ..Default::default() })
+        }).collect();
+        let edge = |id: &str, from: &str, to: &str, length| MapEdge {
+            id: id.into(), from: from.into(), to: to.into(), length,
+            region: "lane".into(), blocked: false, ..Default::default()
+        };
+        let rules = NextRules {
+            mechanics_version: crate::Version::new(1, 0, 0),
+            map: BattleMap {
+                id: "weighted-endpoints".into(),
+                nodes,
+                edges: vec![
+                    edge("ab", "a", "b", 100),
+                    edge("bc", "b", "c", 10),
+                    edge("cd", "c", "d", 100),
+                    edge("bx", "b", "x", 10),
+                    edge("xd", "x", "d", 10),
+                ],
+                lanes: BTreeMap::new(),
+                attacker_base: "a".into(),
+                defender_base: "d".into(),
+                towers: Vec::new(),
+            },
+            heroes: Vec::new(),
+            minions: Vec::new(),
+            monsters: Vec::new(),
+            camps: Vec::new(),
+            parameters: BTreeMap::from([
+                ("vision_graph_metric".into(), 1),
+                ("vision_occlusion_enabled".into(), 0),
+            ]),
+        };
+        let on_edge = |from: &str, to: &str, progress| {
+            let mut entity = EntityState { entity_type: "hero".into(), owner: None, fields: BTreeMap::new() };
+            set_string(&mut entity, "node", from);
+            set_string(&mut entity, "edge_to", to);
+            set_int(&mut entity, "edge_progress", progress);
+            entity
+        };
+        let source = on_edge("a", "b", 50);
+        // The nearer target endpoint is C (distance 60 + offset 90 = 150),
+        // while D is reached later but has only 10 WU remaining (70 + 10 = 80).
+        let target = on_edge("c", "d", 90);
+        assert_eq!(world_distance2(&source, &target, &rules), Some(80 * 80));
+    }
 }
 pub fn in_combat_range(a: &EntityState, b: &EntityState, range: i64, rules: &NextRules) -> bool {
     combat_distance2(a, b, rules).is_some_and(|distance| distance <= i128::from(range.max(0)).pow(2))
