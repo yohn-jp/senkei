@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
@@ -8,7 +8,10 @@ import { completePreflight } from "../helpers/preflight";
 
 type JsonRecord = Record<string, any>;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const snapshotPath = resolve(repoRoot, "target/next-balance/battlefield-canonical-browser-snapshot.json");
+const prebuiltScenarioDirectory = process.env.BATTLEFIELD_PREBUILT_SCENARIO_DIR;
+const snapshotPath = prebuiltScenarioDirectory
+  ? resolve(prebuiltScenarioDirectory, "canonical.json")
+  : resolve(repoRoot, "target/next-balance/battlefield-canonical-browser-snapshot.json");
 const evidenceDirectory = resolve(repoRoot, "docs/evidence/battlefield/canonical-browser");
 const bridgeSiteIds = { TOP: "bridge.top", MID: "bridge.mid", BOT: "bridge.bot" } as const;
 const expectedNodes = [
@@ -35,6 +38,27 @@ function requiredString(value: unknown, label: string): string {
 }
 
 async function compileScenarioInput(): Promise<void> {
+  if (prebuiltScenarioDirectory) {
+    const manifestPath = resolve(prebuiltScenarioDirectory, "manifest.json");
+    if (!existsSync(snapshotPath) || !existsSync(manifestPath)) {
+      throw new Error(`The prebuilt battlefield scenario artifact must contain canonical.json and manifest.json: ${prebuiltScenarioDirectory}`);
+    }
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as JsonRecord;
+    const fixtureSourceRevision = requiredString(manifest.sourceRevision, "fixture manifest source revision");
+    const currentSourceRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
+    if (fixtureSourceRevision !== currentSourceRevision) {
+      throw new Error(`The prebuilt canonical scenario is from ${fixtureSourceRevision}, not the checked out source ${currentSourceRevision}.`);
+    }
+    const files = requiredRecord(manifest.files, "fixture manifest files");
+    const canonical = requiredRecord(files.canonical, "canonical fixture manifest entry");
+    if (canonical.filename !== "canonical.json") throw new Error("The prebuilt canonical fixture manifest names an unexpected file.");
+    const expectedSha256 = requiredString(canonical.sha256, "canonical fixture SHA-256");
+    const actualSha256 = createHash("sha256").update(readFileSync(snapshotPath)).digest("hex");
+    if (manifest.schema !== "senkei-battlefield-browser-scenario-fixtures/v1" || expectedSha256 !== actualSha256) {
+      throw new Error("The prebuilt canonical scenario does not match its fixture manifest.");
+    }
+    return;
+  }
   mkdirSync(dirname(snapshotPath), { recursive: true });
   execFileSync("cargo", [
     "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",

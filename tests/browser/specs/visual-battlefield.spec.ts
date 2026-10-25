@@ -58,9 +58,16 @@ type CaptureEntry = {
 };
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const canonicalSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-canonical-snapshot.json");
-const captureSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-capture-snapshot.json");
-const baseAssaultSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-base-assault-snapshot.json");
+const prebuiltScenarioDirectory = process.env.BATTLEFIELD_PREBUILT_SCENARIO_DIR;
+const canonicalSnapshotPath = prebuiltScenarioDirectory
+  ? resolve(prebuiltScenarioDirectory, "canonical.json")
+  : resolve(repoRoot, "target/next-balance/visual-battlefield-canonical-snapshot.json");
+const captureSnapshotPath = prebuiltScenarioDirectory
+  ? resolve(prebuiltScenarioDirectory, "capture.json")
+  : resolve(repoRoot, "target/next-balance/visual-battlefield-capture-snapshot.json");
+const baseAssaultSnapshotPath = prebuiltScenarioDirectory
+  ? resolve(prebuiltScenarioDirectory, "base-assault.json")
+  : resolve(repoRoot, "target/next-balance/visual-battlefield-base-assault-snapshot.json");
 const allViewports: readonly Viewport[] = [
   { name: "1440x900", width: 1440, height: 900 },
   { name: "1920x1080", width: 1920, height: 1080 },
@@ -476,6 +483,44 @@ function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: s
 }
 
 async function createScenarioSnapshots(canonicalOnlyRun: boolean): Promise<void> {
+  if (prebuiltScenarioDirectory) {
+    const manifestPath = resolve(prebuiltScenarioDirectory, "manifest.json");
+    const requiredFixtures = canonicalOnlyRun
+      ? [{ key: "canonical", path: canonicalSnapshotPath }]
+      : [
+        { key: "canonical", path: canonicalSnapshotPath },
+        { key: "capture", path: captureSnapshotPath },
+        { key: "baseAssault", path: baseAssaultSnapshotPath },
+      ];
+    if (!existsSync(manifestPath)) throw new Error(`The prebuilt battlefield scenario manifest is missing: ${manifestPath}`);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as JsonRecord;
+    if (manifest.schema !== "senkei-battlefield-browser-scenario-fixtures/v1") {
+      throw new Error("The prebuilt battlefield scenario manifest has an unsupported schema.");
+    }
+    const fixtureSourceRevision = requiredString(manifest.sourceRevision, "fixture manifest source revision");
+    if (activeSourceRevision === null || fixtureSourceRevision !== activeSourceRevision) {
+      throw new Error(`The prebuilt battlefield scenarios are from ${fixtureSourceRevision}, not the checked out source ${activeSourceRevision ?? "unknown"}.`);
+    }
+    const files = requiredRecord(manifest.files, "fixture manifest files");
+    for (const fixture of requiredFixtures) {
+      if (!existsSync(fixture.path)) throw new Error(`The prebuilt battlefield scenario is missing ${fixture.key}.json.`);
+      const entry = requiredRecord(files[fixture.key], `${fixture.key} fixture manifest entry`);
+      const expectedFilename = fixture.key === "baseAssault" ? "base-assault.json" : `${fixture.key}.json`;
+      if (entry.filename !== expectedFilename) {
+        throw new Error(`The prebuilt ${fixture.key} fixture manifest names an unexpected file.`);
+      }
+      const expectedSha256 = requiredString(entry.sha256, `${fixture.key} fixture SHA-256`);
+      const bytes = readFileSync(fixture.path);
+      if (sha256(bytes) !== expectedSha256) throw new Error(`The prebuilt ${fixture.key} scenario does not match its fixture manifest.`);
+      const snapshot = requiredRecord(JSON.parse(bytes.toString("utf8")), `${fixture.key} scenario snapshot`);
+      requiredRecord(snapshot.attacker, `${fixture.key} attacker snapshot`);
+      requiredRecord(snapshot.defender, `${fixture.key} defender snapshot`);
+      const context = requiredRecord(snapshot.context, `${fixture.key} match context`);
+      requiredRecord(context.ruleset, `${fixture.key} ruleset identity`);
+      requiredRecord(context.versions, `${fixture.key} version context`);
+    }
+    return;
+  }
   mkdirSync(dirname(canonicalSnapshotPath), { recursive: true });
   execFileSync("cargo", [
     "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",
