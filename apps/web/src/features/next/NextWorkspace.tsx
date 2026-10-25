@@ -143,6 +143,12 @@ function stableKey(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function sameRulesetRef(left: RulesetRef, right: RulesetRef): boolean {
+  return left.id === right.id && left.digest === right.digest
+    && left.version.major === right.version.major && left.version.minor === right.version.minor
+    && left.version.patch === right.version.patch;
+}
+
 function editorCatalogMatchesRuleset(
   catalog: DomainCatalogDocument | null,
   packageValue: RulePackage | null,
@@ -248,7 +254,7 @@ function savedSetupMismatch(setup: SavedNextSetup, packageValue: RulePackage | n
       stableKey(setup.mechanics_version) !== stableKey(rules.mechanics_version)) {
     return "The saved schema or mechanics version differs from the current Next ruleset.";
   }
-  if (stableKey(setup.draft.ruleset) !== stableKey(packageValue.ruleset) ||
+  if (!sameRulesetRef(setup.draft.ruleset, packageValue.ruleset) ||
       stableKey(setup.draft.schema_version) !== stableKey(packageValue.model_version)) {
     return "The saved Jinrei draft belongs to a different package or model schema.";
   }
@@ -1205,6 +1211,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     draftRef.current = next;
     setDraft(next);
     setError(null);
+    setRuntimeFailure(null);
   }, []);
 
   const updateFoundationSource = useCallback((source: string): void => {
@@ -1269,7 +1276,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     }
     const key = launchKey;
     if (exactRun) {
-      if (stableKey(exactRun.snapshot.attacker.ruleset) !== stableKey(packageValue.ruleset)) {
+      if (!sameRulesetRef(exactRun.snapshot.attacker.ruleset, packageValue.ruleset)) {
         throw new PreflightProblem("The original match RulePackage differs from the current package. Preserve/export the draft and use a compatible package.", "invalid");
       }
       await core.preflight(exactRun.snapshot);

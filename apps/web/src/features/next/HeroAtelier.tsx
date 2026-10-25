@@ -45,7 +45,7 @@ export const HERO_SQUAD_PATTERNS: readonly { id: string; sizes: readonly number[
 ];
 const STAT_KEYS = ["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const;
 const SQUAD_NAMES = ["Solo", "Duo", "Trio", "Quartet", "Quintet"] as const;
-function formatId(value: string): string { return value.replaceAll("_", " ").replaceAll(".", " · ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function formatId(value: string): string { return value.replaceAll("_", " ").replaceAll("-", " ").replaceAll(".", " · ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function findHero(rules: NextRules, id: string): HeroDefinition | undefined { return rules.heroes.find((hero) => hero.id === id); }
 export function skillPathIssues(hero: HeroDefinition, path: string): readonly string[] {
   const ids = hero.skill_paths[path] ?? [];

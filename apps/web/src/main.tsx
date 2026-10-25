@@ -6,8 +6,17 @@ import "./styles.css";
 async function prepareOfflineShell(): Promise<void> {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
 
-  await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
-  await navigator.serviceWorker.ready;
+  // Some browsers expose the API but leave `ready` pending when registration
+  // is blocked. Offline caching is optional; the actual local Core must still
+  // be reachable so its loading/error/recovery screens can run.
+  const available = await new Promise<boolean>((resolve) => {
+    const timeout = window.setTimeout(() => resolve(false), 3_000);
+    void navigator.serviceWorker.register("/service-worker.js", { scope: "/" })
+      .then(() => navigator.serviceWorker.ready)
+      .then(() => { window.clearTimeout(timeout); resolve(true); })
+      .catch(() => { window.clearTimeout(timeout); resolve(false); });
+  });
+  if (!available) return;
   if (!navigator.serviceWorker.controller) {
     await new Promise<void>((resolve) => {
       const timeout = window.setTimeout(resolve, 3_000);
