@@ -6,6 +6,8 @@ export interface PresentedBattlefieldState {
   readonly progress?: number;
   readonly track?: "LEFT" | "CENTER" | "RIGHT";
   readonly crossing?: "none" | "track" | "bridge" | "ford";
+  readonly bridgeSite?: string;
+  readonly bridgeState?: "normal" | "expanded" | "destroyed";
 }
 
 export interface PresentedEntityIdentity {
@@ -40,6 +42,16 @@ export function matchesPresentedEntity(
   const owner: CombatantSide | null = presented.side === "azure" ? "attacker" : presented.side === "vermilion" ? "defender" : null;
   if (!battlefield || raw.entity_type !== presented.archetype || raw.owner !== owner ||
       (presented.catalogId !== undefined && stringField(raw.fields.catalog_id) !== presented.catalogId)) return false;
+
+  if (raw.entity_type === "bridge") {
+    const site = stringField(raw.fields.site);
+    return site !== null && site === battlefield.bridgeSite &&
+      stringField(raw.fields.bridge_state) === (battlefield.bridgeState ?? null);
+  }
+  if (raw.entity_type === "observation") {
+    const siteNode = stringField(raw.fields.node);
+    return siteNode !== null && siteNode === battlefield.node;
+  }
 
   const node = stringField(raw.fields.node);
   const edgeTo = stringField(raw.fields.edge_to) ?? "";

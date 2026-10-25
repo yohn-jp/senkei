@@ -43,4 +43,40 @@ describe("replay entity logical identity", () => {
     expect(matchesPresentedEntity(record, { ...presented, battlefield: { ...presented.battlefield, progress: 43 } }, edge)).toBe(false);
     expect(matchesPresentedEntity(record, { ...presented, battlefield: { ...presented.battlefield, edgeTo: "A.BOT" } }, edge)).toBe(false);
   });
+
+  it("matches bridges by authorized static site and state without requiring a lane node", () => {
+    const bridge: EntityStateView = {
+      entity_type: "bridge",
+      owner: "defender",
+      fields: {
+        site: { kind: "string", value: "bridge.top" },
+        bridge_state: { kind: "string", value: "expanded" },
+      },
+    };
+    const presentedBridge = {
+      archetype: "bridge",
+      side: "vermilion" as const,
+      battlefield: { bridgeSite: "bridge.top", bridgeState: "expanded" as const },
+    };
+    expect(matchesPresentedEntity(bridge, presentedBridge)).toBe(true);
+    expect(matchesPresentedEntity(bridge, { ...presentedBridge, battlefield: { ...presentedBridge.battlefield, bridgeSite: "bridge.bot" } })).toBe(false);
+    expect(matchesPresentedEntity(bridge, { ...presentedBridge, battlefield: { ...presentedBridge.battlefield, bridgeState: "destroyed" } })).toBe(false);
+    expect(matchesPresentedEntity({ ...bridge, owner: "attacker" }, presentedBridge)).toBe(false);
+  });
+
+  it("matches observations by their authorized static node identity", () => {
+    const observation: EntityStateView = {
+      entity_type: "observation",
+      owner: null,
+      fields: { node: { kind: "string", value: "N.MID.OBS" } },
+    };
+    const presentedObservation = {
+      archetype: "observation",
+      side: "neutral" as const,
+      battlefield: { node: "N.MID.OBS", captureProgress: 4 },
+    };
+    expect(matchesPresentedEntity(observation, presentedObservation)).toBe(true);
+    expect(matchesPresentedEntity(observation, { ...presentedObservation, battlefield: { ...presentedObservation.battlefield, node: "N.TOP.OBS" } })).toBe(false);
+    expect(matchesPresentedEntity({ ...observation, fields: {} }, presentedObservation)).toBe(false);
+  });
 });
