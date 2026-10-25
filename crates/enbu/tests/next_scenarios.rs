@@ -1456,3 +1456,146 @@ fn canonical_battlefield_topology_conforms() {
 fn published_battlefield_map_matches_the_canonical_graph_without_shortcuts() {
     canonical_battlefield_topology_conforms();
 }
+
+fn battlefield_interaction_tactics() -> (String, String) {
+    let attacker = format!(
+        r#"senkei battlefield_integration {{
+            action choose_left {{ when match.tick == 1, do select_track({}, LEFT), }},
+            action move_left {{ when match.tick == 2, do move({}, "A.TOP.T2"), }},
+            action expand_top_bridge {{ when match.tick == 1, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, expand), }},
+            action destroy_top_bridge {{ when match.tick == 15, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, destroy), }},
+            action ford_crossing {{ when match.tick == 1, do move({}, "N.B.UJ"), }},
+            action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
+            action node_retreat {{ when match.tick == 2, do retreat({}), }}
+        }}"#,
+        hero_selector("slot-1"), hero_selector("slot-1"),
+        hero_selector("slot-2"), hero_selector("slot-2"),
+        hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"),
+    );
+    let defender = format!(
+        r#"senkei battlefield_mid_defense {{
+            action blocked_mid_exit {{ when match.tick == 1, do move({}, "A.MID.BANK"), }}
+        }}"#,
+        hero_selector("slot-1"),
+    );
+    (attacker, defender)
+}
+
+fn battlefield_interaction_match(
+    rules: &VerifiedRulePlan,
+) -> (SimulationArtifact, SenkeiSnapshot, SenkeiSnapshot, MatchContext) {
+    let (attacker_source, defender_source) = battlefield_interaction_tactics();
+    let attacker_program = compile(&attacker_source, rules)
+        .unwrap_or_else(|error| panic!("canonical track, bridge, ford, movement and retreat Jinrei source compiles: {error:?}"));
+    let defender_program = compile(&defender_source, rules)
+        .unwrap_or_else(|error| panic!("canonical contested-node exit policy compiles: {error:?}"));
+    let attacker_nodes = ["A.TOP.T1", "A.TOP.BANK", "N.A.UJ", "N.MID.OBS", "N.MID.OBS"].map(str::to_owned);
+    let defender_nodes = ["N.MID.OBS", "N.MID.OBS", "B.BASE", "B.BASE", "B.BASE"].map(str::to_owned);
+    let mut attacker = configured_snapshot(
+        rules,
+        CombatantSide::Attacker,
+        &[1, 1, 1, 1, 1],
+        attacker_program.program,
+        Some(&attacker_nodes),
+    );
+    let mut defender = configured_snapshot(
+        rules,
+        CombatantSide::Defender,
+        &[1, 1, 1, 1, 1],
+        defender_program.program,
+        Some(&defender_nodes),
+    );
+    for (slot, hero) in ["F01", "F01", "F01", "F01", "F01"].iter().enumerate() {
+        set_catalog(&mut attacker, slot, hero, rules);
+        set_catalog(&mut defender, slot, hero, rules);
+    }
+    let mut context = new_match_context(rules, MatchId::new("battlefield-canonical-interactions"));
+    context.max_ticks = 70;
+    let mut vm = Vm::new(rules);
+    let artifact = simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("canonical battlefield interaction match runs through real Enbu: {error:?}"));
+    (artifact, attacker, defender, context)
+}
+
+fn presentation_entity<'a>(state: &'a WorldStateView, kind: &str, field: &str, value: &str) -> &'a EntityStateView {
+    state.entities.values().find(|entity| {
+        entity.entity_type.as_str() == kind
+            && entity.fields.get(&FieldId::new(field)) == Some(&DomainValue::String(value.to_owned()))
+    }).unwrap_or_else(|| panic!("authorized presentation replay contains {kind} where {field}={value}"))
+}
+
+#[test]
+fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat() {
+    let rules = rules();
+    let (artifact, attacker, defender, context) = battlefield_interaction_match(&rules);
+    for capability in ["select_track", "bridge_work", "move"] {
+        assert!(!accepted_actors(&artifact, CombatantSide::Attacker, capability).is_empty(),
+            "real Jinrei submits an accepted {capability} action to Enbu");
+    }
+    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "select_track").len(), 1);
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 1
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
+    }), "the TOP bridge operation is a real accepted typed intent");
+
+    let track_at_tick_1 = owner_hero_at(&artifact, 1, "slot-1");
+    assert_eq!(entity_string(track_at_tick_1, "track"), "LEFT", "the lane's selected side persists in logical state");
+    let lane_mover = owner_hero_at(&artifact, 2, "slot-1");
+    assert_eq!(entity_string(lane_mover, "edge_to"), "A.TOP.T2");
+    assert_eq!(entity_string(lane_mover, "track"), "LEFT");
+    assert!(entity_integer(lane_mover, "edge_progress") > 0);
+
+    let ford_frame = artifact.owner_replay.as_ref().unwrap().frames.iter().find(|frame| {
+        frame.visible_state.as_ref().is_some_and(|state| state.entities.values().any(|entity| {
+            entity.entity_type.as_str() == "hero"
+                && entity.fields.get(&FieldId::new("slot_id")) == Some(&DomainValue::String("slot-3".into()))
+                && entity.fields.get(&FieldId::new("ford_remaining")).is_some_and(|value| matches!(value, DomainValue::Integer(ticks) if *ticks > 0))
+        }))
+    }).expect("the Jungle river traversal spends replay-visible ticks in the ford state");
+    assert!(ford_frame.tick > 0);
+
+    let mid_state = owner_state_at(&artifact, 1);
+    assert_eq!(entity_string(owner_hero_by_slot(mid_state, "slot-4"), "node"), "N.MID.OBS",
+        "an A unit cannot leave the contested observation node directly into B territory");
+    let defender_mid = mid_state.entities.values().find(|entity| entity.entity_type.as_str() == "hero"
+        && entity.owner == Some(CombatantSide::Defender)
+        && entity.fields.get(&FieldId::new("slot_id")) == Some(&DomainValue::String("slot-1".into())))
+        .expect("defender observation-node fighter is visible in attacker owner replay");
+    assert_eq!(entity_string(defender_mid, "node"), "N.MID.OBS",
+        "a B unit cannot leave the contested observation node directly into A territory");
+    assert!(artifact.replay.frames.iter().any(|frame| frame.tick == 1 && frame.events.iter().any(|event| event.event.as_str() == "next.attack")),
+        "units in the same node combat domain attack in the actual match");
+
+    let bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "TOP");
+    assert_eq!(entity_string(bridge_at(0), "bridge_state"), "normal");
+    assert_eq!(entity_integer(bridge_at(12), "build_remaining"), 1);
+    assert_eq!(entity_string(bridge_at(13), "bridge_state"), "expanded");
+    assert_eq!(entity_string(bridge_at(22), "bridge_state"), "expanded");
+    assert_eq!(entity_string(bridge_at(23), "bridge_state"), "destroyed");
+    assert_eq!(entity_integer(bridge_at(23), "hp"), 0);
+
+    let observation = presentation_entity(owner_state_at(&artifact, 1), "observation", "node", "N.MID.OBS");
+    assert_eq!(entity_integer(observation, "capture_progress"), 0, "contested teams stop MID capture progress");
+
+    if let Some(path) = std::env::var_os("BATTLEFIELD_SCENARIO_SNAPSHOT_PATH") {
+        let path = PathBuf::from(path);
+        if let Some(parent) = path.parent() { fs::create_dir_all(parent).expect("browser snapshot directory exists"); }
+        let snapshot = serde_json::json!({ "attacker": attacker, "defender": defender, "context": context });
+        let bytes = serde_json::to_vec_pretty(&snapshot).expect("controlled browser input serializes");
+        fs::write(path, bytes).expect("write compiled real-match snapshot for the browser");
+    }
+    if let Some(directory) = std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(PathBuf::from) {
+        fs::create_dir_all(&directory).expect("adapter fixture directory exists");
+        let mut request = serde_json::json!({
+            "api_version": Version::new(1, 0, 0),
+            "request_id": "next-battlefield-canonical",
+            "operation": "simulate",
+            "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": false }
+        });
+        request["request_id"] = "next-battlefield-canonical".into();
+        let bytes = serde_json::to_vec_pretty(&request).expect("native/WASM battle input serializes");
+        fs::write(directory.join("next-battlefield-canonical.request.json"), bytes)
+            .expect("write canonical Enbu battle for both adapters");
+    }
+    assert!(artifact.result.final_tick > ford_frame.tick);
+}

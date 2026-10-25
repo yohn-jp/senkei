@@ -131,6 +131,40 @@ for (let index = 0; index < requests.length; index += 1) {
     if (["slot_id", "squad", "internal_secret_marker", "final_memory_by_side"].some((marker) => serialized.includes(marker))) {
       fail("public Next simulation leaked owner-only identity, tactic source, or memory data");
     }
+  } else if (request.request_id === "next-battlefield-canonical") {
+    if (!nativeResponse.ok) fail(`canonical Battlefield scenario failed: ${JSON.stringify(nativeResponse.error)}`);
+    const result = nativeResponse.result;
+    const match = result.result;
+    const replay = result.replay;
+    if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay")) {
+      fail("canonical public battle leaked restricted diagnostics or owner replay");
+    }
+    if (match.final_tick < 23 || typeof match.final_state_digest !== "string" ||
+        !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
+      fail("canonical public battle is missing its confirmed terminal state, digest, or side CU");
+    }
+    const frame = (tick) => replay.frames.find((candidate) => candidate.tick === tick)?.visible_state?.entities ?? {};
+    const field = (entity, name) => entity?.fields?.[name]?.kind === "string" || entity?.fields?.[name]?.kind === "enum"
+      ? entity.fields[name].value : undefined;
+    const entries = (tick) => Object.values(frame(tick));
+    const bridgeAt = (tick) => entries(tick).find((entity) => entity.entity_type === "bridge" && field(entity, "site") === "TOP");
+    if (field(bridgeAt(0), "bridge_state") !== "normal" || field(bridgeAt(13), "bridge_state") !== "expanded" ||
+        field(bridgeAt(23), "bridge_state") !== "destroyed") {
+      fail("authorized public replay does not expose the actual normal → expanded → destroyed TOP bridge states");
+    }
+    if (!entries(2).some((entity) => field(entity, "track") === "LEFT" && field(entity, "edge_to") === "A.TOP.T2")) {
+      fail("authorized public replay does not expose the real selected LEFT lane track and edge movement");
+    }
+    if (!replay.frames.some((candidate) => candidate.events.some((event) => event.event === "next.attack"))) {
+      fail("canonical mid-node encounter produced no confirmed combat event");
+    }
+    if (!replay.frames.some((candidate) => Object.values(candidate.visible_state?.entities ?? {}).some((entity) =>
+      entity.entity_type === "hero" && Number.isSafeInteger(entity.fields?.ford_remaining?.value) && entity.fields.ford_remaining.value > 0))) {
+      fail("authorized public replay contains no real unit traversing a Jungle ford");
+    }
+    if (["slot_id", "squad", "goal", "internal_secret_marker"].some((marker) => JSON.stringify(result).includes(marker))) {
+      fail("canonical public replay leaked owner-only identities or tactical goals");
+    }
   } else if (nativeResponse.ok) {
     fail(`${request.request_id} should be rejected, but the adapter accepted it`);
   }
