@@ -48,7 +48,7 @@ pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
     // Minion reservations have priority; stable identity resolves all ties.
     ids.sort();
     let mut bridge_reservations = BTreeSet::<(String, String)>::new();
-    let mut cross_reservations = BTreeSet::<String>::new();
+    let mut cross_reservations = BTreeSet::<(String, i64, String)>::new();
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
@@ -136,7 +136,7 @@ fn advance_entity(
     movement: &MovementIntent,
     snapshot: &WorldState,
     bridge_reservations: &mut BTreeSet<(String, String)>,
-    cross_reservations: &mut BTreeSet<String>,
+    cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
 ) {
     if int(entity, "action_lock_until") > i64::from(tick) {
@@ -260,15 +260,24 @@ fn advance_entity(
                         && string(other, "edge_to") == edge_to
                         && (int(other, "edge_progress") - progress).abs() <= radius
                 });
-                let crossing_active = snapshot.entities.values().any(|other| {
+                let group = movement_group(actor_id, entity);
+                let crossing_active = snapshot.entities.iter().any(|(other_id, other)| {
                     other.entity_type.as_str() == "hero"
                         && alive(other)
                         && int(other, "cross_remaining") > 0
                         && string(other, "node") == node
                         && string(other, "edge_to") == edge_to
+                        && movement_group(other_id, other) != group
                         && (int(other, "edge_progress") - progress).abs() <= radius
                 });
-                if blocked_by_minion || crossing_active || !cross_reservations.insert(slot) {
+                let crossing_reserved = cross_reservations.iter().any(
+                    |(reserved_edge, reserved_progress, reserved_group)| {
+                        reserved_edge == &slot
+                            && reserved_group != &group
+                            && (*reserved_progress - progress).abs() <= radius
+                    },
+                );
+                if blocked_by_minion || crossing_active || crossing_reserved {
                     let waited = int(entity, "track_wait_ticks").saturating_add(1);
                     let maximum = param(rules, "track_occupancy_max_ticks", 30).max(1);
                     if waited >= maximum {
@@ -282,6 +291,7 @@ fn advance_entity(
                     mark_moved(entity, tick);
                     return;
                 }
+                cross_reservations.insert((slot, progress, group));
                 set_int(entity, "track_wait_ticks", 0);
                 let duration = param(rules, "lane_cross_track_ticks", 3).max(1);
                 set_int(entity, "cross_remaining", duration - 1);
@@ -2137,6 +2147,27 @@ mod tests {
         advance(&mut world, &config, 2);
         assert_eq!(int(&world.entities[&id("h")], "cross_remaining"), 2);
         assert_eq!(string(&world.entities[&id("h")], "track"), "LEFT");
+    }
+
+    #[test]
+    fn squad_members_share_a_local_track_crossing_reservation() {
+        let map = test_map(vec![edge("a", "b", 1_000, "lane", false)]);
+        let config = rules(map);
+        let mut world = WorldState::default();
+        for hero_id in ["hero-a", "hero-b"] {
+            let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+            set_string(&mut hero, "edge_to", "b");
+            set_int(&mut hero, "edge_progress", 500);
+            set_string(&mut hero, "track", "LEFT");
+            set_string(&mut hero, "track_goal", "RIGHT");
+            world.entities.insert(id(hero_id), hero);
+        }
+        advance(&mut world, &config, 1);
+        for hero_id in ["hero-a", "hero-b"] {
+            let hero = &world.entities[&id(hero_id)];
+            assert_eq!(int(hero, "cross_remaining"), 2);
+            assert_eq!(string(hero, "track"), "LEFT");
+        }
     }
 
     #[test]
