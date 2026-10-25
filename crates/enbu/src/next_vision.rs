@@ -7,6 +7,27 @@ use crate::{next_support as support, EvalContext};
 use senkei_model::*;
 use std::collections::BTreeMap;
 
+pub use crate::next_fog::FogHistory;
+
+/// Projects a side-authorized view and its replay-safe exploration history.
+/// The history contains no current state for hidden entities: it carries only
+/// the last position and tick at which an enemy unit was actually observed.
+pub fn team_view_with_fog(
+    world: &WorldState,
+    rules: &NextRules,
+    side: CombatantSide,
+    tick: u32,
+    history: &mut FogHistory,
+) -> WorldStateView {
+    let mut view = team_view(world, rules, side);
+    view.global_fields
+        .insert(
+            crate::next_fog::FOG_GLOBAL_FIELD.into(),
+            history.observe(world, rules, side, tick).as_domain_value(),
+        );
+    view
+}
+
 const HERO: &str = "hero";
 const MINION: &str = "minion";
 const PUBLIC_FIELDS: &[&str] = &[
