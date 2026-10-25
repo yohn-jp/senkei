@@ -10,11 +10,14 @@ import type {
   LocalSenkeiExportBundle,
   LocalSenkeiHistoryRevision,
   LocalSenkeiWorkspaceData,
+  LocalNextExperimentStore,
 } from "../../contracts/workspace-data";
 export type {
   LocalSenkeiExportBundle,
   LocalSenkeiHistoryRevision,
   LocalSenkeiWorkspaceData,
+  LocalNextExperiment,
+  LocalNextExperimentStore,
 } from "../../contracts/workspace-data";
 
 interface StoredDocumentRecord extends LocalSenkeiHistoryRevision {
@@ -28,9 +31,10 @@ interface StoredRevisionRecord extends LocalSenkeiHistoryRevision {
 }
 
 const DATABASE_NAME = "senkei-local-workspace";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const DOCUMENT_STORE = "documents";
 const REVISION_STORE = "revisions";
+const NEXT_EXPERIMENT_STORE = "next_experiments";
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_NODES = 750_000;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
@@ -134,6 +138,9 @@ function openDatabase(): Promise<IDBDatabase> {
           keyPath: ["document_id", "revision"],
         });
         revisions.createIndex("by_document_id", "document_id", { unique: false });
+      }
+      if (!database.objectStoreNames.contains(NEXT_EXPERIMENT_STORE)) {
+        database.createObjectStore(NEXT_EXPERIMENT_STORE, { keyPath: "id" });
       }
     };
 
@@ -1284,6 +1291,58 @@ export async function importDocumentFile(file: File): Promise<LocalSenkeiDocumen
 
 export async function loadWorkspaceData(documentId: string): Promise<LocalSenkeiWorkspaceData> {
   return (await loadDocumentRevision(documentId)).workspace_data;
+}
+
+function assertNextExperimentStore(value: unknown): asserts value is LocalNextExperimentStore {
+  if (!isRecord(value) || value.format_version !== 1 || typeof value.ruleset_digest !== "string" ||
+      !Array.isArray(value.experiments) || value.experiments.length > 2) {
+    throw new PersistenceError("invalid_data", "Next experiment store has an unsupported or malformed format.");
+  }
+  const seen = new Set<string>();
+  for (const [index, experiment] of value.experiments.entries()) {
+    if (!isRecord(experiment) || typeof experiment.id !== "string" || experiment.id.length === 0 || seen.has(experiment.id) ||
+        typeof experiment.match_id !== "string" || typeof experiment.created_at !== "string" || !isRecord(experiment.snapshot) || !isRecord(experiment.snapshot.context) ||
+        experiment.snapshot.context.match_id !== experiment.match_id || !isRecord(experiment.response) ||
+        !isRecord(experiment.setup) || typeof experiment.include_diagnostics !== "boolean" ||
+        typeof experiment.estimated_cu !== "number" || !Number.isSafeInteger(experiment.estimated_cu) || experiment.estimated_cu < 0) {
+      throw new PersistenceError("invalid_data", `Next experiment ${index + 1} is malformed or does not match its immutable match identity.`);
+    }
+    seen.add(experiment.id);
+  }
+}
+
+/** Reads the two latest immutable Next Enbu experiments from the local workspace database. */
+export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
+  return withTransaction(NEXT_EXPERIMENT_STORE, "readonly", (transaction, setResult) => {
+    const request = transaction.objectStore(NEXT_EXPERIMENT_STORE).get("latest");
+    request.onsuccess = () => {
+      const record = request.result as { readonly payload?: unknown } | undefined;
+      if (!record) {
+        setResult(null);
+        return;
+      }
+      const copy = cloneJson(record.payload, "Next experiment store", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
+      assertNextExperimentStore(copy);
+      setResult(copy);
+    };
+  }, "Could not restore Next experiments");
+}
+
+/** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
+export async function saveNextExperimentStore(value: LocalNextExperimentStore): Promise<void> {
+  const copied = cloneJson(value, "Next experiment store", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
+  assertNextExperimentStore(copied);
+  await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
+    transaction.objectStore(NEXT_EXPERIMENT_STORE).put({ id: "latest", payload: copied });
+    setResult(undefined);
+  }, "Could not save Next experiments");
+}
+
+export async function clearNextExperimentStore(): Promise<void> {
+  await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
+    transaction.objectStore(NEXT_EXPERIMENT_STORE).delete("latest");
+    setResult(undefined);
+  }, "Could not clear Next experiments");
 }
 
 export function createExportBlob(json: string): Blob {

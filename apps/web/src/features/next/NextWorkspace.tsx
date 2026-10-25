@@ -4,9 +4,10 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
+import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
+import type { Battlefield as BattlefieldRenderer, BattlefieldInformationLayers } from "@senkei/renderer";
 import { Battlefield } from "@senkei/renderer";
 import { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT, type Replay, type DisplayState, type Event as GraphicsEvent, type WorldPoint } from "@senkei/replay-contract";
 import { ReplayPlayer } from "@senkei/replay-player";
@@ -16,6 +17,7 @@ import { createNextCampaignScenarios, getNextCampaignRunFeedback } from "../../.
 import {
   type CoreClient,
   type CoreVersion,
+  type CoreJsonValue,
   type CompileOutcome,
   type DomainValue,
   type MatchResult,
@@ -32,10 +34,13 @@ import {
   type TacticalSource,
   type RulesetRef,
   type LocalPveScenario,
+  type LocalNextExperiment,
+  type LocalNextExperimentStore,
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
 import "./next-workspace.css";
+import "./battle-view-controls.css";
 
 class PreflightProblem extends Error {
   constructor(message: string, readonly status: "invalid" | "unverified") { super(message); }
@@ -62,6 +67,7 @@ type Side = "attacker" | "defender";
 type FormationShape = "single" | "three-lane" | "wings" | "custom";
 type BattlefieldMobileView = "battle" | "overview" | "follow" | "timeline" | "details";
 type BattlefieldCameraMode = "tactical" | "overview";
+type BattlefieldPresentationMode = "tactical" | "cinematic";
 
 interface VisibleSquadTarget {
   readonly id: string;
@@ -103,6 +109,8 @@ interface FormationSlot {
 }
 
 interface BattleRun {
+  readonly experimentId: string;
+  readonly createdAt: string;
   readonly snapshot: SimulationSnapshot;
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
@@ -152,6 +160,17 @@ const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readon
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function canonicalKey(value: unknown): string {
+  const normalize = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(normalize);
+    if (typeof item !== "object" || item === null) return item;
+    return Object.fromEntries(Object.keys(item as Record<string, unknown>).sort()
+      .filter((key) => (item as Record<string, unknown>)[key] !== undefined)
+      .map((key) => [key, normalize((item as Record<string, unknown>)[key])]));
+  };
+  return JSON.stringify(normalize(value));
 }
 
 function incrementRevision(revision: string): string {
@@ -313,6 +332,15 @@ function stableMatchId(value: unknown): string {
     second = ((second ^ BigInt(byte ^ 0xa5)) * 0x100000001b3n) & mask;
   }
   return `next-${first.toString(16).padStart(16, "0")}${second.toString(16).padStart(16, "0")}`;
+}
+
+function newExperimentId(matchId: string): string {
+  const nonce = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${matchId}-${nonce}`;
+}
+
+function experimentStoreDigestMatches(store: LocalNextExperimentStore, packageValue: RulePackage): boolean {
+  return store.ruleset_digest === packageValue.ruleset.digest;
 }
 
 function textValue(value: string): DomainValue {
@@ -541,6 +569,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [unlockedScenarioIds, setUnlockedScenarioIds] = useState<readonly string[]>([]);
   const [campaignProgressLoadedDigest, setCampaignProgressLoadedDigest] = useState<string | null>(null);
   const [campaignProgressError, setCampaignProgressError] = useState<string | null>(null);
+  const [experimentStore, setExperimentStore] = useState<LocalNextExperimentStore | null>(null);
+  const [experimentLoadedDigest, setExperimentLoadedDigest] = useState<string | null>(null);
+  const [experimentError, setExperimentError] = useState<string | null>(null);
+  const [experimentMismatch, setExperimentMismatch] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "conditions" | "preset" | "ready" | "workspace" | "resume" | "running">("home");
   const [libraryView, setLibraryView] = useState<"library" | "recovery">("library");
   const [libraryReturn, setLibraryReturn] = useState<typeof screen>("home");
@@ -579,6 +611,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
   const [baselineRun, setBaselineRun] = useState<BattleRun | null>(null);
+  const experimentRestoreGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -590,6 +623,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [expandedVisibleClusterId, setExpandedVisibleClusterId] = useState<string | null>(null);
   const [battleMapContextOpen, setBattleMapContextOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 761px)").matches);
   const [cameraMode, setCameraMode] = useState<BattlefieldCameraMode>("tactical");
+  const [presentationMode, setPresentationMode] = useState<BattlefieldPresentationMode>("tactical");
+  const [informationLayers, setInformationLayers] = useState<BattlefieldInformationLayers>({ vision: true, lanes: true, engagements: true });
   const [followedEntityId, setFollowedEntityId] = useState<string | null>(null);
   const [followedSquadId, setFollowedSquadId] = useState<string | null>(null);
   const [focusedReplayPoint, setFocusedReplayPoint] = useState<FocusedReplayPoint | null>(null);
@@ -598,6 +633,109 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [isPlaying, setIsPlaying] = useState(false);
   const [pixel, setPixel] = useState(true);
   const [rendererError, setRendererError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!core || !packageValue?.next) return;
+    const next = packageValue.next;
+    const digest = packageValue.ruleset.digest;
+    const generation = ++experimentRestoreGeneration.current;
+    setExperimentLoadedDigest(null);
+    setExperimentMismatch(null);
+    setExperimentError(null);
+    void (async () => {
+      try {
+        const stored = await loadNextExperimentStore();
+        if (generation !== experimentRestoreGeneration.current) return;
+        setExperimentStore(stored);
+        if (!stored || stored.experiments.length === 0) {
+          setExperimentLoadedDigest(digest);
+          return;
+        }
+        if (!experimentStoreDigestMatches(stored, packageValue)) {
+          setExperimentMismatch(`Stored package digest ${stored.ruleset_digest} differs from ${digest}.`);
+          setExperimentLoadedDigest(digest);
+          return;
+        }
+        const probe = await core.newMatchContext(packageValue.ruleset, "next-experiment-identity-probe");
+        const expectedWorld = next.world_identity;
+        const expectedMapWorld = next.map.world_identity;
+        const restored: BattleRun[] = [];
+        for (const item of stored.experiments) {
+          const setup = parseSavedNextSetup(item.setup);
+          const result = item.response.outcome?.result;
+          const sourceReplay = item.response.owner_replays?.attacker ?? item.response.outcome?.presentation_replay;
+          if (!setup || !result || !sourceReplay || item.snapshot.context.match_id !== item.match_id || result.match_id !== item.match_id) {
+            throw new Error(`Experiment ${item.id} has incomplete match, setup, result or replay data.`);
+          }
+          const mismatch = savedSetupMismatch(setup, packageValue, next);
+          if (mismatch) throw new Error(`Experiment ${item.id} cannot be restored: ${mismatch}`);
+          if (!item.snapshot.context.world_identity || !expectedWorld || !expectedMapWorld ||
+              canonicalKey(item.snapshot.context.world_identity) !== canonicalKey(expectedWorld) ||
+              canonicalKey(expectedMapWorld) !== canonicalKey(expectedWorld) ||
+              canonicalKey(sourceReplay.world_identity) !== canonicalKey(expectedWorld)) {
+            throw new Error(`Experiment ${item.id} World identity or paired World projection does not match the current package.`);
+          }
+          if (!item.snapshot.context.ruleset || !sameRulesetRef(item.snapshot.context.ruleset, packageValue.ruleset) ||
+              !sameRulesetRef(item.snapshot.attacker.ruleset, packageValue.ruleset) ||
+              !sameRulesetRef(item.snapshot.defender.ruleset, packageValue.ruleset) ||
+              !sourceReplay.ruleset || !sameRulesetRef(sourceReplay.ruleset, packageValue.ruleset)) {
+            throw new Error(`Experiment ${item.id} Ruleset identity does not match the current package.`);
+          }
+          if (sourceReplay.match_id !== item.match_id || sourceReplay.result_digest !== result.final_state_digest ||
+              (sourceReplay.perspective !== undefined && sourceReplay.perspective !== "attacker")) {
+            throw new Error(`Experiment ${item.id} replay does not match its immutable result or attacker perspective.`);
+          }
+          if (stableKey(item.snapshot.context.versions) !== stableKey(probe.versions)) {
+            throw new Error(`Experiment ${item.id} compiler, engine or mechanics versions differ from this runtime.`);
+          }
+          if (item.include_diagnostics && item.response.authorized_side !== "attacker") {
+            throw new Error(`Experiment ${item.id} does not carry attacker-authorized diagnostics.`);
+          }
+          const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, result, item.snapshot.context.versions.engine);
+          restored.push({
+            experimentId: item.id,
+            createdAt: item.created_at,
+            snapshot: item.snapshot,
+            response: item.response,
+            sourceReplay,
+            graphicsReplay,
+            setup,
+            includeDiagnostics: item.include_diagnostics,
+            estimatedCU: item.estimated_cu,
+          });
+        }
+        if (generation !== experimentRestoreGeneration.current) return;
+        setRun(restored[0] ?? null);
+        setBaselineRun(restored[1] ?? null);
+        setExperimentLoadedDigest(digest);
+      } catch (cause) {
+        if (generation !== experimentRestoreGeneration.current) return;
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setExperimentMismatch(message);
+        setExperimentLoadedDigest(digest);
+      }
+    })();
+    return () => { experimentRestoreGeneration.current += 1; };
+  }, [core, packageValue]);
+
+  useEffect(() => {
+    const digest = packageValue?.ruleset.digest;
+    if (!digest || experimentLoadedDigest !== digest || experimentMismatch || !run) return;
+    const experiments: LocalNextExperiment[] = [run, ...(baselineRun ? [baselineRun] : [])].map((item) => ({
+      id: item.experimentId,
+      match_id: item.snapshot.context.match_id,
+      created_at: item.createdAt,
+      snapshot: item.snapshot,
+      response: item.response,
+      setup: JSON.parse(JSON.stringify(item.setup)) as CoreJsonValue,
+      include_diagnostics: item.includeDiagnostics,
+      estimated_cu: item.estimatedCU,
+    }));
+    const store: LocalNextExperimentStore = { format_version: 1, ruleset_digest: digest, experiments };
+    void saveNextExperimentStore(store).then(() => setExperimentStore(store)).catch((cause: unknown) => {
+      setExperimentError(cause instanceof Error ? `Experiment could not be saved: ${cause.message}` : "Experiment could not be saved.");
+    });
+  }, [baselineRun, experimentLoadedDigest, experimentMismatch, packageValue?.ruleset.digest, run]);
   const [rendererAttempt, setRendererAttempt] = useState(0);
   const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
   const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
@@ -949,7 +1087,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, [battleMobileView, battleRosterOpen, expandedVisibleClusterId]);
   const selectedFrame = run && displayState ? latestFrame(run.sourceReplay.frames, displayState.tick) : null;
   const publicEntities = selectedFrame?.visible_state?.entities ?? {};
-  const ownerReplay = run?.response.owner_replay?.perspective === "attacker" ? run.response.owner_replay : null;
+  const ownerReplayCandidate = run?.response.owner_replays?.attacker;
+  const ownerReplay = ownerReplayCandidate?.perspective === "attacker" ? ownerReplayCandidate : null;
   const ownerFrame = ownerReplay && displayState
     ? ownerReplay.frames.find((frame) => frame.tick === displayState.tick) ?? null
     : null;
@@ -1278,6 +1417,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     try {
       current = new Battlefield(host, run.graphicsReplay, selectBattleEntity, handleRendererFailure);
       renderer.current = current;
+      current.setPresentationMode(presentationMode);
+      current.setInformationLayers(informationLayers);
       current.setPixel(pixel);
       current.update(player.state, player.playing);
       current.select(selectedEntityId);
@@ -1290,6 +1431,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       if (renderer.current === current) renderer.current = null;
     };
   }, [player, rendererAttempt, run]);
+
+  useEffect(() => { renderer.current?.setPresentationMode(presentationMode); }, [presentationMode]);
+  useEffect(() => { renderer.current?.setInformationLayers(informationLayers); }, [informationLayers]);
 
   const retryRenderer = useCallback(() => {
     setRendererError(null);
@@ -1484,8 +1628,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const diagnosticsRequested = exactRun?.includeDiagnostics ?? includeDiagnostics;
       const estimatedCU = exactRun?.estimatedCU ?? activeCompilation?.estimated_cu;
       if (estimatedCU === undefined) throw new Error("The original compile estimate is unavailable. Validate the current Draft before launch.");
-      const response = await core.simulate(snapshot, { include_diagnostics: diagnosticsRequested });
-      const sourceReplay = response.owner_replay ?? response.outcome.presentation_replay;
+      const response = await core.simulate(snapshot, {
+        include_diagnostics: diagnosticsRequested,
+        ...(diagnosticsRequested ? { diagnostics_side: "attacker" as const } : {}),
+      });
+      if (diagnosticsRequested && response.authorized_side !== "attacker") {
+        throw new Error("The local Enbu did not confirm attacker authorization for the requested diagnostics.");
+      }
+      const sourceReplay = response.owner_replays?.attacker ?? response.outcome.presentation_replay;
       const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
       if (setup.campaign_scenario_id && response.outcome.result.outcome === "attacker_victory" &&
           response.outcome.result.termination_reason === "base_destroyed") {
@@ -1497,7 +1647,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         setUnlockedScenarioIds([...nextUnlocked]);
       }
       setBaselineRun(run);
-      setRun({ snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
+      setRun({ experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
       setCameraMode("tactical");
@@ -1701,7 +1851,30 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     onImport={file => importSetupFile(file, true)} onClearSaved={clearSavedSetup} onClearRecovery={clearRecoveryCopy}
     onRetryStorage={() => setStorageAttempt(attempt => attempt + 1)}
     onRetryCore={() => { setRuntimeFailure(null); setError(null); onRetryCore(); setCatalogAttempt(attempt => attempt + 1); }}
-    onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)} />;
+    onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)}
+    experiments={(experimentStore?.experiments ?? []).map((item) => {
+      const scenario = campaignScenarios.find((candidate) => candidate.id === parseSavedNextSetup(item.setup)?.campaign_scenario_id);
+      return { id: item.id, created_at: item.created_at, scenario_title: scenario?.title ?? null,
+        outcome: item.response.outcome.result.outcome, final_tick: item.response.outcome.result.final_tick };
+    })}
+    experimentsLoaded={Boolean(packageValue && experimentLoadedDigest === packageValue.ruleset.digest)}
+    experimentError={experimentError} experimentMismatch={experimentMismatch}
+    onOpenExperiments={() => {
+      if (experimentMismatch || !run) throw new Error(experimentMismatch ?? "No compatible Next experiment is available.");
+      setTab("analysis"); setScreen("workspace");
+    }}
+    onExportExperiments={() => {
+      if (!experimentStore) throw new Error("There are no stored Next experiments to export.");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([JSON.stringify(experimentStore, null, 2)], { type: "application/json" }));
+      link.download = `senkei-next-experiments-${experimentStore.ruleset_digest.slice(0, 12)}.json`;
+      link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    }}
+    onClearExperiments={async () => {
+      await clearNextExperimentStore();
+      setExperimentStore(null); setExperimentMismatch(null); setExperimentError(null);
+      setRun(null); setBaselineRun(null); setExactRun(null);
+    }} />;
 
   if (screen === "resume" && (!packageValue || !nextRules)) return <section ref={workspaceHost} onKeyDown={tabKeys} className="next-workspace" data-screen={libraryView === "library" ? "S14" : "S15"}>{library}</section>;
 
@@ -1832,6 +2005,18 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           <section aria-labelledby="next-tab-battle" className="next-panel next-battle-panel" hidden={tab !== "battle" || screen !== "workspace"} id="next-panel-battle" role="tabpanel">
             <div className="next-panel-header next-battle-header"><div><span className="next-eyebrow">03 · LOCAL ENBU REPLAY</span><h3>Battlefield <em>console</em></h3><p>{run ? `${run.graphicsReplay.header.view === "attacker" ? "Local owner view" : "Public replay"} · Tick ${displayState?.tick ?? 0} / ${run.graphicsReplay.result.tick}` : "Launch a compiled local battle, then observe the confirmed replay."}</p></div><div className="next-battle-actions"><button aria-label="Battle situation details" aria-expanded={battleInspectorOpen} className="next-secondary-button next-desktop-inspector-toggle" disabled={!run} onClick={() => setBattleInspectorOpen(value => !value)} type="button">{battleInspectorOpen ? "Close details" : "Situation details"}</button><button className="next-secondary-button" disabled={!run || busy || !activeCompilation} onClick={rematch} type="button">{runIsCurrent ? "Rematch" : "Run revised battle"} <b>↻</b></button><button className="next-launch-button" disabled={busy || !activeCompilation} onClick={() => setScreen("ready")} type="button"><span>{busy ? "◌" : "▶"}</span>{busy ? "Running local core…" : run ? "New local battle" : "Launch local battle"}</button></div></div>
             <div className="next-battle-setup"><details className="next-battle-options"><summary>Replay access · {includeDiagnostics ? "owner diagnostics on" : "public replay only"}</summary><label className="next-diagnostic-toggle"><input checked={includeDiagnostics} onChange={(event) => setIncludeDiagnostics(event.target.checked)} type="checkbox" /><span className="next-checkbox" /><span><strong>Include my local replay and diagnostics</strong><small>Owner replay, visible Hero state, ability trace, intents and CU only</small></span></label></details>{displayState?.fog && <span className="next-fog-legend" role="note">Fog: dark unexplored · muted explored · clear visible · dashed site last observed</span>}<span className="next-match-badge">{runResult ? `MATCH ${runResult.match_id.slice(0, 16)}` : "READY WHEN JINREI IS COMPILED"}</span></div>
+            <div className="next-battle-view-controls" aria-label="Replay presentation">
+              <div className="next-battle-mode-control" role="group" aria-label="Presentation mode">
+                <button aria-pressed={presentationMode === "tactical"} onClick={() => setPresentationMode("tactical")} type="button">Tactical</button>
+                <button aria-pressed={presentationMode === "cinematic"} onClick={() => setPresentationMode("cinematic")} type="button">Cinematic</button>
+              </div>
+              <div className="next-battle-layer-control" role="group" aria-label="Information layers">
+                <label><input checked={informationLayers.vision} onChange={(event) => setInformationLayers((layers) => ({ ...layers, vision: event.currentTarget.checked }))} type="checkbox" /> Vision</label>
+                <label><input checked={informationLayers.lanes} onChange={(event) => setInformationLayers((layers) => ({ ...layers, lanes: event.currentTarget.checked }))} type="checkbox" /> Lanes</label>
+                <label><input checked={informationLayers.engagements} onChange={(event) => setInformationLayers((layers) => ({ ...layers, engagements: event.currentTarget.checked }))} type="checkbox" /> Engagements</label>
+              </div>
+              <small>All display modes use the same observed information.</small>
+            </div>
             {runResult && run ? <>
               <div className="next-battle-stage">
                 <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />

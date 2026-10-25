@@ -1,0 +1,44 @@
+.next-battle-view-controls {
+  align-items: center;
+  border-bottom: 1px solid rgba(223, 209, 181, 0.14);
+  color: #c9c4b7;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 9px 0 12px;
+}
+
+.next-battle-mode-control,
+.next-battle-layer-control {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.next-battle-mode-control button,
+.next-battle-layer-control label {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(223, 209, 181, 0.16);
+  border-radius: 7px;
+  color: inherit;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.next-battle-mode-control button[aria-pressed="true"] {
+  border-color: rgba(240, 190, 100, 0.65);
+  color: #f1ce88;
+}
+
+.next-battle-layer-control label { cursor: pointer; }
+.next-battle-layer-control input { accent-color: #e9bd68; margin: 0; }
+.next-battle-view-controls > small { color: #97999b; font-size: 0.72rem; }
+
+@media (max-width: 760px) {
+  .next-battle-view-controls { align-items: flex-start; flex-direction: column; }
+  .next-battle-view-controls > small { line-height: 1.45; }
+}

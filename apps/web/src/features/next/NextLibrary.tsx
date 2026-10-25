@@ -31,7 +31,15 @@ export function isNextLibraryItemRestorable(
 
 type AsyncAction = () => void | Promise<void>;
 type ClearTarget = "saved" | "recovery";
-type Confirmation = "replace-saved" | "import-saved" | ClearTarget;
+type Confirmation = "replace-saved" | "import-saved" | "experiments" | ClearTarget;
+
+export interface NextExperimentSummary {
+  readonly id: string;
+  readonly created_at: string;
+  readonly scenario_title: string | null;
+  readonly outcome: string;
+  readonly final_tick: number;
+}
 
 export interface NextLibraryProps {
   readonly view: NextLibraryView;
@@ -63,6 +71,13 @@ export interface NextLibraryProps {
   readonly onRetryCore: AsyncAction;
   readonly onReady: AsyncAction;
   readonly onBack: AsyncAction;
+  readonly experiments: readonly NextExperimentSummary[];
+  readonly experimentsLoaded: boolean;
+  readonly experimentError: string | null;
+  readonly experimentMismatch: string | null;
+  readonly onOpenExperiments: AsyncAction;
+  readonly onExportExperiments: AsyncAction;
+  readonly onClearExperiments: AsyncAction;
 }
 
 function formatDate(value: string): string {
@@ -159,9 +174,10 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
       void perform(() => props.onImport(file), `Imported ${file.name}.`);
     } else if (action === "saved") void perform(props.onClearSaved, "Pinned Next setup cleared.");
     else if (action === "recovery") void perform(props.onClearRecovery, "Recovery copy cleared.");
+    else if (action === "experiments") void perform(props.onClearExperiments, "Local Next experiments cleared.");
   };
 
-  const visibleError = localError ?? props.runtimeError ?? props.savedError ?? props.recoveryError;
+  const visibleError = localError ?? props.runtimeError ?? props.experimentError ?? props.savedError ?? props.recoveryError;
   const activeView = props.view;
 
   return (
@@ -232,6 +248,18 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
             <input accept="application/json,.json" aria-label="Import a Next setup JSON file" hidden onChange={selectImport} ref={importRef} type="file" />
             <button disabled={busy} onClick={() => importRef.current?.click()} type="button">Choose JSON file</button>
           </section>
+
+          <section aria-label="Stored Next experiments" className="next-library-card next-library-experiments">
+            <div className="next-library-card-heading"><div><span className="next-library-eyebrow">IMMUTABLE ENBU RECORDS</span><h3>Recent experiments</h3><p>Completed inputs, results, replay and authorized local diagnostics are kept independently from the editable setup.</p></div><span className="next-library-badge">INDEXEDDB</span></div>
+            {!props.experimentsLoaded && <p role="status">Checking local experiment storage…</p>}
+            {props.experimentMismatch && <p className="next-library-warning" role="alert">The saved experiment stays preserved, but this Ruleset, World, Program or replay identity does not match the current runtime. It cannot be opened as a current comparison. {props.experimentMismatch}</p>}
+            {props.experiments.length > 0 ? <ol className="next-library-experiment-list">{props.experiments.map((experiment) => <li key={experiment.id}><strong>{experiment.scenario_title ?? "Local PvE"} · {experiment.outcome.replaceAll("_", " ")}</strong><small>{formatDate(experiment.created_at)} · {experiment.final_tick} ticks · {experiment.id}</small></li>)}</ol> : props.experimentsLoaded && !props.experimentMismatch && <p className="next-library-empty">No completed Next Enbu experiments are saved on this device.</p>}
+            <div className="next-library-actions">
+              <button className="is-primary" disabled={busy || props.experiments.length === 0 || Boolean(props.experimentMismatch)} onClick={() => void perform(props.onOpenExperiments, "Restored the latest result and comparison baseline.")} type="button">Open latest comparison</button>
+              <button disabled={busy || props.experiments.length === 0} onClick={() => void perform(props.onExportExperiments, "Next experiments exported as JSON.")} type="button">Export experiments</button>
+              {props.experiments.length > 0 && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("experiments")} type="button">Clear experiments…</button>}
+            </div>
+          </section>
         </div>
       </div>}
 
@@ -251,8 +279,8 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
       </div>}
 
       {confirmation && <section ref={confirmationRef} className="next-library-confirm" aria-label="Confirm Library change" role="alertdialog" aria-modal="false" aria-labelledby="next-library-confirm-title">
-        <div><span className="next-library-eyebrow">EXPLICIT CONFIRMATION</span><h3 id="next-library-confirm-title">{confirmation === "saved" ? "Clear the pinned setup?" : confirmation === "recovery" ? "Clear the recovery copy?" : confirmation === "import-saved" ? "Replace the pinned setup with this import?" : "Replace the pinned setup with the current draft?"}</h3><p>{confirmation === "saved" ? "The local pinned setup will be removed. Export preserved bytes first if you need a copy." : confirmation === "recovery" ? "The local recovery copy will be removed. The current editing draft remains open." : confirmation === "import-saved" ? "The existing pinned setup remains until the imported JSON passes validation and is accepted by the storage handler." : "The saved data does not match the loaded ruleset or could not be parsed. Export it first if you need to keep the original bytes."}</p></div>
-        <div className="next-library-actions"><button onClick={() => { setConfirmation(null); setPendingImport(null); }} type="button">Keep existing data</button><button className="is-danger" disabled={busy || (confirmation === "import-saved" && !pendingImport)} onClick={confirm} type="button">{confirmation === "saved" || confirmation === "recovery" ? "Confirm clear" : confirmation === "import-saved" ? "Validate and replace" : "Confirm replacement"}</button></div>
+        <div><span className="next-library-eyebrow">EXPLICIT CONFIRMATION</span><h3 id="next-library-confirm-title">{confirmation === "saved" ? "Clear the pinned setup?" : confirmation === "recovery" ? "Clear the recovery copy?" : confirmation === "experiments" ? "Clear saved experiments?" : confirmation === "import-saved" ? "Replace the pinned setup with this import?" : "Replace the pinned setup with the current draft?"}</h3><p>{confirmation === "saved" ? "The local pinned setup will be removed. Export preserved bytes first if you need a copy." : confirmation === "recovery" ? "The local recovery copy will be removed. The current editing draft remains open." : confirmation === "experiments" ? "The two most recent immutable Enbu records will be removed from this device. The current editable setup remains open." : confirmation === "import-saved" ? "The existing pinned setup remains until the imported JSON passes validation and is accepted by the storage handler." : "The saved data does not match the loaded ruleset or could not be parsed. Export it first if you need to keep the original bytes."}</p></div>
+        <div className="next-library-actions"><button onClick={() => { setConfirmation(null); setPendingImport(null); }} type="button">Keep existing data</button><button className="is-danger" disabled={busy || (confirmation === "import-saved" && !pendingImport)} onClick={confirm} type="button">{confirmation === "saved" || confirmation === "recovery" || confirmation === "experiments" ? "Confirm clear" : confirmation === "import-saved" ? "Validate and replace" : "Confirm replacement"}</button></div>
       </section>}
     </section>
   );

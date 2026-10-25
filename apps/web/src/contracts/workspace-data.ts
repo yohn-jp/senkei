@@ -61,6 +61,26 @@ export interface LocalSenkeiWorkspaceData {
   readonly extensions: CoreJsonValue;
 }
 
+/** Immutable local Next match record used for the latest run and its comparison baseline. */
+export interface LocalNextExperiment {
+  readonly id: string;
+  readonly match_id: string;
+  readonly created_at: string;
+  readonly snapshot: SimulationSnapshot;
+  readonly response: SimulationResponse;
+  /** Browser-owned Next setup captured with the submitted match snapshots. */
+  readonly setup: CoreJsonValue;
+  readonly include_diagnostics: boolean;
+  readonly estimated_cu: number;
+}
+
+/** Bounded store: at most the latest experiment and one prior comparison run. */
+export interface LocalNextExperimentStore {
+  readonly format_version: 1;
+  readonly ruleset_digest: string;
+  readonly experiments: readonly LocalNextExperiment[];
+}
+
 /** One immutable save point. The document is kept verbatim with its sidecar. */
 export interface LocalSenkeiHistoryRevision {
   readonly document: LocalSenkeiDocument;

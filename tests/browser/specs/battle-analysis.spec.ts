@@ -108,5 +108,17 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await analysis.getByRole("button", { name: "Jinreiを変更" }).click();
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(source).toHaveValue(pendingDraft);
+  await page.getByRole("button", { name: "Library" }).click();
+  const experimentLibrary = page.getByTestId("next-library");
+  await expect(experimentLibrary.getByRole("heading", { name: "Recent experiments" })).toBeVisible();
+  await expect(experimentLibrary.locator(".next-library-experiment-list li")).toHaveCount(2);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByTestId("journey-home").getByRole("button", { name: "続きから" }).click();
+  await expect(page.getByTestId("next-library")).toBeVisible();
+  await expect(page.getByTestId("next-library").locator(".next-library-experiment-list li")).toHaveCount(2);
+  await page.getByRole("button", { name: "Open latest comparison" }).click();
+  await expect(page.getByTestId("battle-analysis")).toBeVisible();
+  await expect(page.getByTestId("battle-analysis")).toContainText("PREVIOUS");
+  await expect(page.getByTestId("battle-analysis")).toContainText("CURRENT");
   expect(pageErrors).toEqual([]);
 });
