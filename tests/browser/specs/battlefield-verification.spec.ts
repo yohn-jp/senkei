@@ -202,29 +202,27 @@ async function selectVisibleHero(
   return { supported: true, target: option.label, id: option.value, catalogId };
 }
 
-function replayHeroPosition(
-  replay: JsonRecord,
-  tick: number,
-  target: FollowTarget,
+type ReplayProjectedPosition = {
+  id: string;
+  x: number;
+  z: number;
+  sourceX: number;
+  sourceY: number;
+  laneTrackOffset: { x: number; z: number };
+};
+
+function replayEntityPosition(
+  entity: JsonRecord,
+  id: string,
   ruleset: JsonRecord,
-): { id: string; x: number; z: number; sourceX: number; sourceY: number; laneTrackOffset: { x: number; z: number } } | null {
-  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
-  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
-  if (!entities) return null;
-  const readInteger = (entity: JsonRecord | undefined, key: "x" | "y"): number | null => {
-    const field = entity?.fields?.[key];
+): ReplayProjectedPosition | null {
+  const readInteger = (key: "x" | "y"): number | null => {
+    const field = entity.fields?.[key];
     return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
   };
-  const direct = target.id ? entities[target.id] : undefined;
-  const entity = direct?.entity_type === "hero" ? direct : Object.values(entities).find((candidate) =>
-    candidate.entity_type === "hero" && candidate.fields?.catalog_id?.value === target.catalogId,
-  );
-  if (!entity) return null;
-  const id = Object.entries(entities).find(([, candidate]) => candidate === entity)?.[0];
-  const x = readInteger(entity, "x");
-  const z = readInteger(entity, "y");
-  if (!id || x === null || z === null) return null;
-
+  const x = readInteger("x");
+  const y = readInteger("y");
+  if (x === null || y === null) return null;
   // Moving entities are projected by the replay adapter onto the canonical
   // World presentation polyline using logical edge_progress/edge.length.
   // The renderer then offsets ordinary lane LEFT/RIGHT tracks along the
@@ -254,7 +252,7 @@ function replayHeroPosition(
   const nodePositions = presentation?.node_positions as Record<string, { position?: { x?: number; y?: number } }> | undefined;
   const edgePaths = presentation?.edge_paths as Record<string, { points?: { x: number; y: number }[] }> | undefined;
   const edges = map?.edges as { from?: string; to?: string; region?: string; bridge_site?: string }[] | undefined;
-  let position = { x: x / nextWorldUnitsPerRenderUnit, y: z / nextWorldUnitsPerRenderUnit };
+  let position: { x: number; y: number };
   let edge: { from?: string; to?: string; id?: string; length?: number; region?: string; bridge_site?: string } | undefined;
   let points: { x: number; y: number }[] | undefined;
   if (node && edgeTo) {
@@ -306,7 +304,7 @@ function replayHeroPosition(
     const nodePosition = nodePositions?.[node]?.position;
     if (!nodePosition || !Number.isFinite(nodePosition.x) || !Number.isFinite(nodePosition.y)) return null;
     position = { x: nodePosition.x! / nextWorldUnitsPerRenderUnit, y: nodePosition.y! / nextWorldUnitsPerRenderUnit };
-  }
+  } else return null;
   let laneTrackOffset = { x: 0, z: 0 };
   if (node && edgeTo && points && edge?.region === "lane" && !edge.bridge_site &&
     (track === "LEFT" || track === "RIGHT") && !crossingActive) {
@@ -338,12 +336,30 @@ function replayHeroPosition(
     x: position.x + laneTrackOffset.x,
     z: position.y + laneTrackOffset.z,
     sourceX: x,
-    sourceY: z,
+    sourceY: y,
     laneTrackOffset,
   };
 }
 
-function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
+function replayHeroPosition(
+  replay: JsonRecord,
+  tick: number,
+  target: FollowTarget,
+  ruleset: JsonRecord,
+): ReplayProjectedPosition | null {
+  const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  if (!entities) return null;
+  const direct = target.id ? entities[target.id] : undefined;
+  const match = direct?.entity_type === "hero"
+    ? [target.id!, direct] as [string, JsonRecord]
+    : Object.entries(entities).find(([, entity]) =>
+      entity.entity_type === "hero" && entity.fields?.catalog_id?.value === target.catalogId,
+    );
+  return match ? replayEntityPosition(match[1], match[0], ruleset) : null;
+}
+
+function replayVisibleHeroesAt(replay: JsonRecord, tick: number, ruleset: JsonRecord): {
   id: string;
   catalogId: string;
   hp: number;
@@ -368,22 +384,24 @@ function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
     const sourceX = integerField(entity, "x");
     const sourceY = integerField(entity, "y");
     if (!catalogId || hp === null || hp <= 0 || maxHp === null || sourceX === null || sourceY === null) return [];
+    const projected = replayEntityPosition(entity, id, ruleset);
+    if (!projected) return [];
     return [{
       id,
       catalogId,
       hp,
       maxHp,
-      x: sourceX / nextWorldUnitsPerRenderUnit,
-      z: sourceY / nextWorldUnitsPerRenderUnit,
+      x: projected.x,
+      z: projected.z,
       sourceX,
       sourceY,
     }];
   });
 }
 
-function replayOwnSquadMembersAt(replay: JsonRecord, tick: number, catalogId: string): {
+function replayOwnSquadMembersAt(replay: JsonRecord, tick: number, catalogId: string, ruleset: JsonRecord): {
   squadId: string;
-  members: { id: string; catalogId: string; sourceX: number; sourceY: number }[];
+  members: { id: string; catalogId: string; sourceX: number; sourceY: number; x: number; z: number }[];
 } | null {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
@@ -408,7 +426,9 @@ function replayOwnSquadMembersAt(replay: JsonRecord, tick: number, catalogId: st
     const sourceX = fieldInteger(entity, "x");
     const sourceY = fieldInteger(entity, "y");
     if (!memberCatalogId || hp === null || hp <= 0 || sourceX === null || sourceY === null) return [];
-    return [{ id, catalogId: memberCatalogId, sourceX, sourceY }];
+    const projected = replayEntityPosition(entity, id, ruleset);
+    if (!projected) return [];
+    return [{ id, catalogId: memberCatalogId, sourceX, sourceY, x: projected.x, z: projected.z }];
   });
   return members.length ? { squadId, members } : null;
 }
@@ -417,8 +437,9 @@ async function assertActualHeroRows(
   cluster: import("@playwright/test").Locator,
   replay: JsonRecord,
   tick: number,
+  ruleset: JsonRecord,
 ): Promise<JsonRecord[]> {
-  const heroes = replayVisibleHeroesAt(replay, tick);
+  const heroes = replayVisibleHeroesAt(replay, tick, ruleset);
   expect(heroes, `the exact owner replay frame at T${tick} must contain five living visible Heroes`).toHaveLength(5);
   const rows = cluster.locator(".next-visible-cluster-entities > li");
   const summaries = await rows.evaluateAll((elements) => elements.map((element) => {
@@ -435,7 +456,7 @@ async function assertActualHeroRows(
   expect(heroRows, "the selected nearby cluster must expose all five currently visible Heroes as separate rows").toHaveLength(5);
   const byCatalogId = new Map<string, { sourceId: string; displayId: string; label: string }>();
   for (const hero of heroes) {
-    const expectedPosition = `X ${hero.sourceX} · Y ${hero.sourceY}`;
+    const expectedPosition = `X ${Math.round(hero.x * nextWorldUnitsPerRenderUnit)} · Y ${Math.round(hero.z * nextWorldUnitsPerRenderUnit)}`;
     const matches = heroRows.filter((row) =>
       row.identity.startsWith(`${hero.catalogId} · `) &&
       row.hp === `HP ${hero.hp}/${hero.maxHp}` &&
@@ -469,6 +490,7 @@ function replayVisibleRolePositions(
   tick: number,
   target: FollowTarget,
   role: "monster" | "minion",
+  ruleset: JsonRecord,
 ): { id: string; x: number; z: number; sourceX: number; sourceY: number }[] {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
@@ -490,14 +512,9 @@ function replayVisibleRolePositions(
       return hp === selectedHp[1] && maxHp === selectedHp[2];
     });
   return candidates.flatMap(([id, entity]) => {
-    const readCoordinate = (key: "x" | "y"): number | null => {
-      const field = entity.fields?.[key];
-      return field?.kind === "integer" && Number.isFinite(field.value) ? field.value : null;
-    };
-    const x = readCoordinate("x");
-    const z = readCoordinate("y");
-    return x !== null && z !== null
-      ? [{ id, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }]
+    const projected = replayEntityPosition(entity, id, ruleset);
+    return projected
+      ? [{ id, x: projected.x, z: projected.z, sourceX: projected.sourceX, sourceY: projected.sourceY }]
       : [];
   });
 }
@@ -1272,7 +1289,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await expect(selectedCluster, "opening Follow should show the cluster containing the actual selected Hero").toHaveCount(1);
       const selectedClusterLabel = await selectedCluster.locator(".next-visible-cluster-toggle").getAttribute("aria-label");
       expect(selectedClusterLabel).toMatch(/nearby visible entities|entities at the same replay position/i);
-      const verifiedHeroes = await assertActualHeroRows(selectedCluster, sourceReplay, tick);
+      const verifiedHeroes = await assertActualHeroRows(selectedCluster, sourceReplay, tick, renderedRuleset);
       const clusterScreenshot = "selected-visible-cluster-t050.png";
       const clusterCameraPose = await canvas.getAttribute("data-camera");
       const clusterCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
@@ -1300,7 +1317,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       cameraPosesByCapture[followCaptureKey] = await canvas.getAttribute("data-camera");
       cameraTargetsByCapture[followCaptureKey] = actualTarget;
 
-      const ownerSquad = replayOwnSquadMembersAt(sourceReplay, tick, clusterTarget.catalogId);
+      const ownerSquad = replayOwnSquadMembersAt(sourceReplay, tick, clusterTarget.catalogId, renderedRuleset);
       expect(ownerSquad, "the selected current owner Hero must have a confirmed Squad in this Replay frame").not.toBeNull();
       expect(ownerSquad!.members, "the current owner Squad must have five living visible members at T50").toHaveLength(5);
       const verifiedHeroByReplayId = new Map(verifiedHeroes.map((hero) => [hero.sourceReplayEntityId, hero]));
@@ -1319,8 +1336,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
         };
       });
       const expectedSquadTarget = {
-        x: ownerSquad!.members.reduce((sum, member) => sum + member.sourceX / nextWorldUnitsPerRenderUnit, 0) / ownerSquad!.members.length,
-        z: ownerSquad!.members.reduce((sum, member) => sum + member.sourceY / nextWorldUnitsPerRenderUnit, 0) / ownerSquad!.members.length,
+        x: ownerSquad!.members.reduce((sum, member) => sum + member.x, 0) / ownerSquad!.members.length,
+        z: ownerSquad!.members.reduce((sum, member) => sum + member.z, 0) / ownerSquad!.members.length,
       };
       const expectedSquadLabel = ownerSquad!.squadId
         .replaceAll("_", " ")
@@ -1401,7 +1418,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       for (const role of roleFollowOnly) {
         const target = await clickFollowRole(page, role);
         expect(target.supported, `the real replay selector must offer a visible ${role}`).toBe(true);
-        const sourceCandidates = replayVisibleRolePositions(sourceReplay, skillTick, target, role);
+        const sourceCandidates = replayVisibleRolePositions(sourceReplay, skillTick, target, role, renderedRuleset);
         expect(sourceCandidates.length, `${role} Follow must resolve to a current visible owner-replay entity using its selected identity and HP`).toBeGreaterThan(0);
         await waitForSettledCamera(page);
         const actualCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
