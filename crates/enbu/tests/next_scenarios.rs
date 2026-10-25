@@ -792,10 +792,10 @@ fn reveal_expiry_case() {
     let compiled = compile(&tactics, &rules)
         .unwrap_or_else(|error| panic!("catalog reveal policy compiles: {error:?}"));
     let attacker_nodes = [
-        "N.MID.OBS", "A.BASE", "A.BASE", "A.BASE", "A.BASE",
+        "N.A.UJ", "A.BASE", "A.BASE", "A.BASE", "A.BASE",
     ].map(str::to_owned);
     let defender_nodes = [
-        "A.TOP.T2", "B.BASE", "B.BASE", "B.BASE", "B.BASE",
+        "N.A.UJ", "B.BASE", "B.BASE", "B.BASE", "B.BASE",
     ].map(str::to_owned);
     let (mut attacker, defender, mut context) = build_match(
         &rules,
@@ -807,10 +807,35 @@ fn reveal_expiry_case() {
     );
     set_catalog(&mut attacker, 0, "R03", &rules);
     attacker.program = compiled.program;
-    // This minion is the sole attacker vision source for the target. F01
-    // destroys it during tick one, so reveal must preserve sight after the
-    // ordinary source disappears.
-    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "A.TOP.T2");
+    // Put R03, F01, and a fragile allied vision Minion on the same canonical
+    // 620-WU ford edge. Logical range is 340 WU: beyond R03's 330 sight but
+    // within the 420 Reveal active. F01 kills the Minion during tick one, so
+    // Reveal must preserve visibility after its only normal vision source dies.
+    let ford_start = &rules.plan().next.as_ref().unwrap().map.nodes["N.A.UJ"];
+    let ford_end = &rules.plan().next.as_ref().unwrap().map.nodes["N.B.UJ"];
+    let edge_progress = |entity: &mut EntityState, progress: i64| {
+        entity.fields.insert(FieldId::from("node"), DomainValue::String("N.A.UJ".into()));
+        entity.fields.insert(FieldId::from("edge_to"), DomainValue::String("N.B.UJ".into()));
+        entity.fields.insert(FieldId::from("edge_progress"), DomainValue::Integer(progress));
+        entity.fields.insert(FieldId::from("x"), DomainValue::Integer(
+            ford_start.x + (ford_end.x - ford_start.x) * progress / 620,
+        ));
+        entity.fields.insert(FieldId::from("y"), DomainValue::Integer(
+            ford_start.y + (ford_end.y - ford_start.y) * progress / 620,
+        ));
+    };
+    for (side, slot, progress) in [
+        (CombatantSide::Attacker, "slot-1", 0_i64),
+        (CombatantSide::Defender, "slot-1", 340_i64),
+    ] {
+        let hero = context.initial_world.entities.values_mut().find(|entity| {
+            entity.entity_type.as_str() == "hero" && entity.owner == Some(side)
+                && entity.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String(slot.into()))
+        }).expect("configured Hero exists in initial World");
+        edge_progress(hero, progress);
+    }
+    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "N.A.UJ");
+    edge_progress(&mut vision_source, 340);
     vision_source.fields.insert(FieldId::from("hp"), DomainValue::Integer(1));
     vision_source.fields.insert(FieldId::from("attack"), DomainValue::Integer(0));
     vision_source.fields.insert(FieldId::from("speed"), DomainValue::Integer(0));
@@ -838,9 +863,9 @@ fn reveal_expiry_case() {
         })
     };
 
-    // R03's 420-range reveal reaches the target from 340 units away, beyond
-    // R03's 330 vision radius. The only nearer vision source dies at tick one.
-    // Reveal lasts through tick four and expires before tick five's snapshot.
+    // R03 and F01 share one ford Combat Domain at 340 WU: Reveal reaches the
+    // target beyond its 330 vision radius, and the co-located Minion alone
+    // provides initial sight. Reveal lasts through tick four and expires at five.
     assert!(visible_target(owner, 0), "attacker initially sees the target through its minion source");
     assert!(visible_target(owner, 1), "owner replay sees the target while reveal is active");
     let tick_one_events = &owner.frames.iter().find(|frame| frame.tick == 1).unwrap().events;
@@ -874,10 +899,12 @@ fn reveal_expiry_case() {
         && entity.owner == Some(CombatantSide::Defender)
         && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String("F01".into())))
         .expect("target remains visible through reveal");
-    let dx = entity_integer(scout, "x") - entity_integer(target, "x");
-    let dy = entity_integer(scout, "y") - entity_integer(target, "y");
+    assert_eq!(entity_string(scout, "edge_to"), "N.B.UJ");
+    assert_eq!(entity_string(target, "edge_to"), "N.B.UJ");
+    assert_eq!(entity_integer(scout, "edge_progress"), 0);
+    assert_eq!(entity_integer(target, "edge_progress"), 340);
     let vision = entity_integer(scout, "vision");
-    assert!(dx * dx + dy * dy > vision * vision,
+    assert!(340 > vision,
         "the target remains visible at tick four while outside every living scout's radius");
 
     let private_fields = [
