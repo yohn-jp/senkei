@@ -95,6 +95,10 @@ function createUnitMaterials(): UnitMaterials {
   return SHARED_UNIT_MATERIALS;
 }
 
+export function isSharedUnitMaterial(material: THREE.Material): boolean {
+  return Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
+}
+
 const UNIT_GENERATOR = "senkei.battlefield-unit.v1";
 
 function assetRecord(assetKey: string, appearanceKey: string, lod: readonly string[]) {

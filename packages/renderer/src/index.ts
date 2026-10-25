@@ -6,7 +6,7 @@ import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { BattlefieldFog } from "./battlefield-fog";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
-import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
+import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
@@ -275,7 +275,7 @@ function disposeTree(root: THREE.Object3D) {
       const mats = Array.isArray(node.material)
         ? node.material
         : [node.material];
-      mats.forEach((m) => m.dispose());
+      mats.forEach((m) => { if (!isSharedUnitMaterial(m)) m.dispose(); });
     }
   });
 }
