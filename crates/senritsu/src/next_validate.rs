@@ -247,6 +247,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     }
     const CAPS: &[&str] = &[
         "move", "pursue", "retreat", "activate", "split", "merge", "regroup",
+        "select_track", "bridge_work",
     ];
     check(
         package
