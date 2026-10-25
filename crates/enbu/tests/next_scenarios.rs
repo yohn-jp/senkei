@@ -35,12 +35,12 @@ fn reveal_rules() -> VerifiedRulePlan {
     // at that level so the fixture can isolate reveal timing without adding a
     // second progression or combat implementation.
     next.parameters.insert("hero_start_level".into(), 4);
-    // Keep R03's base vision while leveling; the target node below is 340
-    // units away, just beyond that sight radius and within the active's 420
-    // range.
-    next.heroes.iter_mut().find(|hero| hero.id == "R03")
-        .expect("the published catalog contains R03")
-        .growth.vision = 0;
+    // Keep R03 at 300 WU vision while leveling. The target node below is 325
+    // WU away, beyond ordinary sight but within the active's 420-WU Reveal.
+    let recon = next.heroes.iter_mut().find(|hero| hero.id == "R03")
+        .expect("the published catalog contains R03");
+    recon.stats.vision = 300;
+    recon.growth.vision = 0;
     package.ruleset.version = Version::new(2, 0, 1);
     package.ruleset.digest = senritsu::canonical_digest(&package)
         .expect("reveal test package has canonical content");
@@ -796,9 +796,9 @@ fn reveal_expiry_case() {
         "N.A.UJ", "A.BASE", "A.BASE", "A.BASE", "A.BASE",
     ].map(str::to_owned);
     let defender_nodes = [
-        "N.A.UJ", "B.BASE", "B.BASE", "B.BASE", "B.BASE",
+        "A.TOP.J", "B.BASE", "B.BASE", "B.BASE", "B.BASE",
     ].map(str::to_owned);
-    let (mut attacker, defender, mut context) = build_match(
+    let (mut attacker, mut defender, mut context) = build_match(
         &rules,
         &[1, 1, 1, 1, 1],
         "w9-reveal-expiry",
@@ -807,36 +807,13 @@ fn reveal_expiry_case() {
         Some(&defender_nodes),
     );
     set_catalog(&mut attacker, 0, "R03", &rules);
+    set_catalog(&mut defender, 0, "F01", &rules);
     attacker.program = compiled.program;
-    // Put R03, F01, and a fragile allied vision Minion on the same canonical
-    // 620-WU ford edge. Logical range is 340 WU: beyond R03's 330 sight but
-    // within the 420 Reveal active. F01 kills the Minion during tick one, so
-    // Reveal must preserve visibility after its only normal vision source dies.
-    let ford_start = &rules.plan().next.as_ref().unwrap().map.nodes["N.A.UJ"];
-    let ford_end = &rules.plan().next.as_ref().unwrap().map.nodes["N.B.UJ"];
-    let edge_progress = |entity: &mut EntityState, progress: i64| {
-        entity.fields.insert(FieldId::from("node"), DomainValue::String("N.A.UJ".into()));
-        entity.fields.insert(FieldId::from("edge_to"), DomainValue::String("N.B.UJ".into()));
-        entity.fields.insert(FieldId::from("edge_progress"), DomainValue::Integer(progress));
-        entity.fields.insert(FieldId::from("x"), DomainValue::Integer(
-            ford_start.x + (ford_end.x - ford_start.x) * progress / 620,
-        ));
-        entity.fields.insert(FieldId::from("y"), DomainValue::Integer(
-            ford_start.y + (ford_end.y - ford_start.y) * progress / 620,
-        ));
-    };
-    for (side, catalog_id, progress) in [
-        (CombatantSide::Attacker, "R03", 0_i64),
-        (CombatantSide::Defender, "F01", 340_i64),
-    ] {
-        let hero = context.initial_world.entities.values_mut().find(|entity| {
-            entity.entity_type.as_str() == "hero" && entity.owner == Some(side)
-                && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String(catalog_id.into()))
-        }).expect("configured Hero exists in initial World");
-        edge_progress(hero, progress);
-    }
-    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "N.A.UJ");
-    edge_progress(&mut vision_source, 340);
+    // The canonical 325-WU Jungle-to-Lane edge places R03 just outside its
+    // test-only 300-WU ordinary sight but inside the active's 420-WU Reveal.
+    // F01 kills the allied Minion at its own node during tick one, so Reveal
+    // must preserve visibility after that normal source disappears.
+    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "A.TOP.J");
     vision_source.fields.insert(FieldId::from("hp"), DomainValue::Integer(1));
     vision_source.fields.insert(FieldId::from("attack"), DomainValue::Integer(0));
     vision_source.fields.insert(FieldId::from("speed"), DomainValue::Integer(0));
@@ -864,9 +841,9 @@ fn reveal_expiry_case() {
         })
     };
 
-    // R03 and F01 share one ford Combat Domain at 340 WU: Reveal reaches the
-    // target beyond its 330 vision radius, and the co-located Minion alone
-    // provides initial sight. Reveal lasts through tick four and expires at five.
+    // R03 at N.A.UJ and F01 at A.TOP.J are 325 WU apart. Reveal reaches the
+    // target beyond the test-only 300-WU sight radius, and the co-located
+    // Minion alone provides initial sight. Reveal expires before tick five.
     assert!(visible_target(owner, 0), "attacker initially sees the target through its minion source");
     assert!(visible_target(owner, 1), "owner replay sees the target while reveal is active");
     let tick_one_events = &owner.frames.iter().find(|frame| frame.tick == 1).unwrap().events;
@@ -900,12 +877,11 @@ fn reveal_expiry_case() {
         && entity.owner == Some(CombatantSide::Defender)
         && entity.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String("F01".into())))
         .expect("target remains visible through reveal");
-    assert_eq!(entity_string(scout, "edge_to"), "N.B.UJ");
-    assert_eq!(entity_string(target, "edge_to"), "N.B.UJ");
-    assert_eq!(entity_integer(scout, "edge_progress"), 0);
-    assert_eq!(entity_integer(target, "edge_progress"), 340);
+    assert_eq!(entity_string(scout, "node"), "N.A.UJ");
+    assert_eq!(entity_string(target, "node"), "A.TOP.J");
     let vision = entity_integer(scout, "vision");
-    assert!(340 > vision,
+    assert_eq!(vision, 300);
+    assert!(325 > vision,
         "the target remains visible at tick four while outside every living scout's radius");
 
     let private_fields = [
