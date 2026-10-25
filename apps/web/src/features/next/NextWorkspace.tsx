@@ -1297,7 +1297,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     setSelectedEntityId(id);
     const mobile = window.matchMedia("(max-width: 760px)").matches;
     setBattleMobileView(mobile ? "follow" : "battle");
-    setBattleRosterOpen(!mobile);
+    setBattleRosterOpen(false);
     setCameraMode("tactical");
     setFollowedEntityId(id);
     setFollowedSquadId(null);
