@@ -113,3 +113,7 @@ G2の実プレイヤー導線は [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md)、[PRE-B
 Hero Collection／Detail／Skill Tree／Squad Assemblyは独立した主画面だが、**初回Presetの全画面強制通過はしない**。Quickは実Presetを確認して開始でき、Customは編集し、Continueは保存物と版を照合して再開する。すべて同じReady/Preflightを通り、コンパイル失効・開始不能の理由と修正先を提示する。旧TacticsとNext、旧LibraryとNextの保存領域は**実装上現在別である**ため、統一されたHome/Libraryと誤認させない。
 
 Ready/Preflight、NPC選択、統合Homeなどは設計上の追加Screenであり、ワイヤフレーム作成だけで実装済みと扱わない。DesktopではHero/Skill/Jinrei/Battleをそれぞれ主役にし、Mobileでは専用画面・シートと戻り導線を持たせる。
+
+## 11. 戦術改善ループ・Fog・Mobileの追加合意
+
+[TACTICAL-LOOP.md](TACTICAL-LOOP.md) に従い、ReplayのTick・対象→認可済み分析→Jinrei修正→再Compile／Preflight→同条件比較をつなぐ。Presetと段階的開示、RevisionとExperimentの区別を維持。MobileではReplayと編集を独立画面にし、Desktopの縮小を避ける。[FOG-OF-WAR.md](FOG-OF-WAR.md) に従って視界外の敵を消し、橋の過去観測と現在不明を区別する。PC／Mobile同時利用は検討のみで、現行ローカルPvEへ認証・同期の必須依存を追加しない。

@@ -109,3 +109,7 @@ Pixel 3DとSmooth 3Dの選択は描画品質の問題であり、会話ではSmo
 ## 10. G2 Hero Atelierと画風の統一
 
 [HERO-ATELIER.md](HERO-ATELIER.md) をHero画面と戦場で共有するStylized 3Dアートディレクションの正本とする。G1のPixel 3Dは任意の描画パスとして保持し、Smooth 3Dを同等に評価する。Hero Detail用モデルと戦場LODは同じHero identity／装備／材質系列から生成する。写実寄りモックとG1ローポリを無条件に混在させない。
+
+## 11. Faceted Low-Poly・表示モード・LODの追加方向
+
+[ART-DIRECTION.md](ART-DIRECTION.md) に従い、共通Generator＋固有Heroパーツ、Tactical／Cinematic＋情報レイヤー、距離と画面占有サイズによるLODを採用方向とする。全モードは同一Replay・Rendererと [FOG-OF-WAR.md](FOG-OF-WAR.md) の認可境界を守る。Pixel/Smoothは任意パスであり、旧G1や写実レシピを最終品質の基準にしない。

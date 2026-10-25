@@ -13,6 +13,11 @@
 | 文書 | 担当する設計領域 |
 | --- | --- |
 | [PRODUCT.md](PRODUCT.md) | ユーザー、体験、非目標、学習の導線 |
+| [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) | **G01–Q03の合意事項と保留の台帳** |
+| [FOG-OF-WAR.md](FOG-OF-WAR.md) | **視界・探索済み地形・最終観測鮮度** |
+| [TACTICAL-LOOP.md](TACTICAL-LOOP.md) | **Replay→分析→Jinrei修正→比較のUX** |
+| [ART-DIRECTION.md](ART-DIRECTION.md) | **Faceted Low-Poly・表示モード・LOD** |
+| [QUALITY-AND-RETIREMENT.md](QUALITY-AND-RETIREMENT.md) | **品質ゲート・旧実装の原則削除と不採用知識** |
 | [GAMEPLAY.md](GAMEPLAY.md) | 3レーン戦略・兵力・攻守・戦闘ループ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Local-first、コンポーネント・境界・データ |
 | [COMPONENTS.md](COMPONENTS.md) | **名称・責務の正本**: Senkei / Jinrei / Senritsu / Enbu |

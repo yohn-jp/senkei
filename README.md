@@ -99,3 +99,7 @@ npm run test:browser    # 実ブラウザ操作・4サイズの画面取得
 ```
 
 責務は`packages/replay-contract`（Schema・Decoder・Fixture）、`packages/replay-player`（表示状態とカーソル）、`packages/renderer`（Three.js / WebGL2）、`apps/web`（Desktop / Mobile UI）に分離しています。契約の詳細は[Replay v0.1](packages/replay-contract/README.md)、検証結果と画面証拠は[G1検証記録](docs/G1-VERIFICATION.md)を参照してください。Nextワークベンチは実際のEnbu出力を同じRendererへ渡します。[Next画面証拠](docs/evidence/next/README.md) と [12モデルのFixture証拠](docs/evidence/w7/README.md) を参照してください。ハードウェアGPUや実機モバイル性能の検証とは区別しています。新しい [G2 Hero Atelier](docs/HERO-ATELIER.md) の専用展示画面・展示用LODは別の追加トラックで、今回のNextワークベンチだけで完成したとは扱いません。
+
+## G2デザイン・アーキテクチャ合意
+
+G01–Q03の設計方向と保留、探索済みFog、Replay→Jinrei改善ループ、Faceted Low-Poly、旧実装廃止は[設計判断台帳](docs/DESIGN-DECISIONS.md)および[文書索引](docs/README.md)を参照。設計方向の記述は機能完成を意味しない。
