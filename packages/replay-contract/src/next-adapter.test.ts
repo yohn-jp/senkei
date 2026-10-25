@@ -10,7 +10,11 @@ import { decodeReplay, type PresentationReplay } from "./index";
 function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; ford?:boolean }[] = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
   { from: "camp", to: "defender", length: 250, region: "jungle", blocked: true },
-], frames: CoreReplay["frames"] = []) {
+], frames: CoreReplay["frames"] = [], nodes: Record<string, { x: number; y: number; region: string }> = {
+  attacker: { x: 0, y: 0, region: "base" },
+  camp: { x: 250, y: 125, region: "jungle" },
+  defender: { x: 500, y: 250, region: "base" },
+}) {
   const ruleset = {
     ruleset: { id: "senkei.next", digest: "a".repeat(64) },
     minimum_engine_version: { major: 1, minor: 2, patch: 0 },
@@ -18,11 +22,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
       parameters: { tick_duration_ms: 100 },
       map: {
         attacker_base: "attacker", defender_base: "defender",
-        nodes: {
-          attacker: { x: 0, y: 0, region: "base" },
-          camp: { x: 250, y: 125, region: "jungle" },
-          defender: { x: 500, y: 250, region: "base" },
-        },
+        nodes,
         edges,
         lanes: { mid: ["attacker", "camp", "defender"] },
       },
@@ -80,6 +80,40 @@ describe("Next map graph projection", () => {
     ])).toThrow("Missing public map node: absent");
   });
 
+  it("projects one ordered river centerline through each canonical bridge site and ford", () => {
+    const edges = [
+      { id: "bridge.TOP", from: "top-a", to: "top-b", length: 100, region: "bridge", blocked: false, bridge_site: "TOP" },
+      { id: "ford.upper", from: "upper-a", to: "upper-b", length: 100, region: "river_ford", blocked: false, ford: true },
+      { id: "bridge.MID.A", from: "mid-a", to: "observation", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
+      { id: "bridge.MID.B", from: "observation", to: "mid-b", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
+      { id: "ford.lower", from: "lower-a", to: "lower-b", length: 100, region: "river_ford", blocked: false, ford: true },
+      { id: "bridge.BOT", from: "bot-a", to: "bot-b", length: 100, region: "bridge", blocked: false, bridge_site: "BOT" },
+    ];
+    const nodes = {
+      attacker: { x: 0, y: 0, region: "base" },
+      camp: { x: 100, y: 100, region: "jungle" },
+      defender: { x: 500, y: 500, region: "base" },
+      "top-a": { x: 80, y: -20, region: "riverbank" },
+      "top-b": { x: 120, y: 20, region: "riverbank" },
+      "upper-a": { x: 130, y: 80, region: "jungle" },
+      "upper-b": { x: 170, y: 120, region: "jungle" },
+      "mid-a": { x: 180, y: 180, region: "riverbank" },
+      observation: { x: 200, y: 200, region: "observation" },
+      "mid-b": { x: 220, y: 220, region: "riverbank" },
+      "lower-a": { x: 230, y: 280, region: "jungle" },
+      "lower-b": { x: 270, y: 320, region: "jungle" },
+      "bot-a": { x: 280, y: 380, region: "riverbank" },
+      "bot-b": { x: 320, y: 420, region: "riverbank" },
+    };
+    const river = project(edges, [], nodes).scene.river!;
+    expect(river).toHaveLength(7);
+    expect(river.slice(1, -1)).toEqual([
+      { x: 4, y: 0 }, { x: 6, y: 4 }, { x: 8, y: 8 }, { x: 10, y: 12 }, { x: 12, y: 16 },
+    ]);
+    expect(river[0]!.y).toBeLessThan(river[1]!.y);
+    expect(river.at(-1)!.y).toBeGreaterThan(river.at(-2)!.y);
+  });
+
   it("projects only authorized logical position and facility changes, including destroyed bridges", () => {
     const value = (kind: "integer" | "string", value: number | string) => ({ kind, value });
     const viewEntity = (entity_type: string, fields: Record<string, ReturnType<typeof value>>) => ({ entity_type, owner: null, fields });
@@ -116,7 +150,7 @@ describe("Next map graph projection", () => {
     expect(replay.scene.routes?.map(route => [route.id, route.bridgeSite, route.ford])).toEqual([
       ["edge_top", "TOP", undefined], ["edge_ford", undefined, true],
     ]);
-    expect(replay.scene.river).toHaveLength(2);
+    expect(replay.scene.river).toHaveLength(4);
     const move = replay.timeline.find(event => event.type === "move");
     expect(move).toMatchObject({ type: "move", logicalPosition: { node: "attacker", edgeTo: "camp", progress: 10, track: "LEFT" } });
     const bridgeState = replay.timeline.find(event => event.type === "facility-state" && event.battlefield.bridgeSite === "TOP");

@@ -66,6 +66,7 @@ function pathSets(replay: Replay) {
     jungle: (replay.scene.routes ?? [])
       .filter((route) => route.region === "jungle")
       .map((route) => route.points),
+    river: replay.scene.river && replay.scene.river.length > 1 ? [replay.scene.river] : [],
     camps: replay.scene.camps ?? [],
   };
 }
@@ -198,7 +199,7 @@ function groveInfluence(point: Point2, sites: readonly GroveSite[]): number {
 }
 
 function buildGroveSites(replay: Replay): GroveSite[] {
-  const { lanes, jungle, camps } = pathSets(replay);
+  const { lanes, jungle, river, camps } = pathSets(replay);
   const regions = buildInterlaneRegions(replay);
   const sites: GroveSite[] = [];
   const interlaneCandidates: { x: number; z: number; axis: [number, number]; seed: number }[][] = [];
@@ -244,9 +245,10 @@ function buildGroveSites(replay: Replay): GroveSite[] {
             if (!pointInPolygon(point, region.polygon)) continue;
             const laneClearance = distanceToLines(point, region.boundaries);
             const routeClearance = distanceToLines(point, jungle);
+            const riverClearance = distanceToLines(point, river);
             const campClearance = distanceToCamps(point, camps);
-            if (laneClearance < 3.05 || routeClearance < 2.1 || campClearance < 3.8) continue;
-            const score = Math.min(laneClearance - 3.05, routeClearance - 2.1, campClearance - 3.8)
+            if (laneClearance < 3.05 || routeClearance < 2.1 || riverClearance < 3.4 || campClearance < 3.8) continue;
+            const score = Math.min(laneClearance - 3.05, routeClearance - 2.1, riverClearance - 3.4, campClearance - 3.8)
               + hash(localSeed, 37) * 0.35;
             if (!best || score > best.score)
               best = { x, z, axis: nearestAxis(point, region.boundaries), score, seed: localSeed };
@@ -287,6 +289,7 @@ function buildGroveSites(replay: Replay): GroveSite[] {
         if (
           distanceToLines(point, lanes) < 3.2 ||
           distanceToLines(point, jungle) < 3.4 ||
+          distanceToLines(point, river) < 3.4 ||
           distanceToCamps(point, camps) < 5.6
         ) continue;
         addSite(x, z, tx, tz, 4.8, 4.1, localSeed);
@@ -308,13 +311,14 @@ function buildGroveSites(replay: Replay): GroveSite[] {
       const point = { x, y: z };
       const laneClearance = distanceToLines(point, lanes);
       const routeClearance = distanceToLines(point, jungle);
+      const riverClearance = distanceToLines(point, river);
       const otherCampClearance = camps!.reduce(
         (nearest, other, otherIndex) => otherIndex === campIndex
           ? nearest
           : Math.min(nearest, Math.hypot(x - other.position.x, z - other.position.y)),
         Infinity,
       );
-      if (laneClearance < 3.2 || routeClearance < 3.0 || otherCampClearance < 5.5) continue;
+      if (laneClearance < 3.2 || routeClearance < 3.0 || riverClearance < 3.4 || otherCampClearance < 5.5) continue;
       candidates.push({
         x,
         z,
@@ -377,7 +381,7 @@ function buildGround(
   const width = maxX - minX, depth = maxZ - minZ;
   const segmentsX = Math.ceil(width / 1.8), segmentsZ = Math.ceil(depth / 1.8);
   const position: number[] = [], colors: number[] = [], indices: number[] = [];
-  const { lanes, jungle, camps } = pathSets(replay);
+  const { lanes, jungle, river, camps } = pathSets(replay);
   const regions = buildInterlaneRegions(replay);
   const terrainAt = (x: number, z: number): number => {
     const point = { x, y: z };
@@ -392,7 +396,11 @@ function buildGround(
     const campsiteRimDistance = Math.max(0, campDistance - 3.9);
     const nearbyPath = Math.min(routeDistance, campsiteRimDistance);
     const approach = smoothstep(1.8, 6.2, nearbyPath);
-    return THREE.MathUtils.lerp(-0.045, THREE.MathUtils.clamp(relief, -0.58, 1.02), approach);
+    const reliefHeight = THREE.MathUtils.lerp(-0.045, THREE.MathUtils.clamp(relief, -0.58, 1.02), approach);
+    const riverDistance = distanceToLines(point, river);
+    const riverBed = -0.22 + terrainNoise(x, z) * 0.018;
+    const riverCut = river.length ? 1 - smoothstep(2.35, 3.65, riverDistance) : 0;
+    return THREE.MathUtils.lerp(reliefHeight, riverBed, riverCut);
   };
 
   for (let iz = 0; iz <= segmentsZ; iz++) {
@@ -480,25 +488,79 @@ function mergeBands(bands: readonly { points: readonly WorldPoint[]; width: numb
   return merged;
 }
 
+/** Keep ford paths visible on each bank while leaving the water gap open. */
+function bankApproachPaths(
+  points: readonly WorldPoint[],
+  river: readonly WorldPoint[],
+  exclusionRadius: number,
+): WorldPoint[][] {
+  if (points.length < 2) return [];
+  if (river.length < 2) return [[...points]];
+  const paths: WorldPoint[][] = [];
+  let current: WorldPoint[] = [];
+  const append = (point: WorldPoint) => {
+    const last = current[current.length - 1];
+    if (!last || Math.hypot(point.x - last.x, point.y - last.y) > 0.03) current.push(point);
+  };
+  const finish = () => {
+    if (current.length > 1) paths.push(current);
+    current = [];
+  };
+  for (let segment = 1; segment < points.length; segment++) {
+    const start = points[segment - 1], end = points[segment];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    const steps = Math.max(1, Math.ceil(length / 0.28));
+    for (let index = segment === 1 ? 0 : 1; index <= steps; index++) {
+      const t = index / steps;
+      const point = { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
+      if (distanceToLines({ x: point.x, y: point.y }, [river]) > exclusionRadius) append(point);
+      else finish();
+    }
+  }
+  finish();
+  return paths;
+}
+
 function addRoads(scene: THREE.Scene, replay: Replay): void {
   const laneShoulders: { points: readonly WorldPoint[]; width: number; y: number }[] = [];
   const laneTracks: typeof laneShoulders = [];
-  for (const lane of replay.scene.lanes) {
-    laneShoulders.push({ points: lane.points, width: 2.55, y: Math.max(-0.005, lane.elevation - 0.09) });
-    laneTracks.push({ points: lane.points, width: 1.95, y: lane.elevation - 0.045 });
-  }
   const routeShoulders: typeof laneShoulders = [];
   const routeTracks: typeof laneShoulders = [];
+  const campShoulders: typeof laneShoulders = [];
+  const campTracks: typeof laneShoulders = [];
+  const fordShoulders: typeof laneShoulders = [];
+  const fordTracks: typeof laneShoulders = [];
+  const river = replay.scene.river ?? [];
   for (const route of replay.scene.routes ?? []) {
-    if (route.region !== "jungle") continue;
-    routeShoulders.push({ points: route.points, width: 1.2, y: 0.008 });
-    routeTracks.push({ points: route.points, width: 0.8, y: 0.037 });
+    // The lane polyline is a movement centerline and includes river crossings.
+    // Use ordinary authored edges for earth roads; bridge-site edges are drawn
+    // by the stateful bridge boards and must not leave a permanent road behind.
+    if (route.bridgeSite) continue;
+    if (route.region === "lane") {
+      laneShoulders.push({ points: route.points, width: 2.55, y: 0.01 });
+      laneTracks.push({ points: route.points, width: 1.95, y: 0.055 });
+    } else if (route.region === "jungle") {
+      routeShoulders.push({ points: route.points, width: 1.2, y: 0.008 });
+      routeTracks.push({ points: route.points, width: 0.8, y: 0.037 });
+    } else if (route.region === "jungle_camp") {
+      campShoulders.push({ points: route.points, width: 1.08, y: 0.01 });
+      campTracks.push({ points: route.points, width: 0.64, y: 0.04 });
+    } else if (route.region === "river_ford") {
+      for (const approach of bankApproachPaths(route.points, river, 2.65)) {
+        fordShoulders.push({ points: approach, width: 1.18, y: 0.012 });
+        fordTracks.push({ points: approach, width: 0.68, y: 0.043 });
+      }
+    }
   }
   const batches = [
     ["lane-earth-banks", laneShoulders, 0x64684f, 1],
     ["lane-earth-tracks", laneTracks, 0xa3956e, 0.96],
     ["jungle-edge-earth", routeShoulders, 0x586b51, 1],
     ["jungle-tracks-from-map-edges", routeTracks, 0x8c8063, 1],
+    ["jungle-camp-approaches", campShoulders, 0x627057, 1],
+    ["jungle-camp-trails", campTracks, 0x9a8f70, 1],
+    ["river-ford-bank-approaches", fordShoulders, 0x63705c, 1],
+    ["river-ford-bank-trails", fordTracks, 0xa69a73, 1],
   ] as const;
   for (const [name, bands, color, roughness] of batches) {
     if (!bands.length) continue;
@@ -554,7 +616,7 @@ function addJungleMasses(
   sites: readonly GroveSite[],
   terrainAt: (x: number, z: number) => number,
 ): void {
-  const { lanes, jungle, camps } = pathSets(replay);
+  const { lanes, jungle, river, camps } = pathSets(replay);
   const trunks: ScenicInstance[] = [];
   const canopies: ScenicInstance[] = [];
   const canopyTops: ScenicInstance[] = [];
@@ -584,6 +646,7 @@ function addJungleMasses(
         if (
           distanceToLines(point, lanes) < 2.45 ||
           distanceToLines(point, jungle) < 1.75 ||
+          distanceToLines(point, river) < 3.6 ||
           distanceToCamps(point, camps) < 5.4 ||
           roots.some((root) => Math.hypot(root.x - x, root.y - z) < 1.28)
         ) continue;
@@ -634,7 +697,7 @@ function addJungleMasses(
       const seed = perimeterSeed++;
       if (x > min.x - 4 && x < max.x + 4 && z > min.y - 4 && z < max.y + 4) continue;
       const px = x + (hash(seed, 89) - 0.5) * 1.8, pz = z + (hash(seed, 97) - 0.5) * 1.8;
-      if (hash(seed, 101) < 0.46 || distanceToLines({ x: px, y: pz }, [...lanes, ...jungle]) < 6.2) continue;
+      if (hash(seed, 101) < 0.46 || distanceToLines({ x: px, y: pz }, [...lanes, ...jungle, ...river]) < 6.2) continue;
       const ground = terrainAt(px, pz), size = 0.8 + hash(seed, 103) * 0.45;
       perimeterTrunks.push({ position: [px, ground + 0.49 * size, pz], scale: [0.23 * size, 0.92 * size, 0.25 * size], color: 0x6e654b });
       perimeterCanopies.push({ position: [px, ground + 1.15 * size, pz], scale: [1.12 * size, 0.91 * size, 1.08 * size], color: hash(seed, 107) > 0.5 ? 0x526d53 : 0x425f4b });

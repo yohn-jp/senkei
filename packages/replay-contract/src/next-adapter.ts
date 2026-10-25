@@ -104,11 +104,27 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   };
   const result: Result = { tick: match.final_tick, reason: match.termination_reason,
     winner: match.outcome === "attacker_victory" ? "azure" : match.outcome === "defender_victory" ? "vermilion" : "draw" };
-  const river = riverLine(next.map.edges.flatMap(edge => {
-    if (!edge.bridge_site && !edge.ford) return [];
-    const from = next.map.nodes[edge.from], to = next.map.nodes[edge.to];
-    return [{ point:{x:(from.x+to.x)/(2*scale), y:(from.y+to.y)/(2*scale)} }];
-  }));
+  const riverCrossings = new Map<string, { x: number; y: number }>();
+  for (const edge of next.map.edges) {
+    if (edge.bridge_site) {
+      const key = `bridge:${edge.bridge_site}`;
+      if (riverCrossings.has(key)) continue;
+      const observationNode = edge.bridge_site === "MID"
+        ? Object.values(next.map.nodes).find(node => node.region === "observation")
+        : undefined;
+      const from = next.map.nodes[edge.from], to = next.map.nodes[edge.to];
+      const center = observationNode ?? { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      riverCrossings.set(key, { x: center.x / scale, y: center.y / scale });
+    } else if (edge.ford) {
+      const from = next.map.nodes[edge.from], to = next.map.nodes[edge.to];
+      riverCrossings.set(`ford:${edge.id || `${edge.from}-${edge.to}`}`, { x: (from.x + to.x) / (2 * scale), y: (from.y + to.y) / (2 * scale) });
+    }
+  }
+  const river = riverLine([...riverCrossings.values()]);
+  const extent = [
+    ...nodes.map(node => ({ x: node.x / scale, y: node.y / scale })),
+    ...river,
+  ];
   let priorTick = -1;
   for (const frame of source.frames) {
     if (frame.tick <= priorTick || frame.tick > result.tick) throw new ReplayError("Invalid core frame order");
@@ -164,7 +180,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   emit({ type:"match-end", tick:result.tick, order:order++, result });
   return decodeReplay({ schemaVersion:"0.3", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-next-1",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
-    scene:{ bounds:{min:{x:Math.min(...nodes.map(n=>n.x))/scale-3,y:Math.min(...nodes.map(n=>n.y))/scale-3},max:{x:Math.max(...nodes.map(n=>n.x))/scale+3,y:Math.max(...nodes.map(n=>n.y))/scale+3}},
+    scene:{ bounds:{min:{x:Math.min(...extent.map(point=>point.x))-3,y:Math.min(...extent.map(point=>point.y))-3},max:{x:Math.max(...extent.map(point=>point.x))+3,y:Math.max(...extent.map(point=>point.y))+3}},
       lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(nodePoint)})),
       trackOffset:(next.parameters.lane_track_offset_wu ?? 20) / scale,
       captureTicks:next.parameters.mid_capture_ticks ?? 8,
@@ -175,8 +191,17 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
       routes:next.map.edges.flatMap(edge=>edge.blocked?[]:[{id:edge.id || `${edge.from}-${edge.to}`,region:edge.region,points:[nodePoint(edge.from),nodePoint(edge.to)],...(edge.bridge_site?{bridgeSite:edge.bridge_site as "TOP"|"MID"|"BOT"}:{}),...(edge.ford?{ford:true}:{})}]) },initialView,timeline,result });
 }
 
-function riverLine(points: readonly {point:{x:number;y:number}}[]): {x:number;y:number}[] {
-  return points.map(entry => entry.point)
+function riverLine(points: readonly {x:number;y:number}[]): {x:number;y:number}[] {
+  const ordered = [...points]
     .sort((left, right) => left.y - right.y || left.x - right.x)
     .filter((point, index, values) => index === 0 || Math.hypot(point.x - values[index-1].x, point.y - values[index-1].y) > 0.05);
+  if (ordered.length < 2) return ordered;
+  const extend = (from: {x:number;y:number}, toward: {x:number;y:number}, distance: number): {x:number;y:number} => {
+    const dx = toward.x - from.x, dy = toward.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { x: from.x + dx / length * distance, y: from.y + dy / length * distance };
+  };
+  const first = extend(ordered[0], ordered[1], -8);
+  const last = extend(ordered[ordered.length - 1], ordered[ordered.length - 2], -8);
+  return [first, ...ordered, last];
 }
