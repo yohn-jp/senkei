@@ -8,9 +8,9 @@ declare global {
 }
 
 const catalog = await loadDomainCatalog(JSON.stringify(rawCatalog), {
-  rulesetId: "senkei.next",
-  rulesetVersion: { major: 1, minor: 0, patch: 0 },
-  rulesetDigest: "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+  rulesetId: rawCatalog.identity.rulesetId,
+  rulesetVersion: rawCatalog.identity.rulesetVersion,
+  rulesetDigest: rawCatalog.identity.rulesetDigest,
 });
 const root = document.querySelector<HTMLElement>("#editor");
 if (!root) throw new Error("Editor harness root is missing.");
