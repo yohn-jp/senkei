@@ -108,6 +108,12 @@ pub enum SkillEffect {
     Reveal,
     Empower,
     Defense,
+    /// Replaces base terrain speed for the member carrying the skill.
+    TerrainAdaptation,
+    /// Replaces Jungle terrain speed for the owner only.
+    JungleSpecialist,
+    /// Solo-only additional movement multiplier.
+    SoloMobility,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDefinition {
