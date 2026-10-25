@@ -813,20 +813,35 @@ fn controlled_base_node_assault(
     };
     let attacker_nodes = [attacker_node; 5].map(str::to_owned);
     let defender_nodes = [defender_node; 5].map(str::to_owned);
-    let program = compile(IDLE_TACTICS, rules)
-        .unwrap_or_else(|error| panic!("base-node assault uses real idle Jinrei tactics: {error:?}"));
+    let idle = compile(IDLE_TACTICS, rules)
+        .unwrap_or_else(|error| panic!("base-node defense uses real idle Jinrei tactics: {error:?}"))
+        .program;
+    let target = match winner {
+        CombatantSide::Attacker => "B.BASE",
+        CombatantSide::Defender => "A.BASE",
+    };
+    let assignments = (1..=5)
+        .map(|slot| (format!("slot-{slot}"), target.to_owned()))
+        .collect::<Vec<_>>();
+    let assault = compile(&persistent_movement_tactics(&assignments), rules)
+        .unwrap_or_else(|error| panic!("base-node attacker uses persistent real Jinrei orders: {error:?}"))
+        .program;
+    let (attacker_program, defender_program) = match winner {
+        CombatantSide::Attacker => (assault, idle.clone()),
+        CombatantSide::Defender => (idle.clone(), assault),
+    };
     let mut attacker = configured_snapshot(
         rules,
         CombatantSide::Attacker,
         &[1, 1, 1, 1, 1],
-        program.program.clone(),
+        attacker_program,
         Some(&attacker_nodes),
     );
     let mut defender = configured_snapshot(
         rules,
         CombatantSide::Defender,
         &[1, 1, 1, 1, 1],
-        program.program,
+        defender_program,
         Some(&defender_nodes),
     );
     for (slot, hero) in ["F01", "R01", "F02", "R02", "F03"].iter().enumerate() {
