@@ -1491,13 +1491,15 @@ fn battlefield_interaction_tactics() -> (String, String) {
             action move_left {{ when match.tick == 2, do move({}, "A.TOP.T2"), }},
             action expand_top_bridge {{ when match.tick == 1, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, expand), }},
             action destroy_top_bridge {{ when match.tick == 15, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, destroy), }},
+            action rebuild_top_bridge {{ when match.tick == 25, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, rebuild), }},
             action ford_crossing {{ when match.tick == 1, do move({}, "N.B.UJ"), }},
             action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
-            action node_retreat {{ when match.tick == 2, do retreat({}), }}
+            action node_retreat {{ when match.tick == 2, do retreat({}), }},
+            action pursue_mid {{ when match.tick == 1, do pursue({}, argmin hero in filter hero in enemies.visible_heroes {{ hero.node == "N.MID.OBS", }} by hero.hp then hero.id), }}
         }}"#,
         hero_selector("slot-1"), hero_selector("slot-1"),
-        hero_selector("slot-2"), hero_selector("slot-2"),
-        hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"),
+        hero_selector("slot-2"), hero_selector("slot-2"), hero_selector("slot-2"),
+        hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"), hero_selector("slot-5"),
     );
     let defender = format!(
         r#"senkei battlefield_mid_defense {{
@@ -1516,7 +1518,7 @@ fn battlefield_interaction_match(
         .unwrap_or_else(|error| panic!("canonical track, bridge, ford, movement and retreat Jinrei source compiles: {error:?}"));
     let defender_program = compile(&defender_source, rules)
         .unwrap_or_else(|error| panic!("canonical contested-node exit policy compiles: {error:?}"));
-    let attacker_nodes = ["A.TOP.T1", "A.TOP.BANK", "N.A.UJ", "N.MID.OBS", "N.MID.OBS"].map(str::to_owned);
+    let attacker_nodes = ["A.TOP.T1", "A.TOP.BANK", "N.A.UJ", "N.MID.OBS", "A.MID.BANK"].map(str::to_owned);
     let defender_nodes = ["N.MID.OBS", "N.MID.OBS", "B.BASE", "B.BASE", "B.BASE"].map(str::to_owned);
     let mut attacker = configured_snapshot(
         rules,
@@ -1557,7 +1559,7 @@ fn presentation_entity<'a>(state: &'a WorldStateView, kind: &str, field: &str, v
 fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat() {
     let rules = rules();
     let (artifact, attacker, defender, context) = battlefield_interaction_match(&rules);
-    for capability in ["select_track", "bridge_work", "move"] {
+    for capability in ["select_track", "bridge_work", "move", "pursue"] {
         assert!(!accepted_actors(&artifact, CombatantSide::Attacker, capability).is_empty(),
             "real Jinrei submits an accepted {capability} action to Enbu");
     }
@@ -1566,6 +1568,18 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         event.side == CombatantSide::Attacker && event.tick == 1
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
     }), "the TOP bridge operation is a real accepted typed intent");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 25
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
+    }), "a destroyed TOP bridge is a real accepted rebuild intent");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 1
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "pursue")
+    }), "a visible MID opponent is an explicit real Enbu pursuit target");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 2
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "retreat")
+    }), "retreat is an explicit real Enbu intent");
 
     let track_at_tick_1 = owner_hero_at(&artifact, 1, "slot-1");
     assert_eq!(entity_string(track_at_tick_1, "track"), "LEFT", "the lane's selected side persists in logical state");
@@ -1573,6 +1587,12 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(lane_mover, "edge_to"), "A.TOP.T2");
     assert_eq!(entity_string(lane_mover, "track"), "LEFT");
     assert!(entity_integer(lane_mover, "edge_progress") > 0);
+    let pursuer = owner_hero_at(&artifact, 1, "slot-5");
+    assert_eq!(entity_string(pursuer, "edge_to"), "N.MID.OBS", "the actual pursuit begins along a connected edge to the observed target node");
+    assert!(entity_integer(pursuer, "edge_progress") > 0);
+    let retreating = owner_hero_at(&artifact, 2, "slot-4");
+    assert_eq!(entity_string(retreating, "edge_from"), "N.MID.OBS");
+    assert_eq!(entity_string(retreating, "edge_to"), "A.MID.BANK", "retreat uses the legal allied connector out of MID");
 
     let ford_frame = artifact.owner_replay.as_ref().unwrap().frames.iter().find(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| state.entities.values().any(|entity| {
@@ -1602,6 +1622,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(bridge_at(22), "bridge_state"), "expanded");
     assert_eq!(entity_string(bridge_at(23), "bridge_state"), "destroyed");
     assert_eq!(entity_integer(bridge_at(23), "hp"), 0);
+    assert_eq!(entity_integer(bridge_at(48), "build_remaining"), 1);
+    assert_eq!(entity_string(bridge_at(49), "bridge_state"), "normal");
 
     let observation = presentation_entity(owner_state_at(&artifact, 1), "observation", "node", "N.MID.OBS");
     assert_eq!(entity_integer(observation, "capture_progress"), 0, "contested teams stop MID capture progress");

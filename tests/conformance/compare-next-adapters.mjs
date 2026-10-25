@@ -139,7 +139,7 @@ for (let index = 0; index < requests.length; index += 1) {
     if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay")) {
       fail("canonical public battle leaked restricted diagnostics or owner replay");
     }
-    if (match.final_tick < 23 || typeof match.final_state_digest !== "string" ||
+    if (match.final_tick < 49 || typeof match.final_state_digest !== "string" ||
         !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
       fail("canonical public battle is missing its confirmed terminal state, digest, or side CU");
     }
@@ -149,8 +149,8 @@ for (let index = 0; index < requests.length; index += 1) {
     const entries = (tick) => Object.values(frame(tick));
     const bridgeAt = (tick) => entries(tick).find((entity) => entity.entity_type === "bridge" && field(entity, "site") === "TOP");
     if (field(bridgeAt(0), "bridge_state") !== "normal" || field(bridgeAt(13), "bridge_state") !== "expanded" ||
-        field(bridgeAt(23), "bridge_state") !== "destroyed") {
-      fail("authorized public replay does not expose the actual normal → expanded → destroyed TOP bridge states");
+        field(bridgeAt(23), "bridge_state") !== "destroyed" || field(bridgeAt(49), "bridge_state") !== "normal") {
+      fail("authorized public replay does not expose the actual normal → expanded → destroyed → rebuilt TOP bridge states");
     }
     if (!entries(2).some((entity) => field(entity, "track") === "LEFT" && field(entity, "edge_to") === "A.TOP.T2")) {
       fail("authorized public replay does not expose the real selected LEFT lane track and edge movement");
