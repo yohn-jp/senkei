@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer } from "vite";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const fixturesDirectory = resolve(process.argv[2] ?? "target/next-balance/adapter");
@@ -63,6 +64,75 @@ async function runNative(requests) {
   return responses;
 }
 
+async function verifyCanonicalReplayAdapter(nativeResponses) {
+  const canonicalResponse = nativeResponses[requests.findIndex((request) => request.request_id === "next-battlefield-canonical")];
+  if (!canonicalResponse?.ok) fail("canonical adapter roundtrip has no successful real-dispatch response");
+  const apiVersion = canonicalResponse.api_version;
+  const packageResponse = (await runNative([{
+    api_version: apiVersion,
+    request_id: "canonical-adapter-next-ruleset",
+    operation: "next_ruleset",
+    payload: {},
+  }]))[0];
+  if (!packageResponse?.ok) fail(`canonical adapter could not load the real Next RulePackage: ${JSON.stringify(packageResponse?.error)}`);
+
+  const server = await createServer({
+    configFile: false,
+    root: repositoryRoot,
+    logLevel: "silent",
+    server: { middlewareMode: true },
+    appType: "custom",
+  });
+  try {
+    const { presentationToGraphics } = await server.ssrLoadModule("/packages/replay-contract/src/next-adapter.ts");
+    const response = canonicalResponse.result;
+    const replay = presentationToGraphics(response.replay, packageResponse.result, response.result, packageResponse.result.minimum_engine_version);
+    const edgeFacts = packageResponse.result.next.map.world_projection.edge_facts;
+    const expectedKinds = new Map();
+    for (const [edgeId, edge] of Object.entries(edgeFacts)) {
+      const crossing = edge.river_crossing;
+      if (!crossing?.bridge_site_id) continue;
+      const kind = crossing.kind === "fixed_bridge" || crossing.kind === "fixed_lane_bridge"
+        ? "lane"
+        : crossing.kind === "fixed_facility_bridge" ? "facility" : undefined;
+      if (!kind) fail(`canonical World edge ${edgeId} has unsupported bridge kind ${crossing.kind}`);
+      expectedKinds.set(edgeId, { site: crossing.bridge_site_id, kind });
+    }
+    const routes = new Map((replay.scene.routes ?? []).map((route) => [route.id, route]));
+    for (const [edgeId, expected] of expectedKinds) {
+      const route = routes.get(edgeId);
+      if (!route || route.bridgeSite !== expected.site || route.bridgeKind !== expected.kind) {
+        fail(`real dispatcher replay adapter lost canonical bridge identity/role for ${edgeId}: ${JSON.stringify(route)}`);
+      }
+    }
+    const sourceSites = new Set();
+    for (const frame of response.replay.frames) {
+      for (const entity of Object.values(frame.visible_state?.entities ?? {})) {
+        if (entity.entity_type === "bridge") {
+          const site = entity.fields?.site?.value;
+          if (typeof site === "string") sourceSites.add(site);
+        }
+      }
+    }
+    const replaySites = new Set((replay.initialView ?? []).filter((entity) => entity.kind === "bridge")
+      .map((entity) => entity.battlefield?.bridgeSite).filter(Boolean));
+    for (const event of replay.timeline ?? []) {
+      if (event.type === "facility-state" && event.battlefield.bridgeSite) replaySites.add(event.battlefield.bridgeSite);
+      if (event.type === "spawn" && event.entity.kind === "bridge" && event.entity.battlefield?.bridgeSite)
+        replaySites.add(event.entity.battlefield.bridgeSite);
+    }
+    const missingSites = [...sourceSites].filter((site) => !replaySites.has(site)).sort();
+    if (missingSites.length) {
+      fail(`real dispatcher replay dropped bridge facility IDs present in its source frames: ${missingSites.join(",")}`);
+    }
+    console.error("Canonical real-dispatch replay adapter: paired World bridge IDs and roles preserved");
+  } catch (error) {
+    fail(`canonical real-dispatch replay adapter failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    await server.close();
+  }
+}
+
 async function makeWasmDispatcher() {
   const bytes = await readFile(wasmPath).catch(() => {
     fail(`missing WebAssembly module ${wasmPath}; build it with scripts/wasm/build.sh`);
@@ -112,6 +182,7 @@ async function timedNative(label) {
 try {
   native = await timedNative("Native comparison");
   repeatedNative = await timedNative("Native determinism repeat");
+  await verifyCanonicalReplayAdapter(native);
 } catch (error) {
   fail(`native dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
 }
@@ -202,14 +273,14 @@ for (let index = 0; index < requests.length; index += 1) {
       ? entity.fields[name].value : undefined;
     const hero = (tick, catalogId) => frameEntities(tick).find((entity) =>
       entity.entity_type === "hero" && field(entity, "catalog_id") === catalogId);
-    const bridge = (tick, site = "TOP") => frameEntities(tick).find((entity) =>
+    const bridge = (tick, site = "bridge.top") => frameEntities(tick).find((entity) =>
       entity.entity_type === "bridge" && field(entity, "site") === site);
     if (field(bridge(0), "bridge_state") !== "normal" || field(bridge(13), "bridge_state") !== "expanded" ||
         field(bridge(23), "bridge_state") !== "destroyed" || field(bridge(49), "bridge_state") !== "normal") {
-      fail("authorized attacker replay does not expose the real normal → expanded → destroyed → rebuilt TOP bridge states");
+      fail("authorized attacker replay does not expose the real normal → expanded → destroyed → rebuilt bridge.top states");
     }
-    if (field(bridge(0, "MID"), "bridge_state") !== "normal" || field(bridge(11, "MID"), "bridge_state") !== "destroyed") {
-      fail("authorized attacker replay does not expose the actual MID connector bridge destruction");
+    if (field(bridge(0, "bridge.mid"), "bridge_state") !== "normal" || field(bridge(11, "bridge.mid"), "bridge_state") !== "destroyed") {
+      fail("authorized attacker replay does not expose the actual bridge.mid connector destruction");
     }
     if (field(hero(2, "F01"), "track") !== "LEFT" || field(hero(2, "F01"), "node") !== "A.TOP.T1" ||
         field(hero(2, "F01"), "edge_to") !== "A.TOP.T2") {
@@ -236,7 +307,7 @@ for (let index = 0; index < requests.length; index += 1) {
       field(hero(frame.tick, "R01"), "edge_to") === "B.TOP.BANK" &&
       field(hero(frame.tick, "R01"), "track") === "CENTER" && integer(hero(frame.tick, "R01"), "edge_progress") > 0);
     if (!rebuiltEntry) {
-      fail("authorized attacker replay does not expose the rebuilt fixed TOP bridge transit");
+      fail("authorized attacker replay does not expose the rebuilt fixed bridge.top transit");
     }
     observedFacts = { rebuilt_bridge_entry_tick: rebuiltEntry.tick };
   } else if (request.request_id === "next-workbench-long-owner") {
