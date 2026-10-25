@@ -4,6 +4,7 @@ import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
+import { NodeDisplayLayout } from "./node-display-layout";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -315,6 +316,8 @@ export class Battlefield {
     .matches;
   private selected: string | null = null;
   private trackedIds: string[] = [];
+  private readonly unitLayout = new NodeDisplayLayout();
+  private modelOffsets: ReadonlyMap<string, WorldPoint> = new Map();
   private labels: {
     element: HTMLSpanElement;
     point: THREE.Vector3;
@@ -1079,6 +1082,11 @@ export class Battlefield {
     const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
     const offset = (this.replay.scene.trackOffset ?? 0.8) * direction;
     return { x: entity.position.x + dy / length * offset, y: entity.position.y - dx / length * offset };
+  }
+  /** Cosmetic member placement; never used by camera, graph or logical movement. */
+  private displayPoint(entity: DisplayEntity): WorldPoint {
+    const point = this.renderPoint(entity), offset = this.modelOffsets.get(entity.id);
+    return offset ? { x: point.x + offset.x, y: point.y + offset.y } : point;
   }
   private terrain() {
     if (this.replay.scene.routes?.length) {
@@ -1858,6 +1866,7 @@ export class Battlefield {
     if (this.state === state) return;
     const priorState = this.state;
     this.state = state;
+    this.modelOffsets = this.unitLayout.update(state, this.replay);
     if (this.trackedIds.length) {
       this.frameTracked(this.trackedIds);
     } else if (
@@ -1942,13 +1951,25 @@ export class Battlefield {
         g.userData.walking = moved;
         const attack = cues.find(cue => cue.type === "attack" && cue.entityId === e.id);
         const target = attack?.type === "attack" ? state.entities[attack.targetId] : undefined;
-        if (target) g.rotation.y = Math.atan2(target.position.x - point.x, target.position.y - point.y);
+        if (target) {
+          const from = this.displayPoint(e), to = this.displayPoint(target);
+          g.rotation.y = Math.atan2(to.x - from.x, to.y - from.y);
+        }
         else if (moved) g.rotation.y = Math.atan2(dx, dz);
         else if (!prior) {
           const opposite = this.replay.scene.baseSites?.find(site => site.side !== e.side);
           if (opposite) g.rotation.y = Math.atan2(opposite.position.x - point.x, opposite.position.y - point.y);
         }
       }
+      const offset = this.modelOffsets.get(e.id) ?? { x: 0, y: 0 };
+      const cosine = Math.cos(g.rotation.y), sine = Math.sin(g.rotation.y);
+      const local = { x: cosine * offset.x - sine * offset.y, y: sine * offset.x + cosine * offset.y };
+      const previous = (g.userData.displayOffset as WorldPoint | undefined) ?? { x: 0, y: 0 };
+      for (const child of g.children) {
+        child.position.x += local.x - previous.x;
+        child.position.z += local.y - previous.y;
+      }
+      g.userData.displayOffset = local;
       // Real authored movement follows the Replay graph. Interpolating a
       // node-to-node change through arbitrary world space can draw a false
       // shortcut, so only the original sample fixtures retain that flourish.
@@ -2017,8 +2038,8 @@ export class Battlefield {
         this.cueLabels.push({ element, point, type, ...ids });
       };
       const cueAnchor = (entity: DisplayEntity, height: number) => {
-        const point = this.renderPoint(entity);
-        return new THREE.Vector3(point.x, this.height(point) + height, point.y);
+        const point = this.displayPoint(entity);
+        return new THREE.Vector3(point.x, this.entityHeight(entity, this.renderPoint(entity)) + height, point.y);
       };
       for (const cue of cues) {
         if (cue.type === "attack" || cue.type === "skill") {
@@ -2031,7 +2052,7 @@ export class Battlefield {
           const midpoint = sourcePoint
             .add(targetPoint)
             .multiplyScalar(0.5)
-            .add(new THREE.Vector3(0, 1.25, 0));
+            .add(new THREE.Vector3(0, 2.05, 0));
           addCueLabel(
             cue.type,
             cue.type === "attack"
@@ -2106,7 +2127,7 @@ export class Battlefield {
           }),
         );
         ring.rotation.x = Math.PI / 2;
-        const point = this.renderPoint(entity);
+        const point = this.displayPoint(entity);
         ring.position.set(
           point.x,
           this.height(point) + 0.12,
@@ -2119,7 +2140,7 @@ export class Battlefield {
         const a = state.entities[cue.entityId],
           b = state.entities[cue.targetId];
         if (!a || !b) continue;
-        const startPoint = this.renderPoint(a), endPoint = this.renderPoint(b);
+        const startPoint = this.displayPoint(a), endPoint = this.displayPoint(b);
         const start = new THREE.Vector3(
             startPoint.x,
             this.height(startPoint) + 1,
@@ -2147,14 +2168,14 @@ export class Battlefield {
           target = state.entities[cue.targetId];
         if (!actor || !target) continue;
         const start = new THREE.Vector3(
-            actor.position.x,
+            this.displayPoint(actor).x,
             this.height(actor.position) + 1.1,
-            actor.position.y,
+            this.displayPoint(actor).y,
           ),
           end = new THREE.Vector3(
-            target.position.x,
+            this.displayPoint(target).x,
             this.height(target.position) + 0.85,
-            target.position.y,
+            this.displayPoint(target).y,
           );
         const ray = glow(
           box(
@@ -2186,7 +2207,7 @@ export class Battlefield {
       if (cue.type === "damage") {
         const e = state.entities[cue.entityId];
         if (e) {
-          const point = this.renderPoint(e);
+          const point = this.displayPoint(e);
           for (let j = 0; j < 5; j++)
             glow(
               box(
@@ -2215,7 +2236,7 @@ export class Battlefield {
           }),
         );
         ring.rotation.x = Math.PI / 2;
-        const point = this.renderPoint(e);
+        const point = this.displayPoint(e);
         ring.position.set(
           point.x,
           this.height(point) + 0.16,
@@ -2227,7 +2248,7 @@ export class Battlefield {
       if (cue.type === "destroy") {
         const e = state.entities[cue.entityId];
         if (e) {
-          const point = this.renderPoint(e);
+          const point = this.displayPoint(e);
           for (let j = 0; j < 7; j++) {
             const shard = cone(
               this.effects,
@@ -2296,7 +2317,7 @@ export class Battlefield {
           const events = this.state?.cues.filter(cue => cue.tick === this.state?.tick) ?? [];
           const attacks = events.some(cue => (cue.type === "attack" || cue.type === "skill") && cue.entityId === g.userData.entityId);
           const hit = events.some(cue => cue.type === "damage" && cue.entityId === g.userData.entityId);
-          const walk = active && g.userData.walking && !attacks ? Math.sin(phase * Math.PI * 2) * 0.34 : 0;
+          const walk = active && g.userData.walking && !attacks ? Math.sin(((this.state?.tick ?? 0) + phase) * Math.PI) * 0.34 : 0;
           const strike = active && attacks ? Math.sin(phase * Math.PI) : 0;
           for (const [name, direction] of [["leg.left", 1], ["leg.right", -1], ["arm.left", -0.55], ["arm.right", 0.55]] as const) {
             const joint = rig.joints[name];
@@ -2356,7 +2377,10 @@ export class Battlefield {
         }
       const chosen = this.selected && this.units.get(this.selected);
       this.marker.visible = !!chosen;
-      if (chosen) this.marker.position.copy(chosen.position);
+      if (chosen) {
+        const offset = this.modelOffsets.get(this.selected!);
+        this.marker.position.copy(chosen.position).add(new THREE.Vector3(offset?.x ?? 0, 0, offset?.y ?? 0));
+      }
       this.gl.setRenderTarget(this.target);
       this.gl.render(this.scene, this.camera);
       this.gl.setRenderTarget(null);
@@ -2544,10 +2568,11 @@ export class Battlefield {
           const labelHeight = element.getBoundingClientRect().height;
           const verticalStep = Math.max(32, Math.ceil((labelHeight + 8) / 8) * 8);
           let placedRect: { left: number; right: number; top: number; bottom: number } | null = null;
-          const maxSteps = Math.ceil(hostRect.height / verticalStep) * 2 + 1;
+          const maxSteps = Math.ceil(hostRect.height / verticalStep) + 1;
           for (let step = 0; step < maxSteps; step++) {
-            const distance = Math.ceil(step / 2) * verticalStep;
-            const offset = step === 0 ? 0 : step % 2 === 1 ? -distance : distance;
+            // A cue can rise into free space; it cannot fall onto the body it
+            // describes merely to fit another label beneath the controls.
+            const offset = -step * verticalStep;
             element.style.transform = offset < 0
               ? `translate(-50%, calc(-120% - ${-offset}px))`
               : offset > 0
@@ -2651,7 +2676,8 @@ export class Battlefield {
         const height = entity?.kind === "base"
           ? this.replay.scene.routes?.length ? 2.6 : 4.6
           : entity?.kind === "tower" ? 4 : 2.8;
-        const p = group.position.clone().add(new THREE.Vector3(0, height, 0)).project(this.camera);
+        const modelOffset = this.modelOffsets.get(id);
+        const p = group.position.clone().add(new THREE.Vector3(modelOffset?.x ?? 0, height, modelOffset?.y ?? 0)).project(this.camera);
         element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
         const separateSelectedIdentity = Boolean(
