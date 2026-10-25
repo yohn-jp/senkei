@@ -127,6 +127,7 @@ for (let index = 0; index < requests.length; index += 1) {
   }
 
   let encodedResponseBytes;
+  let observedFacts;
   if (request.request_id === "next-public-simulation") {
     if (!nativeResponse.ok) fail(`public scenario failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
@@ -206,9 +207,14 @@ for (let index = 0; index < requests.length; index += 1) {
     if (field(hero(2, "R02"), "node") !== "A.MID.BANK" || field(hero(2, "R02"), "edge_to") !== "") {
       fail("authorized attacker replay does not expose the retreat's adjacent-node arrival and tick boundary");
     }
-    if (field(hero(50, "R01"), "node") !== "A.TOP.BANK" || field(hero(50, "R01"), "edge_to") !== "B.TOP.BANK") {
+    const rebuiltEntry = result.owner_replay.frames.find(frame => frame.tick >= 50 &&
+      field(hero(frame.tick, "R01"), "node") === "A.TOP.BANK" &&
+      field(hero(frame.tick, "R01"), "edge_to") === "B.TOP.BANK" &&
+      field(hero(frame.tick, "R01"), "track") === "CENTER" && integer(hero(frame.tick, "R01"), "edge_progress") > 0);
+    if (!rebuiltEntry) {
       fail("authorized attacker replay does not expose the rebuilt fixed TOP bridge transit");
     }
+    observedFacts = { rebuilt_bridge_entry_tick: rebuiltEntry.tick };
   } else if (request.request_id === "next-workbench-long-owner") {
     if (!nativeResponse.ok) fail(`long authorized Workbench battle failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
@@ -233,6 +239,7 @@ for (let index = 0; index < requests.length; index += 1) {
   evidence.push({ request_id: request.request_id, input_sha256: digest(request),
     native_sha256: digest(nativeResponse), repeated_native_sha256: digest(repeatedNative[index]), wasm_sha256: digest(wasmResponse),
     ok: nativeResponse.ok, ...(encodedResponseBytes === undefined ? {} : { response_bytes: encodedResponseBytes }),
+    ...(observedFacts ? { observed_facts: observedFacts } : {}),
     ...(match ? { final_tick: match.final_tick, final_state_digest: match.final_state_digest, cu_spent: match.cu_spent,
       public_replay_sha256: digest(nativeResponse.result.replay),
       ...(nativeResponse.result.owner_replay ? { owner_replay_sha256: digest(nativeResponse.result.owner_replay) } : {}) } : {}) });
