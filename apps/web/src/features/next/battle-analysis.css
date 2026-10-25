@@ -80,6 +80,7 @@
 .battle-analysis-result,
 .battle-analysis-roster,
 .battle-analysis-card,
+.battle-analysis-campaign-feedback,
 .battle-analysis-next-step,
 .battle-analysis-empty {
   background: var(--analysis-panel);
@@ -99,6 +100,17 @@
 .battle-analysis-result-identity { border-left: 1px solid var(--analysis-line); display: grid; gap: 5px; margin-left: auto; max-width: 48%; min-width: 0; padding-left: 16px; }
 .battle-analysis-result-identity code { color: #d8c99e; font-size: 0.72rem; overflow-wrap: anywhere; }
 .battle-analysis-run-status { align-items: flex-start; background: rgba(0,0,0,0.16); border-radius: 8px; color: #c8c4bb; flex-wrap: wrap; font-size: 0.8rem; padding: 10px 12px; }
+.battle-analysis-campaign-feedback { display: grid; gap: 8px; padding: 15px 18px; }
+.battle-analysis-campaign-feedback header { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.battle-analysis-campaign-feedback h4 { font-size: 1.05rem; margin: 3px 0 0; }
+.battle-analysis-campaign-feedback > header > strong { color: #a9cfb7; }
+.battle-analysis-campaign-feedback.is-defeat > header > strong { color: #ef9a87; }
+.battle-analysis-campaign-feedback.is-draw > header > strong,
+.battle-analysis-campaign-feedback.is-incomplete > header > strong { color: #e7c278; }
+.battle-analysis-campaign-feedback p,
+.battle-analysis-campaign-feedback ul { color: #c8c4bb; margin: 0; }
+.battle-analysis-campaign-feedback ul { display: grid; gap: 3px; padding-left: 20px; }
+.battle-analysis-campaign-feedback small { color: var(--analysis-muted); }
 .battle-analysis-run-status strong { color: var(--analysis-ink); }
 .battle-analysis-run-status .is-changed { color: #f4c77d; }
 .battle-analysis-run-status .is-current { color: #abd2b8; }

@@ -5,6 +5,7 @@ import { NEXT_WORLD_UNITS_PER_RENDER_UNIT } from "@senkei/replay-contract";
 import type {
   SimulationResponse,
   SimulationSnapshot,
+  LocalPveScenario,
 } from "../../contracts";
 import type {
   DomainValue,
@@ -18,6 +19,7 @@ export interface BattleAnalysisRun {
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
   readonly graphicsReplay: Replay;
+  readonly setup?: { readonly campaign_scenario_id?: string | null };
 }
 
 export type BattleAnalysisEditTarget = "collection" | "skills" | "squads" | "jinrei";
@@ -36,6 +38,8 @@ export interface BattleAnalysisProps {
   readonly onExactRematch: () => void;
   /** Reopens Ready with the current editable Draft and sends it through current validation. */
   readonly onRevisedRematch: () => void;
+  readonly campaignScenario: LocalPveScenario | null;
+  readonly campaignFeedback: { readonly status: "victory" | "defeat" | "draw" | "incomplete"; readonly headline: string; readonly detail: string } | null;
 }
 
 interface RunHero {
@@ -220,6 +224,7 @@ function changedInputs(previous: BattleAnalysisRun, current: BattleAnalysisRun):
   const oldSnapshot = previous.snapshot;
   const newSnapshot = current.snapshot;
   const changes: string[] = [];
+  if (previous.setup?.campaign_scenario_id !== current.setup?.campaign_scenario_id) changes.push("Campaign challenge");
   if (JSON.stringify(oldSnapshot.attacker.configuration) !== JSON.stringify(newSnapshot.attacker.configuration)) changes.push("自軍の5 Hero・Skill・Squad・Node設定");
   if (oldSnapshot.attacker.program.content_digest !== newSnapshot.attacker.program.content_digest) changes.push("自軍のJinrei Program");
   if (JSON.stringify(oldSnapshot.defender.configuration) !== JSON.stringify(newSnapshot.defender.configuration)
@@ -253,6 +258,8 @@ export function BattleAnalysis({
   onEdit,
   onExactRematch,
   onRevisedRematch,
+  campaignScenario,
+  campaignFeedback,
 }: BattleAnalysisProps): ReactElement {
   const [heroFilter, setHeroFilter] = useState("all");
   const [squadFilter, setSquadFilter] = useState("all");
@@ -312,6 +319,13 @@ export function BattleAnalysis({
         <div className="battle-analysis-result-copy"><span>CONFIRMED · {result.match_id}</span><strong>{resultLabel(result.outcome)}</strong><small>{result.termination_reason} · {result.final_tick} ticks · {result.cu_spent.attacker} CU spent by your side</small></div>
         <div className="battle-analysis-result-identity"><small>FINAL STATE DIGEST</small><code>{result.final_state_digest}</code><small>Replay {run.graphicsReplay.schemaVersion} · {run.graphicsReplay.timeline.length} authorized presentation events</small></div>
       </section>
+
+      {campaignScenario && campaignFeedback && <section aria-label="Campaign challenge result" className={`battle-analysis-campaign-feedback is-${campaignFeedback.status}`}>
+        <header><div><span className="battle-analysis-eyebrow">LOCAL CAMPAIGN · {campaignScenario.campaign_title}</span><h4>{campaignScenario.title}</h4></div><strong>{campaignFeedback.headline}</strong></header>
+        <p>{campaignFeedback.detail}</p><p><b>Objective</b> · {campaignScenario.objective}</p>
+        <ul>{campaignScenario.criteria.map((criterion) => <li key={criterion.id}>{criterion.label}</li>)}</ul>
+        <small>These prompts guide replay inspection. Match victory still follows the RulePackage base-destruction condition.</small>
+      </section>}
 
       <div className="battle-analysis-run-status" role="status">
         <span><strong>Analyzed run</strong> · {run.snapshot.attacker.id} / {run.snapshot.attacker.revision}</span>

@@ -12,6 +12,7 @@ import { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT, type Replay, 
 import { ReplayPlayer } from "@senkei/replay-player";
 import { catalogStamp, loadDomainCatalog, sameCatalog } from "@senkei/jinrei-editor";
 import type { DomainCatalogDocument } from "@senkei/jinrei-editor";
+import { createNextCampaignScenarios, getNextCampaignRunFeedback } from "../../../../../scenarios/next/campaign";
 import {
   type CoreClient,
   type CoreVersion,
@@ -30,6 +31,7 @@ import {
   type TacticalInput,
   type TacticalSource,
   type RulesetRef,
+  type LocalPveScenario,
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
@@ -51,6 +53,7 @@ const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 const NEXT_RECOVERY_KEY = "senkei.next-workspace-recovery.v1";
+const NEXT_CAMPAIGN_PROGRESS_KEY = "senkei.next-campaign-progress.v1";
 const VISIBLE_ENTITY_CLUSTER_RADIUS = 0.8;
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
@@ -120,6 +123,14 @@ interface SavedNextSetup {
   readonly rival_slots: readonly FormationSlot[];
   readonly draft: SenkeiDraft;
   readonly rival_source: string;
+  /** Campaign selection is optional for setups saved before the Next campaign existed. */
+  readonly campaign_scenario_id?: string | null;
+}
+
+interface SavedCampaignProgress {
+  readonly format_version: 1;
+  readonly ruleset_digest: string;
+  readonly unlocked_scenario_ids: readonly string[];
 }
 
 interface WorkspaceProps {
@@ -141,6 +152,22 @@ const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readon
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function incrementRevision(revision: string): string {
+  const numeric = Number(revision);
+  return Number.isSafeInteger(numeric) && numeric >= 0 && numeric < Number.MAX_SAFE_INTEGER
+    ? String(numeric + 1)
+    : `${revision}.1`;
+}
+
+function reviseDraft(previous: SenkeiDraft | null, next: SenkeiDraft): SenkeiDraft {
+  if (!previous || previous.id !== next.id) return next;
+  const { revision: _previousRevision, ...previousContent } = previous;
+  const { revision: _nextRevision, ...nextContent } = next;
+  return stableKey(previousContent) === stableKey(nextContent)
+    ? next
+    : { ...next, revision: incrementRevision(previous.revision) };
 }
 
 function sameRulesetRef(left: RulesetRef, right: RulesetRef): boolean {
@@ -229,7 +256,8 @@ function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
   const rivalSlots = parseFormationSlots(value.rival_slots);
   const draft = parseDraft(value.draft);
   const shape = value.formation_shape;
-  if (!ruleset || !schemaVersion || !mechanicsVersion || !slots || !rivalSlots || !draft || typeof value.rival_source !== "string") return null;
+  if (!ruleset || !schemaVersion || !mechanicsVersion || !slots || !rivalSlots || !draft || typeof value.rival_source !== "string" ||
+      (value.campaign_scenario_id !== undefined && value.campaign_scenario_id !== null && typeof value.campaign_scenario_id !== "string")) return null;
   if (shape !== "single" && shape !== "three-lane" && shape !== "wings" && shape !== "custom") return null;
   return {
     format_version: 1,
@@ -242,7 +270,14 @@ function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
     rival_slots: rivalSlots,
     draft,
     rival_source: value.rival_source,
+    ...(typeof value.campaign_scenario_id === "string" ? { campaign_scenario_id: value.campaign_scenario_id } : {}),
   };
+}
+
+function parseCampaignProgress(value: unknown, rulesetDigest: string): SavedCampaignProgress | null {
+  if (!isRecord(value) || value.format_version !== 1 || value.ruleset_digest !== rulesetDigest ||
+      !Array.isArray(value.unlocked_scenario_ids) || !value.unlocked_scenario_ids.every((id) => typeof id === "string")) return null;
+  return { format_version: 1, ruleset_digest: rulesetDigest, unlocked_scenario_ids: value.unlocked_scenario_ids as string[] };
 }
 
 function savedSetupMismatch(setup: SavedNextSetup, packageValue: RulePackage | null, rules: NextRules | null): string | null {
@@ -454,6 +489,27 @@ function fieldInteger(value: DomainValue | undefined): number | null {
   return value?.kind === "integer" ? value.value : null;
 }
 
+function scenarioFormation(scenario: LocalPveScenario, rules: NextRules): FormationSlot[] {
+  const heroes = scenario.npc.configuration.heroes;
+  if (heroes?.kind !== "list" || heroes.value.length !== SLOT_IDS.length) {
+    throw new Error(`Challenge ${scenario.title} does not contain a valid five-Hero NPC formation.`);
+  }
+  return heroes.value.map((item, index) => {
+    if (item.kind !== "record") throw new Error(`Challenge ${scenario.title} has an invalid NPC Hero at slot ${index + 1}.`);
+    const values = item.value;
+    const slotId = fieldString(values.slot_id);
+    const catalogId = fieldString(values.catalog_id);
+    const squad = fieldString(values.squad);
+    const node = fieldString(values.node);
+    const skillPath = fieldString(values.skill_path);
+    const hero = catalogId ? rules.heroes.find((candidate) => candidate.id === catalogId) : null;
+    if (!slotId || !catalogId || !squad || !node || !skillPath || !hero || !rules.map.nodes[node] || !hero.skill_paths[skillPath]) {
+      throw new Error(`Challenge ${scenario.title} has an unavailable NPC Hero, skill path, Squad or Node.`);
+    }
+    return { slot_id: slotId, catalog_id: catalogId, squad, node, skill_path: skillPath };
+  });
+}
+
 function domainLabel(value: DomainValue): string {
   if (value.kind === "null") return "—";
   if (value.kind === "string" || value.kind === "enum" || value.kind === "entity") return value.value;
@@ -478,10 +534,15 @@ function eventDetails(event: PresentationEvent): string {
   return Object.entries(event.payload).map(([key, value]) => `${formatId(key)} ${domainLabel(value)}`).join(" · ");
 }
 
-export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError, onRetryCore, onLegacyLibrary }: WorkspaceProps): ReactElement {
+export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError, onRetryCore }: WorkspaceProps): ReactElement {
   const nextRules = packageValue?.next ?? null;
+  const campaignScenarios = useMemo(() => packageValue?.next ? createNextCampaignScenarios(packageValue) : [], [packageValue]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState("first-march");
+  const [unlockedScenarioIds, setUnlockedScenarioIds] = useState<readonly string[]>([]);
+  const [campaignProgressLoadedDigest, setCampaignProgressLoadedDigest] = useState<string | null>(null);
+  const [campaignProgressError, setCampaignProgressError] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "conditions" | "preset" | "ready" | "workspace" | "resume" | "running">("home");
-  const [libraryView, setLibraryView] = useState<"library" | "recovery" | "legacy">("library");
+  const [libraryView, setLibraryView] = useState<"library" | "recovery">("library");
   const [libraryReturn, setLibraryReturn] = useState<typeof screen>("home");
   const [jinreiScreen, setJinreiScreen] = useState<"workbench" | "coverage">("workbench");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
@@ -489,7 +550,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [savedRaw, setSavedRaw] = useState<string | null>(null);
   const [recoveryRaw, setRecoveryRaw] = useState<string | null>(null);
   const [exactRun, setExactRun] = useState<BattleRun | null>(null);
-  const [entryMode, setEntryMode] = useState<"quick" | "custom" | "review">("quick");
+  const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign" | "review">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; message: string; status: "invalid" | "unverified" | "failed" } | null>(null);
@@ -554,6 +615,42 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const mobileVisibleClustersRef = useRef<HTMLDivElement>(null);
   const desktopVisibleClustersRef = useRef<HTMLDivElement>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const digest = packageValue?.ruleset.digest;
+    if (!digest || campaignScenarios.length === 0) return;
+    setCampaignProgressLoadedDigest(null);
+    setCampaignProgressError(null);
+    const firstId = campaignScenarios[0].id;
+    try {
+      const serialized = window.localStorage.getItem(`${NEXT_CAMPAIGN_PROGRESS_KEY}:${digest}`);
+      const stored = serialized === null ? null : parseCampaignProgress(JSON.parse(serialized) as unknown, digest);
+      const validIds = stored?.unlocked_scenario_ids.filter((id) => campaignScenarios.some((scenario) => scenario.id === id)) ?? [];
+      setUnlockedScenarioIds([...new Set([firstId, ...validIds])]);
+      setSelectedScenarioId((current) => campaignScenarios.some((scenario) => scenario.id === current) ? current : firstId);
+    } catch (cause) {
+      setCampaignProgressError(cause instanceof Error
+        ? `Campaign progress could not be read and was preserved: ${cause.message}`
+        : "Campaign progress could not be read and was preserved.");
+      setUnlockedScenarioIds([firstId]);
+      setSelectedScenarioId(firstId);
+    } finally {
+      setCampaignProgressLoadedDigest(digest);
+    }
+  }, [campaignScenarios, packageValue?.ruleset.digest]);
+
+  useEffect(() => {
+    const digest = packageValue?.ruleset.digest;
+    if (!digest || campaignProgressLoadedDigest !== digest || campaignProgressError) return;
+    const progress: SavedCampaignProgress = { format_version: 1, ruleset_digest: digest, unlocked_scenario_ids: unlockedScenarioIds };
+    try {
+      window.localStorage.setItem(`${NEXT_CAMPAIGN_PROGRESS_KEY}:${digest}`, JSON.stringify(progress));
+    } catch (cause) {
+      setCampaignProgressError(cause instanceof Error
+        ? `Campaign progress could not be saved: ${cause.message}`
+        : "Campaign progress could not be saved in this browser.");
+    }
+  }, [campaignProgressError, campaignProgressLoadedDigest, packageValue?.ruleset.digest, unlockedScenarioIds]);
 
   const workspaceHost = useRef<HTMLElement>(null);
   const scrollPositions = useRef(new Map<string, number>());
@@ -687,6 +784,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         setSlots([...recovered.slots]);
         setRivalSlots([...recovered.rival_slots]);
         setFormationShape(recovered.formation_shape);
+        if (recovered.campaign_scenario_id) {
+          setEntryMode("campaign");
+          setSelectedScenarioId(recovered.campaign_scenario_id);
+        }
         setActiveSlot(0);
         draftRef.current = recovered.draft;
         setDraft(recovered.draft);
@@ -733,6 +834,26 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const activeCompilation = compilerContextKey !== null && compilation?.key === compilerContextKey
     ? compilation.result
     : null;
+  const selectedScenario = campaignScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? campaignScenarios[0] ?? null;
+  const campaignFeedback = run?.setup.campaign_scenario_id
+    ? (() => {
+        const scenario = campaignScenarios.find((candidate) => candidate.id === run.setup.campaign_scenario_id);
+        return scenario ? { scenarioId: scenario.id, scenario, ...getNextCampaignRunFeedback(run.response.outcome.result) } : null;
+      })()
+    : null;
+  const unlockedScenarioSet = useMemo(() => new Set(unlockedScenarioIds), [unlockedScenarioIds]);
+  const selectCampaignScenario = (scenarioId: string): void => {
+    if (!unlockedScenarioSet.has(scenarioId) || !campaignScenarios.some((scenario) => scenario.id === scenarioId)) return;
+    setSelectedScenarioId(scenarioId);
+    setPrepared(null);
+    setPreflightFailure(null);
+    setExactRun(null);
+  };
+  useEffect(() => {
+    if (entryMode !== "campaign" || !selectedScenarioId || unlockedScenarioSet.has(selectedScenarioId)) return;
+    const firstUnlocked = campaignScenarios.find((scenario) => unlockedScenarioSet.has(scenario.id));
+    if (firstUnlocked) setSelectedScenarioId(firstUnlocked.id);
+  }, [campaignScenarios, entryMode, selectedScenarioId, unlockedScenarioSet]);
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const draftIsSaved = Boolean(savedSetup && !savedSetupError && draft
@@ -744,8 +865,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
       draft: run.setup.draft, slots: run.setup.slots, rivalSlots: run.setup.rival_slots,
       formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics,
-    }));
-  const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot });
+    }) && (entryMode === "campaign" ? selectedScenarioId : null) === (run.setup.campaign_scenario_id ?? null));
+  const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot,
+    entryMode, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
   const launchKeyRef = useRef(launchKey);
   launchKeyRef.current = launchKey;
   const readySnapshot = prepared?.key === launchKey && (exactRun || activeCompilation) ? prepared.snapshot : null;
@@ -904,8 +1026,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       rival_slots: rivalSlots,
       draft: currentDraft,
       rival_source: createStarterJinrei(packageValue, "defender", rivalSlots),
+      ...(entryMode === "campaign" && selectedScenario ? { campaign_scenario_id: selectedScenario.id } : {}),
     };
-  }, [formationShape, nextRules, packageValue, rivalSlots, slots]);
+  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots]);
 
   useEffect(() => {
     if (!recoverySetupLoaded || !savedSetupLoaded || slots.length !== 5 || !draft || recoveryLoadError || recoveryMismatchReason) return;
@@ -954,6 +1077,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setSlots([...savedSetup.slots]);
     setRivalSlots([...savedSetup.rival_slots]);
     setFormationShape(savedSetup.formation_shape);
+    setEntryMode(savedSetup.campaign_scenario_id ? "campaign" : "quick");
+    if (savedSetup.campaign_scenario_id && campaignScenarios.some((scenario) => scenario.id === savedSetup.campaign_scenario_id)) {
+      setSelectedScenarioId(savedSetup.campaign_scenario_id);
+    }
     setActiveSlot(0);
     setCompilation(null);
     setPrepared(null);
@@ -962,7 +1089,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setTab("formation");
     setError(null);
     setSaveMessage("Restored the saved Next setup. Compile its Jinrei source before launching a new battle.");
-  }, [savedSetup, savedSetupMismatchReason]);
+  }, [campaignScenarios, savedSetup, savedSetupMismatchReason]);
 
   const clearSavedSetup = useCallback((): void => {
     try {
@@ -1038,6 +1165,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setSlots([...recoverySetup.slots]);
     setRivalSlots([...recoverySetup.rival_slots]);
     setFormationShape(recoverySetup.formation_shape);
+    setEntryMode(recoverySetup.campaign_scenario_id ? "campaign" : "quick");
+    if (recoverySetup.campaign_scenario_id && campaignScenarios.some((scenario) => scenario.id === recoverySetup.campaign_scenario_id)) {
+      setSelectedScenarioId(recoverySetup.campaign_scenario_id);
+    }
     setCompilation(null);
     setPrepared(null);
     setExactRun(null);
@@ -1045,7 +1176,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setScreen("ready");
     setError(null);
     setSaveMessage("Recovered this unsaved draft. Recompile and validate before launch.");
-  }, [recoverySetup, recoveryMismatchReason]);
+  }, [campaignScenarios, recoverySetup, recoveryMismatchReason]);
 
   const importSetupFile = useCallback(async (file: File, confirmed = false): Promise<void> => {
     try {
@@ -1071,12 +1202,16 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
   const refreshStarterTactics = useCallback((before: readonly FormationSlot[], after: readonly FormationSlot[]): void => {
     const currentDraft = draftRef.current;
-    if (!packageValue || !currentDraft || currentDraft.program_input.kind !== "text") return;
-    if (currentDraft.program_input.source !== createStarterJinrei(packageValue, "attacker", before)) return;
-    const nextDraft = {
-      ...currentDraft,
-      program_input: { kind: "text" as const, source: createStarterJinrei(packageValue, "attacker", after) },
-    };
+    if (!currentDraft || stableKey(before) === stableKey(after)) return;
+    let nextDraft = currentDraft;
+    if (packageValue && currentDraft.program_input.kind === "text" &&
+        currentDraft.program_input.source === createStarterJinrei(packageValue, "attacker", before)) {
+      nextDraft = {
+        ...currentDraft,
+        program_input: { kind: "text" as const, source: createStarterJinrei(packageValue, "attacker", after) },
+      };
+    }
+    nextDraft = reviseDraft(currentDraft, nextDraft);
     draftRef.current = nextDraft;
     setDraft(nextDraft);
   }, [packageValue]);
@@ -1208,8 +1343,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, [refreshStarterTactics, slots]);
 
   const updateDraft = useCallback((next: SenkeiDraft | null): void => {
-    draftRef.current = next;
-    setDraft(next);
+    const revised = next ? reviseDraft(draftRef.current, next) : null;
+    draftRef.current = revised;
+    setDraft(revised);
     setError(null);
     setRuntimeFailure(null);
   }, []);
@@ -1274,6 +1410,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     if (!core || !packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
       throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
     }
+    const campaignScenario = entryMode === "campaign" ? selectedScenario : null;
+    if (entryMode === "campaign" && (!campaignScenario || !unlockedScenarioSet.has(campaignScenario.id))) {
+      throw new PreflightProblem("選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。", "invalid");
+    }
     const key = launchKey;
     if (exactRun) {
       if (!sameRulesetRef(exactRun.snapshot.attacker.ruleset, packageValue.ruleset)) {
@@ -1287,16 +1427,29 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const playerCompilation = activeCompilation ?? await compileTactics(draft.program_input.kind === "text"
       ? { kind: "text", source: draft.program_input.source, ruleset_ref: draft.ruleset }
       : { kind: "structured_ast", ast: draft.program_input.ast, ruleset_ref: draft.ruleset });
-    const rivalDraft = createTacticDraft(packageValue, nextRules, "defender");
-    const rivalSource = createStarterJinrei(packageValue, "defender", rivalSlots);
-    const revision = ++editorCompileRevision.current;
-    const stamp = catalogStamp(editorCatalog);
-    const envelope = await core.editorCompile({ source: rivalSource, stamp, revision });
-    if (envelope.revision !== revision || !sameCatalog(stamp, envelope.reply.stamp)) throw new Error("NPC compiler identity mismatch.");
-    if (envelope.reply.status === "rejected") throw new PreflightProblem(`${envelope.reply.error.code}: ${envelope.reply.error.message}`, "invalid");
+    const rivalDraft = campaignScenario?.npc ?? createTacticDraft(packageValue, nextRules, "defender");
+    if (!sameRulesetRef(rivalDraft.ruleset, packageValue.ruleset) || stableKey(rivalDraft.schema_version) !== stableKey(packageValue.model_version)) {
+      throw new PreflightProblem("The selected opponent draft belongs to a different RulePackage or schema.", "invalid");
+    }
+    let rivalProgram: SenkeiSnapshot["program"];
+    if (campaignScenario) {
+      const input: TacticalInput = rivalDraft.program_input.kind === "text"
+        ? { kind: "text", source: rivalDraft.program_input.source, ruleset_ref: rivalDraft.ruleset }
+        : { kind: "structured_ast", ast: rivalDraft.program_input.ast, ruleset_ref: rivalDraft.ruleset };
+      rivalProgram = (await core.compile(input)).program;
+    } else {
+      const rivalSource = createStarterJinrei(packageValue, "defender", rivalSlots);
+      const revision = ++editorCompileRevision.current;
+      const stamp = catalogStamp(editorCatalog);
+      const envelope = await core.editorCompile({ source: rivalSource, stamp, revision });
+      if (envelope.revision !== revision || !sameCatalog(stamp, envelope.reply.stamp)) throw new Error("NPC compiler identity mismatch.");
+      if (envelope.reply.status === "rejected") throw new PreflightProblem(`${envelope.reply.error.code}: ${envelope.reply.error.message}`, "invalid");
+      rivalProgram = envelope.reply.result.program;
+    }
     const attacker = makeSideSnapshot(draft, playerCompilation.program, slots);
-    const defender = makeSideSnapshot(rivalDraft, envelope.reply.result.program, rivalSlots);
-    const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, attacker, defender }));
+    const opponentSlots = campaignScenario && nextRules ? scenarioFormation(campaignScenario, nextRules) : rivalSlots;
+    const defender = makeSideSnapshot(rivalDraft, rivalProgram, opponentSlots);
+    const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, scenario_id: campaignScenario?.id ?? null, attacker, defender }));
     const snapshot = { attacker, defender, context };
     await core.preflight(snapshot);
     if (launchKeyRef.current !== key) throw new PreflightProblem("設定が変更されました。現在の設定を再検証してください。", "unverified");
@@ -1334,6 +1487,15 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const response = await core.simulate(snapshot, { include_diagnostics: diagnosticsRequested });
       const sourceReplay = response.owner_replay ?? response.outcome.presentation_replay;
       const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
+      if (setup.campaign_scenario_id && response.outcome.result.outcome === "attacker_victory" &&
+          response.outcome.result.termination_reason === "base_destroyed") {
+        const completedIndex = campaignScenarios.findIndex((scenario) => scenario.id === setup.campaign_scenario_id);
+        const nextScenario = completedIndex >= 0 ? campaignScenarios[completedIndex + 1] : undefined;
+        const nextUnlocked = new Set(unlockedScenarioIds);
+        nextUnlocked.add(setup.campaign_scenario_id);
+        if (nextScenario) nextUnlocked.add(nextScenario.id);
+        setUnlockedScenarioIds([...nextUnlocked]);
+      }
       setBaselineRun(run);
       setRun({ snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
@@ -1362,7 +1524,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     else setAtelierScreen(target);
   };
 
-  const openLibrary = (view: "library" | "recovery" | "legacy" = "library"): void => {
+  const openLibrary = (view: "library" | "recovery" = "library"): void => {
     if (screen !== "resume") setLibraryReturn(screen);
     setLibraryView(view);
     setScreen("resume");
@@ -1539,10 +1701,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     onImport={file => importSetupFile(file, true)} onClearSaved={clearSavedSetup} onClearRecovery={clearRecoveryCopy}
     onRetryStorage={() => setStorageAttempt(attempt => attempt + 1)}
     onRetryCore={() => { setRuntimeFailure(null); setError(null); onRetryCore(); setCatalogAttempt(attempt => attempt + 1); }}
-    onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)}
-    onLegacyLibrary={onLegacyLibrary} onG1Samples={() => window.location.assign("/graphics/")} />;
+    onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)} />;
 
-  if (screen === "resume" && (!packageValue || !nextRules)) return <section ref={workspaceHost} onKeyDown={tabKeys} className="next-workspace" data-screen={libraryView === "library" ? "S14" : libraryView === "recovery" ? "S15" : "S16"}>{library}</section>;
+  if (screen === "resume" && (!packageValue || !nextRules)) return <section ref={workspaceHost} onKeyDown={tabKeys} className="next-workspace" data-screen={libraryView === "library" ? "S14" : "S15"}>{library}</section>;
 
   if (!packageValue || !nextRules) {
     return (
@@ -1560,7 +1721,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }
 
   return (
-    <section ref={workspaceHost} onKeyDown={tabKeys} data-screen={screen === "resume" ? libraryView === "library" ? "S14" : libraryView === "recovery" ? "S15" : "S16" : screen === "home" ? "S01" : screen === "conditions" ? "S02" : screen === "preset" ? "S03" : screen === "ready" ? "S10" : screen === "running" ? "S11" : tab === "formation" ? ({ collection: "S04", detail: "S05", skills: "S06", squads: "S07" }[atelierScreen]) : tab === "jinrei" ? jinreiScreen === "coverage" ? "S09" : "S08" : tab === "battle" ? "S12" : "S13"} className={`next-workspace${tab === "battle" && screen === "workspace" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
+    <section ref={workspaceHost} onKeyDown={tabKeys} data-screen={screen === "resume" ? libraryView === "library" ? "S14" : "S15" : screen === "home" ? "S01" : screen === "conditions" ? "S02" : screen === "preset" ? "S03" : screen === "ready" ? "S10" : screen === "running" ? "S11" : tab === "formation" ? ({ collection: "S04", detail: "S05", skills: "S06", squads: "S07" }[atelierScreen]) : tab === "jinrei" ? jinreiScreen === "coverage" ? "S09" : "S08" : tab === "battle" ? "S12" : "S13"} className={`next-workspace${tab === "battle" && screen === "workspace" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
       {screen === "resume" && library}
       <header className="next-heading" hidden={screen === "resume"}>
         <div><span className="next-eyebrow">NEXT · {packageValue.ruleset.id} · LOCAL ENBU</span><h2>{screen === "workspace" ? <>Battle <em>workbench</em></> : <>Senkei <em>始める</em></>}</h2><p>5 Heroの戦型を準備し、ローカルPvEを実行する。</p></div>
@@ -1568,6 +1729,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       </header>
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
+      {campaignProgressError && <div className="next-error" role="alert"><span>{campaignProgressError}</span></div>}
       {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => setCatalogAttempt(attempt => attempt + 1)}>Catalogを再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError} Playback is paused at the current tick.</span><button type="button" onClick={retryRenderer}>Retry battlefield renderer</button></div>}
 
@@ -1620,7 +1782,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           setSlots(playerSlots); setRivalSlots(defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS));
           setFormationShape("single"); updateDraft(createTacticDraft(packageValue, nextRules, "attacker"));
           setPrepared(null); setPreflightFailure(null); setScreen("preset");
-        }} />
+        }} scenarios={campaignScenarios} selectedScenarioId={selectedScenario?.id ?? ""}
+        onScenarioChange={selectCampaignScenario} unlockedScenarioIds={unlockedScenarioIds}
+        latestScenarioFeedback={campaignFeedback} />
       <div className="journey-workspace" hidden={screen !== "workspace"}>
       <div className="journey-toolbar" hidden={tab === "battle"}><button type="button" onClick={() => setScreen("home")}>Homeへ戻る</button><button type="button" onClick={() => openLibrary()}>Library</button><span>Hero / Jinrei / Replay / Analysis</span><button hidden={tab === "jinrei"} type="button" onClick={() => { setExactRun(null); setScreen("ready"); }}>準備確認へ</button></div>
       <div className="next-layout">
@@ -1776,7 +1940,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
               onReplayEvent={inspectReplayEvent}
               onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}
               onBattle={() => setTab("battle")} onEdit={editScreen}
-              onExactRematch={() => { if (run) { setExactRun(run); setPrepared(null); setScreen("ready"); } }}
+              campaignScenario={campaignFeedback?.scenario ?? null} campaignFeedback={campaignFeedback}
+              onExactRematch={() => { if (run) {
+                setExactRun(run);
+                if (run.setup.campaign_scenario_id) { setEntryMode("campaign"); setSelectedScenarioId(run.setup.campaign_scenario_id); }
+                else setEntryMode("quick");
+                setPrepared(null);
+                setScreen("ready");
+              } }}
               onRevisedRematch={rematch} />
           </section>
         </div>
