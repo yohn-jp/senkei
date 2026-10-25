@@ -609,26 +609,27 @@ export class Battlefield {
     this.controls.enableDamping = true;
   }
   private authoredCameraOffset(
-    purpose: "strategic" | "follow" = "strategic",
+    purpose: "strategic" | "overview" | "follow" = "strategic",
     forward?: THREE.Vector2 | null,
   ) {
     if (purpose === "follow" && forward) {
-      const horizontal = this.mobile ? 32 : 34;
-      const height = this.mobile ? 34 : 30;
+      const horizontal = this.mobile ? 22 : 24;
+      const height = this.mobile ? 28 : 27;
       return new THREE.Vector3(-forward.x * horizontal, height, -forward.y * horizontal);
     }
+    if (purpose === "overview" && !this.mobile)
+      return new THREE.Vector3(42, 68, 42);
     if (this.mobile)
       return purpose === "follow"
-        ? new THREE.Vector3(32, 34, 0)
+        ? new THREE.Vector3(22, 28, 0)
         : new THREE.Vector3(32, 50, 0);
-    return purpose === "follow"
-      ? new THREE.Vector3(0, 30, 32)
-      : new THREE.Vector3(0, 55, 32);
+    if (purpose === "follow") return new THREE.Vector3(0, 27, 24);
+    return new THREE.Vector3(0, 55, 32);
   }
   private projectedFrameHalfHeight(
     center: THREE.Vector3,
     points: readonly THREE.Vector3[],
-    purpose: "strategic" | "follow" = "strategic",
+    purpose: "strategic" | "overview" | "follow" = "strategic",
     forward?: THREE.Vector2 | null,
     fitScale = 1.16,
   ) {
@@ -663,7 +664,7 @@ export class Battlefield {
     );
     // Overview is already bounded by the full authorized World extents. Keep
     // only a small breathing margin so the actual geography fills the stage.
-    return this.projectedFrameHalfHeight(center, corners, "strategic", null, 1.045) * 1.015;
+    return this.projectedFrameHalfHeight(center, corners, "overview", null, 1.045) * 1.015;
   }
   private visibleCameraEntities(): DisplayEntity[] {
     if (this.state) return Object.values(this.state.entities);
@@ -695,7 +696,7 @@ export class Battlefield {
     // Frame a local piece of the real map around the authorized frontline.
     // Geometry supplies terrain context, but never decides where hidden
     // entities are or pulls Tactical back out to the full map.
-    const contextRadius = 18;
+    const contextRadius = 12;
     const near = (point: WorldPoint) =>
       Math.hypot(point.x - center.x, point.y - center.z) <= contextRadius;
     for (const lane of this.replay.scene.lanes)
@@ -711,27 +712,28 @@ export class Battlefield {
       include(center.clone());
     }
     const points = [...framePoints.values()];
-    const minX = Math.min(...points.map((point) => point.x));
-    const maxX = Math.max(...points.map((point) => point.x));
-    const minZ = Math.min(...points.map((point) => point.z));
-    const maxZ = Math.max(...points.map((point) => point.z));
-    const frameCenter = new THREE.Vector3(
-      (minX + maxX) / 2,
-      0,
-      (minZ + maxZ) / 2,
-    );
+    const maxHalfHeight = this.mobile ? 12 : 13;
+    const minHalfHeight = this.mobile ? 9 : 10.5;
     return {
-      center: frameCenter,
-      halfHeight: this.projectedFrameHalfHeight(frameCenter, points, "strategic", null, 1.12),
+      center,
+      halfHeight: THREE.MathUtils.clamp(
+        this.projectedFrameHalfHeight(center, points, "strategic", null, 1.12),
+        minHalfHeight,
+        maxHalfHeight,
+      ),
     };
   }
-  private strategicViewportFit(center: THREE.Vector3, halfHeight: number) {
+  private strategicViewportFit(
+    center: THREE.Vector3,
+    halfHeight: number,
+    purpose: "strategic" | "overview" = "strategic",
+  ) {
     const hostHeight = Math.max(1, this.host.clientHeight);
     const topInset = Math.min(this.mobile ? 58 : 50, hostHeight * 0.3);
     const bottomInset = Math.min(16, hostHeight * 0.1);
     const safeHeight = Math.max(1, hostHeight - topInset - bottomInset);
     const safeRatio = safeHeight / hostHeight;
-    const cameraPosition = center.clone().add(this.authoredCameraOffset("strategic"));
+    const cameraPosition = center.clone().add(this.authoredCameraOffset(purpose));
     const direction = center.clone().sub(cameraPosition).normalize();
     const right = new THREE.Vector3()
       .crossVectors(direction, this.camera.up)
@@ -851,20 +853,21 @@ export class Battlefield {
   }
   private fitAuthoredCamera(mode: BattlefieldCameraMode) {
     const tactical = mode === "tactical" ? this.tacticalCameraFrame() : null;
+    const cameraPurpose = mode === "overview" ? "overview" : "strategic";
     const target = tactical?.center ?? new THREE.Vector3(
       (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
       0,
       (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
     );
     const boundsHalfHeight = this.authoredOverviewHalfHeight(target);
-    // Standard observation fits the authored lane/camp network. Overview
-    // includes the complete World bounds; Follow frames a current target.
+    // Tactical frames the current authorized unit cluster. Overview includes
+    // the complete World bounds; Follow frames the tracked entity.
     const halfHeight = tactical?.halfHeight ?? boundsHalfHeight;
-    const safeFrame = this.strategicViewportFit(target, halfHeight);
+    const safeFrame = this.strategicViewportFit(target, halfHeight, cameraPurpose);
     this.controls.enableDamping = false;
     this.controls.update();
     this.controls.target.copy(safeFrame.center);
-    this.camera.position.copy(safeFrame.center).add(this.authoredCameraOffset());
+    this.camera.position.copy(safeFrame.center).add(this.authoredCameraOffset(cameraPurpose));
     this.camera.zoom = 1;
     this.camera.lookAt(safeFrame.center);
     this.updateFrustum(safeFrame.halfHeight);
@@ -963,7 +966,7 @@ export class Battlefield {
       return new THREE.Vector3(point.x, 0, point.y);
     });
     if (forward) {
-      groupPoints.push(new THREE.Vector3(center.x + forward.x * 10, 0, center.z + forward.y * 10));
+      groupPoints.push(new THREE.Vector3(center.x + forward.x * 6.5, 0, center.z + forward.y * 6.5));
       for (const threat of this.visibleCameraEntities()) {
         if (
           threat.kind !== "unit" ||
@@ -974,13 +977,14 @@ export class Battlefield {
         const dx = threat.position.x - center.x;
         const dz = threat.position.y - center.z;
         const distance = Math.hypot(dx, dz);
-        if (distance <= 18 && dx * forward.x + dz * forward.y > 0)
+        if (distance <= 9.5 && dx * forward.x + dz * forward.y > 0)
           groupPoints.push(new THREE.Vector3(threat.position.x, 0, threat.position.y));
       }
     }
-    const groupHalfHeight = Math.max(
-      5.5,
-      this.projectedFrameHalfHeight(center, groupPoints, "follow", forward),
+    const groupHalfHeight = THREE.MathUtils.clamp(
+      this.projectedFrameHalfHeight(center, groupPoints, "follow", forward, 1.08),
+      this.mobile ? 6 : 5.5,
+      this.mobile ? 7.5 : 8,
     );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
