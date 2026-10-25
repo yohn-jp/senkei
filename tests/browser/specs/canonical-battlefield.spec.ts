@@ -40,10 +40,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
-        const request = message as { operation?: unknown; payload?: Record<string, unknown> } | null;
+        const request = message as { operation?: unknown; request_id?: unknown; payload?: Record<string, unknown> } | null;
         let outgoing = message;
         if (request?.operation === "simulate") {
-          const target = window as typeof window & { __canonicalRequest?: unknown; __canonicalResponse?: unknown };
+          const target = window as typeof window & { __canonicalRequest?: { request_id?: unknown }; __canonicalResponse?: unknown };
           const modified = structuredClone(message) as { payload?: Record<string, unknown> };
           if (!modified.payload) throw new Error("canonical browser simulation has no payload");
           modified.payload.snapshot = structuredClone(controlledSnapshot);
@@ -64,9 +64,9 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
           return;
         }
         super.addEventListener(type, (event: Event) => {
-          const data = (event as MessageEvent).data as { operation?: unknown } | null;
-          if (data?.operation === "simulate") {
-            const target = window as typeof window & { __canonicalResponse?: unknown };
+          const data = (event as MessageEvent).data as { request_id?: unknown } | null;
+          const target = window as typeof window & { __canonicalRequest?: { request_id?: unknown }; __canonicalResponse?: unknown };
+          if (data?.request_id !== undefined && data.request_id === target.__canonicalRequest?.request_id) {
             target.__canonicalResponse = structuredClone(data);
           }
           listener.call(this, event as WorkerEventMap[K]);
@@ -91,7 +91,6 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   await expect(canvas).toHaveAttribute("data-tick", "0");
   await expect.poll(() => page.evaluate(() => Boolean((window as typeof window & { __canonicalResponse?: unknown }).__canonicalResponse))).toBe(true);
   const response = await page.evaluate(() => (window as typeof window & { __canonicalResponse?: JsonRecord }).__canonicalResponse ?? null);
-  expect(response?.operation).toBe("simulate");
   expect(response?.ok).toBe(true);
   expect(response?.request_id).toBeTruthy();
   expect(wasmResponses).toContain(200);
@@ -113,6 +112,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     entity.entity_type === "hero" && entity.fields?.catalog_id?.value === catalogId);
   const bridgeAt = (tick: number, site = "TOP"): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
     entity.entity_type === "bridge" && entity.fields?.site?.value === site);
+  const observation = ownerEntitiesAt(1).find((entity) =>
+    entity.entity_type === "observation" && entity.fields?.node?.value === "N.MID.OBS");
+  expect(observation, "the authorized replay contains the actual MID observation facility").toBeTruthy();
+  expect(observation?.fields?.hp, "the authorized observation projection does not expose an HP field").toBeUndefined();
   expect(ownerHeroAt(24, "F02")?.fields?.ford_remaining?.value).toBeGreaterThan(0);
   expect(ownerHeroAt(1, "F03")?.fields?.edge_to?.value).toBe("A.MID.J");
   expect(ownerHeroAt(2, "F01")?.fields?.track?.value).toBe("LEFT");
@@ -143,6 +146,9 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await page.locator('[data-bridge-site="MID"]').count()).toBe(2);
   expect(await page.locator('[data-bridge-site="BOT"]').count()).toBe(1);
   expect(await page.locator('[data-testid="battle-map-route"][data-ford="true"]').count()).toBe(2);
+  const observationLabel = page.locator(".entity-world-label").filter({ hasText: /^MID OBSERVATION/ });
+  await expect(observationLabel).toHaveCount(1);
+  await expect(observationLabel).not.toContainText(/HP\s+1\/1|·\s*1\/1/);
 
   const routeStateAt = async (tick: number, site = "TOP"): Promise<string> => {
     const slider = page.getByRole("slider", { name: "Seek replay tick" });

@@ -538,18 +538,22 @@ fn set_catalog(snapshot: &mut SenkeiSnapshot, slot_index: usize, hero_id: &str, 
 fn death_respawn_case() -> serde_json::Value {
     let rules = fragile_rules();
     let next = rules.plan().next.as_ref().unwrap();
+    let attacker_nodes = ["A.BASE", "A.BASE", "A.BASE", "A.TOP.T1", "A.TOP.T1"].map(str::to_owned);
     let at_lane = vec!["A.TOP.T1".to_owned(); 5];
     let compiled = compile(IDLE_TACTICS, &rules).unwrap();
     let (mut attacker, mut defender, context) = build_match(
         &rules,
-        &[2, 1, 1, 1],
+        &[1, 1, 1, 2],
         "fragile-hero-death-respawn",
         21,
-        Some(&at_lane),
+        Some(&attacker_nodes),
         Some(&at_lane),
     );
     attacker.program = compiled.program.clone();
     defender.program = compiled.program;
+    for (slot, hero) in ["F02", "F03", "F04", "F05", "F01"].into_iter().enumerate() {
+        set_catalog(&mut attacker, slot, hero, &rules);
+    }
     for (slot, hero) in ["F02", "F03", "F04", "F05", "F06"].into_iter().enumerate() {
         set_catalog(&mut defender, slot, hero, &rules);
     }
@@ -558,21 +562,21 @@ fn death_respawn_case() -> serde_json::Value {
         .unwrap_or_else(|error| panic!("death and Solo respawn scenario executes: {error:?}"));
 
     let death_state = owner_state_at(&artifact, 1);
-    let victim = owner_hero_by_slot(death_state, "slot-1");
-    let prior_squad = entity_string(owner_hero_by_slot(owner_state_at(&artifact, 0), "slot-1"), "squad");
-    assert_eq!(entity_integer(victim, "hp"), 0, "concentrated reciprocal combat kills the fragile Hero");
+    let victim = owner_hero_by_slot(death_state, "slot-5");
+    let prior_squad = entity_string(owner_hero_by_slot(owner_state_at(&artifact, 0), "slot-5"), "squad");
+    assert_eq!(entity_integer(victim, "hp"), 0, "opponents at the shared node kill the fragile Hero");
     assert_eq!(entity_string(victim, "squad"), "", "death immediately removes the Hero from its prior squad");
     assert_eq!(entity_integer(victim, "respawn_at"), 21);
-    assert_eq!(entity_string(owner_hero_by_slot(owner_state_at(&artifact, 1), "slot-2"), "squad"), prior_squad);
+    assert_eq!(entity_string(owner_hero_by_slot(owner_state_at(&artifact, 1), "slot-4"), "squad"), prior_squad);
 
     let respawn_state = owner_state_at(&artifact, 21);
-    let respawned = owner_hero_by_slot(respawn_state, "slot-1");
+    let respawned = owner_hero_by_slot(respawn_state, "slot-5");
     assert_eq!(entity_integer(respawned, "hp"), entity_integer(respawned, "max_hp"));
     assert_eq!(entity_integer(respawned, "respawn_at"), 0);
     assert_eq!(entity_string(respawned, "node"), next.map.attacker_base);
     let respawn_squad = entity_string(respawned, "squad");
     assert!(!respawn_squad.is_empty() && respawn_squad != prior_squad);
-    assert_ne!(respawn_squad, entity_string(owner_hero_by_slot(respawn_state, "slot-2"), "squad"),
+    assert_ne!(respawn_squad, entity_string(owner_hero_by_slot(respawn_state, "slot-4"), "squad"),
         "respawn creates a Solo and does not auto-rejoin the prior group");
 
     serde_json::json!({
