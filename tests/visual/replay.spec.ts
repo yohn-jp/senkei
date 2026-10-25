@@ -329,15 +329,12 @@ test("animated playback reaches the authored result (video evidence)", async ({
   await video.saveAs(`${evidence}/animated-replay.webm`);
 });
 
-test("existing workspace links to the independent sample page", async ({
+test("Graphics G1 remains an independent entry without a product-workspace link", async ({
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Workspace" })
-    .getByRole("link", { name: /サンプル演武/ })
-    .click();
-  await expect(page).toHaveURL(/\/graphics\/$/);
+  await expect(page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: /サンプル演武/ })).toHaveCount(0);
+  await page.goto("/graphics/");
   await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
 });
 

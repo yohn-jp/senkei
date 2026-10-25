@@ -152,6 +152,9 @@ jobs:
           test "$(cat dist/browser-build-revision.txt)" = "$(git rev-parse HEAD)"
           sha256sum --check dist/browser-build-sha256.txt
       - run: npx --prefix tests/browser playwright install --with-deps chromium
+      - name: Install root Graphics G1 Playwright browser
+        if: matrix.suite == 'journeys'
+        run: npx playwright install --with-deps chromium
       - name: Run browser group
         run: npm run test:e2e --prefix tests/browser -- --workers=1
         env:
@@ -163,6 +166,11 @@ jobs:
           BATTLEFIELD_EXPECT_BASE_SITES: "true"
           BATTLEFIELD_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/verification
           BATTLEFIELD_VISUAL_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/visual
+      - name: Run Graphics G1 replay browser suite
+        if: matrix.suite == 'journeys'
+        run: npm run test:browser -- --workers=1
+        env:
+          SENKEI_GRAPHICS_EVIDENCE_DIR: ${{ github.workspace }}/test-results/ci-browser/graphics-g1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
