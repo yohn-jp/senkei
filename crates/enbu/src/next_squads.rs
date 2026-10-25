@@ -162,6 +162,17 @@ pub fn intents(
 
     for (side, intent) in actions {
         let Some(actor_id) = actor_for(intent) else { continue };
+        let Some(actor) = world.entities.get(&actor_id) else { continue };
+        if support::int(actor, "action_lock_until") > i64::from(_tick) { continue; }
+        let mut affected = squad_members(world, *side, &support::string(actor, "squad"));
+        if !affected.contains(&actor_id) { affected.push(actor_id.clone()); }
+        if let Some(target_id) = target_for(intent) {
+            if let Some(target) = world.entities.get(&target_id) {
+                affected.extend(squad_members(world, *side, &support::string(target, "squad")));
+            }
+        }
+        affected.sort(); affected.dedup();
+        let before = affected.iter().filter_map(|id| world.entities.get(id).map(|entity| (id.clone(), support::string(entity, "squad")))).collect::<Vec<_>>();
         match intent.capability.as_str() {
             "split" => split(world, rules, *side, &actor_id, _tick),
             "merge" | "regroup" => {
@@ -169,6 +180,13 @@ pub fn intents(
                 merge(world, rules, *side, &actor_id, &target_id);
             }
             _ => {}
+        }
+        if before.iter().any(|(id, prior)| world.entities.get(id).is_some_and(|entity| support::string(entity, "squad") != *prior)) {
+            for id in affected {
+                if let Some(entity) = world.entities.get_mut(&id) {
+                    support::set_int(entity, "action_lock_until", i64::from(_tick) + 1);
+                }
+            }
         }
     }
 }
@@ -593,14 +611,17 @@ fn merge(
         let from = support::string(left, "node");
         let to = support::string(left, "edge_to");
         if to.is_empty() { continue; }
-        let on_bridge = rules.map.edges.iter().any(|edge| !edge.bridge_site.is_empty()
-            && ((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)));
-        if !on_bridge { continue; }
+        let site = rules.map.edges.iter().find(|edge| !edge.bridge_site.is_empty()
+            && ((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)))
+            .map(|edge| edge.bridge_site.as_str());
+        let Some(site) = site else { continue };
         for right_id in members.iter().skip(index + 1) {
             let right = &world.entities[right_id];
-            if support::combat_distance2(left, right, rules).is_some()
-                && support::string(left, "track") != support::string(right, "track")
-            { return; }
+            let right_from = support::string(right, "node");
+            let right_to = support::string(right, "edge_to");
+            let same_site = rules.map.edges.iter().any(|edge| edge.bridge_site == site
+                && ((edge.from == right_from && edge.to == right_to) || (edge.to == right_from && edge.from == right_to)));
+            if same_site && support::string(left, "track") != support::string(right, "track") { return; }
         }
     }
 
@@ -1231,7 +1252,10 @@ mod tests {
             1,
         );
         assert_eq!(first, second);
-        assert_eq!(field_string(&first, &hero_id("h1"), "squad"), "attacker:solo");
+        // The first merge consumes the cohort's action. A second member cannot
+        // move the newly merged subject into another Squad in the same tick.
+        assert_eq!(field_string(&first, &hero_id("h1"), "squad"), "attacker:bravo");
+        assert_eq!(field_int(&first, &hero_id("h2"), "action_lock_until"), 2);
     }
 
     #[test]
@@ -1258,6 +1282,9 @@ mod tests {
         lifecycle(&mut world, &rules, 23);
         assert_eq!(field_int(&world, &hero_id("h1"), "hp"), 100);
         assert_eq!(field_int(&world, &hero_id("h1"), "life_generation"), 1);
+        assert_eq!(field_string(&world, &hero_id("h1"), "track"), "");
+        assert_eq!(field_int(&world, &hero_id("h1"), "ford_active"), 0);
+        assert_eq!(field_int(&world, &hero_id("h1"), "cross_remaining"), 0);
         assert_eq!(field_int(&world, &hero_id("h1"), "passive_generation"), 0);
         assert_eq!(field_string(&world, &hero_id("h1"), "node"), "home");
         assert_eq!(field_int(&world, &hero_id("h1"), "xp"), 77);

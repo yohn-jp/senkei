@@ -415,6 +415,8 @@ pub fn place(e: &mut EntityState, node: &str, r: &NextRules) {
     set_string(e, "node", node);
     set_string(e, "edge_to", "");
     set_int(e, "edge_progress", 0);
+    for key in ["track", "track_cross_from", "track_cross_to"] { set_string(e, key, ""); }
+    for key in ["cross_remaining", "ford_remaining", "ford_active", "track_wait_ticks", "action_lock_until", "prepared_action_tick", "moved_tick"] { set_int(e, key, 0); }
     if let Some(n) = r.map.nodes.get(node) {
         set_int(e, "x", n.x);
         set_int(e, "y", n.y);
