@@ -24,6 +24,32 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     check(r.world_identity.is_some(), "next.world_identity", "next RulePackage must bind the exact paired identity of its compiled World");
     check(r.map.world_identity.is_some(), "next.map.world_identity", "runtime BattleMap projection must carry its source World identity");
     check(paired_world_matches, "next.map.world_identity", "RulePackage and BattleMap must refer to the exact same paired World identity");
+    match (&r.world_identity, &r.map.world_projection) {
+        (Some(identity), Some(projection)) => {
+            check(projection.source_identity == *identity, "next.map.world_projection.source_identity", "runtime projection must preserve its exact source World identity");
+            check(projection.schema_version == Version::new(1, 0, 0), "next.map.world_projection.schema_version", "unsupported runtime BattleMap projection schema");
+            let node_ids: BTreeSet<_> = r.map.nodes.keys().cloned().collect();
+            check(projection.node_ids == node_ids, "next.map.world_projection.node_ids", "runtime projection must preserve every source node ID exactly");
+            let edge_ids: BTreeSet<_> = r.map.edges.iter().map(|edge| edge.id.clone()).collect();
+            let fact_ids: BTreeSet<_> = projection.edge_facts.keys().cloned().collect();
+            check(edge_ids == fact_ids, "next.map.world_projection.edge_facts", "runtime projection must preserve facts for every source edge ID exactly");
+            let edges: BTreeMap<_, _> = r.map.edges.iter().map(|edge| (edge.id.as_str(), edge)).collect();
+            for (edge_id, facts) in &projection.edge_facts {
+                let Some(edge) = edges.get(edge_id.as_str()) else { continue };
+                let track_ids_unique: BTreeSet<_> = facts.tracks.iter().map(|track| track.id.as_str()).collect();
+                check(track_ids_unique.len() == facts.tracks.len() && !facts.tracks.is_empty(), "next.map.world_projection.edge_facts.tracks", "each source edge must retain a unique non-empty track set");
+                for track in &facts.tracks {
+                    check(track.start_progress_wu < track.end_progress_wu && track.end_progress_wu <= edge.length.max(0) as u64, "next.map.world_projection.edge_facts.tracks", "track ranges must be non-empty and fit the source edge length");
+                }
+                if let Some(crossing) = &facts.river_crossing {
+                    check(crossing.start_progress_wu < crossing.end_progress_wu && crossing.end_progress_wu <= edge.length.max(0) as u64, "next.map.world_projection.edge_facts.river_crossing", "crossing ranges must be non-empty and fit the source edge length");
+                    check(crossing.river_id.trim().len() > 0, "next.map.world_projection.edge_facts.river_crossing", "river ID cannot be empty");
+                }
+                check(!facts.terrain_profile_id.is_empty(), "next.map.world_projection.edge_facts.terrain_profile_id", "source terrain profile identity must be retained");
+            }
+        }
+        _ => check(false, "next.map.world_projection", "canonical next BattleMap requires a versioned World projection preserving tracks, crossing intervals, bridge sites, and terrain facts"),
+    }
     let mut supported = package.clone();
     crate::next_domain::configure(&mut supported);
     check(

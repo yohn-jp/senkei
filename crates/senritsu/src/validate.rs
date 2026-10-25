@@ -12,8 +12,8 @@ pub fn canonical_digest(package: &RulePackage) -> Result<ContentDigest, serde_js
     }
     // The paired World reference travels with match/replay identity, but its
     // presentation half is deliberately outside simulation/package identity.
-    // BattleMap node coordinates are renderer inputs and are checked against
-    // the resolved World artifact by the projection consumer.
+    // BattleMap logical coordinates remain rule/Jinrei inputs. Only the
+    // paired World presentation identity and coordinates are renderer inputs.
     if let Some(next) = value.get_mut("next").and_then(serde_json::Value::as_object_mut) {
         if let Some(identity) = next.get_mut("world_identity").and_then(serde_json::Value::as_object_mut) {
             identity.remove("presentation_digest");
@@ -22,11 +22,16 @@ pub fn canonical_digest(package: &RulePackage) -> Result<ContentDigest, serde_js
             if let Some(identity) = map.get_mut("world_identity").and_then(serde_json::Value::as_object_mut) {
                 identity.remove("presentation_digest");
             }
+            if let Some(projection) = map.get_mut("world_projection").and_then(serde_json::Value::as_object_mut) {
+                if let Some(identity) = projection.get_mut("source_identity").and_then(serde_json::Value::as_object_mut) {
+                    identity.remove("presentation_digest");
+                }
+            }
             if let Some(nodes) = map.get_mut("nodes").and_then(serde_json::Value::as_object_mut) {
                 for node in nodes.values_mut() {
                     if let Some(node) = node.as_object_mut() {
-                        node.remove("x");
-                        node.remove("y");
+                        node.remove("presentation_x");
+                        node.remove("presentation_y");
                     }
                 }
             }

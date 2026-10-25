@@ -50,12 +50,13 @@ mod tests {
         assert!(issues.iter().any(|issue| issue.code == "invalid_next_rules" && issue.path == "next.map.world_identity"));
     }
     #[test]
-    fn presentation_only_map_changes_do_not_change_rule_package_digest() {
+    fn presentation_only_map_changes_do_not_change_rule_package_digest_but_logical_changes_do() {
         let mut package = next_package();
         let original = crate::canonical_digest(&package).unwrap();
         {
             let next = package.next.as_mut().unwrap();
-            next.map.nodes.values_mut().next().unwrap().x += 123;
+            next.map.nodes.values_mut().next().unwrap().presentation_x += 123;
+            next.map.nodes.values_mut().next().unwrap().presentation_y += 456;
             next.map.world_identity.as_mut().unwrap().presentation_digest =
                 senkei_model::ContentDigest::new("a".repeat(64));
             next.world_identity.as_mut().unwrap().presentation_digest =
@@ -64,10 +65,7 @@ mod tests {
         assert_eq!(crate::canonical_digest(&package).unwrap(), original);
 
         let next = package.next.as_mut().unwrap();
-        next.world_identity.as_mut().unwrap().logic_digest =
-            senkei_model::ContentDigest::new("b".repeat(64));
-        next.map.world_identity.as_mut().unwrap().logic_digest =
-            senkei_model::ContentDigest::new("b".repeat(64));
+        next.map.nodes.values_mut().next().unwrap().x += 123;
         assert_ne!(crate::canonical_digest(&package).unwrap(), original);
     }
     #[test]

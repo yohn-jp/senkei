@@ -148,6 +148,9 @@ pub struct PresentationReplay {
     /// Paired World artifact identity used to interpret static scene and replay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world_identity: Option<crate::WorldIdentityRef>,
+    /// Exact RulePackage identity used to produce this replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ruleset: Option<RulesetRef>,
     pub match_id: crate::MatchId,
     pub result_digest: ContentDigest,
     pub frames: Vec<ReplayFrame>,
@@ -220,13 +223,24 @@ impl SimulationArtifact {
         }
     }
 
-    pub fn diagnostic_response(&self) -> crate::LocalSimulationResponse {
+    pub fn diagnostic_response(&self, side: CombatantSide) -> crate::LocalSimulationResponse {
+        let mut diagnostics = self.diagnostics.clone();
+        diagnostics.events.retain(|event| event.side == side);
+        diagnostics.cu_by_side.retain(|event_side, _| *event_side == side);
+        diagnostics.final_memory_by_side.retain(|event_side, _| *event_side == side);
+        let owner_replays = self.owner_replays.iter()
+            .filter(|(owner, _)| **owner == side)
+            .map(|(owner, replay)| (*owner, replay.clone()))
+            .collect();
         crate::LocalSimulationResponse {
-            owner_replay: self.owner_replay.clone(),
-            owner_replays: self.owner_replays.clone(),
+            authorized_side: Some(side),
+            // Deprecated wire alias remains empty; consumers use the
+            // side-keyed authorized channel below.
+            owner_replay: None,
+            owner_replays,
             result: self.result.clone(),
             replay: self.replay.clone(),
-            diagnostics: Some(self.diagnostics.clone()),
+            diagnostics: Some(diagnostics),
         }
     }
 }

@@ -51,9 +51,31 @@ pub struct WorldDefinition {
     pub compatibility: Compatibility,
     pub validation_profile: Option<ValidationProfileRef>,
     pub topology: TopologyDefinition,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_layout: Option<RuntimeLayoutDefinition>,
     pub metric: MetricDefinition,
     pub terrain: TerrainDefinition,
     pub presentation: PresentationDefinition,
+}
+
+/// Logical bases, named lane routes, and tower placements needed by the
+/// finite BattleMap runtime. These are gameplay topology, not presentation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeLayoutDefinition {
+    pub attacker_base: String,
+    pub defender_base: String,
+    pub lanes: BTreeMap<String, Vec<String>>,
+    pub towers: Vec<WorldTowerPlacement>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorldTowerPlacement {
+    pub id: String,
+    pub node: String,
+    pub side: String,
+    pub lane: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,6 +94,8 @@ pub struct NodeDefinition {
     pub id: String,
     pub allegiance: Allegiance,
     pub kind: NodeKind,
+    /// Simulation-space coordinates, independent of the presentation view.
+    pub logical_position: Point2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -352,6 +376,7 @@ pub struct CanonicalTopology {
     pub nodes: BTreeMap<String, NodeDefinition>,
     pub edges: BTreeMap<String, EdgeDefinition>,
     pub bridge_sites: BTreeMap<String, CanonicalBridgeSite>,
+    pub runtime_layout: Option<RuntimeLayoutDefinition>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

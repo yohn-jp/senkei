@@ -558,6 +558,7 @@ mod tests {
         BattleMap {
             id: "test-map".into(),
             world_identity: None,
+            world_projection: None,
             nodes,
             edges: vec![],
             lanes: BTreeMap::new(),

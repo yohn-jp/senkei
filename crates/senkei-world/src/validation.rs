@@ -65,6 +65,7 @@ pub(crate) fn validate(def: &WorldDefinition) -> Vec<WorldIssue> {
     let foliage = v.unique(&def.presentation.foliage, "presentation.foliage", |x| {
         x.id.as_str()
     });
+    v.runtime_layout(def, &nodes, &edges);
 
     for (id, (_, index)) in nodes.iter() {
         v.check_id(id, format!("topology.nodes[{index}].id"));
@@ -512,6 +513,64 @@ struct Validator {
 }
 
 impl Validator {
+    fn runtime_layout(
+        &mut self,
+        def: &WorldDefinition,
+        nodes: &BTreeMap<&str, (&NodeDefinition, usize)>,
+        edges: &BTreeMap<&str, (&EdgeDefinition, usize)>,
+    ) {
+        let Some(layout) = &def.runtime_layout else {
+            if def.validation_profile.as_ref().is_some_and(|p| p.id == INITIAL_BATTLEFIELD_PROFILE_ID) {
+                self.issue("missing_runtime_layout", "runtime_layout", "initial Battlefield World must author bases, lane routes, and tower placements");
+            }
+            return;
+        };
+        for (label, id) in [("attacker_base", layout.attacker_base.as_str()), ("defender_base", layout.defender_base.as_str())] {
+            if !nodes.contains_key(id) {
+                self.issue("unknown_runtime_base", format!("runtime_layout.{label}"), format!("base node '{id}' does not exist"));
+            }
+        }
+        if layout.attacker_base == layout.defender_base {
+            self.issue("duplicate_runtime_base", "runtime_layout", "attacker and defender bases must be distinct");
+        }
+        for (lane, route) in &layout.lanes {
+            self.check_id(lane, format!("runtime_layout.lanes.{lane}"));
+            if route.len() < 2 {
+                self.issue("short_runtime_route", format!("runtime_layout.lanes.{lane}"), "lane route must contain at least two nodes");
+            }
+            for (index, pair) in route.windows(2).enumerate() {
+                if !nodes.contains_key(pair[0].as_str()) || !nodes.contains_key(pair[1].as_str()) {
+                    self.issue("unknown_runtime_route_node", format!("runtime_layout.lanes.{lane}[{index}]"), "lane route references an unknown node");
+                    continue;
+                }
+                let adjacent = edges.values().any(|(edge, _)| {
+                    (edge.from == pair[0] && edge.to == pair[1])
+                        || (edge.directionality == Directionality::Bidirectional && edge.from == pair[1] && edge.to == pair[0])
+                });
+                if !adjacent {
+                    self.issue("nonadjacent_runtime_route", format!("runtime_layout.lanes.{lane}[{index}]"), "consecutive lane route nodes must be joined by an authored legal edge");
+                }
+            }
+        }
+        let mut tower_ids = BTreeSet::new();
+        let mut tower_nodes = BTreeSet::new();
+        for (index, tower) in layout.towers.iter().enumerate() {
+            self.check_id(&tower.id, format!("runtime_layout.towers[{index}].id"));
+            if !tower_ids.insert(&tower.id) {
+                self.issue("duplicate_runtime_tower", format!("runtime_layout.towers[{index}].id"), "tower IDs must be unique");
+            }
+            if !nodes.contains_key(tower.node.as_str()) {
+                self.issue("unknown_runtime_tower_node", format!("runtime_layout.towers[{index}].node"), "tower placement references an unknown node");
+            }
+            if !layout.lanes.contains_key(&tower.lane) {
+                self.issue("unknown_runtime_tower_lane", format!("runtime_layout.towers[{index}].lane"), "tower placement references an unknown lane route");
+            }
+            if !tower_nodes.insert(&tower.node) {
+                self.issue("duplicate_runtime_tower_node", format!("runtime_layout.towers[{index}].node"), "only one tower placement may occupy a node");
+            }
+        }
+    }
+
     fn issue(&mut self, code: &'static str, path: impl Into<String>, message: impl Into<String>) {
         self.issues.push(WorldIssue::new(code, path, message));
     }

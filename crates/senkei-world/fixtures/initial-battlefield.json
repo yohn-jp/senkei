@@ -26,177 +26,317 @@
       {
         "id": "A.BASE",
         "allegiance": "a",
-        "kind": "base"
+        "kind": "base",
+        "logical_position": {
+          "x": 80,
+          "y": 1520
+        }
       },
       {
         "id": "B.BASE",
         "allegiance": "b",
-        "kind": "base"
+        "kind": "base",
+        "logical_position": {
+          "x": 1520,
+          "y": 80
+        }
       },
       {
         "id": "N.MID.OBS",
         "allegiance": "neutral",
-        "kind": "observation_base"
+        "kind": "observation_base",
+        "logical_position": {
+          "x": 800,
+          "y": 800
+        }
       },
       {
         "id": "A.TOP.T1",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 220,
+          "y": 1200
+        }
       },
       {
         "id": "A.TOP.T2",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 220,
+          "y": 850
+        }
       },
       {
         "id": "A.TOP.J",
         "allegiance": "a",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 260,
+          "y": 520
+        }
       },
       {
         "id": "A.TOP.BANK",
         "allegiance": "a",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 350,
+          "y": 430
+        }
       },
       {
         "id": "A.MID.T1",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 330,
+          "y": 1270
+        }
       },
       {
         "id": "A.MID.T2",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 510,
+          "y": 1090
+        }
       },
       {
         "id": "A.MID.J",
         "allegiance": "a",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 650,
+          "y": 950
+        }
       },
       {
         "id": "A.MID.BANK",
         "allegiance": "a",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 735,
+          "y": 865
+        }
       },
       {
         "id": "A.BOT.T1",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 400,
+          "y": 1380
+        }
       },
       {
         "id": "A.BOT.T2",
         "allegiance": "a",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 750,
+          "y": 1380
+        }
       },
       {
         "id": "A.BOT.J",
         "allegiance": "a",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 1080,
+          "y": 1340
+        }
       },
       {
         "id": "A.BOT.BANK",
         "allegiance": "a",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 1170,
+          "y": 1250
+        }
       },
       {
         "id": "N.A.UJ",
         "allegiance": "neutral",
-        "kind": "jungle_junction"
+        "kind": "jungle_junction",
+        "logical_position": {
+          "x": 450,
+          "y": 700
+        }
       },
       {
         "id": "N.A.UC",
         "allegiance": "neutral",
-        "kind": "camp"
+        "kind": "camp",
+        "logical_position": {
+          "x": 350,
+          "y": 780
+        }
       },
       {
         "id": "N.A.LJ",
         "allegiance": "neutral",
-        "kind": "jungle_junction"
+        "kind": "jungle_junction",
+        "logical_position": {
+          "x": 900,
+          "y": 1150
+        }
       },
       {
         "id": "N.A.LC",
         "allegiance": "neutral",
-        "kind": "camp"
+        "kind": "camp",
+        "logical_position": {
+          "x": 820,
+          "y": 1250
+        }
       },
       {
         "id": "B.TOP.T1",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 1200,
+          "y": 220
+        }
       },
       {
         "id": "B.TOP.T2",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 850,
+          "y": 220
+        }
       },
       {
         "id": "B.TOP.J",
         "allegiance": "b",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 520,
+          "y": 260
+        }
       },
       {
         "id": "B.TOP.BANK",
         "allegiance": "b",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 430,
+          "y": 350
+        }
       },
       {
         "id": "B.MID.T1",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 1270,
+          "y": 330
+        }
       },
       {
         "id": "B.MID.T2",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 1090,
+          "y": 510
+        }
       },
       {
         "id": "B.MID.J",
         "allegiance": "b",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 950,
+          "y": 650
+        }
       },
       {
         "id": "B.MID.BANK",
         "allegiance": "b",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 865,
+          "y": 735
+        }
       },
       {
         "id": "B.BOT.T1",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 1380,
+          "y": 400
+        }
       },
       {
         "id": "B.BOT.T2",
         "allegiance": "b",
-        "kind": "lane"
+        "kind": "lane",
+        "logical_position": {
+          "x": 1380,
+          "y": 750
+        }
       },
       {
         "id": "B.BOT.J",
         "allegiance": "b",
-        "kind": "junction"
+        "kind": "junction",
+        "logical_position": {
+          "x": 1340,
+          "y": 1080
+        }
       },
       {
         "id": "B.BOT.BANK",
         "allegiance": "b",
-        "kind": "bank"
+        "kind": "bank",
+        "logical_position": {
+          "x": 1250,
+          "y": 1170
+        }
       },
       {
         "id": "N.B.UJ",
         "allegiance": "neutral",
-        "kind": "jungle_junction"
+        "kind": "jungle_junction",
+        "logical_position": {
+          "x": 700,
+          "y": 450
+        }
       },
       {
         "id": "N.B.UC",
         "allegiance": "neutral",
-        "kind": "camp"
+        "kind": "camp",
+        "logical_position": {
+          "x": 780,
+          "y": 350
+        }
       },
       {
         "id": "N.B.LJ",
         "allegiance": "neutral",
-        "kind": "jungle_junction"
+        "kind": "jungle_junction",
+        "logical_position": {
+          "x": 1150,
+          "y": 900
+        }
       },
       {
         "id": "N.B.LC",
         "allegiance": "neutral",
-        "kind": "camp"
+        "kind": "camp",
+        "logical_position": {
+          "x": 1250,
+          "y": 820
+        }
       }
     ],
     "edges": [
@@ -588,6 +728,123 @@
     "entry_nodes": [
       "A.BASE",
       "B.BASE"
+    ]
+  },
+  "runtime_layout": {
+    "attacker_base": "A.BASE",
+    "defender_base": "B.BASE",
+    "lanes": {
+      "top": [
+        "A.BASE",
+        "A.TOP.T1",
+        "A.TOP.T2",
+        "A.TOP.J",
+        "A.TOP.BANK",
+        "B.TOP.BANK",
+        "B.TOP.J",
+        "B.TOP.T2",
+        "B.TOP.T1",
+        "B.BASE"
+      ],
+      "mid": [
+        "A.BASE",
+        "A.MID.T1",
+        "A.MID.T2",
+        "A.MID.J",
+        "A.MID.BANK",
+        "N.MID.OBS",
+        "B.MID.BANK",
+        "B.MID.J",
+        "B.MID.T2",
+        "B.MID.T1",
+        "B.BASE"
+      ],
+      "bot": [
+        "A.BASE",
+        "A.BOT.T1",
+        "A.BOT.T2",
+        "A.BOT.J",
+        "A.BOT.BANK",
+        "B.BOT.BANK",
+        "B.BOT.J",
+        "B.BOT.T2",
+        "B.BOT.T1",
+        "B.BASE"
+      ]
+    },
+    "towers": [
+      {
+        "id": "tower_a_TOP_t1",
+        "node": "A.TOP.T1",
+        "side": "attacker",
+        "lane": "top"
+      },
+      {
+        "id": "tower_a_TOP_t2",
+        "node": "A.TOP.T2",
+        "side": "attacker",
+        "lane": "top"
+      },
+      {
+        "id": "tower_b_TOP_t1",
+        "node": "B.TOP.T1",
+        "side": "defender",
+        "lane": "top"
+      },
+      {
+        "id": "tower_b_TOP_t2",
+        "node": "B.TOP.T2",
+        "side": "defender",
+        "lane": "top"
+      },
+      {
+        "id": "tower_a_MID_t1",
+        "node": "A.MID.T1",
+        "side": "attacker",
+        "lane": "mid"
+      },
+      {
+        "id": "tower_a_MID_t2",
+        "node": "A.MID.T2",
+        "side": "attacker",
+        "lane": "mid"
+      },
+      {
+        "id": "tower_b_MID_t1",
+        "node": "B.MID.T1",
+        "side": "defender",
+        "lane": "mid"
+      },
+      {
+        "id": "tower_b_MID_t2",
+        "node": "B.MID.T2",
+        "side": "defender",
+        "lane": "mid"
+      },
+      {
+        "id": "tower_a_BOT_t1",
+        "node": "A.BOT.T1",
+        "side": "attacker",
+        "lane": "bot"
+      },
+      {
+        "id": "tower_a_BOT_t2",
+        "node": "A.BOT.T2",
+        "side": "attacker",
+        "lane": "bot"
+      },
+      {
+        "id": "tower_b_BOT_t1",
+        "node": "B.BOT.T1",
+        "side": "defender",
+        "lane": "bot"
+      },
+      {
+        "id": "tower_b_BOT_t2",
+        "node": "B.BOT.T2",
+        "side": "defender",
+        "lane": "bot"
+      }
     ]
   },
   "metric": {
@@ -1801,7 +2058,7 @@
       {
         "node_id": "A.MID.BANK",
         "position": {
-          "x": 520,
+          "x": 530,
           "y": 450
         },
         "material_id": "mat.node"
@@ -1921,7 +2178,7 @@
       {
         "node_id": "B.TOP.T1",
         "position": {
-          "x": 1020,
+          "x": 1040,
           "y": 120
         },
         "material_id": "mat.node"
@@ -1929,7 +2186,7 @@
       {
         "node_id": "B.MID.BANK",
         "position": {
-          "x": 680,
+          "x": 670,
           "y": 450
         },
         "material_id": "mat.node"
@@ -1953,7 +2210,7 @@
       {
         "node_id": "B.MID.T1",
         "position": {
-          "x": 1020,
+          "x": 1040,
           "y": 450
         },
         "material_id": "mat.node"
@@ -1985,7 +2242,7 @@
       {
         "node_id": "B.BOT.T1",
         "position": {
-          "x": 1020,
+          "x": 1040,
           "y": 780
         },
         "material_id": "mat.node"
@@ -2137,7 +2394,7 @@
             "y": 450
           },
           {
-            "x": 520,
+            "x": 530,
             "y": 450
           }
         ],
@@ -2242,7 +2499,7 @@
             "y": 120
           },
           {
-            "x": 1020,
+            "x": 1040,
             "y": 120
           }
         ],
@@ -2253,7 +2510,7 @@
         "edge_id": "edge-b-top-t1-b-base",
         "points": [
           {
-            "x": 1020,
+            "x": 1040,
             "y": 120
           },
           {
@@ -2268,7 +2525,7 @@
         "edge_id": "edge-b-mid-bank-b-mid-j",
         "points": [
           {
-            "x": 680,
+            "x": 670,
             "y": 450
           },
           {
@@ -2302,7 +2559,7 @@
             "y": 450
           },
           {
-            "x": 1020,
+            "x": 1040,
             "y": 450
           }
         ],
@@ -2313,7 +2570,7 @@
         "edge_id": "edge-b-mid-t1-b-base",
         "points": [
           {
-            "x": 1020,
+            "x": 1040,
             "y": 450
           },
           {
@@ -2362,7 +2619,7 @@
             "y": 780
           },
           {
-            "x": 1020,
+            "x": 1040,
             "y": 780
           }
         ],
@@ -2373,7 +2630,7 @@
         "edge_id": "edge-b-bot-t1-b-base",
         "points": [
           {
-            "x": 1020,
+            "x": 1040,
             "y": 780
           },
           {
@@ -2418,7 +2675,7 @@
         "edge_id": "edge-a-mid-bank-n-mid-obs",
         "points": [
           {
-            "x": 520,
+            "x": 530,
             "y": 450
           },
           {
@@ -2437,7 +2694,7 @@
             "y": 450
           },
           {
-            "x": 680,
+            "x": 670,
             "y": 450
           }
         ],

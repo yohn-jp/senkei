@@ -90,6 +90,10 @@ pub fn compile(definition: WorldDefinition) -> Result<VerifiedWorld, Vec<WorldIs
                     )
                 })
                 .collect(),
+            runtime_layout: definition.runtime_layout.map(|mut layout| {
+                layout.towers.sort_by(|a, b| a.id.cmp(&b.id));
+                layout
+            }),
         },
         metric: CanonicalMetric {
             edge_lengths_wu: definition

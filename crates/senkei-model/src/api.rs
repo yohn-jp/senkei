@@ -71,6 +71,9 @@ pub struct SimulatePayload {
     pub context: MatchContext,
     /// Local WASM only. Public outputs use `PublicSimulationResponse`.
     pub include_diagnostics: bool,
+    /// Required when diagnostics are requested; authorizes one owner channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics_side: Option<crate::CombatantSide>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +85,8 @@ pub struct PreflightPayload {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSimulationResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorized_side: Option<crate::CombatantSide>,
     /// Restricted attacker-perspective projection; absent from public responses.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner_replay: Option<crate::PresentationReplay>,

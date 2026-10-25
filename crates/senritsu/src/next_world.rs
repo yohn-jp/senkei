@@ -7,7 +7,7 @@
 // World identities and runtime semantics are proven compatible.
 #![allow(dead_code)]
 
-use senkei_model::{BattleMap, MapEdge, MapNode, TowerPlacement};
+use senkei_model::{BattleMap, BattleMapWorldProjection, MapEdge, MapNode, TowerPlacement, WorldEdgeFacts, WorldRiverCrossing, WorldTrackRange};
 use senkei_world::{
     CanonicalPresentationWorld, CanonicalSimulationWorld, EdgeClass, NodeKind,
     ObservationSemantics, RiverCrossingKind, TrackKind, TerrainKind, VerifiedWorld,
@@ -199,18 +199,33 @@ pub fn project_verified_world(
             ),
         ));
     }
-    let metadata = metadata.ok_or_else(|| {
-        adapter_error(
-            "missing_explicit_battle_map_metadata",
-            concat!(
-                "World Definition does not declare lane routes or tower placements; ",
-                "provide bases, lanes, and towers explicitly"
-            ),
-        )
-    })?;
-
     let simulation = world.simulation_world();
     let presentation = world.presentation_world();
+    let authored_layout = simulation.topology.runtime_layout.as_ref().ok_or_else(|| {
+        adapter_error("missing_runtime_layout", "World Definition does not declare bases, lane routes, and tower placements")
+    })?;
+    let authored_metadata = ExplicitBattleMapMetadata {
+        attacker_base: authored_layout.attacker_base.clone(),
+        defender_base: authored_layout.defender_base.clone(),
+        lanes: authored_layout.lanes.clone(),
+        towers: authored_layout.towers.iter().map(|tower| TowerPlacement {
+            id: tower.id.clone(), node: tower.node.clone(), side: tower.side.clone(), lane: tower.lane.clone(),
+        }).collect(),
+    };
+    if let Some(supplied) = metadata {
+        let mut supplied_towers = supplied.towers.clone();
+        let mut authored_towers = authored_metadata.towers.clone();
+        supplied_towers.sort_by(|a, b| a.id.cmp(&b.id));
+        authored_towers.sort_by(|a, b| a.id.cmp(&b.id));
+        if supplied.attacker_base != authored_metadata.attacker_base
+            || supplied.defender_base != authored_metadata.defender_base
+            || supplied.lanes != authored_metadata.lanes
+            || supplied_towers != authored_towers
+        {
+            return Err(adapter_error("runtime_layout_mismatch", "supplemental routes/towers do not match the compiled World layout"));
+        }
+    }
+    let metadata = &authored_metadata;
     validate_explicit_metadata(metadata, simulation)?;
 
     let mut nodes = BTreeMap::new();
@@ -224,8 +239,10 @@ pub fn project_verified_world(
         nodes.insert(
             id.clone(),
             MapNode {
-                x: i64::from(view.position.x),
-                y: i64::from(view.position.y),
+                x: i64::from(node.logical_position.x),
+                y: i64::from(node.logical_position.y),
+                presentation_x: i64::from(view.position.x),
+                presentation_y: i64::from(view.position.y),
                 region: runtime_node_region(id, node.kind)?,
                 allegiance: match node.allegiance {
                     senkei_world::Allegiance::A => "A",
@@ -313,10 +330,11 @@ pub fn project_verified_world(
         simulation: simulation.clone(),
         presentation: presentation.clone(),
         candidate_map: BattleMap {
-            // Preserve the authored stable identity; never rename a fixture to
-            // make it look like the production v2 map.
-            id: identity.world_id.clone(),
+            // Runtime map ID is a versioned projection alias. The source World
+            // identity remains separately preserved in the binding below.
+            id: BATTLEFIELD_MAP_ID.into(),
             world_identity: Some(identity.to_model_ref()),
+            world_projection: Some(world_projection(identity, simulation)?),
             nodes,
             edges,
             lanes: metadata.lanes.clone(),
@@ -324,6 +342,60 @@ pub fn project_verified_world(
             defender_base: metadata.defender_base.clone(),
             towers: metadata.towers.clone(),
         },
+    })
+}
+
+fn world_projection(
+    identity: &WorldIdentity,
+    simulation: &CanonicalSimulationWorld,
+) -> Result<BattleMapWorldProjection, WorldMapAdapterError> {
+    let mut edge_facts = BTreeMap::new();
+    for (id, edge) in &simulation.topology.edges {
+        let profile_id = simulation.terrain.edge_profiles.get(id).ok_or_else(|| {
+            adapter_error("missing_edge_terrain", format!("World edge '{id}' has no terrain profile"))
+        })?;
+        let profile = simulation.terrain.profiles.get(profile_id).ok_or_else(|| {
+            adapter_error("missing_terrain_profile", format!("World terrain profile '{profile_id}' is missing"))
+        })?;
+        let tracks = simulation.metric.edge_tracks.get(id).ok_or_else(|| {
+            adapter_error("missing_edge_tracks", format!("World edge '{id}' has no tracks"))
+        })?;
+        let crossing = edge.river_crossing.as_ref().map(|crossing| {
+            let range = simulation.metric.river_crossing_ranges.get(id).ok_or_else(|| {
+                adapter_error("missing_crossing_range", format!("World crossing '{id}' has no progress range"))
+            })?;
+            if crossing.river_id != range.river_id {
+                return Err(adapter_error("crossing_river_mismatch", format!("World crossing '{id}' river IDs disagree")));
+            }
+            Ok(WorldRiverCrossing {
+                river_id: crossing.river_id.clone(),
+                kind: match crossing.kind { RiverCrossingKind::FixedBridge => "fixed_bridge", RiverCrossingKind::FixedFacilityBridge => "fixed_facility_bridge", RiverCrossingKind::FootFord => "foot_ford" }.into(),
+                bridge_site_id: crossing.bridge_site_id.clone(),
+                start_progress_wu: range.start_progress_wu,
+                end_progress_wu: range.end_progress_wu,
+            })
+        }).transpose()?;
+        edge_facts.insert(id.clone(), WorldEdgeFacts {
+            directionality: match edge.directionality { senkei_world::Directionality::Bidirectional => "bidirectional", senkei_world::Directionality::FromTo => "from_to", senkei_world::Directionality::ToFrom => "to_from" }.into(),
+            class: match edge.class { EdgeClass::Lane => "lane", EdgeClass::Jungle => "jungle", EdgeClass::Other => "other" }.into(),
+            tracks: tracks.iter().map(|track| WorldTrackRange {
+                id: track.id.clone(),
+                kind: match track.kind { TrackKind::Left => "left", TrackKind::Center => "center", TrackKind::Right => "right", TrackKind::Single => "single", TrackKind::Other => "other" }.into(),
+                start_progress_wu: track.start_progress_wu,
+                end_progress_wu: track.end_progress_wu,
+            }).collect(),
+            river_crossing: crossing,
+            terrain_profile_id: profile_id.clone(),
+            terrain_kind: match profile.kind { TerrainKind::Lane => "lane", TerrainKind::Jungle => "jungle", TerrainKind::Riverbank => "riverbank", TerrainKind::Camp => "camp", TerrainKind::Other => "other" }.into(),
+            observation_semantics: match profile.observation { ObservationSemantics::Open => "open", ObservationSemantics::Concealing => "concealing", ObservationSemantics::BlocksLineOfSight => "blocks_line_of_sight", ObservationSemantics::ElevatedObservation => "elevated_observation" }.into(),
+        });
+    }
+    Ok(BattleMapWorldProjection {
+        schema_version: RUNTIME_BATTLE_MAP_PROJECTION_SCHEMA,
+        source_identity: identity.to_model_ref(),
+        node_ids: simulation.topology.nodes.keys().cloned().collect(),
+        edge_facts,
+        bridge_sites: simulation.topology.bridge_sites.iter().map(|(id, site)| (id.clone(), site.edge_ids.clone())).collect(),
     })
 }
 
@@ -753,7 +825,7 @@ fn nonrepresentable_terrain(simulation: &CanonicalSimulationWorld) -> Vec<String
 }
 
 /// Construct the canonical 35-node, 42-edge battlefield from BATTLEFIELD.md.
-pub fn battle_map() -> BattleMap {
+pub fn legacy_battle_map() -> BattleMap {
     let mut nodes = BTreeMap::new();
     let mut add_node = |id: &str, x: i64, y: i64, region: &str, allegiance: &str| {
         nodes.insert(
@@ -761,6 +833,8 @@ pub fn battle_map() -> BattleMap {
             MapNode {
                 x,
                 y,
+                presentation_x: 0,
+                presentation_y: 0,
                 region: region.into(),
                 allegiance: allegiance.into(),
             },
@@ -1108,7 +1182,8 @@ pub fn battle_map() -> BattleMap {
         .collect();
     BattleMap {
         id: BATTLEFIELD_MAP_ID.into(),
-        world_identity: Some(compiled_authored_world().identity().to_model_ref()),
+        world_identity: None,
+        world_projection: None,
         nodes,
         edges,
         lanes,
@@ -1116,6 +1191,17 @@ pub fn battle_map() -> BattleMap {
         defender_base: "B.BASE".into(),
         towers,
     }
+}
+
+/// Compile the authored World and produce its versioned runtime projection.
+/// Route and tower metadata is supplied explicitly to the projector because
+/// the current World Definition schema does not author those items yet.
+pub fn battle_map() -> BattleMap {
+    let world = compiled_authored_world();
+    project_verified_world(&world, None)
+        .expect("checked-in World and explicit route/tower projection are compatible")
+        .runtime_map()
+        .clone()
 }
 
 /// Exact arithmetic time over a route, using distance and terrain millirates.
@@ -1145,11 +1231,13 @@ mod tests {
         // Identity includes the paired presentation digest, so strip it when
         // comparing simulation-only map semantics.
         projection.world_identity = None;
+        if let Some(source) = projection.world_projection.as_mut() {
+            source.source_identity.presentation_digest =
+                senkei_model::ContentDigest::new("0".repeat(64));
+        }
         for node in projection.nodes.values_mut() {
-            // `BattleMap` combines presentation coordinates with logic. Zero
-            // those fields to compare only the runtime rule projection.
-            node.x = 0;
-            node.y = 0;
+            node.presentation_x = 0;
+            node.presentation_y = 0;
         }
         projection
     }
@@ -1157,7 +1245,7 @@ mod tests {
     #[test]
     fn authored_world_adapter_preserves_ids_and_reports_v2_non_equivalence() {
         let world = compiled_authored_world();
-        let runtime = battle_map();
+        let runtime = legacy_battle_map();
         assert_eq!(world.simulation_world().topology.nodes.len(), 35);
         assert_eq!(world.simulation_world().topology.edges.len(), 42);
         assert_eq!(
@@ -1170,13 +1258,12 @@ mod tests {
             7_020
         );
 
-        let missing_metadata = project_verified_world(&world, None)
-            .expect_err("World has no authored lane-route or tower-placement fields");
-        assert_eq!(missing_metadata.code, "missing_explicit_battle_map_metadata");
-
         let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
-        let adapted = project_verified_world(&world, Some(&metadata))
-            .expect("typed, explicit runtime metadata permits a candidate projection");
+        let adapted = project_verified_world(&world, None)
+            .expect("World Definition directly authors its versioned lane and tower layout");
+        let confirmed = project_verified_world(&world, Some(&metadata))
+            .expect("matching supplemental metadata confirms the canonical authored layout");
+        assert_eq!(adapted.runtime_map(), confirmed.runtime_map());
         assert_eq!(adapted.identity().world_id, "senkei-battlefield");
         assert_ne!(adapted.identity().world_id, BATTLEFIELD_MAP_ID);
         assert_eq!(adapted.simulation_world(), world.simulation_world());
@@ -1260,7 +1347,7 @@ mod tests {
         );
         assert_eq!(first.simulation_world(), changed.simulation_world());
 
-        let runtime = battle_map();
+        let runtime = legacy_battle_map();
         let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
         let first_adapter = project_verified_world(&first, Some(&metadata)).unwrap();
         let changed_adapter = project_verified_world(&changed, Some(&metadata)).unwrap();
@@ -1305,6 +1392,7 @@ mod tests {
     fn canonical_topology_has_exact_ids_edges_sites_and_no_hidden_shortcuts() {
         let map = battle_map();
         assert_eq!(map.id, BATTLEFIELD_MAP_ID);
+        assert!(map.world_projection.is_some());
         assert_eq!(map.nodes.len(), 35);
         assert_eq!(map.edges.len(), 42);
         assert_eq!(map.towers.len(), 12);
@@ -1341,7 +1429,7 @@ mod tests {
             assert!(map.nodes.contains_key(&e.from) && map.nodes.contains_key(&e.to));
             assert!(e.length > 0 && !e.blocked);
         }
-        let bridge_sites: BTreeMap<_, Vec<_>> = ["TOP", "MID", "BOT"]
+        let bridge_sites: BTreeMap<_, Vec<_>> = ["bridge.top", "bridge.mid", "bridge.bot"]
             .into_iter()
             .map(|site| {
                 (
@@ -1350,9 +1438,9 @@ mod tests {
                 )
             })
             .collect();
-        assert_eq!(bridge_sites["TOP"].len(), 1);
-        assert_eq!(bridge_sites["BOT"].len(), 1);
-        assert_eq!(bridge_sites["MID"].len(), 2);
+        assert_eq!(bridge_sites["bridge.top"].len(), 1);
+        assert_eq!(bridge_sites["bridge.bot"].len(), 1);
+        assert_eq!(bridge_sites["bridge.mid"].len(), 2);
         assert!(map.edges.iter().filter(|e| !e.bridge_site.is_empty()).all(|e| !e.ford), "a bridge-site edge is not a permanent ford; breakage enables ford traversal dynamically");
         assert_eq!(
             map.edges.iter().filter(|e| e.ford).count(),
@@ -1379,7 +1467,7 @@ mod tests {
             assert!(route.windows(2).all(|p| edge_exists(&map, &p[0], &p[1])));
             assert_eq!(route_distance(&map, lane), 1000, "{lane}");
         }
-        for lane in ["TOP", "BOT"] {
+        for lane in ["bridge.top", "bridge.bot"] {
             assert_eq!(
                 map.edges
                     .iter()
@@ -1392,7 +1480,7 @@ mod tests {
         assert_eq!(
             map.edges
                 .iter()
-                .filter(|e| e.bridge_site == "MID")
+                .filter(|e| e.bridge_site == "bridge.mid")
                 .map(|e| e.length)
                 .sum::<i64>(),
             100
@@ -1427,13 +1515,13 @@ mod tests {
         ]);
         for (a, b) in rotation_pairs {
             assert_eq!(
-                (map.nodes[&b].x, map.nodes[&b].y),
-                (1600 - map.nodes[&a].x, 1600 - map.nodes[&a].y),
+                (map.nodes[&b].presentation_x, map.nodes[&b].presentation_y),
+                (1200 - map.nodes[&a].presentation_x, 900 - map.nodes[&a].presentation_y),
                 "{a} ↔ {b} 180° rotation symmetry"
             );
         }
 
-        let point = |id: &str| (map.nodes[id].x, map.nodes[id].y);
+        let point = |id: &str| (map.nodes[id].presentation_x, map.nodes[id].presentation_y);
         for id in [
             "A.TOP.BANK",
             "B.TOP.BANK",
@@ -1456,27 +1544,28 @@ mod tests {
             ((x1 + x2) / 2, (y1 + y2) / 2)
         };
         let river_crossings = [
-            edge_midpoint("bridge.TOP"),
-            edge_midpoint("ford.jungle.upper"),
+            edge_midpoint("edge-a-top-bank-b-top-bank"),
+            edge_midpoint("edge-n-a-uj-n-b-uj"),
             point("N.MID.OBS"),
-            edge_midpoint("ford.jungle.lower"),
-            edge_midpoint("bridge.BOT"),
+            edge_midpoint("edge-n-a-lj-n-b-lj"),
+            edge_midpoint("edge-a-bot-bank-b-bot-bank"),
         ];
         assert_eq!(
             river_crossings,
             [
-                (390, 390),
-                (575, 575),
-                (800, 800),
-                (1025, 1025),
-                (1210, 1210)
+                (600, 120),
+                (600, 285),
+                (600, 450),
+                (600, 615),
+                (600, 780)
             ]
         );
         assert!(river_crossings
             .windows(2)
-            .all(|pair| pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1));
+            .all(|pair| pair[0].0 == pair[1].0 && pair[0].1 < pair[1].1));
         assert!(map.nodes.values().all(|node| {
-            (0..=1600).contains(&node.x) && (0..=1600).contains(&node.y)
+            (0..=1200).contains(&node.presentation_x)
+                && (0..=900).contains(&node.presentation_y)
         }));
     }
 
