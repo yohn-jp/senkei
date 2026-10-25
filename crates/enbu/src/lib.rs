@@ -70,17 +70,25 @@ impl<'a> EvalContext<'a> {
     }
 }
 
-/// Run a complete deterministic match using the shared tactical execution
-/// port. Both sides see the same pre-transition world snapshot on every tick.
-pub fn simulate<P: TacticalExecutionPort>(
+/// Validate and construct the same initial world used by simulation, without
+/// executing Jinrei or producing match output.
+pub fn preflight(
     attacker: &senkei_model::SenkeiSnapshot,
     defender: &senkei_model::SenkeiSnapshot,
     rules: &VerifiedRulePlan,
     context: &MatchContext,
-    executor: &mut P,
-) -> Result<SimulationArtifact, ApiError> {
-    validation::validate_inputs(attacker, defender, rules, context)?;
+) -> Result<(), ApiError> {
+    let (world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    evaluate_termination(rules.plan(), &world, 0, &projection_index).map(|_| ())
+}
 
+fn initialize_match(
+    attacker: &senkei_model::SenkeiSnapshot,
+    defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan,
+    context: &MatchContext,
+) -> Result<(WorldState, world::ProjectionIndex), ApiError> {
+    validation::validate_inputs(attacker, defender, rules, context)?;
     let plan = rules.plan();
     let (mut world, projection_index) = world::initialize(
         &context.initial_world,
@@ -103,6 +111,20 @@ pub fn simulate<P: TacticalExecutionPort>(
     validation::validate_configuration(&defender.configuration, plan, &world)?;
     validation::validate_memory(&attacker.initial_memory, plan, &world)?;
     validation::validate_memory(&defender.initial_memory, plan, &world)?;
+    Ok((world, projection_index))
+}
+
+/// Run a complete deterministic match using the shared tactical execution
+/// port. Both sides see the same pre-transition world snapshot on every tick.
+pub fn simulate<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot,
+    defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan,
+    context: &MatchContext,
+    executor: &mut P,
+) -> Result<SimulationArtifact, ApiError> {
+    let (mut world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    let plan = rules.plan();
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),
         (CombatantSide::Defender, defender.initial_memory.clone()),

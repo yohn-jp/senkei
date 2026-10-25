@@ -46,10 +46,10 @@ import { createBeginnerPreset, createCampaignScenarios } from "../../../scenario
 type AppView = WorkspaceView | "next";
 
 const navigation: readonly { id: AppView; label: string; number: string }[] = [
-  { id: "editor", label: "Tactics", number: "01" },
+  { id: "editor", label: "旧版 Tactics", number: "01" },
   { id: "next", label: "Next", number: "02" },
-  { id: "battle", label: "Battle lab", number: "03" },
-  { id: "persistence", label: "Library", number: "04" },
+  { id: "battle", label: "旧版 Battle lab", number: "03" },
+  { id: "persistence", label: "旧版 Library", number: "04" },
 ];
 
 const EMPTY_WORKSPACE_DATA: LocalSenkeiWorkspaceData = Object.freeze({
@@ -181,7 +181,15 @@ function summarizeBenchmark(
 }
 
 function App() {
-  const [view, setView] = useState<AppView>("editor");
+  const [view, setView] = useState<AppView>("next");
+  const [nextEntry, setNextEntry] = useState({ screen: "home" as "home" | "workspace", request: 0 });
+  const [legacyMenuOpen, setLegacyMenuOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 761px)");
+    const update = () => setLegacyMenuOpen(desktop.matches);
+    desktop.addEventListener("change", update);
+    return () => desktop.removeEventListener("change", update);
+  }, []);
   const [core, setCore] = useState<CoreClient | null>(null);
   const [ruleset, setRuleset] = useState<RulePackage | null>(null);
   const [nextRuleset, setNextRuleset] = useState<RulePackage | null>(null);
@@ -618,7 +626,7 @@ function App() {
   return (
     <main className="app-shell" data-testid="app-shell">
       <aside className="sidebar">
-        <a className="wordmark" href="#workspace" aria-label="Senkei home">
+        <a className="wordmark" href="#workspace" aria-label="Senkei home" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "home", request: value.request + 1 })); }}>
           <span className="wordmark-mark">S</span>
           <span>
             <strong>SENKEI</strong>
@@ -626,9 +634,14 @@ function App() {
           </span>
         </a>
 
-        <div className="workspace-label">WORKSPACE</div>
+        <div className="workspace-label">LOCAL PLAY</div>
         <nav className="primary-nav" aria-label="Workspace" data-testid="workspace-nav">
-          {navigation.map((item) => (
+          <button className="nav-item" data-testid="nav-home" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "home", request: value.request + 1 })); }} type="button">Home<span>開始・再開</span></button>
+          <button aria-current={view === "next" ? "page" : undefined} className={`nav-item${view === "next" ? " is-active" : ""}`} data-testid="nav-next" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "workspace", request: value.request + 1 })); }} type="button"><span className="nav-number">02</span><span>Next</span><span className="nav-arrow">↗</span></button>
+          <details className="legacy-navigation" open={legacyMenuOpen} onToggle={event => setLegacyMenuOpen(event.currentTarget.open)}>
+          <summary>旧版・サンプル</summary>
+          <div className="legacy-navigation-items">
+          {navigation.filter(item => item.id !== "next").map((item) => (
             <button
               aria-current={view === item.id ? "page" : undefined}
               className={`nav-item${view === item.id ? " is-active" : ""}`}
@@ -645,6 +658,8 @@ function App() {
           <a className="nav-item" href="/graphics/">
             <span className="nav-number">G1</span><span>サンプル演武</span><span className="nav-arrow">↗</span>
           </a>
+          </div>
+          </details>
         </nav>
 
         <div className="sidebar-bottom">
@@ -661,7 +676,7 @@ function App() {
         </header>
 
         <div className="page-content" data-testid="workspace-view" data-view={view}>
-          <div className="page-heading">
+          <div className="page-heading" hidden={view === "next"}>
             <div>
               <div className="feature-eyebrow">DESIGN · TEST · REFINE</div>
               <h1>Your strategy, <em>in motion.</em></h1>
@@ -677,6 +692,7 @@ function App() {
           <div className="next-view-shell" hidden={view !== "next"}>
             <NextWorkspace
               active={view === "next"}
+              entry={nextEntry}
               core={core}
               ruleset={nextRuleset}
               rulesetError={nextRulesetError}

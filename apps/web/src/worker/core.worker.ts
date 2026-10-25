@@ -16,6 +16,7 @@ type RequestOperation =
   | "compile"
   | "parse_text"
   | "format_ast"
+  | "preflight"
   | "simulate"
   | "benchmark";
 
@@ -131,6 +132,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "compile" &&
     operation !== "parse_text" &&
     operation !== "format_ast" &&
+    operation !== "preflight" &&
     operation !== "simulate" &&
     operation !== "benchmark"
   ) {
@@ -204,6 +206,10 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       requireBoolean(payload.include_diagnostics, "simulate.include_diagnostics");
       validateSnapshot(payload.snapshot, "simulate.snapshot");
       return;
+    case "preflight":
+      requireRecord(payload.snapshot, "preflight.snapshot");
+      validateSnapshot(payload.snapshot, "preflight.snapshot");
+      return;
     case "benchmark":
       if (!Array.isArray(payload.cases)) {
         throw new RequestFailure("invalid_request", "benchmark.cases must be an array.");
@@ -269,6 +275,14 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     }
     case "simulate":
       return runSimulation(request.payload, request.request_id);
+    case "preflight": {
+      const snapshot = requireRecord(request.payload.snapshot, "preflight.snapshot");
+      return callCore("preflight", {
+        attacker: snapshot.attacker,
+        defender: snapshot.defender,
+        context: snapshot.context,
+      }, request.request_id);
+    }
     case "benchmark":
       return runBenchmark(request.payload, request.request_id);
   }

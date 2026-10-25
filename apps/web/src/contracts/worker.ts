@@ -60,6 +60,10 @@ export type WebWorkerRequest =
       };
     })
   | (WorkerRequestBase & {
+      readonly operation: "preflight";
+      readonly payload: { readonly snapshot: SimulationSnapshot };
+    })
+  | (WorkerRequestBase & {
       readonly operation: "benchmark";
       readonly payload: { readonly cases: readonly BenchmarkCase[] };
     });
@@ -110,6 +114,11 @@ export type WebWorkerResponse =
       readonly operation: "simulate";
       readonly ok: true;
       readonly result: SimulationResponse;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "preflight";
+      readonly ok: true;
+      readonly result: null;
     })
   | (WorkerResponseBase & {
       readonly operation: "benchmark";
@@ -168,6 +177,10 @@ export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "simulate";
       readonly payload: SimulationSnapshot & { readonly include_diagnostics: boolean };
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "preflight";
+      readonly payload: SimulationSnapshot;
     });
 
 export interface WebCoreApiSuccess<TValue = unknown> {

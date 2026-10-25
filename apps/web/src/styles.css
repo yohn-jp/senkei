@@ -12,6 +12,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 
@@ -170,4 +171,18 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
     max-width: calc(100% - 16px); top: auto !important;
     transform: none !important; z-index: 2;
   }
+}
+
+.primary-nav [data-testid="nav-home"] { display: block; }
+.legacy-navigation { display: contents; }
+.legacy-navigation > summary { display: none; }
+.legacy-navigation-items { display: grid; gap: 6px; }
+.primary-nav [data-testid="nav-home"] > span { display: block; font-size: 10px; margin-top: 4px; }
+@media (max-width: 760px) {
+  .primary-nav { align-items: start; }
+  .primary-nav > .nav-item { min-height: 48px; text-align: center; }
+  .legacy-navigation { display: block; flex: 1; min-width: 0; }
+  .legacy-navigation > summary { border: 1px solid var(--line); border-radius: 4px; color: #abb4b5; cursor: pointer; display: block; font-size: 10px; min-height: 48px; padding: 16px 4px; text-align: center; }
+  .legacy-navigation-items { margin-top: 6px; }
+  .legacy-navigation-items .nav-item { min-height: 44px; }
 }

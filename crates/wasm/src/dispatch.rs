@@ -1,7 +1,7 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    NewMatchContextPayload, ParseTextPayload, RulesetRef, SimulatePayload, VerifiedRulePlan,
+    NewMatchContextPayload, ParseTextPayload, PreflightPayload, RulesetRef, SimulatePayload, VerifiedRulePlan,
     Version, WASM_API_VERSION,
 };
 use serde::de::DeserializeOwned;
@@ -167,6 +167,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         "format_ast" => format_ast(payload),
         "compile_text" => compile_text(payload),
         "compile_ast" => compile_ast(payload),
+        "preflight" => preflight(payload),
         "simulate" => simulate(payload),
         _ => Err(api_error(
             ApiErrorCode::InvalidRequest,
@@ -312,6 +313,18 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
             }),
     };
     Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+fn preflight(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: PreflightPayload = decode(payload, "payload")?;
+    let rules = resolve_ruleset(&request.context.ruleset)?;
+    let max_output_bytes = rules
+        .plan()
+        .limits
+        .max_output_bytes
+        .min(request.context.host_limits.max_output_bytes);
+    enbu::preflight(&request.attacker, &request.defender, &rules, &request.context)?;
+    Ok((Value::Null, max_output_bytes))
 }
 
 fn resolve_ruleset(expected: &RulesetRef) -> Result<VerifiedRulePlan, ApiError> {

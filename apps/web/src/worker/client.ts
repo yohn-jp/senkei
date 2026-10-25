@@ -110,6 +110,10 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("compile", input) as Promise<CompileOutcome>;
   }
 
+  preflight(snapshot: SimulationSnapshot): Promise<void> {
+    return this.request("preflight", { snapshot }) as Promise<void>;
+  }
+
   simulate(
     snapshot: SimulationSnapshot,
     options: { readonly include_diagnostics?: boolean } = {},
