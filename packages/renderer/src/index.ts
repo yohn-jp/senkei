@@ -331,7 +331,6 @@ export class Battlefield {
   private pixel = true;
   private destroyed = false;
   private cameraMode: BattlefieldCameraMode = "tactical";
-  private presentationMode: BattlefieldPresentationMode = "tactical";
   private userCameraChanged = false;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
@@ -908,7 +907,6 @@ export class Battlefield {
   }
   /** Selects the rendering emphasis without changing the replay or information authorization. */
   setPresentationMode(mode: BattlefieldPresentationMode) {
-    this.presentationMode = mode;
     this.canvas.dataset.presentationMode = mode;
     this.gl.toneMappingExposure = mode === "tactical" ? 0.96 : 1.04;
     this.scene.background = new THREE.Color(mode === "tactical" ? 0x263f4e : 0x22353d);
