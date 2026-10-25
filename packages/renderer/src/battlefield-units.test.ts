@@ -65,11 +65,14 @@ function worldBounds(root: THREE.Object3D): THREE.Box3 {
 
 describe("Battlefield unit models", () => {
   it("keeps focused targets detailed while reducing untracked LOD by screen occupancy", () => {
-    expect(battlefieldUnitLodLevel(10, true)).toBe(0);
-    expect(battlefieldUnitLodLevel(75.9, false)).toBe(1);
-    expect(battlefieldUnitLodLevel(31.9, false)).toBe(2);
-    expect(battlefieldUnitLodLevel(76, false)).toBe(0);
-    expect(battlefieldUnitLodLevel(32, false)).toBe(1);
+    expect(battlefieldUnitLodLevel(10, true, false)).toBe(0);
+    expect(battlefieldUnitLodLevel(75.9, false, true)).toBe(0);
+    expect(battlefieldUnitLodLevel(17.9, false, true)).toBe(2);
+    expect(battlefieldUnitLodLevel(18, false, true)).toBe(1);
+    expect(battlefieldUnitLodLevel(127.9, false, false)).toBe(1);
+    expect(battlefieldUnitLodLevel(49.9, false, false)).toBe(2);
+    expect(battlefieldUnitLodLevel(128, false, false)).toBe(0);
+    expect(battlefieldUnitLodLevel(50, false, false)).toBe(1);
   });
 
   it("builds twelve Atelier identities with articulated rig anchors and bounded LOD draw calls", () => {
@@ -108,6 +111,8 @@ describe("Battlefield unit models", () => {
         expect(mesh.receiveShadow).toBe(true);
         expect(mesh.geometry.getAttribute("position").count).toBeGreaterThan(0);
       }
+      for (const level of levels.slice(1))
+        expect(meshes(level).every(mesh => !mesh.castShadow), `${id} reduced LOD skips the shadow-map pass`).toBe(true);
     }
     expect(names).toHaveProperty("size", 12);
   });

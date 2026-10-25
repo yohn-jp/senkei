@@ -845,6 +845,11 @@ function attachLod(group: THREE.Group, name: string, entries: readonly { distanc
     const level = new THREE.Group();
     level.name = `${name}.${index === 0 ? "full" : index === 1 ? "medium" : "far"}`;
     const rig = entry.build(level);
+    if (index > 0) {
+      // Lower LODs retain their authored silhouettes and receive the world
+      // shadow, while avoiding a second high cost draw pass for tiny units.
+      level.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = false; });
+    }
     if (index === 0) fullRig = rig;
     levels.push(level.name);
     lod.addLevel(level, entry.distance);

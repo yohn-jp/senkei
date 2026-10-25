@@ -15,6 +15,7 @@ import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
+import { battlefieldModelGeometrySignature } from "./battlefield-model-signature";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -1385,14 +1386,27 @@ export class Battlefield {
   private healthBar(parent: THREE.Group, e: DisplayEntity, y: number) {
     const sideColor = colors[e.side];
     const bar = box(parent, [0.92, 0.075, 0.1], [0, y, 0], 0x253b43);
+    bar.name = "health-bar-background";
     bar.castShadow = false;
+    const ratio = THREE.MathUtils.clamp(e.maxHp > 0 ? e.hp / e.maxHp : 0, 0, 1);
     const hp = box(
       parent,
-      [Math.max(0.02, (0.84 * e.hp) / e.maxHp), 0.07, 0.11],
-      [-0.42 * (1 - e.hp / e.maxHp), y + 0.008, 0.005],
+      [0.84, 0.07, 0.11],
+      [-0.42 * (1 - ratio), y + 0.008, 0.005],
       sideColor,
     );
+    hp.name = "health-bar-fill";
+    hp.scale.x = Math.max(0.02 / 0.84, ratio);
     hp.castShadow = false;
+  }
+  private updateHealthBar(group: THREE.Group, e: DisplayEntity) {
+    const fill = group.getObjectByName("health-bar-fill");
+    if (!(fill instanceof THREE.Mesh)) return;
+    const ratio = THREE.MathUtils.clamp(e.maxHp > 0 ? e.hp / e.maxHp : 0, 0, 1);
+    fill.scale.x = Math.max(0.02 / 0.84, ratio);
+    fill.position.x = -0.42 * (1 - ratio);
+    const material = Array.isArray(fill.material) ? fill.material[0] : fill.material;
+    if (material instanceof THREE.MeshStandardMaterial) material.color.set(colors[e.side]);
   }
   private canonicalAppearance(e: DisplayEntity) {
     const catalogId = e.catalogId?.toLowerCase();
@@ -1932,11 +1946,12 @@ export class Battlefield {
     for (const e of Object.values(state.entities)) {
       if (!shown(e)) continue;
       let g = this.units.get(e.id);
-      // Logical progress changes every tick, but the model's anatomy does not.
-      // Keep rigs and LOD buffers across movement; rebuild only for model/vitals changes.
-      const signature = `${e.hp}:${e.maxHp}:${e.destroyed}:${e.appearanceKey}:${e.side}`;
-      if (!g || g.userData.signature !== signature) {
+      // Logical progress and HP bars update per tick; only authored geometry
+      // identity or a visible structural stage change rebuilds model buffers.
+      const signature = battlefieldModelGeometrySignature(e, Boolean(this.replay.scene.routes?.length));
+      if (!g || g.userData.geometrySignature !== signature) {
         const position = g?.position.clone();
+        const rotation = g?.rotation.clone();
         if (g) {
           this.scene.remove(g);
           disposeTree(g);
@@ -1946,7 +1961,9 @@ export class Battlefield {
         const dyingHero = Boolean(this.replay.scene.routes?.length &&
           e.destroyed && recentDeaths.has(e.id) && this.isHero(e));
         g = this.model(dyingHero ? { ...e, destroyed: false } : e);
-        g.userData.signature = signature;
+        g.userData.geometrySignature = signature;
+        g.userData.entityId = e.id;
+        if (rotation) g.rotation.copy(rotation);
         if (position && !this.replay.scene.routes?.length) g.position.copy(position);
         else {
           const point = this.renderPoint(e);
@@ -1955,6 +1972,7 @@ export class Battlefield {
         this.units.set(e.id, g);
         this.scene.add(g);
       }
+      this.updateHealthBar(g, e);
       let label = this.entityLabels.get(e.id);
       if (!label) {
         label = document.createElement("span");
@@ -2367,6 +2385,7 @@ export class Battlefield {
         g.userData.actionPose = actionPose;
         const rigMotion = battlefieldUnitRigMotion(actionPose);
         const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
+        const entity = this.state?.entities[g.userData.entityId];
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
           const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
@@ -2377,14 +2396,13 @@ export class Battlefield {
             const [width, height, depth] = g.userData.modelBounds ?? [0, g.userData.modelHeight ?? 2.5, 0];
             const projectedHeight = Math.abs(cameraUp.x) * width + Math.abs(cameraUp.y) * height + Math.abs(cameraUp.z) * depth;
             const pixels = projectedHeight * this.host.clientHeight * this.camera.zoom / (this.camera.top - this.camera.bottom);
-            const levelIndex = battlefieldUnitLodLevel(pixels, focused);
+            const levelIndex = battlefieldUnitLodLevel(pixels, focused, Boolean(entity && this.isHero(entity)));
             lod.autoUpdate = false;
             lod.levels.forEach((level, index) => { level.object.visible = index === Math.min(levelIndex, lod.levels.length - 1); });
             g.userData.lodLevel = levelIndex;
             g.userData.lodPixelHeight = Number(pixels.toFixed(2));
           }
           const subject = this.trackedIds.length === 1 ? this.state?.entities[this.trackedIds[0]!] : undefined;
-          const entity = this.state?.entities[g.userData.entityId];
           const companion = Boolean(subject && entity && subject.id !== entity.id &&
             Math.hypot(subject.position.x - entity.position.x, subject.position.y - entity.position.y) < 2.5);
           const opacity = companion ? 0.27 : 1;
