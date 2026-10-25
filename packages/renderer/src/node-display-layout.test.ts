@@ -32,7 +32,11 @@ function unit(id: string, node: string, position: WorldPoint, extra: Partial<Dis
 }
 
 function state(...entities: DisplayEntity[]): DisplayState {
-  return { tick: 1, entities: Object.fromEntries(entities.map((entity) => [entity.id, entity])), cues: [], result: null } as DisplayState;
+  return atTick(1, ...entities);
+}
+
+function atTick(tick: number, ...entities: DisplayEntity[]): DisplayState {
+  return { tick, entities: Object.fromEntries(entities.map((entity) => [entity.id, entity])), cues: [], result: null } as DisplayState;
 }
 
 function point(node: string, x: number, y: number, allegiance: "A" | "B" | "N" = "N"): NodeRow {
@@ -101,6 +105,25 @@ describe("presentation-only discrete battlefield layouts", () => {
     expect(b.position).toEqual({ x: 3, y: 4 });
   });
 
+  it("clears stale slot history on backseek without moving still-visible units", () => {
+    const map = replay([point("N.A.UJ", 3, 4)]);
+    const layout = new NodeDisplayLayout();
+    const a = unit("a", "N.A.UJ", { x: 3, y: 4 });
+    const b = unit("b", "N.A.UJ", { x: 3, y: 4 });
+    const c = unit("c", "N.A.UJ", { x: 3, y: 4 });
+    const forward = layout.update(atTick(10, a, b, c), map);
+    const sought = unit("d", "N.A.UJ", { x: 3, y: 4 });
+    const backward = layout.update(atTick(4, b, c, sought), map);
+    expect(backward.get(b.id)).toEqual(forward.get(b.id));
+    expect(backward.get(c.id)).toEqual(forward.get(c.id));
+    expect(backward.get(sought.id)).toEqual(forward.get(a.id));
+
+    const newReplay = replay([point("N.A.UJ", 3, 4)]);
+    const reset = layout.update(atTick(5, b, c, sought), newReplay);
+    expect(reset.get(b.id)).toEqual(forward.get(a.id));
+    expect(reset.get(c.id)).toEqual(forward.get(b.id));
+  });
+
   it("only lays out currently visible settled units and never moves edge or structure entities", () => {
     const map = replay([point("A.TOP.BANK", 0, 0, "A"), point("B.TOP.BANK", 8, 0, "B")]);
     const settled = unit("settled", "A.TOP.BANK", { x: 0, y: 0 });
@@ -144,7 +167,9 @@ describe("presentation-only discrete battlefield layouts", () => {
     const layout = new NodeDisplayLayout();
     const crowd = makeCrowd(6);
     const before = JSON.stringify(crowd);
-    const offsets = layout.update(state(...crowd), map);
+    const farSolo = unit("00-far", "A.TOP.BANK", { x: 2, y: 0 }, { edgeTo: "B.TOP.BANK", progress: 15, track: "CENTER", crossing: "bridge" });
+    const offsets = layout.update(state(farSolo, ...crowd), map);
+    expect(offsets.has(farSolo.id)).toBe(false);
     expect(offsets.get("a")).toEqual({ x: 0, y: 0 });
     expect(offsets.get("b")?.x).toBeCloseTo(-0.65, 5);
     expect(offsets.get("c")?.x).toBeCloseTo(0.65, 5);
@@ -195,5 +220,49 @@ describe("presentation-only discrete battlefield layouts", () => {
     expect(offsets.get(centerB.id)?.y).toBe(0);
     expect(offsets.has(left.id)).toBe(false);
     expect(left.battlefield?.track).toBe("LEFT");
+  });
+
+  it("uses an internal corridor slot only for trackless public Jungle and ford routes", () => {
+    const map = replay(
+      [
+        point("A.TOP.J", 0, 0, "A"), point("N.A.UJ", 10, 0),
+        point("N.B.UJ", 20, 0), point("B.TOP.J", 30, 0, "B"),
+        point("A.BASE", 40, 0, "A"), point("A.TOP.T1", 50, 0, "A"),
+        point("A.TOP.BANK", 60, 0, "A"), point("B.TOP.BANK", 70, 0, "B"),
+      ],
+      [],
+      [
+        { id: "jungle.upper", region: "jungle", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] } as RouteRow,
+        { id: "ford.upper", region: "river_ford", ford: true, points: [{ x: 20, y: 0 }, { x: 30, y: 0 }] } as RouteRow,
+        { id: "lane.TOP", region: "lane", points: [{ x: 40, y: 0 }, { x: 50, y: 0 }] } as RouteRow,
+        { id: "bridge.TOP", region: "bridge", bridgeSite: "TOP", points: [{ x: 60, y: 0 }, { x: 70, y: 0 }] } as RouteRow,
+      ],
+    );
+    const jungle = [
+      unit("j-0", "A.TOP.J", { x: 5, y: 0 }, { edgeTo: "N.A.UJ", progress: 5 }),
+      unit("j-1", "A.TOP.J", { x: 5, y: 0 }, { edgeTo: "N.A.UJ", progress: 5 }),
+      unit("j-2", "A.TOP.J", { x: 5, y: 0 }, { edgeTo: "N.A.UJ", progress: 5 }),
+      unit("j-3", "A.TOP.J", { x: 5, y: 0 }, { edgeTo: "N.A.UJ", progress: 5 }),
+    ];
+    const ford = [
+      unit("f-0", "N.B.UJ", { x: 25, y: 0 }, { edgeTo: "B.TOP.J", progress: 5, crossing: "ford" }),
+      unit("f-1", "N.B.UJ", { x: 25, y: 0 }, { edgeTo: "B.TOP.J", progress: 5, crossing: "ford" }),
+    ];
+    const missingLaneTrack = [
+      unit("l-0", "A.BASE", { x: 45, y: 0 }, { edgeTo: "A.TOP.T1", progress: 5 }),
+      unit("l-1", "A.BASE", { x: 45, y: 0 }, { edgeTo: "A.TOP.T1", progress: 5 }),
+    ];
+    const missingBridgeTrack = [
+      unit("b-0", "A.TOP.BANK", { x: 65, y: 0 }, { edgeTo: "B.TOP.BANK", progress: 5, crossing: "bridge" }),
+      unit("b-1", "A.TOP.BANK", { x: 65, y: 0 }, { edgeTo: "B.TOP.BANK", progress: 5, crossing: "bridge" }),
+    ];
+    const offsets = new NodeDisplayLayout().update(state(...jungle, ...ford, ...missingLaneTrack, ...missingBridgeTrack), map);
+    expect(offsets.get("j-0")).toEqual({ x: 0, y: 0 });
+    expect(offsets.get("j-1")?.x).toBeCloseTo(-0.65, 5);
+    expect(offsets.get("j-2")?.x).toBeCloseTo(0.65, 5);
+    expect(offsets.get("j-3")?.x).toBeCloseTo(-1.3, 5);
+    expect(offsets.get("f-1")?.x).toBeCloseTo(-0.65, 5);
+    for (const entity of [...jungle, ...ford]) expect(entity.battlefield?.track).toBeUndefined();
+    for (const entity of [...missingLaneTrack, ...missingBridgeTrack]) expect(offsets.has(entity.id)).toBe(false);
   });
 });

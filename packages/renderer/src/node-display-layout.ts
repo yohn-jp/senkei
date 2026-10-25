@@ -5,7 +5,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GOLDEN_FRACTION = (Math.sqrt(5) - 1) / 2;
 const MAX_NODE_RADIUS = 2.1;
 const EDGE_STRIDE = 0.65;
-const MAX_EDGE_OFFSET = 1.3;
+const CORRIDOR_TRACK = "\u0001corridor";
 
 type NodeRecord = NonNullable<Replay["scene"]["nodes"]>[number];
 type RouteRecord = NonNullable<Replay["scene"]["routes"]>[number];
@@ -208,14 +208,39 @@ function settledNode(entity: DisplayEntity): string | undefined {
   return position.node;
 }
 
-function edgeUnit(entity: DisplayEntity): EdgeUnit | undefined {
+function matchedRoute(from: NodeRecord, to: NodeRecord, replay: Replay): RouteRecord | undefined {
+  let match: RouteRecord | undefined;
+  let bestError = Infinity;
+  for (const route of replay.scene.routes ?? []) {
+    const first = route.points[0], last = route.points[route.points.length - 1];
+    const forward = Math.hypot(first.x - from.position.x, first.y - from.position.y) + Math.hypot(last.x - to.position.x, last.y - to.position.y);
+    const reverse = Math.hypot(first.x - to.position.x, first.y - to.position.y) + Math.hypot(last.x - from.position.x, last.y - from.position.y);
+    const error = Math.min(forward, reverse);
+    if (error < bestError) {
+      bestError = error;
+      match = route;
+    }
+  }
+  return bestError <= 1e-5 ? match : undefined;
+}
+
+function edgeUnit(entity: DisplayEntity, replay: Replay, nodes: ReadonlyMap<string, NodeRecord>): EdgeUnit | undefined {
   if (entity.kind !== "unit" || !entity.battlefield?.node || !entity.battlefield.edgeTo) return undefined;
   const position = entity.battlefield;
-  if (!position.track || !Number.isInteger(position.progress)) return undefined;
   const from = position.node ?? "";
   const to = position.edgeTo ?? "";
   if (!from || !to) return undefined;
-  const track = position.track;
+  if (!Number.isInteger(position.progress)) return undefined;
+  let track = position.track ?? "";
+  if (!track) {
+    const fromNode = nodes.get(from), toNode = nodes.get(to);
+    if (!fromNode || !toNode) return undefined;
+    const route = matchedRoute(fromNode, toNode, replay);
+    const isSingleCorridor = route?.region.toLowerCase() === "jungle" || route?.ford === true;
+    if (!isSingleCorridor) return undefined;
+    // This key is presentation-internal. Never project a synthetic track into entity state.
+    track = CORRIDOR_TRACK;
+  }
   const progress = position.progress as number;
   const domain = `${from}\u0000${to}\u0000${track}`;
   return { entity, domain, coincidence: `${domain}\u0000${progress}`, from, to, track, progress };
@@ -224,25 +249,15 @@ function edgeUnit(entity: DisplayEntity): EdgeUnit | undefined {
 function closestEdgeFrame(from: NodeRecord, to: NodeRecord, replay: Replay): EdgeFrame {
   const fromPoint = from.position;
   const toPoint = to.position;
-  let best: EdgeFrame = {
-    from: fromPoint,
-    to: toPoint,
-    length: Math.hypot(toPoint.x - fromPoint.x, toPoint.y - fromPoint.y),
-  };
-  let bestError = Infinity;
-  for (const route of replay.scene.routes ?? []) {
+  const route = matchedRoute(from, to, replay);
+  if (route) {
     const first = route.points[0], last = route.points[route.points.length - 1];
     const forward = Math.hypot(first.x - fromPoint.x, first.y - fromPoint.y) + Math.hypot(last.x - toPoint.x, last.y - toPoint.y);
-    const reverse = Math.hypot(first.x - toPoint.x, first.y - toPoint.y) + Math.hypot(last.x - fromPoint.x, last.y - fromPoint.y);
-    const error = Math.min(forward, reverse);
-    if (error < bestError) {
-      bestError = error;
-      best = forward <= reverse
-        ? { from: first, to: last, length: Math.hypot(last.x - first.x, last.y - first.y) }
-        : { from: last, to: first, length: Math.hypot(last.x - first.x, last.y - first.y) };
-    }
+    return forward <= 1e-5
+      ? { from: first, to: last, length: Math.hypot(last.x - first.x, last.y - first.y) }
+      : { from: last, to: first, length: Math.hypot(last.x - first.x, last.y - first.y) };
   }
-  return bestError <= 1e-5 ? best : {
+  return {
     from: fromPoint,
     to: toPoint,
     length: Math.hypot(toPoint.x - fromPoint.x, toPoint.y - fromPoint.y),
@@ -269,9 +284,13 @@ function signedEdgeOffset(slot: number): number {
 export class NodeDisplayLayout {
   private readonly nodeSlots = new Map<string, Map<string, number>>();
   private readonly edgeSlots = new Map<string, Map<string, number>>();
+  private lastTick?: number;
+  private lastScene?: Replay["scene"];
 
   update(state: DisplayState, replay: Replay): ReadonlyMap<string, WorldPoint> {
     const nodes = new Map((replay.scene.nodes ?? []).map((node) => [node.id, node]));
+    const replayReset = this.lastScene !== undefined && this.lastScene !== replay.scene;
+    const backwardsSeek = this.lastTick !== undefined && state.tick < this.lastTick;
     const nodeOccupants = new Map<string, Set<string>>();
     const visibleEdges: EdgeUnit[] = [];
 
@@ -282,9 +301,34 @@ export class NodeDisplayLayout {
         occupants.add(entity.id);
         nodeOccupants.set(node, occupants);
       }
-      const edge = edgeUnit(entity);
+      const edge = edgeUnit(entity, replay, nodes);
       if (edge && nodes.has(edge.from) && nodes.has(edge.to)) visibleEdges.push(edge);
     }
+
+    if (replayReset) {
+      this.nodeSlots.clear();
+      this.edgeSlots.clear();
+    } else if (backwardsSeek) {
+      // Forget assignments for absent historical actors without perturbing actors still on
+      // their current node or directed edge/track in the sought-to public frame.
+      for (const [node, slots] of this.nodeSlots) {
+        const visible = nodeOccupants.get(node) ?? new Set<string>();
+        for (const id of slots.keys()) if (!visible.has(id)) slots.delete(id);
+        if (slots.size === 0) this.nodeSlots.delete(node);
+      }
+      const edgeMembers = new Map<string, Set<string>>();
+      for (const edge of visibleEdges) {
+        const members = edgeMembers.get(edge.domain) ?? new Set<string>();
+        members.add(edge.entity.id);
+        edgeMembers.set(edge.domain, members);
+      }
+      for (const [domain, slots] of this.edgeSlots) {
+        const visible = edgeMembers.get(domain) ?? new Set<string>();
+        for (const id of slots.keys()) if (!visible.has(id)) slots.delete(id);
+        if (slots.size === 0) this.edgeSlots.delete(domain);
+      }
+    }
+    this.lastScene = replay.scene;
 
     for (const [node, slots] of this.nodeSlots) {
       const visible = nodeOccupants.get(node) ?? new Set<string>();
@@ -314,25 +358,33 @@ export class NodeDisplayLayout {
       group.push(edge);
       coincidences.set(edge.coincidence, group);
     }
-    const activeEdgeDomains = new Set<string>();
-    for (const group of coincidences.values()) if (group.length > 1) activeEdgeDomains.add(group[0].domain);
     for (const [domain, slots] of this.edgeSlots) {
       const current = edgesByDomain.get(domain) ?? [];
       const visible = new Set(current.map(({ entity }) => entity.id));
       for (const id of slots.keys()) if (!visible.has(id)) slots.delete(id);
       if (slots.size === 0) this.edgeSlots.delete(domain);
-      else activeEdgeDomains.add(domain);
     }
-    for (const domain of activeEdgeDomains) {
-      const occupants = edgesByDomain.get(domain) ?? [];
-      if (occupants.length === 0) continue;
+    for (const group of coincidences.values()) {
+      if (group.length < 2) continue;
+      const domain = group[0].domain;
       const slots = this.edgeSlots.get(domain) ?? new Map<string, number>();
-      const used = new Set(slots.values());
-      for (const id of [...new Set(occupants.map(({ entity }) => entity.id))].sort(compareIds)) {
-        if (slots.has(id)) continue;
+      const used = new Set<number>();
+      const keep = new Set<string>();
+      const sorted = [...group].sort((left, right) => compareIds(left.entity.id, right.entity.id));
+      // Keep every existing member's slot when it remains unique inside this
+      // collision group. Distinct progress groups may reuse the same indices.
+      for (const { entity } of sorted) {
+        const slot = slots.get(entity.id);
+        if (slot !== undefined && !used.has(slot)) {
+          used.add(slot);
+          keep.add(entity.id);
+        }
+      }
+      for (const { entity } of sorted) {
+        if (keep.has(entity.id)) continue;
         let index = 0;
         while (used.has(index)) index++;
-        slots.set(id, index);
+        slots.set(entity.id, index);
         used.add(index);
       }
       this.edgeSlots.set(domain, slots);
@@ -354,7 +406,7 @@ export class NodeDisplayLayout {
     }
 
     for (const group of coincidences.values()) {
-      if (group.length < 2 || !activeEdgeDomains.has(group[0].domain)) continue;
+      if (group.length < 2) continue;
       const domain = group[0].domain;
       const slots = this.edgeSlots.get(domain);
       if (!slots) continue;
@@ -376,6 +428,7 @@ export class NodeDisplayLayout {
         });
       }
     }
+    this.lastTick = state.tick;
     return offsets;
   }
 }
