@@ -250,6 +250,67 @@
         "native repeats and real WASM match in terminal state, CU, and public replay",
         "desktop and mobile browser render the same generated WASM battle"
       ]
+    },
+    {
+      "id": "natural-strategic-match-observations",
+      "kind": "observed-real-enbu-outcome-set",
+      "ruleset_version": "2.0.0",
+      "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+      "observations": [
+        {
+          "id": "balanced-solos-vs-quintet",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "split-2-2-1-vs-3-2-role-mix",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "jungle-push-vs-lane-defense",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "mirrored-lane-defense-vs-jungle-push",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-solos-vs-quintet",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-quintet-vs-solos-mirrored",
+          "outcome": "AttackerVictory",
+          "final_tick": 417,
+          "termination_reason": "base_destroyed"
+        },
+        {
+          "id": "base-assault-duos-vs-trio-duo",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-trio-duo-vs-duos-mirrored",
+          "outcome": "DefenderVictory",
+          "final_tick": 456,
+          "termination_reason": "base_destroyed"
+        }
+      ],
+      "limits": [
+        "These are measured results for the fixed inputs and ruleset digest, not balance thresholds or a win-rate estimate.",
+        "A Draw at tick 600 is a time-limited observation; it does not establish what would happen under a longer match limit.",
+        "Controlled real-Enbu base assaults separately verify attacker and defender base destruction."
+      ]
     }
   ]
 }

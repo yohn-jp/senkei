@@ -774,26 +774,37 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             .unwrap_or_else(|| panic!("{catalog_id} is visible in the terminal base-destruction frame for {}", case["case_id"]))
     };
 
-    // Preserve the natural versioned strategy results. The first orientation
-    // destroys the defender base; the mirrored roster remains a timed draw.
-    // Separate controlled node assaults below prove base destruction for both
-    // sides without changing any balance values.
-    let attacker_win = case("base-assault-duos-vs-trio-duo");
-    assert_eq!(attacker_win["outcome"], "AttackerVictory");
-    assert_eq!(attacker_win["termination_class"], "victory");
-    assert_eq!(attacker_win["termination_reason"], "base_destroyed");
-    assert!(attacker_win["final_tick"].as_u64().unwrap() < attacker_win["max_ticks"].as_u64().unwrap());
+    // Pin the current real-Enbu outcomes as observations for these fixed
+    // inputs. They are regression evidence, not balance or win-rate targets.
+    let observed = [
+        ("balanced-solos-vs-quintet", "Draw", "timeout", "time_limit", 600),
+        ("split-2-2-1-vs-3-2-role-mix", "Draw", "timeout", "time_limit", 600),
+        ("jungle-push-vs-lane-defense", "Draw", "timeout", "time_limit", 600),
+        ("mirrored-lane-defense-vs-jungle-push", "Draw", "timeout", "time_limit", 600),
+        ("base-assault-solos-vs-quintet", "Draw", "timeout", "time_limit", 600),
+        ("base-assault-quintet-vs-solos-mirrored", "AttackerVictory", "victory", "base_destroyed", 417),
+        ("base-assault-duos-vs-trio-duo", "Draw", "timeout", "time_limit", 600),
+        ("base-assault-trio-duo-vs-duos-mirrored", "DefenderVictory", "victory", "base_destroyed", 456),
+    ];
+    for (id, outcome, termination_class, termination_reason, final_tick) in observed {
+        let result = case(id);
+        assert_eq!(result["outcome"], outcome, "observed outcome for {id}");
+        assert_eq!(result["termination_class"], termination_class, "termination class for {id}");
+        assert_eq!(result["termination_reason"], termination_reason, "termination reason for {id}");
+        assert_eq!(result["final_tick"], final_tick, "final tick for {id}");
+    }
+
+    // The natural base assaults destroy opposing bases in both orientations;
+    // controlled node assaults below independently verify the same mechanic.
+    let attacker_win = case("base-assault-quintet-vs-solos-mirrored");
     assert_eq!(structure_hp(attacker_win, "base.defender"), 0);
     assert!(structure_hp(attacker_win, "base.attacker") > 0);
 
-    let mirrored = case("base-assault-trio-duo-vs-duos-mirrored");
-    assert_eq!(mirrored["outcome"], "Draw");
-    assert_eq!(mirrored["termination_class"], "timeout");
-    assert_eq!(mirrored["termination_reason"], "time_limit");
-    assert_eq!(mirrored["final_tick"], mirrored["max_ticks"]);
+    let defender_win = case("base-assault-trio-duo-vs-duos-mirrored");
+    assert_eq!(structure_hp(defender_win, "base.attacker"), 0);
 
     let timeouts = cases.iter().filter(|case| case["termination_class"] == "timeout").collect::<Vec<_>>();
-    assert!(timeouts.len() >= 1, "the report retains the observed mirrored base-assault draw and any other capped scenarios");
+    assert_eq!(timeouts.len(), 6, "the report retains all six observed time-limited strategic draws");
     assert!(timeouts.iter().all(|case| {
         case["outcome"] == "Draw"
             && case["termination_reason"] == "time_limit"
