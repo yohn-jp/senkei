@@ -41,3 +41,9 @@ Senkeiのプレイヤー操作は**設計→実行→観測→原因検討→Jin
 既存の合法戦型・NPCの差を先に実測し、戦術課題（視界獲得、橋突破、Squad分割等）のPvEと難易度進行を設計する。コアの本拠地破壊条件を局所課題UIの都合で変更しない。試合テンポは**保留**であり、600 Tickは意図した目標値でない。
 
 Quick→実Enbu→Replay→Tick選択→認可済み分析→Jinrei修正→再Compile／Preflight→同条件再戦が実操作で成立すること。元Matchは不変、比較条件の同一性を確認、Mobileの独立操作を検証する。実装・証明のない画面は未完了とする。
+
+## 現行の保存境界
+
+Next LibraryのPinned setup／Recovery copyは編集中Draftを保持する。Completed Experimentは同じIndexedDB内の専用storeへ、最新の完了試合と一つの比較基準をDraftと独立に保存する。各recordは不変snapshot、認可された応答、Ruleset／paired World／program／component identityを持ち、restore時に現在のruntimeと完全照合する。64 MiBの上限またはstorage errorは表示し、保存済みrecordを黙って失わせない。
+
+Experiment JSONはLibraryでexport／確認付きimportできる。欠落・不一致のartifactを現在の試合として開かず、元データをexport可能なまま保持する。表示モード・情報レイヤーは同じ認可済みReplayへ作用し、Match Snapshotや勝敗を変更しない。実施した検証と未確認の実機受入は[G2 completion ledger](implementation/G2-COMPLETION-LEDGER.md)で区別する。

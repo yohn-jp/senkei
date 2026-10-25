@@ -103,7 +103,7 @@ presentation:
 - **Presentation-onlyの変更ではworldLogicDigestと同じ試合の結果・CU・論理軌跡を変えてはならない。** Presentation変更によりworldPresentationDigestは変わる。
 - Logic変更は適合性確認とRulePackageの互換性識別を更新する。古いJinreiを同じルールとして黙って流用しない。WorldからBattleMapへの変換はID・橋／河川の範囲・経路・施設の意味を失う場合に成功扱いせず、明示的な版付きマッピングを要求する。exact identityと損失のない変換条件は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が正本。
 - 公開Replayは許可されたWorld identityと**公開可能な**静的地理・確定イベントだけを含む。個体の非公開位置や敵の戦術実体は含まない。
-- 旧 `next_world.rs` 等のコード生成Mapは移行元であり、**現在すでに宣言的Compilerが存在すると主張しない**。既存バージョンの試合再現性は維持する。
+- 現行`next_package()`は宣言的World Compilerの出力から生成する。旧コード生成Mapは互換性差分を検証するテスト内だけに存在し、実行時のWorld生成には使用しない。
 
 ## 7. 自律移動と経路計算の関係
 
@@ -114,7 +114,7 @@ Worldは進路候補とコストを提供するが**戦術の選好**までは�
 - **Enbu**は合法な隣接エッジ列を決定論的に選び、現在の観測と規範Tie-breakに従う。敵の非公開位置を用いた「最適な経路」の先読みは禁止。
 - 動的な橋状態やブロック、視界更新による再計画契機はRulePackageで明示する。Jinreiのソースへ毎Tick経路探索アルゴリズムを書かせない。
 
-## 8. 受入条件（将来の実装）
+## 8. 受入条件
 
 1. 宣言的Definitionから現行Battlefieldと同じID／35ノード／42エッジ／合法距離を生成でき、実測試合結果とルールDigestが安定する。
 2. ID重複、不正端点、未定義Terrain Profile、無関係な橋、図上だけの接続、循環する参照、不正数値を拒否する。
