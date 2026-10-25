@@ -1221,6 +1221,9 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     };
   }
 
+  // Canonical captures are complete. Release their WebGL context before the
+  // next scenario so SwiftShader does not render an unused background scene.
+  await page.close();
   const capturePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   let captureRun: ReplayRun;
   try {
