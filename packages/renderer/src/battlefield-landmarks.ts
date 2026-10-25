@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { DisplayState, Replay, WorldPoint } from "@senkei/replay-contract";
 import { scenicRiverCourse } from "./battlefield-geography";
+import { BATTLEFIELD_RIVER_SURFACE_WIDTH, buildBattlefieldWaterDetails } from "./battlefield-water-details";
 import {
   buildBattlefieldBridge,
   buildMidObservatory,
@@ -54,6 +55,7 @@ export class BattlefieldLandmarks {
   private bridges = new Map<string, { model: BattlefieldBridgeModel; site: string }>();
   private observation?: MidObservatoryModel;
   private water?: THREE.Mesh;
+  private waterDetails?: THREE.Group;
 
   constructor(private scene: THREE.Scene, replay: Replay) {
     const river = scenicRiverCourse(replay);
@@ -62,7 +64,7 @@ export class BattlefieldLandmarks {
       const water = new THREE.Mesh(
         // Keep the river mesh off the paved observatory center. The larger
         // public island foundation continues the dry bank around this hole.
-        ribbon(river, 4.05, 0.072, observationPosition, 2.0),
+        ribbon(river, BATTLEFIELD_RIVER_SURFACE_WIDTH, 0.072, observationPosition, 2.0),
         new THREE.MeshStandardMaterial({
           color: 0x326d78,
           roughness: 0.34,
@@ -78,6 +80,7 @@ export class BattlefieldLandmarks {
       water.receiveShadow = true;
       scene.add(water);
       this.water = water;
+      this.waterDetails = buildBattlefieldWaterDetails(scene, replay);
     }
 
     const observationNode = replay.scene.nodes?.find((node) => node.id === "N.MID.OBS");
@@ -149,6 +152,11 @@ export class BattlefieldLandmarks {
     this.bridges.clear();
     this.observation?.dispose();
     this.observation = undefined;
+    if (this.waterDetails) {
+      this.scene.remove(this.waterDetails);
+      disposeTree(this.waterDetails);
+      this.waterDetails = undefined;
+    }
     if (this.water) {
       this.scene.remove(this.water);
       disposeTree(this.water);
