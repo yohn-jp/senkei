@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
 
 const viewports = [
   { width: 320, height: 780 },
@@ -90,4 +91,67 @@ for (const viewport of viewports) test(`Campaign challenge picker and selected c
   await expect(ready.locator(".journey-ready-challenge")).toContainText("課題に登録されたNPC");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
   await context.close();
+});
+
+test("mobile replay event, Jinrei edit and Analysis return preserve the run and unsaved draft", async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByTestId("journey-home")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("journey-home").getByRole("button", { name: "すぐ戦う", exact: true }).click();
+  await page.getByRole("button", { name: "この条件で進む" }).click();
+  await page.getByRole("button", { name: "準備確認へ" }).click();
+  await completePreflight(page);
+  const canvas = page.locator(".next-renderer-host canvas");
+  await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 180_000 });
+  await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
+
+  await page.locator("#next-tab-analysis").click();
+  const analysis = page.locator("#next-panel-analysis");
+  await expect(analysis).toBeVisible();
+  const event = analysis.locator(".battle-analysis-timeline li button").nth(5);
+  await expect(event).toBeVisible();
+  await event.click();
+  const selectedTick = Number((await page.locator(".next-tick-readout").innerText()).match(/TICK\s+(\d+)/)?.[1]);
+  expect(selectedTick).toBeGreaterThan(0);
+  await expect(canvas).toHaveAttribute("data-tick", String(selectedTick));
+  const cameraTargetAtEvent = await canvas.getAttribute("data-camera-target");
+  const cameraModeAtEvent = await canvas.getAttribute("data-camera-mode");
+  expect(cameraTargetAtEvent).toBeTruthy();
+
+  await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Jinrei source" });
+  const original = await source.inputValue();
+  const edited = original.replace(/when ([^\n]+),/, "when and { $1, match.tick < 374, },");
+  expect(edited).not.toBe(original);
+  await source.fill(edited);
+
+  // A short, phone-sized viewport approximates the visible area left by a
+  // software keyboard. Keep focus and ensure the source field can be brought
+  // fully into view without horizontal overflow before compiling.
+  await page.setViewportSize({ width: 390, height: 450 });
+  await source.scrollIntoViewIfNeeded();
+  await source.focus();
+  const sourceBox = await source.boundingBox();
+  expect(sourceBox).toBeTruthy();
+  expect(sourceBox!.y).toBeGreaterThanOrEqual(0);
+  expect(sourceBox!.y + sourceBox!.height).toBeLessThanOrEqual(450);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Compile tactics" }).click();
+  await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await expect(source).toHaveValue(edited);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#next-tab-analysis").click();
+  await expect(page.locator("#next-panel-analysis")).toBeVisible();
+  await page.locator("#next-tab-jinrei").click();
+  await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(edited);
+  await page.locator("#next-tab-battle").click();
+  await expect(page.locator(".next-tick-readout")).toContainText(`TICK ${selectedTick}`);
+  await expect(canvas).toHaveAttribute("data-tick", String(selectedTick));
+  await expect(canvas).toHaveAttribute("data-camera-target", cameraTargetAtEvent!);
+  await expect(canvas).toHaveAttribute("data-camera-mode", cameraModeAtEvent!);
+  await expect(page.getByRole("button", { name: "Timeline view", exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
