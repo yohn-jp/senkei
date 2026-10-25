@@ -139,7 +139,7 @@ for (let index = 0; index < requests.length; index += 1) {
     if (result.diagnostics !== null || Object.hasOwn(result, "owner_replay")) {
       fail("canonical public battle leaked restricted diagnostics or owner replay");
     }
-    if (match.final_tick < 49 || typeof match.final_state_digest !== "string" ||
+    if (match.final_tick < 50 || typeof match.final_state_digest !== "string" ||
         !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
       fail("canonical public battle is missing its confirmed terminal state, digest, or side CU");
     }
@@ -161,6 +161,10 @@ for (let index = 0; index < requests.length; index += 1) {
     if (!replay.frames.some((candidate) => Object.values(candidate.visible_state?.entities ?? {}).some((entity) =>
       entity.entity_type === "hero" && Number.isSafeInteger(entity.fields?.ford_remaining?.value) && entity.fields.ford_remaining.value > 0))) {
       fail("authorized public replay contains no real unit traversing a Jungle ford");
+    }
+    if (!entries(50).some((entity) => entity.entity_type === "hero" &&
+        field(entity, "edge_from") === "A.TOP.BANK" && field(entity, "edge_to") === "B.TOP.BANK")) {
+      fail("authorized public replay contains no real unit traversing the rebuilt fixed TOP bridge");
     }
     if (["slot_id", "squad", "goal", "internal_secret_marker"].some((marker) => JSON.stringify(result).includes(marker))) {
       fail("canonical public replay leaked owner-only identities or tactical goals");

@@ -101,7 +101,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   const publicReplay = simulation.outcome.presentation_replay as JsonRecord;
   const replay = (simulation.owner_replay as JsonRecord | undefined) ?? publicReplay;
   expect(result.match_id).toBe(snapshot.context.match_id);
-  expect(result.final_tick).toBeGreaterThanOrEqual(49);
+  expect(result.final_tick).toBeGreaterThanOrEqual(50);
   expect(result.final_state_digest).toBeTruthy();
   expect(publicReplay.result_digest).toBeTruthy();
   expect(replay.frames.some((frame: JsonRecord) => frame.visible_state?.entities && Object.values(frame.visible_state.entities).some((entity: any) => entity.entity_type === "hero" && entity.fields?.ford_remaining?.value > 0))).toBe(true);
@@ -137,11 +137,18 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await routeStateAt(0)).toBe("normal");
   expect(await routeStateAt(13)).toBe("expanded");
   expect(await routeStateAt(23)).toBe("destroyed");
-  expect(await routeStateAt(49)).toBe("normal");
-
   if (width > 700) {
     await page.getByRole("button", { name: "Overview view" }).click();
-    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-rebuilt.png`), animations: "disabled" });
+    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-destroyed.png`), animations: "disabled" });
+  } else {
+    await page.getByRole("button", { name: "Timeline view" }).click();
+    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-destroyed.png`), animations: "disabled" });
+  }
+  expect(await routeStateAt(49)).toBe("normal");
+  expect(await routeStateAt(50)).toBe("normal");
+
+  if (width > 700) {
+    await page.screenshot({ path: join(evidenceDirectory, `desktop-${width}x${height}-bridge-transit.png`), animations: "disabled" });
     await page.getByTestId("battle-visible-roster-toggle").click();
     const roster = page.getByTestId("battle-visible-roster");
     await expect(roster).toBeVisible();
@@ -151,13 +158,12 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await observer.selectOption({ label: heroLabel! });
     await expect(page.locator(".next-detail-card")).toContainText("F01");
   } else {
-    await page.getByRole("button", { name: "Timeline view" }).click();
     await expect(page.getByTestId("battle-mobile-console")).toBeVisible();
     await page.getByRole("button", { name: "Details view" }).click();
     await expect(page.locator(".next-detail-card")).toBeVisible();
-    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-rebuilt.png`), animations: "disabled" });
     await page.getByRole("button", { name: "Battle view" }).click();
     await expect(canvas).toBeVisible();
+    await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
   }
   expect(pageErrors).toEqual([]);
   return { result, publicReplay, frameCount: publicReplay.frames.length, wasmStatuses: wasmResponses };

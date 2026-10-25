@@ -1495,11 +1495,13 @@ fn battlefield_interaction_tactics() -> (String, String) {
             action ford_crossing {{ when match.tick == 1, do move({}, "N.B.UJ"), }},
             action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
             action node_retreat {{ when match.tick == 2, do retreat({}), }},
-            action pursue_mid {{ when match.tick == 1, do pursue({}, argmin hero in filter hero in enemies.visible_heroes {{ hero.node == "N.MID.OBS", }} by hero.hp then hero.id), }}
+            action pursue_mid {{ when match.tick == 1, do pursue({}, argmin hero in filter hero in enemies.visible_heroes {{ hero.node == "N.MID.OBS", }} by hero.hp then hero.id), }},
+            action cross_rebuilt_bridge {{ when match.tick == 50, do move({}, "B.TOP.BANK"), }}
         }}"#,
         hero_selector("slot-1"), hero_selector("slot-1"),
         hero_selector("slot-2"), hero_selector("slot-2"), hero_selector("slot-2"),
         hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"), hero_selector("slot-5"),
+        hero_selector("slot-2"),
     );
     let defender = format!(
         r#"senkei battlefield_mid_defense {{
@@ -1580,6 +1582,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         event.side == CombatantSide::Attacker && event.tick == 2
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "retreat")
     }), "retreat is an explicit real Enbu intent");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 50
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "move")
+    }), "a Hero takes an explicit move intent across the rebuilt fixed bridge");
 
     let track_at_tick_1 = owner_hero_at(&artifact, 1, "slot-1");
     assert_eq!(entity_string(track_at_tick_1, "track"), "LEFT", "the lane's selected side persists in logical state");
@@ -1593,6 +1599,9 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     let retreating = owner_hero_at(&artifact, 2, "slot-4");
     assert_eq!(entity_string(retreating, "edge_from"), "N.MID.OBS");
     assert_eq!(entity_string(retreating, "edge_to"), "A.MID.BANK", "retreat uses the legal allied connector out of MID");
+    let bridge_crossing = owner_hero_at(&artifact, 50, "slot-2");
+    assert_eq!(entity_string(bridge_crossing, "edge_from"), "A.TOP.BANK");
+    assert_eq!(entity_string(bridge_crossing, "edge_to"), "B.TOP.BANK", "the rebuilt fixed bridge remains an actual traversable edge");
 
     let ford_frame = artifact.owner_replay.as_ref().unwrap().frames.iter().find(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| state.entities.values().any(|entity| {
