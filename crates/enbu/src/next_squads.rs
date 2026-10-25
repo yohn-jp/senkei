@@ -173,7 +173,7 @@ pub fn intents(
         }
         affected.sort(); affected.dedup();
         if affected.iter().any(|id| world.entities.get(id).is_some_and(|entity| support::int(entity, "action_lock_until") > i64::from(_tick)
-            || crate::next_navigation::forced_transit(entity, rules))) { continue; }
+            || crate::next_navigation::forced_transit_in(entity, rules, world))) { continue; }
         let before = affected.iter().filter_map(|id| world.entities.get(id).map(|entity| (id.clone(), support::string(entity, "squad")))).collect::<Vec<_>>();
         match intent.capability.as_str() {
             "split" => split(world, rules, *side, &actor_id, _tick),

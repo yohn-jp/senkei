@@ -166,7 +166,7 @@ pub fn prepare_actions(
             continue;
         }
         if cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
-            .is_some_and(|member| crate::next_navigation::forced_transit(member, rules))) { continue; }
+            .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot))) { continue; }
         if active_skill_target(intent, *side, snapshot, rules, tick).is_none() { continue; }
         if cohort_action_lock_until(world, snapshot, actor_id) > i64::from(tick) {
             continue;
@@ -580,7 +580,7 @@ fn collect_skill_activations(
         });
         if used.contains(actor_id)
             || cohort_member_ids(start, actor_id).iter().any(|id| start.entities.get(id)
-                .is_some_and(|member| crate::next_navigation::forced_transit(member, rules)))
+                .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, start)))
             || moved_this_tick
             || issued_other_action
             || (support::int(actor, "action_lock_until").max(current_action_lock) > i64::from(tick)

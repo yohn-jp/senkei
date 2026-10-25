@@ -173,7 +173,7 @@ pub fn prepare(
             || reserved_cohorts.contains(&cohort)
             || member_ids.iter().any(|member_id| snapshot.entities.get(member_id)
                 .is_some_and(|member| support::int(member, "action_lock_until") > i64::from(tick)
-                    || crate::next_navigation::forced_transit(member, rules)))
+                    || crate::next_navigation::forced_transit_in(member, rules, snapshot)))
         { continue; }
 
         reserved_bridges.insert(bridge_id.clone());
