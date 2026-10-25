@@ -489,7 +489,7 @@ fn jungle_respawn_case(rules: &VerifiedRulePlan) -> serde_json::Value {
     );
     // Heroes stop at top_1: still close enough to observe the camp, but outside
     // their configured basic-attack range once the full-HP monster returns.
-    let departures = (1..=5).map(|slot| (format!("slot-{slot}"), "top_1".to_owned())).collect::<Vec<_>>();
+    let departures = (1..=5).map(|slot| (format!("slot-{slot}"), "A.TOP.T1".to_owned())).collect::<Vec<_>>();
     let leave_camp = movement_tactics(&departures)
         .replace("match.tick == 1", "match.tick == 2");
     attacker.program = compile(&leave_camp, rules)
@@ -537,7 +537,7 @@ fn set_catalog(snapshot: &mut SenkeiSnapshot, slot_index: usize, hero_id: &str, 
 fn death_respawn_case() -> serde_json::Value {
     let rules = fragile_rules();
     let next = rules.plan().next.as_ref().unwrap();
-    let at_lane = vec!["top_1".to_owned(); 5];
+    let at_lane = vec!["A.TOP.T1".to_owned(); 5];
     let compiled = compile(IDLE_TACTICS, &rules).unwrap();
     let (mut attacker, mut defender, context) = build_match(
         &rules,
@@ -695,8 +695,8 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &[5],
             &["F01", "R01", "F02", "R02", "F03"],
             &["F04", "F05", "F06", "R03", "R04"],
-            &["top_d", "mid_d", "bot_d", "jungle_center", "top_d"],
-            &["top_2", "mid_1", "bot_1", "jungle_center", "mid_2"],
+            &["B.TOP.T1", "B.MID.T1", "B.BOT.T1", "N.MID.OBS", "B.TOP.T1"],
+            &["A.TOP.T2", "A.MID.T1", "A.BOT.T1", "N.MID.OBS", "A.MID.T2"],
         ),
         strategic_match_case(
             rules,
@@ -705,8 +705,8 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &[3, 2],
             &["R01", "R02", "R03", "R04", "R05"],
             &["F01", "F03", "R02", "F05", "R06"],
-            &["top_2", "top_2", "mid_2", "mid_2", "bot_2"],
-            &["top_1", "top_1", "top_1", "mid_1", "mid_1"],
+            &["A.TOP.T2", "A.TOP.T2", "A.MID.T2", "A.MID.T2", "A.BOT.T2"],
+            &["A.TOP.T1", "A.TOP.T1", "A.TOP.T1", "A.MID.T1", "A.MID.T1"],
         ),
         strategic_match_case(
             rules,
@@ -715,8 +715,8 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &[2, 2, 1],
             &["F01", "F02", "F03", "F04", "R01"],
             &["F05", "R02", "F06", "R03", "R04"],
-            &["jungle_nw", "jungle_center", "jungle_se", "mid_2", "jungle_center"],
-            &["top_d", "top_2", "mid_d", "bot_d", "bot_2"],
+            &["N.A.UJ", "N.MID.OBS", "N.B.LJ", "A.MID.T2", "N.MID.OBS"],
+            &["B.TOP.T1", "A.TOP.T2", "B.MID.T1", "B.BOT.T1", "A.BOT.T2"],
         ),
         strategic_match_case(
             rules,
@@ -725,21 +725,21 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             &[4, 1],
             &["F05", "R02", "F06", "R03", "R04"],
             &["F01", "F02", "F03", "F04", "R01"],
-            &["top_d", "top_2", "mid_d", "bot_d", "bot_2"],
-            &["jungle_nw", "jungle_center", "jungle_se", "mid_2", "jungle_center"],
+            &["B.TOP.T1", "A.TOP.T2", "B.MID.T1", "B.BOT.T1", "A.BOT.T2"],
+            &["N.A.UJ", "N.MID.OBS", "N.B.LJ", "A.MID.T2", "N.MID.OBS"],
         ),
         strategic_match_case(rules, "base-assault-solos-vs-quintet", &[1,1,1,1,1], &[5],
             &["F01","F03","F06","R02","R04"], &["F02","F04","R01","R03","R05"],
-            &["defender_base";5], &["attacker_base";5]),
+            &["B.BASE";5], &["A.BASE";5]),
         strategic_match_case(rules, "base-assault-quintet-vs-solos-mirrored", &[5], &[1,1,1,1,1],
             &["F02","F04","R01","R03","R05"], &["F01","F03","F06","R02","R04"],
-            &["defender_base";5], &["attacker_base";5]),
+            &["B.BASE";5], &["A.BASE";5]),
         strategic_match_case(rules, "base-assault-duos-vs-trio-duo", &[2,2,1], &[3,2],
             &["F03","F04","R01","R02","R05"], &["F01","F02","F05","R04","R06"],
-            &["defender_base";5], &["attacker_base";5]),
+            &["B.BASE";5], &["A.BASE";5]),
         strategic_match_case(rules, "base-assault-trio-duo-vs-duos-mirrored", &[3,2], &[2,2,1],
             &["F01","F02","F05","R04","R06"], &["F03","F04","R01","R02","R05"],
-            &["defender_base";5], &["attacker_base";5]),
+            &["B.BASE";5], &["A.BASE";5]),
     ];
 
     let case = |id: &str| cases.iter().find(|case| case["case_id"] == id)
@@ -792,10 +792,10 @@ fn reveal_expiry_case() {
     let compiled = compile(&tactics, &rules)
         .unwrap_or_else(|error| panic!("catalog reveal policy compiles: {error:?}"));
     let attacker_nodes = [
-        "jungle_center", "attacker_base", "attacker_base", "attacker_base", "attacker_base",
+        "N.MID.OBS", "A.BASE", "A.BASE", "A.BASE", "A.BASE",
     ].map(str::to_owned);
     let defender_nodes = [
-        "top_2", "defender_base", "defender_base", "defender_base", "defender_base",
+        "A.TOP.T2", "B.BASE", "B.BASE", "B.BASE", "B.BASE",
     ].map(str::to_owned);
     let (mut attacker, defender, mut context) = build_match(
         &rules,
@@ -810,7 +810,7 @@ fn reveal_expiry_case() {
     // This minion is the sole attacker vision source for the target. F01
     // destroys it during tick one, so reveal must preserve sight after the
     // ordinary source disappears.
-    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "top_2");
+    let mut vision_source = test_minion(&rules, CombatantSide::Attacker, "A.TOP.T2");
     vision_source.fields.insert(FieldId::from("hp"), DomainValue::Integer(1));
     vision_source.fields.insert(FieldId::from("attack"), DomainValue::Integer(0));
     vision_source.fields.insert(FieldId::from("speed"), DomainValue::Integer(0));
@@ -954,8 +954,8 @@ fn write_next_adapter_fixtures(rules: &VerifiedRulePlan) {
         return;
     };
     fs::create_dir_all(&directory).unwrap_or_else(|error| panic!("create {}: {error}", directory.display()));
-    let attacker_destinations = ["top_d", "mid_d", "bot_d", "jungle_center", "top_d"];
-    let defender_destinations = ["top_2", "mid_1", "bot_1", "jungle_center", "mid_2"];
+    let attacker_destinations = ["B.TOP.T1", "B.MID.T1", "B.BOT.T1", "N.MID.OBS", "B.TOP.T1"];
+    let defender_destinations = ["A.TOP.T2", "A.MID.T1", "A.BOT.T1", "N.MID.OBS", "A.MID.T2"];
     let assignments = |destinations: &[&str; 5]| (1..=5)
         .zip(destinations.iter())
         .map(|(slot, destination)| (format!("slot-{slot}"), (*destination).to_owned()))
@@ -1024,8 +1024,8 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
     let next = rules.plan().next.as_ref().unwrap();
     let mut report = Vec::new();
     let axes = [
-        ("lane", "top_1", "top_2", 1_000_i64),
-        ("jungle", "jungle_center", "jungle_se", 800_i64),
+        ("lane", "A.TOP.T1", "A.TOP.T2", 1_000_i64),
+        ("jungle", "A.TOP.J", "N.A.UJ", 800_i64),
     ];
     for (terrain, start, destination, terrain_factor) in axes {
         for minion_vision in [false, true] {
@@ -1090,8 +1090,8 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
         let (artifact, _) = run_movement_case(
             rules,
             &partition,
-            "jungle_center",
-            "jungle_se",
+            "A.TOP.J",
+            "N.A.UJ",
             friendly_minions,
             enemy_minions,
             &["slot-1"],
@@ -1117,11 +1117,11 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
 
 fn five_solo_move_case(rules: &VerifiedRulePlan) -> serde_json::Value {
     let assignments = [
-        ("slot-1".to_owned(), "top_2".to_owned()),
-        ("slot-2".to_owned(), "mid_2".to_owned()),
-        ("slot-3".to_owned(), "bot_2".to_owned()),
-        ("slot-4".to_owned(), "top_2".to_owned()),
-        ("slot-5".to_owned(), "bot_2".to_owned()),
+        ("slot-1".to_owned(), "A.TOP.T2".to_owned()),
+        ("slot-2".to_owned(), "A.MID.T2".to_owned()),
+        ("slot-3".to_owned(), "A.BOT.T2".to_owned()),
+        ("slot-4".to_owned(), "A.TOP.T2".to_owned()),
+        ("slot-5".to_owned(), "A.BOT.T2".to_owned()),
     ];
     let compiled = compile(&movement_tactics(&assignments), rules)
         .unwrap_or_else(|error| panic!("five-Solo move tactics compile: {error:?}"));
@@ -1130,7 +1130,7 @@ fn five_solo_move_case(rules: &VerifiedRulePlan) -> serde_json::Value {
         &[1, 1, 1, 1, 1],
         "five-solo-moves",
         1,
-        Some(&vec!["top_1".to_owned(); 5]),
+        Some(&vec!["A.TOP.T1".to_owned(); 5]),
         None,
     );
     attacker.program = compiled.program;
