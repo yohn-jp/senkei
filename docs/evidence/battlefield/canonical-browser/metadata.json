@@ -1,10 +1,10 @@
 {
   "evidenceKind": "compiled real Jinrei executed by desktop and mobile browser WASM",
-  "sourceRevision": "df4e50df212d8866f57bdef26b12b161193f64ac",
-  "buildRevision": "df4e50df212d8866f57bdef26b12b161193f64ac",
-  "inputSha256": "c787ace2581a6b689d55f7791f4b8945457fc49f1d4567f8ff33cafe3200374e",
+  "sourceRevision": "a7eeca56bcc8af2e14f65d41ea4d1b534c63fafb",
+  "buildRevision": "a7eeca56bcc8af2e14f65d41ea4d1b534c63fafb",
+  "inputSha256": "20021345f0e7e1fa050299bb09533a9607da5201dd419714eb28d7837dd4f437",
   "ruleset": {
-    "digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+    "digest": "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f",
     "id": "senkei.next",
     "version": {
       "major": 2,
@@ -14,7 +14,7 @@
   },
   "engineVersion": {
     "major": 1,
-    "minor": 2,
+    "minor": 3,
     "patch": 0
   },
   "result": {
@@ -22,16 +22,34 @@
       "attacker": 2038,
       "defender": 164
     },
-    "final_state_digest": "e51f5cc63f6aab79927bbf62af04fe7fbc003c473a931c19154687f5a8534e0f",
+    "final_state_digest": "b3c725f6cb5a3a09b761c450ea4180fd9349aa8f31a9f739a14a2eaa46e12d3c",
     "final_tick": 70,
     "match_id": "battlefield-canonical-interactions",
     "outcome": "draw",
     "statistics": {},
     "termination_reason": "time_limit"
   },
-  "publicReplaySha256": "e241f0058b6873cb8b813c7009468427a21f29627ca7aff046ebd3539b6d1381",
-  "ownerReplaySha256": "e469cf9d40646f3f914c42a966fb12ff18a47cecd8ec16c7e1abaaf3ef968ea3",
+  "publicReplaySha256": "00a07d95b68b32dfd02103f193fce187fe646d64fdf488ca543f9ba0b11214cd",
+  "ownerReplaySha256": "b1f0431adda182ea5dfdc411271a9a9ab4f9ec2eb9b20bea532b1d0193795099",
   "fullDesktopMobileReplayEquality": true,
+  "presentationModes": {
+    "desktop": {
+      "tacticalCamera": "18.175,55.431,44.310:1.000:-34.419,34.419,13.757,-13.757",
+      "cinematicCamera": "18.175,45.573,44.383:1.000:-32.864,32.864,13.136,-13.136",
+      "cameraContext": "tactical",
+      "tick": 0,
+      "authorizedResponseUnchanged": true,
+      "fogUnchanged": true
+    },
+    "mobile": {
+      "tacticalCamera": "48.701,50.943,13.050:1.000:-16.167,16.167,15.083,-15.083",
+      "cinematicCamera": "48.795,42.077,13.050:1.000:-16.167,16.167,15.083,-15.083",
+      "cameraContext": "tactical",
+      "tick": 0,
+      "authorizedResponseUnchanged": true,
+      "fogUnchanged": true
+    }
+  },
   "viewports": [
     {
       "width": 1440,
@@ -48,12 +66,36 @@
     200,
     200
   ],
+  "bridgeRoutes": [
+    [
+      "bridge.bot",
+      "lane"
+    ],
+    [
+      "bridge.mid",
+      "facility"
+    ],
+    [
+      "bridge.mid",
+      "facility"
+    ],
+    [
+      "bridge.top",
+      "lane"
+    ]
+  ],
+  "fordEntry": {
+    "tick": 32,
+    "sourceWorldStartProgressWu": 260,
+    "sourceWorldEndProgressWu": 360,
+    "observedEntityProgressWu": 260
+  },
   "ticks": {
     "lateralCrossing": 3,
     "midDestroyed": 11,
     "topExpanded": 13,
     "topDestroyed": 23,
-    "ford": 24,
+    "fordEntry": 32,
     "topRebuilt": 49,
     "bridgeTransit": 61
   },
