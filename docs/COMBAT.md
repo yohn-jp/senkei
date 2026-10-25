@@ -2,7 +2,7 @@
 
 ## 1. 目的と境界
 
-この文書は初期の次期Senritsuに必要な**基本戦闘の意味と、Heroの成長・Squad連携・死亡復活の関係**をまとめる。数値・演算式の未確定部分を自動的に仕様値としない。戦場の原則は [WORLD.md](WORLD.md)、ノード／エッジ・移動攻撃排他・射程・橋の規範は [BATTLEFIELD.md](BATTLEFIELD.md)、個体とSquadの構成は [UNITS.md](UNITS.md)、数値表・評価は [BALANCE.md](BALANCE.md) が担当する。
+この文書は初期の次期Senritsuに必要な**基本戦闘の意味と、Heroの成長・Squad連携・死亡復活の関係**をまとめる。数値・演算式の未確定部分を自動的に仕様値としない。戦場の原則は [WORLD.md](WORLD.md)、ノード／エッジ・移動攻撃排他・射程・橋の規範は [BATTLEFIELD.md](BATTLEFIELD.md)、個体とSquadの構成は [UNITS.md](UNITS.md)、数値表・評価は [BALANCE.md](BALANCE.md)、Behavior fieldの競合と既定行動は [BEHAVIOR.md](BEHAVIOR.md) が担当する。World/RulePlanとReplay identityの接続は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) に従う。
 
 Senritsuは何が攻撃可能で何が起こるか、移動・攻撃・死亡・XP・スキル・撤退・追撃の**ルールを定義**する。Jinreiは公開された観測から**Intentを選択**する。Enbuはそのルールに従って**同時刻の状態遷移を決定論的に確定**する。Rendererは許されたPresentationReplayから結果を描画し、当たり判定やダメージを再計算しない。
 
@@ -161,7 +161,7 @@ Hero Catalogには基礎攻防／HP／速度／射程、成長プロファイル
 2. **impact**：その攻撃の実際のダメージ／対象判定が成立する時点。フェーズ・射程再評価・死亡・目標移動で不成立となる条件を、Senritsuの版付きRulePlanに固定する。
 3. **recovery**：一定期間移動と次の攻撃を制限し、次の行動機会から既定行動／Jinreiの追撃・逃走選好へ戻る。
 
-準備中に対象が射程外へ移った場合のキャンセル、攻撃開始のTickと命中判定のTick、同Tick相打ち、Skillによる中断、硬直中の撤退制限などは**曖昧な実装都合で確定させない**。選択した時系列ルールと補正値をRulePlanに宣言し、native/WASMで同じ結果を証明する。
+準備中に対象が射程外へ移った場合のキャンセル、攻撃開始のTickと命中判定のTick、impact時の対象／射程／生存再検証、同Tick相打ち、Skillによる中断、硬直中の撤退制限などは**曖昧な実装都合で確定させない**。選択肢とそれぞれの影響は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) の `DEC-ATTACK-TIMING-001` に記録する。選択した時系列ルールと補正値を版付きRulePlanに宣言し、native/WASMで同じ結果を証明する。
 
 ノード内の射程省略、ノード外との攻撃禁止、同一エッジの進捗・トラック射程、渡河中被ダメ等は [BATTLEFIELD.md](BATTLEFIELD.md) の契約を維持する。Targeting／Pursuit／Survivalの**選好とDefaultへの復帰**は [BEHAVIOR.md](BEHAVIOR.md) が正本。前衛・後衛の編成バフは物理的なトラックと別に扱う。
 

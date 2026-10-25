@@ -8,6 +8,7 @@
 - [UNITS.md](UNITS.md) はHero・Squad・Minionの主体と所属を所有する。
 - [WORLD-DEFINITION.md](WORLD-DEFINITION.md) は合法な経路のWorld情報、[BATTLEFIELD.md](BATTLEFIELD.md) は地形移動と交戦の制約、[COMBAT.md](COMBAT.md) は攻撃・追撃・撤退の処理。
 - [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md) はJinreiが使える型付き語彙、[JINREI-EDITOR.md](JINREI-EDITOR.md) は選好／実効判断の可視化正本。
+- 複数コンポーネント間のWorld／RulePackage／Catalog identity、Worker/WASM互換性、Coverage/Trace権限の接続正本は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md)。本書はBehaviorの優先関係・作用主体を所有する。
 
 **確定する中心原則**：HeroにはJinreiが何も書かれていなくても有効な既定行動があり、Jinreiは状況に応じてその判断の全体または一部を上書きする。デフォルトの存在はJinreiの空actionや暗黙の構文を要求しない。
 
@@ -24,7 +25,7 @@
 
 Soloは1人Squadであり、Squad用の移動ポリシーを継承しつつ、Solo固有の高機動が有効になる。Heroの死亡・Solo復活・Squad分離／合流時には、**現在の実際の所属**から実効Profileを再合成する。
 
-陣営全体の「MIDを優先」は複数のHeroが同一Tickに実行する強制移動命令ではなく、適用範囲と主体を明示した選好／目標の入力である。誰が行動主体となるかの型・対象・多重適用はSenritsuが宣言し、Enbuが調停する。
+陣営全体の「MIDを優先」は複数のHeroが同一Tickに実行する強制移動命令ではなく、適用範囲と主体を明示した選好／目標の入力である。Army preferenceからSquad/Hero subjectへの適用写像、作用主体の型・安定ID・対象・多重適用をSenritsuが宣言し、Enbuが調停する。同じHeroへArmyからの共有方針とSquad/個別方針が重なった場合も、単独の暗黙コマンドにせず版付きRulePlanで解決する。
 
 ## 3. Behavior Profileの差分合成
 
@@ -54,7 +55,7 @@ Senritsu Common Defaults
 | 4. Squad／Armyからの有効な選好 | 適用対象と優先度を定義した部隊／陣営方針 |
 | 5. Hero Default／Senritsu Default | 未指定の判断の最終フォールバック |
 
-これは**同一Tickの評価結果から有効な選択を導く優先関係**であり、Jinreiの宣言を上から順番に実行するという意味ではない。ArmyとSquadの競合、同階層での衝突、同点はRulePlanの安定した全順序で解決し、欠落時は静的検証・RulePlan検証で拒否する。
+これは**同一Tickの評価結果から有効な選択を導く優先関係**であり、Jinreiの宣言を上から順番に実行するという意味ではない。ArmyとSquadの競合、同階層での衝突、異なるCapability間の同一Subject／同一Field競合、同点はRulePlanの安定した**全順序**で解決する。RulePackageは競合可能性とTie-breakに必要な安定キーを宣言し、欠落・矛盾時は静的検証・RulePlan検証で拒否する。Capability単位の順位を並べただけでクロスCapability順序が定まらない場合も未定義競合として拒否する。Enbuは列挙順、actor訪問順、HashMap順やスレッド順を優先順位として用いない。
 
 ## 4. Jinrei上書きの有効期間
 
@@ -87,7 +88,7 @@ Senritsu Common Defaults
 
 - **ノード**：普通のノードは所有権を持たない。敵Unitの現在の存在による退出先制限は[BATTLEFIELD.md](BATTLEFIELD.md)に従う。MID観測基地など**特殊施設だけ**に占領状態を認める。
 - **橋**：建設・拡張・破壊後も**公共施設**で、作業を行った陣営だけに通行帯を専有させない。A/B双方が状態に応じて通行できる。破壊しても渡河可能だが、追加時間と被ダメ不利が発生する。
-- **MID観測基地**：全マップを明らかにする施設にはしない。**周辺の局所的な視界強化＋実際に観測した敵の移動方向**を把握できる。未観測の敵、敵の目的地、Jinrei、未来の移動予測は開示しない。所有権・占領速度・半径は版付き。
+- **MID観測基地**：全マップを明らかにする施設にはしない。**周辺の局所的な視界強化＋許可された観測から確定できる敵の移動方向**を把握できる。未観測の敵、敵の目的地、Jinrei、未来の移動予測は開示しない。所有権・占領速度・半径は版付き。どの観測列を方向として十分とみなすか、精度と有効期間は未決定で、[RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) の `DEC-MID-DIRECTION-001` で追跡する。不十分な証拠はUnknownである。
 - **地形**：視界半径に加え、論理的な遮蔽を定義する。森林・高台・岩場等の機能は[WORLD.md](WORLD.md)とSenritsu Terrain Profileへ置く。Three.jsの可視ピクセルやRaycastでゲーム判断しない。
 
 ## 7. Deterministic Decision Pipeline
@@ -104,7 +105,7 @@ S[t] (同一確定World)
 ~~~
 
 - 明示命令が不合法なとき、世界を改変して成功させない。拒否理由を記録し、版付きの既定挙動へ移る。
-- **行動は必ず決定可能**であり、攻撃・移動が不可能ならSenritsuの合法な **HOLD／WAIT等の無動作**までフォールバックできる。ただし「WAITのみ」も意図的な行動結果としてカバレッジへ表示し、実戦で何でも実行できるという意味にしない。
+- **行動は必ず決定可能**であり、攻撃・移動が不可能ならRulePlanが選ぶ合法な **HOLD／WAIT等の無動作フォールバック**まで到達できる。HOLDとWAITの意味・使用条件は該当Senritsuが宣言し、ここではどちらを普遍的既定値にするかを決めない。Senritsuが明示的なHOLD／WAIT IntentまたはPreferenceを提供する場合、それは指定された通常の優先関係に参加する。明示的な選択と、合法な行動候補がない場合の最終フォールバックはCoverageで区別する。
 - 同じ主体の通常攻撃と自発的移動を同一Tickに重ねず、Squad全体の移動と一部Heroの別移動を同時に発生させない。個別Skillの発動条件と部隊停止状態は規範に従う。
 - 既定判断と明示Intentをそれぞれどの程度の論理CUに算入するかは版付きCosted IR／RulePlanの責務。無償のJinrei評価を暗黙に追加しない。
 
@@ -123,7 +124,7 @@ S[t] (同一確定World)
 | effective | 合法な実効行動、停止・移動・攻撃・待機などの理由 |
 | result | そのTickで確定した結果と結び付けるイベント参照。意図と確定結果を混同しない |
 
-内部トレースは有限・上限付き・安定順序であり、所有者／運営者の認可と保存期間・診断上限を持つ。相手の非公開判断を公開Replayや敵プレイヤー向けEditorへ流出させない。自軍側が知らなかった事実を「なぜ選んだか」の根拠として示さない。
+内部トレースは有限・上限付き・安定順序であり、照会するprincipalとpurposeに対応した所有者／運営者の認可、保存期間・診断上限を持つ。診断データが存在することは閲覧権限を与えない。相手の非公開判断を公開Replayや敵プレイヤー向けEditorへ流出させない。自軍側が知らなかった事実を「なぜ選んだか」の根拠として示さない。認可と一貫した情報開示は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断正本。
 
 ## 9. 受入・将来の実装
 

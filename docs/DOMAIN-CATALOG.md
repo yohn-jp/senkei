@@ -9,7 +9,7 @@
 - **Jinrei Compiler**が検証する：v0.1文法、型、シンボル、作用対象、有限集合、Known/Unknown、競合、CU、Capability署名。
 - **Editor**が表現する：Catalogから生成した補完・候補・説明・診断。実測値を推測せず、観測不可の値はUnknownまたは参照不可とする。
 
-[COMPONENTS.md](COMPONENTS.md)、[SENRITSU.md](SENRITSU.md)、[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)、[BEHAVIOR.md](BEHAVIOR.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md) と合わせて適用する。Jinreiの表層文法は変更しない。
+[COMPONENTS.md](COMPONENTS.md)、[SENRITSU.md](SENRITSU.md)、[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)、[BEHAVIOR.md](BEHAVIOR.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md) と合わせて適用する。成果物間のidentity・digest・互換性は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断正本。Jinreiの表層文法は変更しない。
 
 ## 2. 自己記述RulePackageの内容
 
@@ -34,13 +34,15 @@ CatalogはRulePackageの版付き・検証済みの**公開インターフェー
 - 観測可能なEntity集合と現在見えている集合を同一視しない。未観測の敵を「現在いない」「HP=0」「false」としない。
 - 各変数・Capabilityについて **Army／Squad／Hero／Lane-limited Minion** の適用スコープをSchemaで明示する。未許可のMinion単体命令は型検査／Capability検証で拒否する。
 - Last Known履歴を扱うなら現在Knownへの自動昇格は禁止。前Tickの既知位置を現在位置とみなさず、MIDの**移動方向**は十分な許可済み観測がある場合だけ公開する。
+- 「十分な許可済み観測」の標本数・時間関係・方向の粒度・失効条件はまだ決まっていない (`DEC-MID-DIRECTION-001`)。Compiler/Catalogは未確定の派生式を前提にdirection fieldを有効扱いせず、採択前は証明できない値をUnknownとして扱う。
 - Hoverやコード補完の説明はCatalogの情報から生成し、表示側が別の独自の変数表を所有しない。
 
 ## 4. SymbolとCapabilityの型（概念Schema）
 
 ~~~text
 DomainCatalog
-  identity: RulePackage ID + SemVer + Digest + Catalog Schema version
+  identity: RulePackage ID + SemVer + Digest + Catalog Schema + execution/compiler compatibility versions
+  compatibilityKey: identity + catalogDigest + optional metadataExtensionDigest
   symbols:     Finite<DomainSymbol>
   collections: Finite<CollectionDefinition>
   capabilities: Finite<CapabilityDefinition>
@@ -87,11 +89,11 @@ Enbu authorized Observation[t] ──────→ Editorの現在値・Unknow
 Enbu RestrictedDiagnostics[t] ──────→ 所有者向けDecision Trace
 ~~~
 
-- Editorが選択したRulePackage（ID・版・digest）とCompiler/Enbuが使用するRulePackageの**完全一致**を前提にする。
+- Editorが選択したRulePackage（ID・版・digest）とCompiler/Enbuが使用するRulePackageの**完全一致**を前提にする。Catalog互換性キーはRulePackage identityにCatalog schema／catalog digest／optional metadata-extension digest、minimum engine/model/primitive-set、Jinrei language/AST/IR/bytecode versionを合わせる。互換性範囲の比較と、artifact identityの完全一致を混同しない。
 - Rulesetの変更でCatalogが変われば、補完・型検査・Behavior Coverageを失効させ、必要に応じて再コンパイル・差分表示を行う。古い値のまま成功と表示しない。
-- CatalogのDigestもRulePackageの識別範囲で再現可能とする。Canonical Serialization、安定ソート、有限な集合・型域を使う。
+- CatalogのDigestもRulePackageの識別範囲で再現可能とする。Canonical Serialization、安定ソート、有限な集合・型域を使う。任意の別metadata extensionは、どのRulePackage ID／version／digestに属するかを検証し、拡張digestをCatalogのcompatibility keyに含める。Behavior profile/default/aggregationがmatch結果に影響するなら、そのextension digestはProgram、submitted snapshot、Enbu validation、trace、reproduction identityまで連続して束縛する。保管場所の選択は `DEC-BEHAVIOR-BINDING-001` を参照。
 - 実行時の新しいObservationや未公開フィールドをEditorの特権で勝手に「可視化」しない。現在値は陣営別の認可スナップショットの公開範囲内だけ。
-- 既存のJinrei `state/action/when/do`、三値、同時評価、CU／競合の正本と照合し、Editorが別のルールを持たない。
+- 既存のJinrei `state/action/when/do`、三値、同時評価、CU／競合の正本と照合し、Editorが別のルールを持たない。Army/Squad/Hero/Minionの作用範囲・Defaults・cross-capability total orderは [BEHAVIOR.md](BEHAVIOR.md)、identity全体は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) に従う。
 
 ## 6. 独立させるべき4つの検証
 
