@@ -116,6 +116,27 @@ describe("catalog-backed editor model", () => {
     expect(catalogEntries(value, unknownEntityType).some((entry) => entry.id === "allies.heroes")).toBe(false);
   });
 
+  it("exposes Catalog collections to Army, Squad, and lane-limited Minion decisions", async () => {
+    const value = await catalog();
+    const contexts = [
+      { scope: "army", side: "attacker" },
+      { scope: "squad", side: "attacker", squadId: "squad-1" },
+      { scope: "lane_limited_minion", side: "attacker", lane: "top" },
+    ] as const;
+    for (const context of contexts) {
+      const entries = catalogEntries(value, context);
+      expect(entries.some((entry) => entry.id === "allies.heroes" && entry.kind === "collection" && entry.permission === "available")).toBe(true);
+      expect(entries.some((entry) => entry.id === "enemies.visible_heroes" && entry.kind === "collection")).toBe(true);
+      expect(completeCatalog(value, context, "allies.heroes").some((entry) => entry.kind === "collection")).toBe(true);
+      expect(searchCatalog(value, context, "allies.minions").some((entry) => entry.kind === "collection")).toBe(true);
+    }
+    const internal = structuredClone(value);
+    internal.collections["allies.heroes"]!.visibility = "internal";
+    const army = catalogEntries(internal, contexts[0]);
+    expect(army.find((entry) => entry.id === "allies.heroes")?.permission).toBe("permission_denied");
+    expect(completeCatalog(internal, contexts[0], "allies.heroes").some((entry) => entry.kind === "collection")).toBe(false);
+  });
+
   it("keeps Permission Denied, Unknown, and unconnected Observed distinct", async () => {
     const value = await catalog();
     const denied = Object.entries(value.observations).find(([, field]) => field.readPermission === "internal_denied");

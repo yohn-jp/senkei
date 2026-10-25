@@ -111,8 +111,8 @@ export function catalogEntries(catalog: DomainCatalogDocument, actor: ActorSelec
       permission: visibleObservation(observation) ? "available" : "permission_denied", definition: observation });
   }
   for (const [id, collection] of Object.entries(catalog.collections)) {
-    const collectionScope = { kind: "package_entity", entityType: collection.elementType };
-    if (!scopeAllows(actor, collectionScope, collection.elementType)) continue;
+    // A collection element type describes its members, not which Jinrei
+    // decision scope may read the collection. Visibility is declared separately.
     const collectionPermission = collection.visibility === "internal" ? "permission_denied" : "available";
     entries.push({ kind: "collection", id, label: id,
       detail: `${collection.elementType} collection · max ${collection.maxItems} · ${collection.visibility} · order ${collection.deterministicOrderBy.join(", ") || "producer-defined"} · operations ${Object.keys(collection.operations).join(", ") || "none"}`,
