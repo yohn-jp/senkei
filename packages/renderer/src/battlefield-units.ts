@@ -83,14 +83,31 @@ interface Bucket {
 
 type UnitMaterials = Record<UnitSurface, THREE.MeshStandardMaterial>;
 
+const SHARED_UNIT_MATERIALS: UnitMaterials = {
+  armor: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.36, roughness: 0.52, flatShading: true }),
+  cloth: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.02, roughness: 0.92, flatShading: true, side: THREE.DoubleSide }),
+  leather: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.02, roughness: 0.82, flatShading: true }),
+  skin: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0, roughness: 0.78, flatShading: true }),
+  glow: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.1, roughness: 0.3, emissive: 0x49361c, emissiveIntensity: 0.2, flatShading: true }),
+};
+
 function createUnitMaterials(): UnitMaterials {
+  return SHARED_UNIT_MATERIALS;
+}
+
+const UNIT_GENERATOR = "senkei.battlefield-unit.v1";
+
+function assetRecord(assetKey: string, appearanceKey: string, lod: readonly string[]) {
   return {
-    armor: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.36, roughness: 0.52, flatShading: true }),
-    cloth: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.02, roughness: 0.92, flatShading: true, side: THREE.DoubleSide }),
-    leather: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.02, roughness: 0.82, flatShading: true }),
-    skin: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0, roughness: 0.78, flatShading: true }),
-    glow: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.1, roughness: 0.3, emissive: 0x49361c, emissiveIntensity: 0.2, flatShading: true }),
-  };
+    assetKey,
+    appearanceKey,
+    generator: UNIT_GENERATOR,
+    generatorVersion: 1,
+    lod,
+    surfaces: [...SURFACES],
+    animation: "replay-confirmed-unit-rig.v1",
+    source: "project-authored-procedural-geometry",
+  } as const;
 }
 
 /** Bakes each part's small authored meshes into one draw call per surface. */
@@ -203,7 +220,7 @@ class UnitBuilder {
     }
     this.root.userData.battlefieldRig = {
       version: 1,
-      generator: "senkei.battlefield-unit.v1",
+      generator: UNIT_GENERATOR,
       joints: Object.fromEntries(Object.entries(this.joints).map(([key, group]) => [key, group.name])),
       weaponPivots: Object.fromEntries(Object.entries(this.weaponPivots).map(([key, group]) => [key, group.name])),
       anchors: Object.fromEntries(Object.entries(this.anchors).map(([key, group]) => [key, group.name])),
@@ -899,9 +916,10 @@ export function buildBattlefieldHero(
   group.userData.heroBodyProfile = shape.bodyProfile;
   group.userData.heroChestStyle = shape.bodyProfile;
   group.userData.heroWeapon = shape.weapon;
+  group.userData.assetManifest = assetRecord(`hero.${shape.id.toLowerCase()}`, appearanceKey, group.userData.battlefieldLod.levels);
   group.userData.battlefieldRig = {
     version: 1,
-    generator: "senkei.battlefield-unit.v1",
+    generator: UNIT_GENERATOR,
     level: "full",
     joints: Object.fromEntries(Object.entries(rig.joints).map(([key, part]) => [key, part.name])),
     weaponPivots: Object.fromEntries(Object.entries(rig.weaponPivots).map(([key, part]) => [key, part.name])),
@@ -1042,9 +1060,10 @@ export function buildBattlefieldMinion(
   group.userData.appearanceKey = appearanceKey;
   group.userData.catalogId = entity.catalogId ?? `minion-${type}`;
   group.userData.unitClass = type;
+  group.userData.assetManifest = assetRecord(`minion.${type}`, appearanceKey, group.userData.battlefieldLod.levels);
   group.userData.battlefieldRig = {
     version: 1,
-    generator: "senkei.battlefield-unit.v1",
+    generator: UNIT_GENERATOR,
     level: "full",
     joints: Object.fromEntries(Object.entries(rig.joints).map(([key, part]) => [key, part.name])),
     weaponPivots: Object.fromEntries(Object.entries(rig.weaponPivots).map(([key, part]) => [key, part.name])),
@@ -1261,9 +1280,10 @@ export function buildBattlefieldMonster(
   group.userData.appearanceKey = appearanceKey;
   group.userData.catalogId = entity.catalogId ?? `monster-${kind}`;
   group.userData.species = kind;
+  group.userData.assetManifest = assetRecord(`monster.${kind}`, appearanceKey, group.userData.battlefieldLod.levels);
   group.userData.battlefieldRig = {
     version: 1,
-    generator: "senkei.battlefield-unit.v1",
+    generator: UNIT_GENERATOR,
     level: "full",
     joints: Object.fromEntries(Object.entries(rig.joints).map(([key, part]) => [key, part.name])),
     weaponPivots: Object.fromEntries(Object.entries(rig.weaponPivots).map(([key, part]) => [key, part.name])),

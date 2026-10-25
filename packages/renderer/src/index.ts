@@ -292,6 +292,7 @@ function distanceToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint) {
   return Math.hypot(p.x - a.x - f * dx, p.y - a.y - f * dy);
 }
 export type BattlefieldCameraMode = "tactical" | "overview";
+export type BattlefieldPresentationMode = "tactical" | "cinematic";
 
 export class Battlefield {
   private gl: THREE.WebGLRenderer;
@@ -321,6 +322,7 @@ export class Battlefield {
   private pixel = true;
   private destroyed = false;
   private cameraMode: BattlefieldCameraMode = "tactical";
+  private presentationMode: BattlefieldPresentationMode = "tactical";
   private userCameraChanged = false;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
@@ -894,6 +896,15 @@ export class Battlefield {
     this.cameraMode = mode;
     this.fitAuthoredCamera(mode);
   }
+  /** Switches information overlays while keeping the same replay, scene and fog authorization. */
+  setPresentationMode(mode: BattlefieldPresentationMode) {
+    this.presentationMode = mode;
+    const visibility = mode === "tactical" ? "visible" : "hidden";
+    this.canvas.dataset.presentationMode = mode;
+    for (const label of this.labels) label.element.style.visibility = visibility;
+    for (const label of this.entityLabels.values()) label.style.visibility = visibility;
+    for (const label of this.cueLabels) label.element.style.visibility = visibility;
+  }
   focusPoint(point: WorldPoint) {
     this.trackedIds = [];
     this.focusMarker.visible = true;
@@ -1426,7 +1437,9 @@ export class Battlefield {
         (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
     });
     group.userData.focusMaterials = [...materials];
-    group.userData.modelHeight = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3()).y;
+    const modelBounds = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3());
+    group.userData.modelHeight = modelBounds.y;
+    group.userData.modelBounds = modelBounds.toArray();
   }
   private entityHeight(entity: DisplayEntity, point: WorldPoint): number {
     if (entity.kind === "unit") {
@@ -1926,6 +1939,7 @@ export class Battlefield {
       if (!label) {
         label = document.createElement("span");
         label.className = "world-label entity-world-label";
+        label.style.visibility = this.presentationMode === "tactical" ? "visible" : "hidden";
         label.setAttribute("aria-hidden", "true");
         Object.assign(label.style, {
           background: "rgba(14, 27, 31, .64)",
@@ -2001,6 +2015,7 @@ export class Battlefield {
       ) => {
         const element = document.createElement("span");
         element.className = "world-label cue-world-label";
+        element.style.visibility = this.presentationMode === "tactical" ? "visible" : "hidden";
         element.dataset.cueType = type;
         element.dataset.tick = String(state.tick);
         element.setAttribute("aria-label", text);
@@ -2313,6 +2328,8 @@ export class Battlefield {
         this.playing && !this.reducedMotion
           ? Math.min(1, (performance.now() - this.changedAt) / 300)
           : 1;
+      this.camera.updateMatrixWorld();
+      const cameraUp = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
       for (const g of this.units.values()) {
         if (g.userData.to) {
           if (this.replay.scene.routes?.length || !this.playing || this.reducedMotion)
@@ -2335,13 +2352,16 @@ export class Battlefield {
           const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
           if (lod) {
             // Orthographic zoom changes screen occupancy without changing
-            // camera distance. Choose the shared identity's detail by its
-            // projected height; selection and Follow keep the authored rig.
-            const pixels = (g.userData.modelHeight ?? 2.5) * this.host.clientHeight * this.camera.zoom / (this.camera.top - this.camera.bottom);
+            // camera distance. Project the model bounds along camera-up so
+            // Overview and Follow use its actual screen-space footprint.
+            const [width, height, depth] = g.userData.modelBounds ?? [0, g.userData.modelHeight ?? 2.5, 0];
+            const projectedHeight = Math.abs(cameraUp.x) * width + Math.abs(cameraUp.y) * height + Math.abs(cameraUp.z) * depth;
+            const pixels = projectedHeight * this.host.clientHeight * this.camera.zoom / (this.camera.top - this.camera.bottom);
             const levelIndex = focused || pixels >= 48 ? 0 : pixels >= 18 ? 1 : 2;
             lod.autoUpdate = false;
             lod.levels.forEach((level, index) => { level.object.visible = index === Math.min(levelIndex, lod.levels.length - 1); });
             g.userData.lodLevel = levelIndex;
+            g.userData.lodPixelHeight = Number(pixels.toFixed(2));
           }
           const subject = this.trackedIds.length === 1 ? this.state?.entities[this.trackedIds[0]!] : undefined;
           const entity = this.state?.entities[g.userData.entityId];
@@ -2830,6 +2850,11 @@ export class Battlefield {
       this.canvas.dataset.rendered = "true";
       this.canvas.dataset.drawCalls = String(this.gl.info.render.calls);
       this.canvas.dataset.triangles = String(this.gl.info.render.triangles);
+      this.canvas.dataset.lodSummary = JSON.stringify([...this.units.values()].reduce((counts, group) => {
+        const level = group.userData.lodLevel === 0 ? "full" : group.userData.lodLevel === 1 ? "medium" : "far";
+        counts[level]++;
+        return counts;
+      }, { full: 0, medium: 0, far: 0 }));
       this.canvas.dataset.renderCpuMs = (performance.now() - frameStarted).toFixed(2);
       if (!this.performanceWindowStart) this.performanceWindowStart = frameStarted;
       this.performanceFrameCount++;

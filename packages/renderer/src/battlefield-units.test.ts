@@ -103,6 +103,24 @@ describe("Battlefield unit models", () => {
     expect(names).toHaveProperty("size", 12);
   });
 
+  it("shares the common facet materials and exposes a reproducible appearance record", () => {
+    const first = new THREE.Group();
+    const second = new THREE.Group();
+    buildBattlefieldHero(first, entity("first", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    buildBattlefieldHero(second, entity("second", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    const firstArmor = meshes(lodLevels(first)[0]).find(mesh => mesh.userData.unitSurface === "armor");
+    const secondArmor = meshes(lodLevels(second)[0]).find(mesh => mesh.userData.unitSurface === "armor");
+    expect(firstArmor?.material).toBe(secondArmor?.material);
+    expect(first.userData.assetManifest).toEqual(expect.objectContaining({
+      assetKey: "hero.f01",
+      appearanceKey: "senkei.next.hero.f01",
+      generator: "senkei.battlefield-unit.v1",
+      generatorVersion: 1,
+      lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
+      source: "project-authored-procedural-geometry",
+    }));
+  });
+
   it("gives each Hero an authored stance and a distinct shape signature independent of palette colors", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
     const stances = new Set<string>();
