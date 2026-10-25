@@ -6,15 +6,19 @@ import { fileURLToPath } from "node:url";
 const expectedViewports = ["1440x900", "1920x1080", "375x812", "390x844", "430x932", "320x740"];
 const scenarios = ["canonical", "observationCapture", "defaultBattle", "controlledBaseAssault"];
 
-// Preserve the full-run checks that cross viewport-group boundaries.
 export function verifyCaptureReports(reports, revision) {
-  assert.equal(reports.length, 3, "all three visual groups must publish metadata");
+  assert.equal(reports.length, expectedViewports.length, "each visual viewport must publish one metadata report");
   const viewports = reports.flatMap(report => report.viewports.map(viewport => viewport.name));
   assert.deepEqual(viewports.sort(), [...expectedViewports].sort(), "every visual viewport must occur exactly once");
   let captureCount = 0;
   const followIds = { sourceHeroEntityId: new Set(), rendererEntityId: new Set() };
+  const captureRunIds = new Set();
   for (const report of reports) {
     assert.equal(report.schema, "senkei-battlefield-visual-acceptance/v1");
+    assert.equal(report.viewports.length, 1, "each report must cover exactly one matrix viewport");
+    assert.equal(typeof report.captureRunId, "string");
+    assert.ok(report.captureRunId.length > 0);
+    captureRunIds.add(report.captureRunId);
     assert.equal(report.sourceRevision, revision, "capture source must match this workflow revision");
     assert.equal(report.buildRevision, revision, "capture build must match this workflow revision");
     assert.equal(typeof report.wasmSha256, "string");
@@ -40,10 +44,11 @@ export function verifyCaptureReports(reports, revision) {
     }
   }
   assert.ok(captureCount >= 70, "preserve the original full-run minimum of 70 captures");
+  assert.equal(captureRunIds.size, reports.length, "each viewport must come from a distinct capture report");
   for (const [field, ids] of Object.entries(followIds)) {
     assert.equal(ids.size, 1, `the same MID capture Hero ${field} must span all viewport groups`);
   }
-  return { groups: reports.length, viewports: viewports.length, captureCount };
+  return { reports: reports.length, viewports: viewports.length, captureCount };
 }
 
 function readReports(directory) {
