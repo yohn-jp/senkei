@@ -1,10 +1,10 @@
 {
   "evidenceKind": "compiled real Jinrei executed by desktop and mobile browser WASM",
-  "sourceRevision": "5a725880a954ef47935b1853dcd298b2a567ef55",
-  "buildRevision": "444f5afb40795b8a3b1a0b68e1a4712ef837ec37",
-  "inputSha256": "d577f393647e754bdf04dd9ff682d541eab6a6ba412e79bfbdfc68eb9a1c643f",
+  "sourceRevision": "fab212560daeaa2e05894c7aa6aaf1db44e6ee0c",
+  "buildRevision": "fab212560daeaa2e05894c7aa6aaf1db44e6ee0c",
+  "inputSha256": "4fb41f41b32b336a6903d837b1d928a9bf8536119a2b01ce6ec1bfa8fcbddc50",
   "ruleset": {
-    "digest": "8bfadf6a16385431a0b94d3ed14eda39850a2306a88751ad846ee1b4cbf68c46",
+    "digest": "375b515f423e52ec9c0e1a8a7fdc0f60620417da9a121bab092c77cd1a87cc4f",
     "id": "senkei.next",
     "version": {
       "major": 2,

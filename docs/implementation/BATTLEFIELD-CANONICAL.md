@@ -35,6 +35,8 @@ An explicit retreat/track move excludes attacks. Normal automatic movement may h
 
 The v2 restricted diagnostic projection aggregates exact CU cost charges by side/tick/operation after raw VM validation. This bounds diagnostics for real default battles without changing CU, Intent or Unknown semantics. Legacy diagnostic projection remains unchanged.
 
+The versioned v2 output limit is **64,000,000 bytes**, enforced consistently by the package, Rust dispatcher, WASM decoder and Worker. The real 600-tick edited Workbench battle measures 34,202,605 bytes: 14,062,613 public-response bytes, 19,697,603 owner-replay bytes and 442,358 attacker-diagnostic bytes. The former 32 MB local-response cap rejected that legal battle even though its public response fit. A real-Enbu regression and full native/WASM comparison cover this boundary; no authorized replay fields are discarded.
+
 ## Conformance correspondence
 
 | §13 | Implementation | Verification |
@@ -62,11 +64,13 @@ The controlled scenario uses actual compiled Jinrei and the canonical RulePackag
 
 Executed checks:
 
-- `cargo test --workspace --release --locked`: **144 passed**, including the [56-case scenario matrix](../evidence/battlefield/canonical-scenarios.json), both orientations of full base destruction, real compiled Jinrei bridge/track/ford combat, typed Observation and Unknown probes.
-- Native-repeat / real WASM: **6 complete response comparisons passed**, covering canonical public/owner replay, CU and rejection semantics. Hashes: [adapter evidence](../evidence/battlefield/canonical-adapters.json). The separate **7 legacy adapter scenarios passed**; their result hashes and CU remained unchanged.
+- `cargo test --workspace --release --locked`: **147 passed**, including the [56-case scenario matrix](../evidence/battlefield/canonical-scenarios.json), both orientations of full base destruction, real compiled Jinrei bridge/track/ford combat, typed Observation and Unknown probes.
+- Native-repeat / real WASM: **7 complete response comparisons passed**, covering canonical public/owner replay, the full 600-tick owner response above 32 MB, CU and rejection semantics. Hashes: [adapter evidence](../evidence/battlefield/canonical-adapters.json). The separate **7 legacy adapter scenarios passed**; their result hashes and CU remained unchanged.
 - `npm test`: **50 passed across 9 files**. TypeScript checks and production build passed; Vite reports its existing large-chunk advisory.
 - Actual canonical browser scenario passed at **1440×900 and 390×844**, including public/owner response agreement, lateral crossing, movement, bridge destruction/rebuild, Jungle ford and replay controls. [Browser metadata](../evidence/battlefield/canonical-browser/metadata.json) records source/build revisions and hashes; [desktop destroyed bridge](../evidence/battlefield/canonical-browser/desktop-1440x900-bridge-destroyed.png) and [mobile destroyed bridge](../evidence/battlefield/canonical-browser/mobile-390x844-bridge-destroyed.png) show the rendered river gap. These screenshots use the corrected production river geometry.
 
-The complete Workbench browser regression and final-HEAD CI are still being finalized. Earlier fixture-only or pre-v2 rendering evidence is historical and is not conformance evidence.
+The complete production browser suite passed **11 tests** with the CI build-revision, Battlefield-console and base-site assertions enabled. It includes edited 600-tick Workbench tactics, replay/Follow, rematch, Mobile, offline restoration, WebGL context recovery and the seven real WASM NPC regressions. The canonical evidence was rebuilt and captured at production-source revision `fab2125`; subsequent delivery commits update evidence and documentation only.
+
+Hosted final-HEAD results are attached to [PR #7 checks](https://github.com/yohn-jp/senkei/pull/7/checks), including Native Rust, native/WASM conformance, Web application, production browser smoke and Graphics G1. Earlier fixture-only or pre-v2 rendering evidence is historical and is not conformance evidence.
 
 Hardware GPU rendering, physical touch/IME and final art approval are separate **NOT_CHECKED** judgments. Chromium desktop/mobile viewport tests use SwiftShader; no hardware or user approval is inferred from them.

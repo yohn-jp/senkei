@@ -702,7 +702,7 @@
     {
       "case_id": "death-departure-solo-respawn",
       "death_tick": 1,
-      "package_digest": "5b59823bff4224aa2fd37fcb0e3bd130e1a2942e92342dd85807f0af04ee4d34",
+      "package_digest": "673aa8eca10b582af701e9b47048cae3e3722eff8b8c3d0c55b3aacf9992e9cc",
       "respawn_node": "A.BASE",
       "respawn_squad": "a:solo:cd0b9e0621749ad0",
       "respawn_tick": 21,
@@ -2510,7 +2510,7 @@
     "minor": 0,
     "patch": 0
   },
-  "package_digest": "8bfadf6a16385431a0b94d3ed14eda39850a2306a88751ad846ee1b4cbf68c46",
+  "package_digest": "375b515f423e52ec9c0e1a8a7fdc0f60620417da9a121bab092c77cd1a87cc4f",
   "ruleset_id": "senkei.next",
   "ruleset_version": {
     "major": 2,

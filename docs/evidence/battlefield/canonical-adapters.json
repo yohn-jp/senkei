@@ -3,7 +3,7 @@
   "cases": [
     {
       "request_id": "next-battlefield-canonical",
-      "input_sha256": "9b68fc08d0199df38ae0298d48c838ca1d0466f9a640fb6de6a4b38f9608f4ed",
+      "input_sha256": "22bcbfa23369d792707775d2d6796c71e5f890fbd9433938efd0d6d26eee5dbc",
       "native_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
       "repeated_native_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
       "wasm_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
@@ -18,7 +18,7 @@
     },
     {
       "request_id": "next-battlefield-owner",
-      "input_sha256": "6e32f25659087bd1ae938f122f15c2dc7747620afcf1c738e5a889c91822a142",
+      "input_sha256": "4e35664adedbf018691b20341745f145797e7292168ff4323aeea61106ee5892",
       "native_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
       "repeated_native_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
       "wasm_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
@@ -34,7 +34,7 @@
     },
     {
       "request_id": "next-invalid-engine",
-      "input_sha256": "d6a506acc71e977ecf516de687a79246f9841908d441dd658e011e118c41483a",
+      "input_sha256": "67977cbaf4f10e0397fb1efa5466f4f4355a66aa9e73d9320ecba34862b990ad",
       "native_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
       "repeated_native_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
       "wasm_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
@@ -42,7 +42,7 @@
     },
     {
       "request_id": "next-invalid-roster",
-      "input_sha256": "be81b2fea53bce1057655e5d624d3b876304aa1597d0f07534327b483e97d6ca",
+      "input_sha256": "e6f8e0f37be3f898cd3bb2a23c87be0ab84f1a0ebdd4d608db2bde47f1c04f61",
       "native_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
       "repeated_native_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
       "wasm_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
@@ -50,7 +50,7 @@
     },
     {
       "request_id": "next-invalid-ruleset",
-      "input_sha256": "d9a69d3bb44cdeae33b5170910e7f6f16ad7547cce9fff3f238423e2eb935d2f",
+      "input_sha256": "c3eefd56b391d3d6f2eece7e57bfce3bf0bcd12ad07c56a23719ecfd30af6e86",
       "native_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
       "repeated_native_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
       "wasm_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
@@ -58,7 +58,7 @@
     },
     {
       "request_id": "next-public-simulation",
-      "input_sha256": "d4d8d35343aa7554e2606b49e115e6d2774382ff3144c088044595cc123e9d1a",
+      "input_sha256": "27154740bebd0f7481ac64c0fa17766f32c1a5c56d2c1b3d4a8a97dbdfb2d376",
       "native_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
       "repeated_native_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
       "wasm_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
@@ -70,6 +70,23 @@
         "defender": 1320
       },
       "public_replay_sha256": "0cb64ec9360bd41f1c307a4ab62a32faefdf9948c89e15bb3fe64fd08c55d10d"
+    },
+    {
+      "request_id": "next-workbench-long-owner",
+      "input_sha256": "76dc3d86a210c3ffcac5f1187f27801324c1e8cfea9d0cbdc716033b29de515e",
+      "native_sha256": "00a1550a823b2ade0c0cc071a497033cde03810abb0e324e75bc423cd97d77af",
+      "repeated_native_sha256": "00a1550a823b2ade0c0cc071a497033cde03810abb0e324e75bc423cd97d77af",
+      "wasm_sha256": "00a1550a823b2ade0c0cc071a497033cde03810abb0e324e75bc423cd97d77af",
+      "ok": true,
+      "response_bytes": 34202726,
+      "final_tick": 600,
+      "final_state_digest": "7dbcc6c51c76db16ba2b65433e45f7675dde65bf7439314bd7c33be58ae7d32b",
+      "cu_spent": {
+        "attacker": 122496,
+        "defender": 120816
+      },
+      "public_replay_sha256": "95b0e9f0743a45edd70c08421cd6b7c5618e413e68740919560f36bc26c36fa3",
+      "owner_replay_sha256": "68884d6807efffd7ae78b561dafa3c38760b641a09847c970d77ee277b8ad3f0"
     }
   ]
 }
