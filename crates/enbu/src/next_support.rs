@@ -164,7 +164,7 @@ pub fn world_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> O
 
 fn vision_graph_key(map: &BattleMap) -> VisionGraphKey {
     let nodes = map.nodes.keys().cloned().collect();
-    let mut edges: Vec<_> = map.edges.iter().map(|edge| {
+    let edges: Vec<_> = map.edges.iter().map(|edge| {
         let (from, to) = if edge.from <= edge.to {
             (edge.from.clone(), edge.to.clone())
         } else {
@@ -172,16 +172,26 @@ fn vision_graph_key(map: &BattleMap) -> VisionGraphKey {
         };
         (from, to, edge.length)
     }).collect();
-    edges.sort();
     VisionGraphKey { nodes, edges }
 }
 
+// Compare borrowed graph content on cache hits. Reordering edges may rebuild
+// this non-authoritative memo, but can never change its computed distances.
+fn vision_graph_matches(key: &VisionGraphKey, map: &BattleMap) -> bool {
+    key.nodes.len() == map.nodes.len()
+        && key.nodes.iter().zip(map.nodes.keys()).all(|(cached, node)| cached == node)
+        && key.edges.len() == map.edges.len()
+        && key.edges.iter().zip(&map.edges).all(|((cached_from, cached_to, length), edge)| {
+            let (from, to) = if edge.from <= edge.to { (&edge.from, &edge.to) } else { (&edge.to, &edge.from) };
+            cached_from == from && cached_to == to && *length == edge.length
+        })
+}
+
 fn graph_distance_cached(map: &BattleMap, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
-    let key = vision_graph_key(map);
     VISION_GRAPH_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if cache.as_ref().map_or(true, |(cached_key, _)| *cached_key != key) {
-            *cache = Some((key, build_vision_graph_distances(map)));
+        if cache.as_ref().map_or(true, |(cached_key, _)| !vision_graph_matches(cached_key, map)) {
+            *cache = Some((vision_graph_key(map), build_vision_graph_distances(map)));
         }
         let (_, graph) = cache.as_ref()?;
         graph_distance_between(graph, from, to)
