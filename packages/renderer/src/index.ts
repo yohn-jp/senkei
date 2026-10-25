@@ -93,6 +93,16 @@ type ProjectedCueLabel = {
   order: number;
 };
 
+type WorldLabelPlacement = {
+  element: HTMLSpanElement;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  priority: number;
+};
+type LabelRect = Pick<WorldLabelPlacement, "left" | "right" | "top" | "bottom">;
+
 function ribbon(
   points: readonly WorldPoint[],
   width: number,
@@ -298,6 +308,7 @@ export class Battlefield {
   private pixel = true;
   private destroyed = false;
   private cameraMode: BattlefieldCameraMode = "tactical";
+  private userCameraChanged = false;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   private selected: string | null = null;
@@ -305,12 +316,12 @@ export class Battlefield {
   private labels: {
     element: HTMLSpanElement;
     point: THREE.Vector3;
+    kind: "lane" | "camp";
     desktopTransform?: string;
     mobileTransform?: string;
   }[] = [];
   private entityLabels = new Map<string, HTMLSpanElement>();
   private cueLabels: CueLabelEntry[] = [];
-  private cueSummary: HTMLSpanElement | null = null;
   private cueLayoutSignature = "";
   private marker = new THREE.Group();
   private focusMarker = new THREE.Group();
@@ -334,30 +345,52 @@ export class Battlefield {
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.gl.toneMappingExposure = 1.05;
+    const authoredBattlefield = Boolean(replay.scene.routes?.length);
+    this.gl.toneMappingExposure = authoredBattlefield ? 0.96 : 1.05;
     host.appendChild(this.canvas);
     this.scene.background = new THREE.Color(0x263f4e);
     this.scene.fog = replay.scene.routes?.length
       ? null
       : new THREE.Fog(0x263f4e, 65, 115);
-    this.scene.add(new THREE.HemisphereLight(0xddefff, 0x5b6046, 1.6));
-    const sun = new THREE.DirectionalLight(0xffe6b7, 2.8);
-    sun.position.set(-10, 23, 12);
+    this.scene.add(new THREE.HemisphereLight(
+      0xddefff,
+      0x5b6046,
+      authoredBattlefield ? 1.15 : 1.6,
+    ));
+    const sun = new THREE.DirectionalLight(0xffe6b7, authoredBattlefield ? 2.15 : 2.8);
+    const { min: mapMin, max: mapMax } = replay.scene.bounds;
+    const mapCenterX = (mapMin.x + mapMax.x) / 2;
+    const mapCenterZ = (mapMin.y + mapMax.y) / 2;
+    const mapSpan = Math.max(mapMax.x - mapMin.x, mapMax.y - mapMin.y, 1);
+    if (authoredBattlefield) {
+      const lightOffset = mapSpan * 0.72;
+      sun.position.set(mapCenterX - lightOffset, mapSpan * 0.9, mapCenterZ + lightOffset);
+      sun.target.position.set(mapCenterX, 0, mapCenterZ);
+    } else {
+      sun.position.set(-10, 23, 12);
+    }
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
+    const shadowSpan = authoredBattlefield ? mapSpan * 0.78 : 24;
     Object.assign(sun.shadow.camera, {
-      left: -24,
-      right: 24,
-      top: 22,
-      bottom: -22,
+      left: -shadowSpan,
+      right: shadowSpan,
+      top: shadowSpan,
+      bottom: -shadowSpan,
       near: 1,
-      far: 70,
+      far: authoredBattlefield ? mapSpan * 2.5 : 70,
     });
+    sun.shadow.camera.updateProjectionMatrix();
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.08;
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x9fdcec, 1);
-    fill.position.set(15, 10, -20);
+    if (authoredBattlefield) this.scene.add(sun.target);
+    const fill = new THREE.DirectionalLight(0x9fdcec, authoredBattlefield ? 0.62 : 1);
+    fill.position.set(
+      authoredBattlefield ? mapCenterX + mapSpan * 0.45 : 15,
+      authoredBattlefield ? mapSpan * 0.36 : 10,
+      authoredBattlefield ? mapCenterZ - mapSpan * 0.55 : -20,
+    );
     this.scene.add(fill);
     this.terrain();
     this.battlefieldLandmarks = new BattlefieldLandmarks(this.scene, replay);
@@ -376,6 +409,7 @@ export class Battlefield {
       this.labels.push({
         element,
         point: new THREE.Vector3(p.x, lane.elevation + 0.15, p.y),
+        kind: "lane",
       });
     }
     for (const camp of replay.scene.camps ?? []) {
@@ -388,6 +422,7 @@ export class Battlefield {
       this.labels.push({
         element,
         point: new THREE.Vector3(camp.position.x, 0.9, camp.position.y),
+        kind: "camp",
         desktopTransform: "translate(10px, -135%)",
         mobileTransform: location.toLowerCase() === "nw"
           ? "translate(-105%, -135%)"
@@ -441,6 +476,9 @@ export class Battlefield {
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
     this.controls.enablePan = true;
+    this.controls.addEventListener("start", () => {
+      this.userCameraChanged = true;
+    });
     this.controls.minZoom = 0.75;
     this.controls.maxZoom = 2.5;
     this.controls.minPolarAngle = 0.25;
@@ -505,6 +543,7 @@ export class Battlefield {
   resetCamera() {
     this.trackedIds = [];
     this.cameraMode = "tactical";
+    this.userCameraChanged = false;
     this.focusMarker.visible = false;
     if (this.replay.scene.routes?.length) {
       this.fitAuthoredCamera("tactical");
@@ -563,7 +602,15 @@ export class Battlefield {
     this.controls.update();
     this.controls.enableDamping = true;
   }
-  private authoredCameraOffset(purpose: "strategic" | "follow" = "strategic") {
+  private authoredCameraOffset(
+    purpose: "strategic" | "follow" = "strategic",
+    forward?: THREE.Vector2 | null,
+  ) {
+    if (purpose === "follow" && forward) {
+      const horizontal = this.mobile ? 32 : 34;
+      const height = this.mobile ? 34 : 30;
+      return new THREE.Vector3(-forward.x * horizontal, height, -forward.y * horizontal);
+    }
     if (this.mobile)
       return purpose === "follow"
         ? new THREE.Vector3(32, 34, 0)
@@ -576,8 +623,10 @@ export class Battlefield {
     center: THREE.Vector3,
     points: readonly THREE.Vector3[],
     purpose: "strategic" | "follow" = "strategic",
+    forward?: THREE.Vector2 | null,
+    fitScale = 1.16,
   ) {
-    const offset = this.authoredCameraOffset(purpose);
+    const offset = this.authoredCameraOffset(purpose, forward);
     const position = center.clone().add(offset);
     const direction = center.clone().sub(position).normalize();
     const right = new THREE.Vector3()
@@ -598,62 +647,82 @@ export class Battlefield {
       0.25,
       this.host.clientWidth / Math.max(1, this.host.clientHeight),
     );
-    return Math.max(6.5, Math.max(vertical, horizontal / aspect) * 1.16 + 0.8);
+    const minimum = purpose === "follow" ? 5 : 6.5;
+    return Math.max(minimum, Math.max(vertical, horizontal / aspect) * fitScale + 0.35);
   }
   private authoredOverviewHalfHeight(center: THREE.Vector3) {
     const { min, max } = this.replay.scene.bounds;
     const corners = [min.x, max.x].flatMap((x) =>
       [min.y, max.y].map((z) => new THREE.Vector3(x, 0, z)),
     );
-    return this.projectedFrameHalfHeight(center, corners) * 1.04;
+    // Overview is already bounded by the full authorized World extents. Keep
+    // only a small breathing margin so the actual geography fills the stage.
+    return this.projectedFrameHalfHeight(center, corners, "strategic", null, 1.045) * 1.015;
   }
   private visibleCameraEntities(): DisplayEntity[] {
     if (this.state) return Object.values(this.state.entities);
     return this.replay.initialView.map((entity) => ({ ...entity, destroyed: false }));
   }
   private tacticalCameraFrame() {
+    const subjects = this.tacticalSubjects();
     const framePoints = new Map<string, THREE.Vector3>();
     const include = (point: THREE.Vector3) => {
       framePoints.set(`${point.x.toFixed(3)}:${point.z.toFixed(3)}`, point);
     };
+    const center = subjects.length
+      ? subjects.reduce(
+          (sum, entity) => {
+            sum.x += entity.position.x;
+            sum.z += entity.position.y;
+            return sum;
+          },
+          new THREE.Vector3(),
+        ).multiplyScalar(1 / subjects.length)
+      : new THREE.Vector3(
+          (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
+          0,
+          (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
+        );
+    for (const entity of subjects)
+      include(new THREE.Vector3(entity.position.x, 0, entity.position.y));
+
+    // Frame a local piece of the real map around the authorized frontline.
+    // Geometry supplies terrain context, but never decides where hidden
+    // entities are or pulls Tactical back out to the full map.
+    const contextRadius = 18;
+    const near = (point: WorldPoint) =>
+      Math.hypot(point.x - center.x, point.y - center.z) <= contextRadius;
     for (const lane of this.replay.scene.lanes)
       for (const point of lane.points)
-        include(new THREE.Vector3(point.x, 0, point.y));
+        if (near(point)) include(new THREE.Vector3(point.x, 0, point.y));
     for (const route of this.replay.scene.routes ?? [])
       for (const point of route.points)
-        include(new THREE.Vector3(point.x, 0, point.y));
-    for (const camp of this.replay.scene.camps ?? [])
-      include(new THREE.Vector3(camp.position.x, 0, camp.position.y));
-    // Public structures provide endpoint context when visible. The authored
-    // lane and route geometry already spans both map directions at Tick 0.
+        if (near(point)) include(new THREE.Vector3(point.x, 0, point.y));
     for (const entity of this.visibleCameraEntities())
-      if (entity.kind !== "unit")
+      if (entity.kind !== "unit" && near(entity.position))
         include(new THREE.Vector3(entity.position.x, 0, entity.position.y));
     if (!framePoints.size) {
-      const { min, max } = this.replay.scene.bounds;
-      for (const x of [min.x, max.x])
-        for (const z of [min.y, max.y])
-          include(new THREE.Vector3(x, 0, z));
+      include(center.clone());
     }
     const points = [...framePoints.values()];
     const minX = Math.min(...points.map((point) => point.x));
     const maxX = Math.max(...points.map((point) => point.x));
     const minZ = Math.min(...points.map((point) => point.z));
     const maxZ = Math.max(...points.map((point) => point.z));
-    const center = new THREE.Vector3(
+    const frameCenter = new THREE.Vector3(
       (minX + maxX) / 2,
       0,
       (minZ + maxZ) / 2,
     );
     return {
-      center,
-      halfHeight: this.projectedFrameHalfHeight(center, points),
+      center: frameCenter,
+      halfHeight: this.projectedFrameHalfHeight(frameCenter, points, "strategic", null, 1.12),
     };
   }
   private strategicViewportFit(center: THREE.Vector3, halfHeight: number) {
     const hostHeight = Math.max(1, this.host.clientHeight);
-    const topInset = Math.min(this.mobile ? 74 : 88, hostHeight * 0.44);
-    const bottomInset = Math.min(12, hostHeight * 0.1);
+    const topInset = Math.min(this.mobile ? 58 : 50, hostHeight * 0.3);
+    const bottomInset = Math.min(16, hostHeight * 0.1);
     const safeHeight = Math.max(1, hostHeight - topInset - bottomInset);
     const safeRatio = safeHeight / hostHeight;
     const cameraPosition = center.clone().add(this.authoredCameraOffset("strategic"));
@@ -676,17 +745,111 @@ export class Battlefield {
   private authoredCloseHalfHeight() {
     const { min, max } = this.replay.scene.bounds;
     return Math.max(
-      6.5,
-      Math.max(max.x - min.x, max.y - min.y) * 0.14,
+      5.5,
+      Math.min(12, Math.max(max.x - min.x, max.y - min.y) * 0.08),
     );
+  }
+  private followForward(entities: readonly DisplayEntity[]): THREE.Vector2 | null {
+    const focus = entities.find((entity) => entity.side !== "neutral") ?? entities[0];
+    if (!focus) return null;
+    const destination = focus.side === "neutral"
+      ? undefined
+      : this.replay.scene.baseSites?.find((site) => site.side !== focus.side)?.position;
+    if (destination) {
+      const direction = new THREE.Vector2(
+        destination.x - focus.position.x,
+        destination.y - focus.position.y,
+      );
+      if (direction.lengthSq() > 0.0001) return direction.normalize();
+    }
+    const visibleThreat = this.visibleCameraEntities()
+      .filter((entity) =>
+        entity.kind === "unit" &&
+        !entity.destroyed &&
+        entity.side !== focus.side &&
+        entity.side !== "neutral",
+      )
+      .sort((left, right) => {
+        const leftDistance = Math.hypot(
+          left.position.x - focus.position.x,
+          left.position.y - focus.position.y,
+        );
+        const rightDistance = Math.hypot(
+          right.position.x - focus.position.x,
+          right.position.y - focus.position.y,
+        );
+        return leftDistance - rightDistance || left.id.localeCompare(right.id);
+      })[0];
+    if (!visibleThreat) return null;
+    const direction = new THREE.Vector2(
+      visibleThreat.position.x - focus.position.x,
+      visibleThreat.position.y - focus.position.y,
+    );
+    return direction.lengthSq() > 0.0001 ? direction.normalize() : null;
+  }
+  private tacticalSubjects(): DisplayEntity[] {
+    const units = this.visibleCameraEntities().filter((entity) =>
+      entity.kind === "unit" && !entity.destroyed,
+    );
+    if (!units.length) return [];
+    const eventIds = new Set<string>();
+    for (const cue of this.state?.cues ?? []) {
+      if (cue.tick !== this.state?.tick) continue;
+      if (cue.type === "attack" || cue.type === "skill") {
+        eventIds.add(cue.entityId);
+        eventIds.add(cue.targetId);
+      } else if (cue.type === "damage" || cue.type === "destroy" || cue.type === "move") {
+        eventIds.add(cue.entityId);
+      }
+    }
+    const eventUnits = units.filter((entity) => eventIds.has(entity.id));
+    const candidates = eventUnits.length ? eventUnits : units;
+    const clusterRadius = 12;
+    const midpoint = new THREE.Vector2(
+      (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
+      (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
+    );
+    let best: DisplayEntity[] = [];
+    let bestScore = -Infinity;
+    let bestKey = "";
+    for (const anchor of candidates) {
+      const cluster = candidates.filter((entity) =>
+        Math.hypot(
+          entity.position.x - anchor.position.x,
+          entity.position.y - anchor.position.y,
+        ) <= clusterRadius,
+      );
+      const heroes = cluster.filter((entity) => this.isHero(entity)).length;
+      let opposingPairs = 0;
+      for (let left = 0; left < cluster.length; left++)
+        for (let right = left + 1; right < cluster.length; right++) {
+          const a = cluster[left]!;
+          const b = cluster[right]!;
+          if (a.side !== "neutral" && b.side !== "neutral" && a.side !== b.side)
+            opposingPairs++;
+        }
+      const eventCount = cluster.filter((entity) => eventIds.has(entity.id)).length;
+      const centerDistance = Math.hypot(
+        anchor.position.x - midpoint.x,
+        anchor.position.y - midpoint.y,
+      );
+      const score = cluster.length + heroes * 2 + opposingPairs * 5 + eventCount * 4 - centerDistance * 0.025;
+      const key = cluster.map((entity) => entity.id).sort().join("|");
+      if (score > bestScore || (score === bestScore && key < bestKey)) {
+        best = cluster;
+        bestScore = score;
+        bestKey = key;
+      }
+    }
+    return best.sort((left, right) => left.id.localeCompare(right.id));
   }
   private fitAuthoredCamera(mode: BattlefieldCameraMode) {
     const tactical = mode === "tactical" ? this.tacticalCameraFrame() : null;
     const target = tactical?.center ?? new THREE.Vector3(
-          (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
-          0,
-          (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
-        )
+      (this.replay.scene.bounds.min.x + this.replay.scene.bounds.max.x) / 2,
+      0,
+      (this.replay.scene.bounds.min.y + this.replay.scene.bounds.max.y) / 2,
+    );
     const boundsHalfHeight = this.authoredOverviewHalfHeight(target);
     // Standard observation fits the authored lane/camp network. Overview
     // includes the complete World bounds; Follow frames a current target.
@@ -705,6 +868,7 @@ export class Battlefield {
   setCameraMode(mode: BattlefieldCameraMode) {
     this.trackedIds = [];
     this.focusMarker.visible = false;
+    this.userCameraChanged = false;
     if (!this.replay.scene.routes?.length) {
       // G1 sample fixtures keep their original camera and picking projection.
       this.cameraMode = "tactical";
@@ -717,6 +881,7 @@ export class Battlefield {
   focusPoint(point: WorldPoint) {
     this.trackedIds = [];
     this.focusMarker.visible = true;
+    this.userCameraChanged = true;
     const shouldFrameTactical =
       Boolean(this.replay.scene.routes?.length) && this.cameraMode !== "tactical";
     if (shouldFrameTactical) this.fitAuthoredCamera("tactical");
@@ -786,18 +951,35 @@ export class Battlefield {
       },
       new THREE.Vector3(),
     ).multiplyScalar(1 / entities.length);
+    const forward = this.followForward(entities);
     const groupPoints = entities.map(entity => {
       const point = this.renderPoint(entity);
       return new THREE.Vector3(point.x, 0, point.y);
     });
+    if (forward) {
+      groupPoints.push(new THREE.Vector3(center.x + forward.x * 10, 0, center.z + forward.y * 10));
+      for (const threat of this.visibleCameraEntities()) {
+        if (
+          threat.kind !== "unit" ||
+          threat.destroyed ||
+          threat.side === "neutral" ||
+          threat.side === entities[0]!.side
+        ) continue;
+        const dx = threat.position.x - center.x;
+        const dz = threat.position.y - center.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance <= 18 && dx * forward.x + dz * forward.y > 0)
+          groupPoints.push(new THREE.Vector3(threat.position.x, 0, threat.position.y));
+      }
+    }
     const groupHalfHeight = Math.max(
-      this.authoredCloseHalfHeight(),
-      this.projectedFrameHalfHeight(center, groupPoints, "follow"),
+      5.5,
+      this.projectedFrameHalfHeight(center, groupPoints, "follow", forward),
     );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
     this.controls.target.copy(center);
-    this.camera.position.copy(center).add(this.authoredCameraOffset("follow"));
+    this.camera.position.copy(center).add(this.authoredCameraOffset("follow", forward));
     this.camera.zoom = 1;
     this.camera.lookAt(center);
     this.updateFrustum(groupHalfHeight);
@@ -805,6 +987,7 @@ export class Battlefield {
     this.controls.enableDamping = true;
   }
   zoom(factor: number) {
+    this.userCameraChanged = true;
     this.camera.zoom = THREE.MathUtils.clamp(
       this.camera.zoom * factor,
       0.75,
@@ -821,6 +1004,7 @@ export class Battlefield {
   }
   select(id: string | null) {
     this.selected = id;
+    if (id) this.userCameraChanged = true;
   }
   private height(p: WorldPoint) {
     if (this.replay.scene.routes?.length) {
@@ -1620,6 +1804,16 @@ export class Battlefield {
     this.playing = playing;
     if (this.state === state) return;
     this.state = state;
+    if (this.trackedIds.length) {
+      this.frameTracked(this.trackedIds);
+    } else if (
+      this.replay.scene.routes?.length &&
+      this.cameraMode === "tactical" &&
+      !this.userCameraChanged &&
+      !this.selected
+    ) {
+      this.fitAuthoredCamera("tactical");
+    }
     this.changedAt = performance.now();
     const cues = this.replay.scene.routes?.length
       ? state.cues.filter((cue) => cue.tick === state.tick)
@@ -1662,17 +1856,18 @@ export class Battlefield {
         label.className = "world-label entity-world-label";
         label.setAttribute("aria-hidden", "true");
         Object.assign(label.style, {
-          background: "rgba(14, 27, 31, .92)",
-          border: `1px solid ${e.side === "azure" ? "#48c8d7" : e.side === "vermilion" ? "#e9845b" : "#b5b8ad"}`,
-          borderRadius: "3px",
+          background: "rgba(14, 27, 31, .64)",
+          border: `1px solid ${e.side === "azure" ? "#48c8d7aa" : e.side === "vermilion" ? "#e9845baa" : "#b5b8adaa"}`,
+          borderRadius: "2px",
           color: "#f1eee2",
-          fontSize: "10px",
-          letterSpacing: ".04em",
-          maxWidth: "min(360px, calc(100vw - 32px))",
-          padding: "3px 5px",
+          fontSize: "9px",
+          letterSpacing: ".02em",
+          maxWidth: "min(210px, calc(100vw - 32px))",
+          padding: "2px 4px",
           textAlign: "center",
           transform: "translate(-50%, -120%)",
           whiteSpace: "normal",
+          zIndex: "3",
         });
         this.host.appendChild(label);
         this.entityLabels.set(e.id, label);
@@ -1700,10 +1895,6 @@ export class Battlefield {
     for (const cueLabel of this.cueLabels) cueLabel.element.remove();
     this.cueLabels = [];
     this.cueLayoutSignature = "";
-    if (this.cueSummary) {
-      this.cueSummary.hidden = true;
-      this.cueSummary.dataset.tick = String(state.tick);
-    }
     if (this.replay.scene.routes?.length) {
       const addCueLabel = (
         type: string,
@@ -1719,53 +1910,42 @@ export class Battlefield {
         element.setAttribute("aria-label", text);
         element.setAttribute("role", "note");
         const border = `#${colors[side].toString(16).padStart(6, "0")}`;
+        const glyph = type === "attack"
+          ? "⚔"
+          : type === "skill"
+            ? "✦"
+            : type === "damage"
+              ? "−"
+              : type === "vitals"
+                ? "+"
+                : type === "destroy"
+                  ? "×"
+                  : "✚";
         Object.assign(element.style, {
-          background: "rgba(10, 18, 22, .96)",
+          alignItems: "center",
+          background: "rgba(15, 26, 28, .78)",
           border: `1px solid ${border}`,
-          borderRadius: "4px",
-          boxShadow: "0 2px 8px rgba(0,0,0,.65)",
+          borderRadius: "50%",
+          boxShadow: "0 1px 6px rgba(0,0,0,.38)",
           color: "#fff8df",
+          display: "flex",
           fontFamily: '"DM Mono", monospace',
-          fontSize: "11px",
+          fontSize: "13px",
           fontWeight: "700",
-          letterSpacing: ".04em",
-          lineHeight: "1.35",
-          maxWidth: "min(360px, calc(100vw - 20px))",
-          padding: "5px 7px",
+          height: "24px",
+          justifyContent: "center",
+          letterSpacing: "0",
+          lineHeight: "1",
+          padding: "0",
           textAlign: "center",
-          whiteSpace: "normal",
-          zIndex: "3",
+          whiteSpace: "nowrap",
+          width: "24px",
+          zIndex: "4",
         });
-        element.textContent = text;
+        element.textContent = glyph;
         this.host.appendChild(element);
         this.cueLabels.push({ element, point, type, ...ids });
       };
-      if (!this.cueSummary) {
-        const summary = document.createElement("span");
-        summary.className = "world-label cue-summary-label";
-        summary.setAttribute("role", "note");
-        Object.assign(summary.style, {
-          background: "rgba(10, 18, 22, .94)",
-          border: "1px solid rgba(211, 224, 206, .5)",
-          borderRadius: "4px",
-          boxShadow: "0 2px 8px rgba(0,0,0,.55)",
-          color: "#e5edda",
-          fontFamily: '"DM Mono", monospace',
-          fontSize: "9px",
-          fontWeight: "700",
-          letterSpacing: ".03em",
-          lineHeight: "1.3",
-          left: "8px",
-          maxWidth: "min(320px, calc(100% - 16px))",
-          padding: "4px 6px",
-          whiteSpace: "nowrap",
-          zIndex: "4",
-        });
-        this.host.appendChild(summary);
-        this.cueSummary = summary;
-      }
-      this.cueSummary.hidden = true;
-      this.cueSummary.dataset.tick = String(state.tick);
       const cueAnchor = (entity: DisplayEntity, height: number) => {
         const point = this.renderPoint(entity);
         return new THREE.Vector3(point.x, this.height(point) + height, point.y);
@@ -2086,16 +2266,52 @@ export class Battlefield {
       this.gl.render(this.scene, this.camera);
       this.gl.setRenderTarget(null);
       this.gl.render(this.output, this.outputCamera);
+      const hostRect = this.host.getBoundingClientRect();
+      const labelPlacements: WorldLabelPlacement[] = [];
+      const overlaps = (a: LabelRect, b: LabelRect, gap = 4) =>
+        a.left < b.right + gap && a.right + gap > b.left &&
+        a.top < b.bottom + gap && a.bottom + gap > b.top;
+      if (this.cueLayoutSignature) {
+        for (const cueLabel of this.cueLabels) {
+          if (cueLabel.element.hidden) continue;
+          const rect = cueLabel.element.getBoundingClientRect();
+          labelPlacements.push({
+            element: cueLabel.element,
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
+            priority: 10,
+          });
+        }
+      }
+      const authoredScale = this.camera.top / Math.max(this.camera.zoom, 0.01);
       for (const label of this.labels) {
         const transform = this.mobile
           ? label.mobileTransform
           : label.desktopTransform;
         if (transform) label.element.style.transform = transform;
+        const zoomVisible = !this.replay.scene.routes?.length ||
+          authoredScale <= (label.kind === "lane" ? 112 : 54);
         const p = label.point.clone().project(this.camera);
         label.element.style.left = `${((p.x + 1) * this.host.clientWidth) / 2}px`;
         label.element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2}px`;
         label.element.hidden =
-          Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
+          !zoomVisible || Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
+        if (label.element.hidden) continue;
+        const rect = label.element.getBoundingClientRect();
+        if (labelPlacements.some((other) => overlaps(rect, other))) {
+          label.element.hidden = true;
+          continue;
+        }
+        labelPlacements.push({
+          element: label.element,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          priority: label.kind === "lane" ? 50 : 60,
+        });
       }
       const cueCameraSignature = [
         ...this.camera.position.toArray(),
@@ -2111,7 +2327,9 @@ export class Battlefield {
         `:${this.mobile ? "mobile" : "desktop"}:${this.selected ?? ""}:${this.trackedIds.join(",")}`;
       if (cueCameraSignature !== this.cueLayoutSignature) {
         this.cueLayoutSignature = cueCameraSignature;
-        const hostRect = this.host.getBoundingClientRect();
+        for (let index = labelPlacements.length - 1; index >= 0; index--)
+          if (this.cueLabels.some(({ element }) => labelPlacements[index]?.element === element))
+            labelPlacements.splice(index, 1);
         const currentState = this.state;
         const focusedHeroIds = new Set<string>();
         for (const id of [...(this.selected ? [this.selected] : []), ...this.trackedIds]) {
@@ -2131,9 +2349,6 @@ export class Battlefield {
         for (let order = 0; order < this.cueLabels.length; order++) {
           const cueLabel = this.cueLabels[order]!;
           cueLabel.element.hidden = true;
-          cueLabel.element.style.maxWidth = this.mobile
-            ? "min(240px, calc(100vw - 20px))"
-            : "min(360px, calc(100vw - 20px))";
           const p = cueLabel.point.clone().project(this.camera);
           const inView = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1 && p.z >= -1 && p.z <= 1;
           if (!inView) continue;
@@ -2219,10 +2434,8 @@ export class Battlefield {
             else chosen.push(fallback);
           }
         }
-        const placed: { left: number; right: number; top: number; bottom: number }[] = [];
         const safeTop = hostRect.top + Math.min(88, hostRect.height * 0.3);
         const safeBottom = hostRect.bottom - Math.min(60, hostRect.height * 0.2);
-        let shown = 0;
         for (const candidate of chosen) {
           const { cueLabel, projectedX, projectedY } = candidate;
           const element = cueLabel.element;
@@ -2252,14 +2465,24 @@ export class Battlefield {
               box.right <= hostRect.right - 4 &&
               box.top >= safeTop + 4 &&
               box.bottom <= safeBottom - 4;
-            const overlaps = placed.some((other) =>
-              box.left < other.right + 4 &&
-              box.right + 4 > other.left &&
-              box.top < other.bottom + 4 &&
-              box.bottom + 4 > other.top,
-            );
-            if (inside && !overlaps) {
+            const cuePriority = priority(candidate) * 4 + 5;
+            const collisions = labelPlacements.filter((other) => overlaps(box, other));
+            const blocked = collisions.some((other) => other.priority <= cuePriority);
+            if (inside && !blocked) {
               placedRect = box;
+              for (const lowerPriority of collisions) {
+                lowerPriority.element.hidden = true;
+                const placementIndex = labelPlacements.indexOf(lowerPriority);
+                if (placementIndex >= 0) labelPlacements.splice(placementIndex, 1);
+              }
+              labelPlacements.push({
+                element,
+                left: box.left,
+                right: box.right,
+                top: box.top,
+                bottom: box.bottom,
+                priority: cuePriority,
+              });
               break;
             }
           }
@@ -2267,31 +2490,13 @@ export class Battlefield {
             element.hidden = true;
             continue;
           }
-          placed.push(placedRect);
-          shown++;
-        }
-        if (this.cueSummary) {
-          const remaining = Math.max(0, candidates.length - shown);
-          this.cueSummary.hidden = remaining === 0;
-          this.cueSummary.dataset.tick = String(currentState?.tick ?? 0);
-          this.cueSummary.textContent = `+${remaining} other events · T${currentState?.tick ?? 0}`;
-          this.cueSummary.setAttribute(
-            "aria-label",
-            `${remaining} other visible events at tick ${currentState?.tick ?? 0}`,
-          );
-          this.cueSummary.style.maxWidth = this.mobile
-            ? "min(240px, calc(100% - 16px))"
-            : "min(320px, calc(100% - 16px))";
-          // .world-label supplies top:0; reset both opposing insets so an
-          // absolute summary stays content-sized instead of covering the scene.
-          this.cueSummary.style.top = this.mobile ? "38px" : "auto";
-          this.cueSummary.style.bottom = this.mobile ? "auto" : "12px";
-          this.cueSummary.style.left = this.mobile ? "8px" : "auto";
-          this.cueSummary.style.right = this.mobile ? "auto" : "12px";
-          this.cueSummary.style.transform = "none";
         }
       }
-      for (const [id, element] of this.entityLabels) {
+      const entityLabelEntries = [...this.entityLabels.entries()].sort(([left], [right]) => {
+        const focused = (id: string) => id === this.selected || this.trackedIds.includes(id);
+        return Number(focused(right)) - Number(focused(left)) || left.localeCompare(right);
+      });
+      for (const [id, element] of entityLabelEntries) {
         const entity = this.state?.entities[id];
         const group = this.units.get(id);
         const nearbyHeroes = entity && this.isHero(entity)
@@ -2320,12 +2525,14 @@ export class Battlefield {
         const groupedHeroes = Boolean(
           entity &&
             this.cameraMode === "tactical" &&
+            authoredScale <= 30 &&
             heroStack.length > 1 &&
             heroStack[0].id === id,
         );
         const individualHero = Boolean(
           entity &&
             this.cameraMode === "tactical" &&
+            authoredScale <= 16 &&
             !entity.destroyed &&
             heroStack.length === 1 &&
             heroStack[0].id === id,
@@ -2372,6 +2579,27 @@ export class Battlefield {
             : 0;
         element.style.transform = `translate(-50%, calc(-120% + ${sideOffset}px))`;
         element.hidden = Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z < -1 || p.z > 1;
+        if (element.hidden) continue;
+        const rect = element.getBoundingClientRect();
+        const entityPriority = focused ? 0 : groupedHeroes ? 40 : 45;
+        const collisions = labelPlacements.filter((other) => overlaps(rect, other));
+        if (collisions.some((other) => other.priority <= entityPriority)) {
+          element.hidden = true;
+          continue;
+        }
+        for (const lowerPriority of collisions) {
+          lowerPriority.element.hidden = true;
+          const placementIndex = labelPlacements.indexOf(lowerPriority);
+          if (placementIndex >= 0) labelPlacements.splice(placementIndex, 1);
+        }
+        labelPlacements.push({
+          element,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          priority: entityPriority,
+        });
       }
       this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       this.canvas.dataset.camera =
@@ -2411,6 +2639,5 @@ export class Battlefield {
     this.baseSites.dispose();
     this.battlefieldLandmarks.dispose();
     this.cueLabels.forEach((label) => label.element.remove());
-    this.cueSummary?.remove();
   }
 }
