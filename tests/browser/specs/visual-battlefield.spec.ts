@@ -472,6 +472,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   const viewportChecks: JsonRecord = {};
 
   const canonical = await launchBattle(page, baseURL, canonicalSnapshot);
+  expect(canonical.buildRevision, "the app preview is built from the capture HEAD").toBe(appRevision);
   expect(canonical.result.final_tick).toBe(70);
   expect(canonical.result.outcome).toBe("draw");
   expect(frameAt(canonical.publicReplay, 1).events.some((event: JsonRecord) => event.event === "next.attack"),
@@ -625,6 +626,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   let captureRun: ReplayRun;
   try {
     captureRun = await launchBattle(capturePage, baseURL, captureSnapshot);
+    expect(captureRun.buildRevision, "the MID capture app preview is built from the capture HEAD").toBe(appRevision);
     expect(captureRun.result.final_tick).toBe(16);
     expect(integerField(observationAt(captureRun.ownerReplay, 1), "capture_progress")).toBe(1);
     expect(integerField(observationAt(captureRun.ownerReplay, 7), "capture_progress")).toBe(7);
@@ -665,6 +667,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   let defaultRun: ReplayRun;
   try {
     defaultRun = await launchBattle(defaultPage, baseURL);
+    expect(defaultRun.buildRevision, "the default-victory app preview is built from the capture HEAD").toBe(appRevision);
     expect(defaultRun.result.final_tick).toBe(420);
     expect(defaultRun.result.outcome).toBe("attacker_victory");
     expect(defaultRun.result.termination_reason).toBe("base_destroyed");
