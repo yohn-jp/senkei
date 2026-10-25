@@ -103,7 +103,7 @@ describe("Next map graph projection", () => {
       ford_remaining: value("integer", 0), ford_active: value("integer", 1),
     });
     const observation = (captureOwner: string, progress: number, side: string) => viewEntity("observation", {
-      hp: value("integer", 1), max_hp: value("integer", 1), x: value("integer", 250), y: value("integer", 125), node: value("string", "camp"),
+      x: value("integer", 250), y: value("integer", 125), node: value("string", "camp"),
       capture_owner: value("string", captureOwner), capture_progress: value("integer", progress), capture_progress_side: value("string", side),
     });
     const frame = (tick: number, entities: Record<string, ReturnType<typeof viewEntity>>) => ({ tick, events: [], visible_state: { entities, global_fields: {} } }) as unknown as CoreReplay["frames"][number];

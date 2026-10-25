@@ -121,7 +121,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
       emit({ type: "disappear", tick: frame.tick, order: order++, entityId: old.id }); active.delete(rawId);
     }
     for (const [rawId, raw] of Object.entries(current).sort(([a], [b]) => a.localeCompare(b))) {
-      if (!active.has(rawId) && (num(raw, "hp") > 0 || raw.entity_type === "bridge" || raw.entity_type === "observation")) {
+      if (!active.has(rawId) && (raw.entity_type === "bridge" || raw.entity_type === "observation" || num(raw, "hp") > 0)) {
         const entity = project(raw); active.set(rawId, entity);
         if (frame.tick === 0) initialView.push(entity);
         else emit({ type: "spawn", tick: frame.tick, order: order++, entity });
