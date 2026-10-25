@@ -1073,8 +1073,6 @@ function buildStormStalker(builder: UnitBuilder, root: THREE.Group): void {
 
 function buildBattlefieldMonsterLevel(
   group: THREE.Group,
-  entity: DisplayEntity,
-  appearanceKey: string,
   kind: "grove-brute" | "iron-warden" | "storm-stalker",
   materials: UnitMaterials,
   detail: DetailLevel,
@@ -1099,9 +1097,9 @@ export function buildBattlefieldMonster(
   group.name = name;
   const materials = createUnitMaterials();
   const rig = attachLod(group, name, [
-    { distance: 0, build: (level) => buildBattlefieldMonsterLevel(level, entity, appearanceKey, kind, materials, "full") },
-    { distance: 24, build: (level) => buildBattlefieldMonsterLevel(level, entity, appearanceKey, kind, materials, "medium") },
-    { distance: 58, build: (level) => buildBattlefieldMonsterLevel(level, entity, appearanceKey, kind, materials, "far") },
+    { distance: 0, build: (level) => buildBattlefieldMonsterLevel(level, kind, materials, "full") },
+    { distance: 24, build: (level) => buildBattlefieldMonsterLevel(level, kind, materials, "medium") },
+    { distance: 58, build: (level) => buildBattlefieldMonsterLevel(level, kind, materials, "far") },
   ]);
   group.userData.appearanceKey = appearanceKey;
   group.userData.catalogId = entity.catalogId ?? `monster-${kind}`;

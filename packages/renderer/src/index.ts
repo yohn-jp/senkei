@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
+import { buildBattlefieldTower } from "./battlefield-architecture";
+import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -517,7 +519,11 @@ export class Battlefield {
       ),
       this.camera,
     );
-    const hit = ray.intersectObjects([...this.units.values()], true)[0];
+    const pickable = new Set<THREE.Object3D>([
+      ...this.units.values(),
+      ...this.scene.children.filter(object => typeof object.userData.entityId === "string"),
+    ]);
+    const hit = ray.intersectObjects([...pickable], true)[0];
     if (hit) {
       let node: THREE.Object3D | null = hit.object;
       while (node && !node.userData.entityId) node = node.parent;
@@ -1402,7 +1408,27 @@ export class Battlefield {
     if (side === "vermilion") return "▲ Vermilion";
     return "○ Neutral";
   }
+  private attachRig(group: THREE.Group, rig: BattlefieldUnitRig) {
+    group.userData.animationRig = rig;
+    group.userData.rigRest = new Map(
+      [...Object.values(rig.joints), ...Object.values(rig.weaponPivots)]
+        .map(joint => [joint, joint.rotation.clone()]),
+    );
+  }
+  private entityHeight(entity: DisplayEntity, point: WorldPoint): number {
+    if (entity.kind === "unit") {
+      if (entity.battlefield?.crossing === "ford") return -0.18;
+      if (entity.battlefield?.crossing === "bridge") return 0.39;
+      if (entity.battlefield?.node === "N.MID.OBS") return 0.43;
+    }
+    return this.height(point);
+  }
   private heroModel(g: THREE.Group, e: DisplayEntity, color: number) {
+    if (this.replay.scene.routes?.length) {
+      this.attachRig(g, buildBattlefieldHero(g, e, color, this.canonicalAppearance(e)));
+      this.healthBar(g, e, 2.6);
+      return;
+    }
     const appearance = this.canonicalAppearance(e);
     const key = (Object.keys(HERO_CATALOG) as (keyof typeof HERO_CATALOG)[]).find(
       (candidate) => appearance === candidate || e.archetype === candidate,
@@ -1495,6 +1521,11 @@ export class Battlefield {
     this.healthBar(g, e, Math.max(2.05, height * 1.8));
   }
   private minionModel(g: THREE.Group, e: DisplayEntity, color: number) {
+    if (this.replay.scene.routes?.length) {
+      this.attachRig(g, buildBattlefieldMinion(g, e, color, this.canonicalAppearance(e)));
+      this.healthBar(g, e, 1.95);
+      return;
+    }
     const appearance = this.canonicalAppearance(e);
     g.scale.setScalar(appearance === "minion-siege" ? 0.95 : 0.72);
     box(g, [0.2, 0.31, 0.2], [-0.12, 0.16, 0], 0x414d48);
@@ -1530,6 +1561,11 @@ export class Battlefield {
     this.healthBar(g, e, 1.45);
   }
   private monsterModel(g: THREE.Group, e: DisplayEntity) {
+    if (this.replay.scene.routes?.length) {
+      this.attachRig(g, buildBattlefieldMonster(g, e, this.canonicalAppearance(e)));
+      this.healthBar(g, e, 2.65);
+      return;
+    }
     const key = this.canonicalAppearance(e);
     if (key === "monster-drake") {
       g.scale.setScalar(1.2);
@@ -1579,6 +1615,15 @@ export class Battlefield {
     this.healthBar(g, e, 2.2);
   }
   private structureModel(g: THREE.Group, e: DisplayEntity, color: number) {
+    if (this.replay.scene.routes?.length) {
+      // The persistent geographic presenters own bases, bridges and the MID
+      // observatory. Never draw a second proxy building at the entity anchor.
+      if (e.kind === "tower") {
+        buildBattlefieldTower(g, e);
+        if (!e.destroyed) this.healthBar(g, e, 4.15);
+      }
+      return;
+    }
     const base = e.kind === "base";
     if (e.kind === "bridge") {
       const state = e.battlefield?.bridgeState;
@@ -1703,6 +1748,10 @@ export class Battlefield {
     g.userData.entityId = e.id;
     const color = colors[e.side];
     const appearance = this.canonicalAppearance(e);
+    if (this.replay.scene.routes?.length && e.kind !== "unit") {
+      this.structureModel(g, e, color);
+      return g;
+    }
     if (e.destroyed) {
       if (this.replay.scene.routes?.length && e.kind !== "unit") {
         const isBase = e.kind === "base";
@@ -1803,6 +1852,7 @@ export class Battlefield {
   update(state: DisplayState, playing: boolean) {
     this.playing = playing;
     if (this.state === state) return;
+    const priorState = this.state;
     this.state = state;
     if (this.trackedIds.length) {
       this.frameTracked(this.trackedIds);
@@ -1834,18 +1884,21 @@ export class Battlefield {
     for (const e of Object.values(state.entities)) {
       if (!shown(e)) continue;
       let g = this.units.get(e.id);
-      if (!g || g.userData.signature !== `${e.hp}:${e.destroyed}:${JSON.stringify(e.battlefield)}`) {
+      // Logical progress changes every tick, but the model's anatomy does not.
+      // Keep rigs and LOD buffers across movement; rebuild only for model/vitals changes.
+      const signature = `${e.hp}:${e.maxHp}:${e.destroyed}:${e.appearanceKey}:${e.side}`;
+      if (!g || g.userData.signature !== signature) {
         const position = g?.position.clone();
         if (g) {
           this.scene.remove(g);
           disposeTree(g);
         }
         g = this.model(e);
-        g.userData.signature = `${e.hp}:${e.destroyed}:${JSON.stringify(e.battlefield)}`;
+        g.userData.signature = signature;
         if (position && !this.replay.scene.routes?.length) g.position.copy(position);
         else {
           const point = this.renderPoint(e);
-          g.position.set(point.x, this.height(point), point.y);
+          g.position.set(point.x, this.entityHeight(e, point), point.y);
         }
         this.units.set(e.id, g);
         this.scene.add(g);
@@ -1876,9 +1929,22 @@ export class Battlefield {
       label.textContent = `${labelName}${this.entityHealthSuffix(e)}`;
       g.userData.from = g.position.clone();
       const point = this.renderPoint(e);
-      g.userData.to = new THREE.Vector3(point.x, this.height(point), point.y);
-      if (e.kind === "unit")
-        g.rotation.y = e.side === "azure" ? Math.PI / 2 : -Math.PI / 2;
+      g.userData.to = new THREE.Vector3(point.x, this.entityHeight(e, point), point.y);
+      if (e.kind === "unit") {
+        const prior = priorState?.entities[e.id];
+        const priorPoint = prior ? this.renderPoint(prior) : point;
+        const dx = point.x - priorPoint.x, dz = point.y - priorPoint.y;
+        const moved = priorState?.tick === state.tick - 1 && Math.hypot(dx, dz) > 0.001;
+        g.userData.walking = moved;
+        const attack = cues.find(cue => cue.type === "attack" && cue.entityId === e.id);
+        const target = attack?.type === "attack" ? state.entities[attack.targetId] : undefined;
+        if (target) g.rotation.y = Math.atan2(target.position.x - point.x, target.position.y - point.y);
+        else if (moved) g.rotation.y = Math.atan2(dx, dz);
+        else if (!prior) {
+          const opposite = this.replay.scene.baseSites?.find(site => site.side !== e.side);
+          if (opposite) g.rotation.y = Math.atan2(opposite.position.x - point.x, opposite.position.y - point.y);
+        }
+      }
       // Real authored movement follows the Replay graph. Interpolating a
       // node-to-node change through arbitrary world space can draw a false
       // shortcut, so only the original sample fixtures retain that flourish.
@@ -2211,6 +2277,31 @@ export class Battlefield {
           if (this.replay.scene.routes?.length || !this.playing || this.reducedMotion)
             g.position.copy(g.userData.to);
           else g.position.lerpVectors(g.userData.from, g.userData.to, phase);
+        }
+        const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
+        if (rig) {
+          const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
+          const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
+          if (lod) {
+            lod.autoUpdate = !focused;
+            if (focused) lod.levels.forEach((level, index) => { level.object.visible = index === 0; });
+          }
+          const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
+          for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
+          const active = this.playing && !this.reducedMotion;
+          const events = this.state?.cues.filter(cue => cue.tick === this.state?.tick) ?? [];
+          const attacks = events.some(cue => (cue.type === "attack" || cue.type === "skill") && cue.entityId === g.userData.entityId);
+          const hit = events.some(cue => cue.type === "damage" && cue.entityId === g.userData.entityId);
+          const walk = active && g.userData.walking && !attacks ? Math.sin(phase * Math.PI * 2) * 0.34 : 0;
+          const strike = active && attacks ? Math.sin(phase * Math.PI) : 0;
+          for (const [name, direction] of [["leg.left", 1], ["leg.right", -1], ["arm.left", -0.55], ["arm.right", 0.55]] as const) {
+            const joint = rig.joints[name];
+            if (joint) joint.rotation.x += walk * direction;
+          }
+          if (rig.joints["arm.right"]) rig.joints["arm.right"].rotation.x -= strike * 0.85;
+          if (rig.weaponPivots.main) rig.weaponPivots.main.rotation.x -= strike * 0.22;
+          if (rig.joints.torso) rig.joints.torso.rotation.z += active && hit ? Math.sin(phase * Math.PI) * 0.08 : 0;
+          if (rig.joints.cape) rig.joints.cape.rotation.x += Math.abs(walk) * 0.18;
         }
         if (
           this.playing &&
