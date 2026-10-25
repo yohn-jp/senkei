@@ -6,12 +6,13 @@ export type BridgeVisualState = "normal" | "expanded" | "destroyed" | "unknown";
 export interface BattlefieldBridgeModel {
   readonly group: THREE.Group;
   setState(state: BridgeVisualState, entityId?: string): void;
+  setWork(remaining: number, tick: number, entityId?: string): void;
   dispose(): void;
 }
 
 export interface MidObservatoryModel {
   readonly group: THREE.Group;
-  update(entity: DisplayEntity | undefined): void;
+  update(entity: DisplayEntity | undefined, contested?: boolean): void;
   dispose(): void;
 }
 
@@ -365,11 +366,42 @@ export function buildBattlefieldBridge(
     const beam = box(brokenDeck, `${group.name}-fallen-beam-${side}`, [0.16, 0.8, 0.16], [side * (span * 0.12), -0.02, side * 0.35], palette.agedWood);
     beam.rotation.z = side * 0.63;
   }
+
+  // A deliberately generic work site. It communicates activity without
+  // claiming whether the hidden operation is expand, rebuild, or destroy.
+  const workScaffold = new THREE.Group();
+  workScaffold.name = `${group.name}-work-scaffold`;
+  workScaffold.position.set(0, 0, laneOffset + laneWidth * 0.72 + 0.45);
+  group.add(workScaffold);
+  for (const x of [-0.92, 0.92]) {
+    mesh(workScaffold, new THREE.CylinderGeometry(0.075, 0.095, 1.42, 5), palette.agedWood, `${workScaffold.name}-post-${x}`, [x, 0.71, 0]);
+    box(workScaffold, `${workScaffold.name}-foot-${x}`, [0.38, 0.12, 0.38], [x, 0.08, 0], palette.slateLight);
+    box(workScaffold, `${workScaffold.name}-brace-${x}`, [0.1, 1.15, 0.1], [x * 0.72, 0.56, 0], palette.agedWoodLight, x < 0 ? -0.38 : 0.38);
+  }
+  const workBeam = new THREE.Group();
+  workBeam.name = `${workScaffold.name}-animated-beam`;
+  workBeam.position.set(0, 1.42, 0);
+  workScaffold.add(workBeam);
+  box(workBeam, `${workBeam.name}-crossbeam`, [2.35, 0.16, 0.18], [0, 0, 0], palette.agedWoodLight);
+  box(workBeam, `${workBeam.name}-counterweight`, [0.42, 0.3, 0.38], [-0.65, -0.54, 0], palette.slateLight);
+  mesh(workBeam, new THREE.CylinderGeometry(0.035, 0.035, 0.86, 5), palette.agedWood, `${workBeam.name}-hoist-rope`, [0.48, -0.43, 0]);
+  box(workBeam, `${workBeam.name}-tool-crate`, [0.5, 0.4, 0.44], [1.23, -1.18, 0.1], palette.agedWood);
+  const workFlag = addBanner(workScaffold, "neutral", `${workScaffold.name}-flag`, [0.98, 1.44, 0.12], 0.54);
+  workFlag.flag.material.color.set(0xc69a51);
+  workFlag.flag.material.emissive.set(0x4d3512);
+  const workTools = new THREE.Group();
+  workTools.name = `${workScaffold.name}-hand-tools`;
+  workTools.position.set(-1.3, 0.08, 0.2);
+  workScaffold.add(workTools);
+  box(workTools, `${workTools.name}-mallet-handle`, [0.08, 0.72, 0.08], [0, 0.36, 0], palette.agedWood, 0.22);
+  box(workTools, `${workTools.name}-mallet-head`, [0.36, 0.14, 0.16], [0.06, 0.67, 0], palette.sandstoneLight, 0.22);
+  const workFlagRest = workFlag.group.rotation.z;
   centerDeck.visible = false;
   expandedDeck.visible = false;
   centerRails.visible = false;
   sideRails.visible = false;
   brokenDeck.visible = false;
+  workScaffold.visible = false;
 
   const model: BattlefieldBridgeModel = {
     group,
@@ -384,6 +416,22 @@ export function buildBattlefieldBridge(
       else delete group.userData.entityId;
       group.userData.state = state;
       group.userData.openWaterGap = state === "destroyed";
+    },
+    setWork(remaining, tick, entityId) {
+      const active = remaining > 0;
+      workScaffold.visible = active;
+      group.userData.workActive = active;
+      if (active) {
+        group.userData.buildRemaining = remaining;
+        if (entityId) group.userData.entityId = entityId;
+        workBeam.rotation.z = Math.sin(tick * 0.45) * 0.055;
+        workFlag.group.rotation.z = workFlagRest + Math.sin(tick * 0.6) * 0.035;
+      } else {
+        delete group.userData.buildRemaining;
+        workBeam.rotation.z = 0;
+        workFlag.group.rotation.z = workFlagRest;
+        if (group.userData.state === "unknown") delete group.userData.entityId;
+      }
     },
     dispose() {
       parent.remove(group);
@@ -460,7 +508,7 @@ export function buildMidObservatory(
   const ownerBanner = addBanner(group, "neutral", "mid-observatory-owner-standard", [0, 2.05, 0.92], 0.86);
   const progressRing = mesh(group, new THREE.TorusGeometry(2.31, 0.09, 5, 32), palette.neutral, "mid-observatory-capture-ring", [0, 0.59, 0], { transparent: true, opacity: 0.9 });
   progressRing.rotation.x = Math.PI / 2;
-  const update = (entity: DisplayEntity | undefined) => {
+  const update = (entity: DisplayEntity | undefined, contested = false) => {
     const isVisible = entity !== undefined;
     if (entity) group.userData.entityId = entity.id;
     else delete group.userData.entityId;
@@ -479,7 +527,9 @@ export function buildMidObservatory(
     progressRing.scale.set(1, 1, 1);
     progressRing.geometry.dispose();
     progressRing.geometry = new THREE.TorusGeometry(2.31, 0.09, 5, 32, Math.PI * 2 * progress);
-    group.userData.state = isVisible ? capture > 0 ? "contested" : "visible" : "unknown";
+    group.userData.state = isVisible ? contested ? "contested" : capture > 0 ? "capturing" : "visible" : "unknown";
+    if (isVisible) group.userData.contested = contested;
+    else delete group.userData.contested;
     if (isVisible) {
       group.userData.owner = owner;
       if (capture > 0) {

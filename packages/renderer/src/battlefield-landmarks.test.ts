@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { decodeReplay, type PresentationReplay } from "@senkei/replay-contract";
+import { decodeReplay, type DisplayEntity, type DisplayState, type PresentationReplay } from "@senkei/replay-contract";
 import { stateAt } from "../../replay-player/src/index";
 import basic from "../../replay-contract/fixtures/basic-three-lane.json";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
@@ -17,8 +17,10 @@ describe("canonical Battlefield landmarks", () => {
     source.scene.river = [{ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 }];
     source.scene.trackOffset = 0.8;
     source.initialView.push(
-      { id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { bridgeSite: "TOP", bridgeState: "normal" } },
-      { id: "mid-observation", side: "neutral", kind: "observation", archetype: "observation", appearanceKey: "observation", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { captureProgress: 0, facilityOwner: "neutral" } },
+      { id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { bridgeSite: "TOP", bridgeState: "normal", buildRemaining: 3 } },
+      { id: "mid-observation", side: "neutral", kind: "observation", archetype: "observation", appearanceKey: "observation", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { captureProgress: 4, captureSide: "vermilion", facilityOwner: "neutral" } },
+      { id: "mid-unit-azure", side: "azure", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
+      { id: "mid-unit-vermilion", side: "vermilion", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
     );
     source.result = { ...source.result, tick: 2 };
     source.timeline = [
@@ -54,14 +56,29 @@ describe("canonical Battlefield landmarks", () => {
     expect(centerDeck.visible).toBe(true);
     expect(sideDeck.visible).toBe(false);
     expect(brokenGap.visible).toBe(false);
-    expect(objective.userData.state).toBe("visible");
+    expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(true);
+    expect(bridge.userData.buildRemaining).toBe(3);
+    expect(objective.userData.state).toBe("contested");
+    const oneSided = structuredClone(stateAt(replay, 0)) as {
+      tick: number;
+      entities: Record<string, DisplayEntity>;
+      cues: DisplayState["cues"];
+      result: DisplayState["result"];
+    };
+    delete oneSided.entities["mid-unit-vermilion"];
+    landmarks.update(oneSided as DisplayState);
+    expect(objective.userData.state).toBe("capturing");
     landmarks.update(stateAt(replay, 1));
     expect(bridge.userData.state).toBe("destroyed");
     expect(centerDeck.visible).toBe(false);
     expect(sideDeck.visible).toBe(false);
     expect(brokenGap.visible).toBe(true);
+    expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(false);
+    expect(bridge.userData.buildRemaining).toBeUndefined();
     landmarks.update({ tick: 1, entities: {}, cues: [], result: null });
     expect(bridge.userData.state).toBe("unknown");
+    expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(false);
+    expect(bridge.userData.buildRemaining).toBeUndefined();
     expect(objective.userData.state).toBe("unknown");
     landmarks.dispose();
   });

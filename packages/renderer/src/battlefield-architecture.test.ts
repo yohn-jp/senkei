@@ -37,11 +37,25 @@ describe("Battlefield architectural models", () => {
     const sideDeck = bridge.group.getObjectByName(`${bridge.group.name}-expanded-side-decks`)!;
     const piers = bridge.group.getObjectByName(`${bridge.group.name}-piers-and-abutments`)!;
     const broken = bridge.group.getObjectByName(`${bridge.group.name}-broken-water-gap`)!;
+    const scaffold = bridge.group.getObjectByName(`${bridge.group.name}-work-scaffold`)!;
+    const beam = bridge.group.getObjectByName(`${scaffold.name}-animated-beam`)!;
 
     expect(piers.children.length).toBeGreaterThan(0);
     expect(centerDeck.visible).toBe(false);
     expect(sideDeck.visible).toBe(false);
     expect(broken.visible).toBe(false);
+    expect(bridge.group.userData.state).toBe("unknown");
+
+    bridge.setWork(12, 3, "bridge.MID");
+    const firstBeamAngle = beam.rotation.z;
+    expect(scaffold.visible).toBe(true);
+    expect(bridge.group.userData.buildRemaining).toBe(12);
+    expect(bridge.group.userData.state).toBe("unknown");
+    bridge.setWork(12, 4, "bridge.MID");
+    expect(beam.rotation.z).not.toBe(firstBeamAngle);
+    bridge.setWork(0, 5, "bridge.MID");
+    expect(scaffold.visible).toBe(false);
+    expect(bridge.group.userData.buildRemaining).toBeUndefined();
     expect(bridge.group.userData.state).toBe("unknown");
 
     bridge.setState("normal");
@@ -82,6 +96,7 @@ describe("Battlefield architectural models", () => {
     expect(mid.group.getObjectByName("mid-island-bridge-gate-0")).toBeDefined();
     expect(mid.group.userData.state).toBe("unknown");
     expect(mid.group.userData.owner).toBeUndefined();
+    expect(mid.group.userData.contested).toBeUndefined();
 
     mid.update(entity({
       id: "obs",
@@ -89,10 +104,18 @@ describe("Battlefield architectural models", () => {
       archetype: "observation",
       battlefield: { facilityOwner: "azure", captureSide: "vermilion", captureProgress: 4 },
     }));
-    expect(mid.group.userData.state).toBe("contested");
+    expect(mid.group.userData.state).toBe("capturing");
     expect(mid.group.userData.owner).toBe("azure");
     expect(mid.group.userData.captureSide).toBe("vermilion");
     expect(mid.group.userData.captureProgress).toBe(4);
+
+    mid.update(entity({
+      id: "obs",
+      kind: "observation",
+      archetype: "observation",
+      battlefield: { facilityOwner: "azure", captureSide: "vermilion", captureProgress: 4 },
+    }), true);
+    expect(mid.group.userData.state).toBe("contested");
 
     mid.update(undefined);
     expect(mid.group.userData.state).toBe("unknown");

@@ -130,9 +130,18 @@ export class BattlefieldLandmarks {
     for (const { model, site } of this.bridges.values()) {
       const facility = facilities.find((entity) => entity.battlefield?.bridgeSite === site);
       model.setState(facility?.battlefield?.bridgeState ?? "unknown", facility?.id);
+      model.setWork(facility?.battlefield?.buildRemaining ?? 0, state?.tick ?? 0, facility?.id);
     }
     const objective = Object.values(state?.entities ?? {}).find((entity) => entity.kind === "observation");
-    this.observation?.update(objective);
+    const observationSides = new Set(Object.values(state?.entities ?? {})
+      .filter((entity) => entity.kind === "unit"
+        && entity.hp > 0
+        && !entity.destroyed
+        && entity.battlefield?.node === "N.MID.OBS"
+        && !entity.battlefield.edgeTo
+        && (entity.side === "azure" || entity.side === "vermilion"))
+      .map((entity) => entity.side));
+    this.observation?.update(objective, observationSides.has("azure") && observationSides.has("vermilion"));
   }
 
   dispose() {
