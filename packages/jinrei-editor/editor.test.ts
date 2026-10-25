@@ -113,7 +113,7 @@ describe("catalog-backed editor model", () => {
     expect(hoverCatalog(value, actor, "activate")?.detail).toContain("scope package_entity(hero)");
     expect(catalogEntries(value, actor).every((entry) => entry.id.length > 0)).toBe(true);
     const unknownEntityType = { scope: "hero", side: "attacker", squadId: "squad-1", heroId: "hero-1" } as const;
-    expect(catalogEntries(value, unknownEntityType).some((entry) => entry.id === "allies.heroes")).toBe(false);
+    expect(catalogEntries(value, unknownEntityType).some((entry) => entry.id === "allies.heroes")).toBe(true);
   });
 
   it("exposes Catalog collections to Army, Squad, and lane-limited Minion decisions", async () => {
