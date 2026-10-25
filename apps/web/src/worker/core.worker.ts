@@ -10,6 +10,8 @@ const MAX_IDENTIFIER_LENGTH = 128;
 type RequestOperation =
   | "initial_ruleset"
   | "next_ruleset"
+  | "editor_catalog"
+  | "editor_compile"
   | "new_match_context"
   | "compile"
   | "parse_text"
@@ -123,6 +125,8 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
   if (
     operation !== "initial_ruleset" &&
     operation !== "next_ruleset" &&
+    operation !== "editor_catalog" &&
+    operation !== "editor_compile" &&
     operation !== "new_match_context" &&
     operation !== "compile" &&
     operation !== "parse_text" &&
@@ -152,10 +156,25 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
   switch (operation) {
     case "initial_ruleset":
     case "next_ruleset":
+    case "editor_catalog":
       if (Object.keys(payload).length !== 0) {
-        throw new RequestFailure("invalid_request", "initial_ruleset payload must be empty.");
+        throw new RequestFailure("invalid_request", `${operation} payload must be empty.`);
       }
       return;
+    case "editor_compile": {
+      requireString(payload.source, "editor_compile.source");
+      requireRecord(payload.stamp, "editor_compile.stamp");
+      const stamp = payload.stamp as Record<string, unknown>;
+      requireRecord(stamp.identity, "editor_compile.stamp.identity");
+      requireString(stamp.catalogDigest, "editor_compile.stamp.catalogDigest");
+      if (!(stamp.metadataExtensionDigest === null || typeof stamp.metadataExtensionDigest === "string")) {
+        throw new RequestFailure("invalid_request", "editor_compile.stamp.metadataExtensionDigest must be a string or null.");
+      }
+      if (!Number.isSafeInteger(payload.revision) || (payload.revision as number) < 0) {
+        throw new RequestFailure("invalid_request", "editor_compile.revision must be a non-negative safe integer.");
+      }
+      return;
+    }
     case "new_match_context":
       requireRecord(payload.ruleset_ref, "new_match_context.ruleset_ref");
       requireString(payload.match_id, "new_match_context.match_id");
@@ -217,6 +236,10 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     case "initial_ruleset":
     case "next_ruleset":
       return callCore(request.operation, {}, request.request_id);
+    case "editor_catalog":
+      return callCore("editor_catalog", {}, request.request_id);
+    case "editor_compile":
+      return callCore("editor_compile", request.payload, request.request_id);
     case "new_match_context":
       return callCore("new_match_context", {
         ruleset_ref: request.payload.ruleset_ref,

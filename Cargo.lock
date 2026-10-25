@@ -166,6 +166,7 @@ version = "0.1.0"
 dependencies = [
  "enbu",
  "jinrei",
+ "senkei-editor-adapter",
  "senkei-model",
  "senritsu",
  "serde",

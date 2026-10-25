@@ -9,6 +9,10 @@ import type {
   StructuredTacticsAst,
   TacticalProgram,
 } from "./core-model";
+import type {
+  CatalogStamp,
+  CompilerRequest as EditorCompileRequest,
+} from "@senkei/jinrei-editor";
 
 /** JSON values crossing the Rust/WASM boundary. Domain shapes stay core-owned. */
 export type CoreJsonValue =
@@ -97,6 +101,20 @@ export interface CompileOutcome {
   readonly diagnostics: readonly CompileDiagnostic[];
 }
 
+/** Exact-stamped result returned by the existing Senritsu/Jinrei editor adapter. */
+export type EditorCompilerReply =
+  | { readonly status: "compiled"; readonly stamp: CatalogStamp; readonly result: CompileOutcome }
+  | {
+      readonly status: "rejected";
+      readonly stamp: CatalogStamp;
+      readonly error: { readonly code: string; readonly message: string; readonly path?: string | null };
+    };
+
+export interface EditorCompilerEnvelope {
+  readonly revision: number;
+  readonly reply: EditorCompilerReply;
+}
+
 export interface SimulationOutcome {
   readonly result: MatchResult;
   readonly presentation_replay: PresentationReplay;
@@ -141,6 +159,8 @@ export interface WorkerFailure {
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
   nextRuleset(): Promise<RulePackage>;
+  editorCatalogJson(): Promise<string>;
+  editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
   formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;

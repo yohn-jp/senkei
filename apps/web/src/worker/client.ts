@@ -4,6 +4,7 @@ import type {
   CompileOutcome,
   CoreClient,
   CoreJsonValue,
+  EditorCompilerEnvelope,
   SimulationResponse,
   SimulationSnapshot,
   TacticalInput,
@@ -12,6 +13,7 @@ import type {
   RulesetRef,
 } from "../contracts/core";
 import type { MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
+import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 
@@ -78,6 +80,14 @@ export class WorkerCoreClient implements CoreClient {
 
   nextRuleset(): Promise<RulePackage> {
     return this.request("next_ruleset", {}) as Promise<RulePackage>;
+  }
+
+  editorCatalogJson(): Promise<string> {
+    return this.request("editor_catalog", {}) as Promise<string>;
+  }
+
+  editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope> {
+    return this.request("editor_compile", request) as Promise<EditorCompilerEnvelope>;
   }
 
   initialRuleset(): Promise<RulePackage> {
