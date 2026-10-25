@@ -4,6 +4,8 @@ import { fitBattlefieldCameraFrame } from "./battlefield-camera";
 import { KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { BattlefieldFog } from "./battlefield-fog";
+import { buildBattlefieldLaneGuides } from "./battlefield-lane-guides";
+import { applyBattlefieldInformationLayers, type BattlefieldInformationLayers } from "./battlefield-information-layers";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
@@ -268,16 +270,20 @@ function addSceneryInstances(
   parent.add(mesh);
 }
 function disposeTree(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
   root.traverse((node) => {
     if (node instanceof THREE.InstancedMesh) node.dispose();
-    if (node instanceof THREE.Mesh) {
-      node.geometry.dispose();
+    if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
+      geometries.add(node.geometry);
       const mats = Array.isArray(node.material)
         ? node.material
         : [node.material];
-      mats.forEach((m) => { if (!isSharedUnitMaterial(m)) m.dispose(); });
+      mats.forEach((material) => { if (!isSharedUnitMaterial(material)) materials.add(material); });
     }
   });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
 }
 function distanceToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint) {
   const dx = b.x - a.x,
@@ -293,6 +299,7 @@ function distanceToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint) {
 }
 export type BattlefieldCameraMode = "tactical" | "overview";
 export type BattlefieldPresentationMode = "tactical" | "cinematic";
+export type { BattlefieldInformationLayers } from "./battlefield-information-layers";
 
 export class Battlefield {
   private gl: THREE.WebGLRenderer;
@@ -311,6 +318,8 @@ export class Battlefield {
   private baseSites: KnownBaseSites;
   private battlefieldLandmarks: BattlefieldLandmarks;
   private battlefieldFog: BattlefieldFog;
+  private laneGuides: THREE.Group;
+  private informationLayers: BattlefieldInformationLayers = { vision: true, lanes: true, engagements: true };
   private state: DisplayState | null = null;
   private playing = false;
   private changedAt = 0;
@@ -421,6 +430,7 @@ export class Battlefield {
     for (const camp of replay.scene.camps ?? [])
       this.buildCamp(camp.position, camp.id);
     this.scene.add(this.camps);
+    this.laneGuides = buildBattlefieldLaneGuides(this.scene, replay);
     for (const lane of replay.scene.lanes) {
       const element = document.createElement("span");
       element.className = "world-label";
@@ -896,14 +906,24 @@ export class Battlefield {
     this.cameraMode = mode;
     this.fitAuthoredCamera(mode);
   }
-  /** Switches information overlays while keeping the same replay, scene and fog authorization. */
+  /** Selects the rendering emphasis without changing the replay or information authorization. */
   setPresentationMode(mode: BattlefieldPresentationMode) {
     this.presentationMode = mode;
-    const visibility = mode === "tactical" ? "visible" : "hidden";
     this.canvas.dataset.presentationMode = mode;
-    for (const label of this.labels) label.element.style.visibility = visibility;
-    for (const label of this.entityLabels.values()) label.style.visibility = visibility;
-    for (const label of this.cueLabels) label.element.style.visibility = visibility;
+    this.gl.toneMappingExposure = mode === "tactical" ? 0.96 : 1.04;
+    this.scene.background = new THREE.Color(mode === "tactical" ? 0x263f4e : 0x22353d);
+  }
+  setInformationLayers(layers: BattlefieldInformationLayers) {
+    this.informationLayers = { ...layers };
+    this.canvas.dataset.informationLayers = JSON.stringify(this.informationLayers);
+    applyBattlefieldInformationLayers(layers, {
+      fog: this.battlefieldFog,
+      laneGuides: this.laneGuides,
+      effects: this.effects,
+      laneLabels: this.labels.map(({ element }) => element),
+      entityLabels: this.entityLabels.values(),
+      engagementLabels: this.cueLabels.map(({ element }) => element),
+    });
   }
   focusPoint(point: WorldPoint) {
     this.trackedIds = [];
@@ -1940,7 +1960,7 @@ export class Battlefield {
       if (!label) {
         label = document.createElement("span");
         label.className = "world-label entity-world-label";
-        label.style.visibility = this.presentationMode === "tactical" ? "visible" : "hidden";
+        label.style.visibility = this.informationLayers.engagements ? "visible" : "hidden";
         label.setAttribute("aria-hidden", "true");
         Object.assign(label.style, {
           background: "rgba(14, 27, 31, .64)",
@@ -2016,7 +2036,7 @@ export class Battlefield {
       ) => {
         const element = document.createElement("span");
         element.className = "world-label cue-world-label";
-        element.style.visibility = this.presentationMode === "tactical" ? "visible" : "hidden";
+        element.style.visibility = this.informationLayers.engagements ? "visible" : "hidden";
         element.dataset.cueType = type;
         element.dataset.tick = String(state.tick);
         element.setAttribute("aria-label", text);

@@ -7,6 +7,8 @@ export class BattlefieldFog {
   private masks: { matrix: THREE.Matrix4; node?: string; edge?: string; sample?: number }[] = [];
   private batches: { nodes: THREE.InstancedMesh; edges: THREE.InstancedMesh; state: "unexplored" | "explored" }[] = [];
   private contacts = new THREE.Group();
+  private enabled = true;
+  private hasFogState = false;
   private materials = {
     unexplored: new THREE.MeshBasicMaterial({ color: 0x14232d, transparent: true, opacity: 0.82, depthWrite: false, side: THREE.DoubleSide }),
     explored: new THREE.MeshBasicMaterial({ color: 0x354653, transparent: true, opacity: 0.48, depthWrite: false, side: THREE.DoubleSide }),
@@ -57,7 +59,8 @@ export class BattlefieldFog {
   }
 
   update(state: DisplayState): void {
-    this.group.visible = Boolean(state.fog);
+    this.hasFogState = Boolean(state.fog);
+    this.group.visible = this.enabled && this.hasFogState;
     if (!state.fog) return;
     const fog = state.fog.state;
     for (const batch of this.batches) {
@@ -89,6 +92,12 @@ export class BattlefieldFog {
       ring.userData.lastSeenTick = contact.last_seen_tick;
       this.contacts.add(ring);
     }
+  }
+
+  /** Hides or shows the authorized fog presentation without changing its source state. */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    this.group.visible = this.enabled && this.hasFogState;
   }
 
   dispose(): void {

@@ -17,6 +17,11 @@ describe("battlefield fog presentation", () => {
       schema_version: 1, tick: 2, side: "attacker", nodes: {}, edges: {}, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "TOP", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
     } } };
     fog.update(state);
+    expect(fog.group.visible).toBe(true);
+    fog.setEnabled(false);
+    expect(fog.group.visible).toBe(false);
+    fog.setEnabled(true);
+    expect(fog.group.visible).toBe(true);
     const ring = fog.group.getObjectByName("last-known-facility-1-tick-1") as THREE.Line;
     expect(ring).toBeInstanceOf(THREE.Line);
     const box = new THREE.Box3().setFromObject(ring);
