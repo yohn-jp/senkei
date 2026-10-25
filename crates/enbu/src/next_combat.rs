@@ -125,12 +125,185 @@ pub fn resolve(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) -> Vec<PresentationEvent> {
-    let mut events = objective_lifecycle(world, rules, tick);
+    let events = objective_lifecycle(world, rules, tick);
+    let start = world.clone();
+    resolve_snapshot_with_events(world, &start, rules, accepted, tick, events)
+}
+
+/// Resolve attacks against a frozen pre-movement snapshot while committing
+/// their effects to the post-movement world. Movement intents are marked in
+/// that world and therefore suppress their source's ordinary attack.
+pub fn resolve_from_snapshot(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    accepted: &[(CombatantSide, Intent)],
+    tick: u32,
+) -> Vec<PresentationEvent> {
+    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new())
+}
+
+/// Reserve a legal active skill as this Hero's action before movement runs.
+/// Explicit movement/track/bridge actions take precedence when both intent
+/// kinds target the same actor in one arbitration batch; the skill remains
+/// deferred for a later tick. The marker lets the combat phase distinguish a
+/// prepared skill's own lock from an earlier lock.
+pub fn prepare_actions(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    accepted: &[(CombatantSide, Intent)],
+    tick: u32,
+) {
+    let mut actions = accepted.iter().collect::<Vec<_>>();
+    actions.sort_by(|(side_a, a), (side_b, b)| {
+        (side_a, &a.actor, &a.action_id).cmp(&(side_b, &b.actor, &b.action_id))
+    });
+    let mut reserved = BTreeSet::new();
+    for (side, intent) in actions {
+        let Some(actor_id) = intent.actor.as_ref() else { continue };
+        if reserved.contains(actor_id) || explicit_movement_action_for(actor_id, accepted, snapshot) {
+            continue;
+        }
+        if active_skill_target(intent, *side, snapshot, rules, tick).is_none() { continue; }
+        if cohort_action_lock_until(world, snapshot, actor_id) > i64::from(tick) {
+            continue;
+        }
+        let Some(actor) = world.entities.get_mut(actor_id) else { continue };
+        support::set_int(actor, "prepared_action_tick", i64::from(tick).saturating_add(1));
+        let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
+        let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
+        let lock = preparation.saturating_add(recovery).max(1);
+        support::set_int(actor, "action_lock_until", i64::from(tick).saturating_add(lock));
+        lock_cohort(world, actor_id, i64::from(tick).saturating_add(lock));
+        reserved.insert(actor_id.clone());
+    }
+}
+
+fn explicit_movement_action_for(
+    actor_id: &EntityId,
+    accepted: &[(CombatantSide, Intent)],
+    snapshot: &WorldState,
+) -> bool {
+    let Some(actor) = snapshot.entities.get(actor_id) else { return false };
+    let actor_squad = support::string(actor, "squad");
+    accepted.iter().any(|(_, intent)| {
+        let Some(other_id) = intent.actor.as_ref() else { return false };
+        let same_subject = if other_id == actor_id {
+            true
+        } else if actor_squad.is_empty() {
+            false
+        } else {
+            snapshot.entities.get(other_id).is_some_and(|other| {
+                other.entity_type.as_str() == "hero"
+                    && actor.entity_type.as_str() == "hero"
+                    && other.owner == actor.owner
+                    && support::string(other, "squad") == actor_squad
+            })
+        };
+        same_subject
+            && matches!(intent.capability.as_str(), "move" | "pursue" | "retreat" | "select_track" | "bridge_work")
+    })
+}
+
+fn cohort_member_ids(world: &WorldState, actor_id: &EntityId) -> Vec<EntityId> {
+    let Some(actor) = world.entities.get(actor_id) else { return Vec::new() };
+    if actor.entity_type.as_str() != "hero" {
+        return vec![actor_id.clone()];
+    }
+    let squad = support::string(actor, "squad");
+    if squad.is_empty() {
+        return vec![actor_id.clone()];
+    }
+    world.entities.iter()
+        .filter(|(_, member)| member.entity_type.as_str() == "hero"
+            && member.owner == actor.owner
+            && support::string(member, "squad") == squad
+            && support::alive(member))
+        .map(|(id, _)| id.clone())
+        .collect()
+}
+
+fn lock_cohort(world: &mut WorldState, actor_id: &EntityId, until: i64) {
+    let ids = cohort_member_ids(world, actor_id);
+    for id in ids {
+        if let Some(member) = world.entities.get_mut(&id) {
+            support::set_int(member, "action_lock_until", support::int(member, "action_lock_until").max(until));
+        }
+    }
+}
+
+fn cohort_moved_this_tick(world: &WorldState, start: &WorldState, actor_id: &EntityId, tick: u32) -> bool {
+    cohort_member_ids(start, actor_id).iter().any(|member_id| {
+        world.entities.get(member_id).is_some_and(|member| {
+            support::int(member, "moved_tick") == i64::from(tick).saturating_add(1)
+        })
+    })
+}
+
+fn cohort_action_lock_until(world: &WorldState, start: &WorldState, actor_id: &EntityId) -> i64 {
+    cohort_member_ids(start, actor_id).iter().map(|member_id| {
+        world.entities.get(member_id).map(|member| support::int(member, "action_lock_until")).unwrap_or_default()
+            .max(start.entities.get(member_id).map(|member| support::int(member, "action_lock_until")).unwrap_or_default())
+    }).max().unwrap_or_default()
+}
+
+fn active_skill_target(
+    intent: &Intent,
+    side: CombatantSide,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+) -> Option<(SkillDefinition, EntityId)> {
+    let capability = intent.capability.as_str();
+    if capability != "activate" && !capability.ends_with(".activate") {
+        return None;
+    }
+    let actor_id = intent.actor.as_ref()?;
+    let actor = snapshot.entities.get(actor_id)?;
+    if actor.entity_type.as_str() != "hero" || actor.owner != Some(side) || !support::alive(actor) {
+        return None;
+    }
+    let skill_id = intent.arguments.iter().find_map(|argument| match argument {
+        DomainValue::String(value) => Some(value.as_str()),
+        _ => None,
+    })?;
+    let hero = rules.heroes.iter().find(|hero| hero.id == support::string(actor, "catalog_id"))?;
+    let skill = hero.skills.iter().find(|skill| skill.id == skill_id)?.clone();
+    if skill.passive || !has_skill(actor, skill_id)
+        || cooldown_ready(actor, skill_id) > i64::from(tick)
+        || support::int(actor, "energy") < skill.cost.max(0)
+    {
+        return None;
+    }
+    let target_id = skill_target_id(intent, actor_id, &skill.target)?;
+    let target = snapshot.entities.get(&target_id)?;
+    if !support::alive(target)
+        || !skill_target_allowed(&skill.target, side, actor_id, &target_id, target)
+        || !support::in_combat_range(actor, target, skill.range.max(0), rules)
+        || (target.owner != Some(side) && !crate::next_vision::visible(snapshot, rules, side, target))
+    {
+        return None;
+    }
+    Some((skill, target_id))
+}
+
+fn resolve_snapshot_with_events(
+    world: &mut WorldState,
+    start: &WorldState,
+    rules: &NextRules,
+    accepted: &[(CombatantSide, Intent)],
+    tick: u32,
+    mut events: Vec<PresentationEvent>,
+) -> Vec<PresentationEvent> {
     // Skills already on a selected path unlock automatically once level and
     // prerequisite conditions are met. Initial level-one heroes are handled
     // here as well as after XP below.
     learn_path_skills(world, rules, &mut events);
-    let start = world.clone();
+    // Preserve the existing same-tick passive unlock semantics while keeping
+    // the supplied graph positions frozen before movement.
+    let mut combat_start = start.clone();
+    learn_path_skills(&mut combat_start, rules, &mut Vec::new());
 
     // Mature squads offer a capped, member-to-member protective shield. It is
     // a support effect with quadratic group contribution, not a blanket stat
@@ -139,13 +312,13 @@ pub fn resolve(
     // maturity and catalog modifier.
     apply_mature_squad_shields(world, rules);
 
-    let (mut skill_damage, activations) = collect_skill_activations(world, &start, rules, accepted, tick, &mut events);
-    let mut hits = collect_basic_attacks(world, &start, rules, tick);
+    let (mut skill_damage, activations) = collect_skill_activations(world, &combat_start, rules, accepted, tick, &mut events);
+    let mut hits = collect_basic_attacks(world, &combat_start, rules, tick);
     hits.append(&mut skill_damage);
 
     // Timed support effects are prepared together, independent of accepted
     // intent iteration order. Their magnitudes are powers from NextRules.
-    apply_activations(world, rules, &start, activations, tick, &mut events);
+    apply_activations(world, rules, &combat_start, activations, tick, &mut events);
 
     // Damage is calculated from frozen attack values and the post-activation
     // defense state, then accumulated so target iteration cannot change who
@@ -153,8 +326,8 @@ pub fn resolve(
     let mut damage_by_target: BTreeMap<EntityId, i64> = BTreeMap::new();
     let mut sources_by_target: BTreeMap<EntityId, BTreeSet<EntityId>> = BTreeMap::new();
     for hit in &hits {
-        let Some(source) = start.entities.get(&hit.source) else { continue };
-        let Some(target_start) = start.entities.get(&hit.target) else { continue };
+        let Some(source) = combat_start.entities.get(&hit.source) else { continue };
+        let Some(target_start) = combat_start.entities.get(&hit.target) else { continue };
         if !support::alive(source) || !support::alive(target_start) {
             continue;
         }
@@ -167,7 +340,13 @@ pub fn resolve(
         } else {
             hit.raw_power
         };
-        let damage = power.saturating_sub(defense).max(1);
+        let mut damage = power.saturating_sub(defense).max(1);
+        if support::is_ford_position(target_start, rules) {
+            let received = support::param(rules, "ford_received_damage_milli", 1_500).max(0);
+            damage = i64::try_from(
+                (i128::from(damage) * i128::from(received) + 999) / 1_000,
+            ).unwrap_or(i64::MAX).max(1);
+        }
         let total = damage_by_target.entry(hit.target.clone()).or_default();
         *total = total.saturating_add(damage);
         sources_by_target.entry(hit.target.clone()).or_default().insert(hit.source.clone());
@@ -234,7 +413,7 @@ pub fn resolve(
     // Qualification is frozen at phase start: living allied Heroes in the
     // configured radius share each integer reward equally. Heroes killed in
     // this combat phase remain eligible; Heroes already dead at phase start do not.
-    distribute_rewards(world, rules, &start, &reward_sources, &sources_by_target, &mut events);
+    distribute_rewards(world, rules, &combat_start, &reward_sources, &sources_by_target, &mut events);
 
     // Each living Hero regenerates from the configured pool after any active
     // skill cost was paid. A skill cannot spend energy generated this tick.
@@ -267,6 +446,15 @@ fn collect_basic_attacks(
         if !support::alive(source) || !is_combatant(source) {
             continue;
         }
+        // Persistent movement goals do not consume a tick. Only movement
+        // selected by navigation for any cohort member excludes an attack.
+        let moved_this_tick = cohort_moved_this_tick(world, start, source_id, tick);
+        let current_action_lock = cohort_action_lock_until(world, start, source_id);
+        if moved_this_tick
+            || support::int(source, "action_lock_until").max(current_action_lock) > i64::from(tick)
+        {
+            continue;
+        }
         let interval = support::int(source, "attack_interval").max(1);
         if support::int(source, "attack_ready") > i64::from(tick)
             || support::int(source, "attack") <= 0
@@ -275,13 +463,13 @@ fn collect_basic_attacks(
             continue;
         }
         let selected = requested_target(source, start)
-            .filter(|(_, target)| legal_attack_target(start, rules, source, target));
+            .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick));
         let selected = selected.or_else(|| {
             start.entities.iter()
-                .filter(|(_, target)| legal_attack_target(start, rules, source, target))
+                .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick))
                 .min_by(|(a_id, a), (b_id, b)| {
-                    support::distance2(source, a)
-                        .cmp(&support::distance2(source, b))
+                    support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
+                        .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
                         .then_with(|| a_id.cmp(b_id))
                 })
                 .map(|(id, entity)| (id.clone(), entity))
@@ -289,6 +477,9 @@ fn collect_basic_attacks(
         let Some((target_id, _)) = selected else { continue };
         if let Some(source_now) = world.entities.get_mut(source_id) {
             support::set_int(source_now, "attack_ready", i64::from(tick).saturating_add(interval));
+            let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
+            let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
+            support::set_int(source_now, "action_lock_until", i64::from(tick).saturating_add(preparation.saturating_add(recovery).max(1)));
         }
         attacks.push(Hit {
             source: source_id.clone(),
@@ -298,25 +489,44 @@ fn collect_basic_attacks(
             uses_basic_attack: true,
         });
     }
+    let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
+    let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
+    let lock_until = i64::from(tick).saturating_add(preparation.saturating_add(recovery).max(1));
+    let attackers = attacks.iter().map(|hit| hit.source.clone()).collect::<BTreeSet<_>>();
+    for actor_id in attackers {
+        lock_cohort(world, &actor_id, lock_until);
+    }
     attacks
 }
 
-fn legal_attack_target(
-    world: &WorldState,
-    rules: &NextRules,
+/// Shared target predicate used by navigation's stop-and-attack decision and
+/// combat resolution. It reads only the supplied snapshot.
+pub fn can_basic_attack(
+    source_id: &EntityId,
     source: &EntityState,
+    target_id: &EntityId,
     target: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
 ) -> bool {
-    if !support::alive(target) || !is_targetable(target) || std::ptr::eq(source, target) {
+    if source_id == target_id
+        || !support::alive(source)
+        || !support::alive(target)
+        || !is_targetable(target)
+        || support::int(source, "attack") <= 0
+        || support::int(source, "range") < 0
+    {
         return false;
     }
+    let _ = tick; // readiness/recovery affect action selection, not target range.
     let source_side = source.owner;
     if source_side.is_some_and(|side| target.owner == Some(side)) {
         return false;
     }
     if source.entity_type.as_str() == "monster" {
         if !matches!(target.entity_type.as_str(), "hero" | "minion") || target.owner.is_none()
-            || !support::in_range(source, target, support::int(source, "vision").max(0))
+            || !support::in_combat_range(source, target, support::int(source, "vision").max(0), rules)
         {
             return false;
         }
@@ -325,11 +535,11 @@ fn legal_attack_target(
             return false;
         }
     }
-    if !support::in_range(source, target, support::int(source, "range").max(0)) {
+    if !support::in_combat_range(source, target, support::int(source, "range").max(0), rules) {
         return false;
     }
     if let Some(source_side) = source_side {
-        if !crate::next_vision::visible(world, rules, source_side, target) {
+        if !crate::next_vision::visible(snapshot, rules, source_side, target) {
             return false;
         }
     }
@@ -359,10 +569,21 @@ fn collect_skill_activations(
             continue;
         }
         let Some(actor_id) = &intent.actor else { continue };
-        if used.contains(actor_id) {
+        let Some(actor) = start.entities.get(actor_id) else { continue };
+        let moved_this_tick = cohort_moved_this_tick(world, start, actor_id, tick);
+        let issued_other_action = explicit_movement_action_for(actor_id, accepted, start);
+        let current_action_lock = cohort_action_lock_until(world, start, actor_id);
+        let prepared_this_tick = world.entities.get(actor_id).is_some_and(|entity| {
+            support::int(entity, "prepared_action_tick") == i64::from(tick).saturating_add(1)
+        });
+        if used.contains(actor_id)
+            || moved_this_tick
+            || issued_other_action
+            || (support::int(actor, "action_lock_until").max(current_action_lock) > i64::from(tick)
+                && !prepared_this_tick)
+        {
             continue;
         }
-        let Some(actor) = start.entities.get(actor_id) else { continue };
         if actor.entity_type.as_str() != "hero" || actor.owner != Some(*side) || !support::alive(actor) {
             continue;
         }
@@ -386,7 +607,7 @@ fn collect_skill_activations(
         let Some(target) = start.entities.get(&target_id) else { continue };
         if !support::alive(target)
             || !skill_target_allowed(&skill.target, *side, actor_id, &target_id, target)
-            || !support::in_range(actor, target, skill.range.max(0))
+            || !support::in_combat_range(actor, target, skill.range.max(0), rules)
         {
             continue;
         }
@@ -398,7 +619,15 @@ fn collect_skill_activations(
             let energy = support::int(actor_now, "energy").saturating_sub(skill.cost.max(0));
             support::set_int(actor_now, "energy", energy);
             set_cooldown(actor_now, skill_id, i64::from(tick).saturating_add(skill.cooldown.max(0)));
+            let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
+            let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
+            let lock_until = i64::from(tick).saturating_add(preparation.saturating_add(recovery).max(1));
+            support::set_int(actor_now, "action_lock_until", lock_until);
+            support::set_int(actor_now, "prepared_action_tick", 0);
         }
+        let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
+        let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
+        lock_cohort(world, actor_id, i64::from(tick).saturating_add(preparation.saturating_add(recovery).max(1)));
         let mut payload = BTreeMap::new();
         payload.insert("source".into(), DomainValue::Entity(actor_id.clone()));
         payload.insert("target".into(), DomainValue::Entity(target_id.clone()));
@@ -420,7 +649,8 @@ fn collect_skill_activations(
                 if area_target.owner == Some(*side)
                     || !support::alive(area_target)
                     || !is_targetable(area_target)
-                    || support::distance2(target, area_target) > radius_squared
+                    || support::combat_distance2(target, area_target, rules)
+                        .map_or(true, |distance| distance > radius_squared)
                     || !crate::next_vision::visible(start, rules, *side, area_target)
                 {
                     continue;
@@ -476,6 +706,7 @@ fn apply_activations(
             }
             SkillEffect::Damage => {}
             SkillEffect::AreaDamage => {}
+            SkillEffect::TerrainAdaptation | SkillEffect::JungleSpecialist | SkillEffect::SoloMobility => {}
         }
     }
 
@@ -508,7 +739,8 @@ fn apply_activations(
             }
             SkillEffect::Empower => set_timed_magnitude(target, "empower", "empower_until", power, expiry, tick),
             SkillEffect::Defense => set_timed_magnitude(target, "defense_bonus", "defense_until", power, expiry, tick),
-            SkillEffect::Damage | SkillEffect::AreaDamage | SkillEffect::Heal | SkillEffect::Shield => {}
+            SkillEffect::Damage | SkillEffect::AreaDamage | SkillEffect::Heal | SkillEffect::Shield
+            | SkillEffect::TerrainAdaptation | SkillEffect::JungleSpecialist | SkillEffect::SoloMobility => {}
         }
     }
 }
@@ -675,6 +907,7 @@ fn apply_passive(hero: &mut EntityState, skill: &SkillDefinition, rules: &NextRu
         SkillEffect::Defense => {
             add_int(hero, "defense", power);
         }
+        SkillEffect::TerrainAdaptation | SkillEffect::JungleSpecialist | SkillEffect::SoloMobility => {}
     }
 }
 
@@ -922,6 +1155,9 @@ fn effect_order(effect: &SkillEffect) -> u8 {
         SkillEffect::Reveal => 6,
         SkillEffect::Empower => 7,
         SkillEffect::Defense => 8,
+        SkillEffect::TerrainAdaptation => 9,
+        SkillEffect::JungleSpecialist => 10,
+        SkillEffect::SoloMobility => 11,
     }
 }
 
@@ -1073,8 +1309,16 @@ mod tests {
             mechanics_version: senkei_model::Version::new(1, 0, 0),
             map: senkei_model::BattleMap {
                 id: "test".into(),
-                nodes: BTreeMap::new(),
-                edges: Vec::new(),
+                nodes: BTreeMap::from([
+                    ("test_a".into(), senkei_model::MapNode { x: 0, y: 0, region: "lane".into(), ..Default::default() }),
+                    ("test_b".into(), senkei_model::MapNode { x: 1_000, y: 0, region: "lane".into(), ..Default::default() }),
+                    ("attacker_home".into(), senkei_model::MapNode { x: 0, y: 0, region: "base".into(), ..Default::default() }),
+                    ("defender_home".into(), senkei_model::MapNode { x: 1_000, y: 0, region: "base".into(), ..Default::default() }),
+                ]),
+                edges: vec![senkei_model::MapEdge {
+                    id: "test.lane".into(), from: "test_a".into(), to: "test_b".into(),
+                    length: 1_000, region: "lane".into(), blocked: false, ..Default::default()
+                }],
                 lanes: BTreeMap::new(),
                 attacker_base: "attacker_home".into(),
                 defender_base: "defender_home".into(),
@@ -1135,6 +1379,10 @@ mod tests {
             support::set_int(&mut entity, key, value);
         }
         support::set_string(&mut entity, "catalog_id", "test_hero");
+        support::set_string(&mut entity, "node", "test_a");
+        support::set_string(&mut entity, "edge_to", "test_b");
+        support::set_int(&mut entity, "edge_progress", x.saturating_add(500).clamp(0, 1_000));
+        support::set_string(&mut entity, "track", "LEFT");
         support::set_string(&mut entity, "slot_id", format!("{}-{x}", kind));
         support::set_string(&mut entity, "skill_path", "none");
         support::set_string(&mut entity, "squad", "");
@@ -1144,6 +1392,160 @@ mod tests {
 
     fn insert(world: &mut WorldState, id: &str, entity: EntityState) {
         world.entities.insert(EntityId::from(id), entity);
+    }
+
+    #[test]
+    fn combat_domains_use_graph_positions_and_lane_track_offsets() {
+        let mut rules = rules();
+        let source = entity("hero", Some(CombatantSide::Attacker), 0, 50, 10, 25);
+        let mut target = entity("hero", Some(CombatantSide::Defender), 10, 50, 0, 0);
+        assert!(support::in_combat_range(&source, &target, 25, &rules));
+
+        support::set_string(&mut target, "track", "RIGHT");
+        assert!(!support::in_combat_range(&source, &target, 25, &rules));
+        support::set_string(&mut target, "track", "CENTER");
+        assert!(support::in_combat_range(&source, &target, 25, &rules));
+
+        // Node Combat Domains suppress range; distinct nodes and edges do not.
+        let mut node_source = source.clone();
+        support::set_string(&mut node_source, "edge_to", "");
+        support::set_string(&mut node_source, "node", "test_a");
+        support::set_int(&mut node_source, "x", 0);
+        let mut node_target = target.clone();
+        support::set_string(&mut node_target, "edge_to", "");
+        support::set_string(&mut node_target, "node", "test_a");
+        support::set_int(&mut node_target, "x", 1_000_000);
+        assert!(support::in_combat_range(&node_source, &node_target, 0, &rules));
+        support::set_string(&mut node_target, "node", "test_b");
+        assert!(!support::in_combat_range(&node_source, &node_target, 1_000_000, &rules));
+        support::set_string(&mut node_source, "edge_to", "test_b");
+        support::set_string(&mut node_target, "node", "test_b");
+        support::set_string(&mut node_target, "edge_to", "test_a");
+        support::set_int(&mut node_target, "edge_progress", 490);
+        support::set_string(&mut node_target, "track", "LEFT");
+        assert!(support::in_combat_range(&node_source, &node_target, 10, &rules));
+
+        // A bridge edge has no lateral distance or formation advantage.
+        rules.map.edges[0].bridge_site = "TOP".into();
+        support::set_int(&mut node_source, "edge_progress", 500);
+        support::set_int(&mut node_target, "edge_progress", 500);
+        support::set_string(&mut node_source, "node", "test_a");
+        support::set_string(&mut node_source, "edge_to", "test_b");
+        support::set_string(&mut node_source, "track", "LEFT");
+        support::set_string(&mut node_target, "node", "test_a");
+        support::set_string(&mut node_target, "edge_to", "test_b");
+        support::set_string(&mut node_target, "track", "RIGHT");
+        assert!(support::in_combat_range(&node_source, &node_target, 0, &rules));
+    }
+
+    #[test]
+    fn vision_uses_graph_geodesics_and_ignores_presentation_coordinates() {
+        let rules = rules();
+        let mut source = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 0);
+        let mut target = entity("hero", Some(CombatantSide::Defender), 10, 50, 0, 0);
+        assert_eq!(support::world_distance2(&source, &target, &rules), Some(100));
+        support::set_int(&mut source, "x", -1_000_000_000);
+        support::set_int(&mut target, "x", 1_000_000_000);
+        assert_eq!(support::world_distance2(&source, &target, &rules), Some(100));
+
+        support::set_string(&mut source, "edge_to", "");
+        support::set_string(&mut source, "node", "test_a");
+        support::set_string(&mut target, "edge_to", "");
+        support::set_string(&mut target, "node", "test_b");
+        assert_eq!(support::world_distance2(&source, &target, &rules), Some(1_000_000));
+        let mut rules = rules;
+        rules.map.edges[0].blocked = true;
+        assert_eq!(support::world_distance2(&source, &target, &rules), Some(1_000_000));
+    }
+
+    #[test]
+    fn same_tick_movement_blocks_ordinary_attack_but_targets_use_snapshot() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        let source_id = EntityId::from("attacker");
+        let target_id = EntityId::from("defender");
+        insert(&mut world, "attacker", entity("hero", Some(CombatantSide::Attacker), 0, 50, 10, 5));
+        insert(&mut world, "defender", entity("hero", Some(CombatantSide::Defender), 1, 50, 0, 0));
+        let snapshot = world.clone();
+
+        // Cooldown is irrelevant to the stop-and-hold target check; movement
+        // is still an exclusive action for the resolver.
+        support::set_int(world.entities.get_mut(&source_id).unwrap(), "moved_tick", 1);
+        support::set_int(world.entities.get_mut(&source_id).unwrap(), "attack_ready", 99);
+        assert!(can_basic_attack(
+            &source_id, &snapshot.entities[&source_id], &target_id, &snapshot.entities[&target_id],
+            &snapshot, &rules, 0,
+        ));
+        let move_goal = Intent {
+            action_id: "keep-moving-goal".into(), capability: "move".into(),
+            actor: Some(source_id.clone()), target: None, arguments: Vec::new(), priority: None,
+        };
+        resolve_from_snapshot(&mut world, &snapshot, &rules, &[(CombatantSide::Attacker, move_goal)], 0);
+        assert_eq!(support::int(&world.entities[&target_id], "hp"), 50);
+
+        // Without the movement marker, the exact same pre-movement domain is
+        // used even if presentation coordinates change after the snapshot.
+        support::set_int(world.entities.get_mut(&source_id).unwrap(), "moved_tick", 0);
+        support::set_int(world.entities.get_mut(&source_id).unwrap(), "attack_ready", 0);
+        support::set_int(world.entities.get_mut(&target_id).unwrap(), "x", 999);
+        resolve_from_snapshot(&mut world, &snapshot, &rules, &[], 0);
+        assert_eq!(support::int(&world.entities[&target_id], "hp"), 40);
+    }
+
+    #[test]
+    fn ford_vulnerability_is_sampled_from_the_combat_snapshot() {
+        let mut rules = rules();
+        rules.map.edges[0].ford = true;
+        let mut world = WorldState::default();
+        insert(&mut world, "attacker", entity("hero", Some(CombatantSide::Attacker), 0, 50, 10, 5));
+        insert(&mut world, "defender", entity("hero", Some(CombatantSide::Defender), 0, 100, 0, 0));
+        let snapshot = world.clone();
+        resolve_from_snapshot(&mut world, &snapshot, &rules, &[], 0);
+        assert_eq!(support::int(&world.entities[&EntityId::from("defender")], "hp"), 85);
+    }
+
+    #[test]
+    fn legal_skill_reserves_movement_and_explicit_move_wins_conflicts() {
+        let mut rules = rules();
+        rules.heroes[0].skills = vec![SkillDefinition {
+            id: "barrier".into(), name: "Barrier".into(), passive: false, unlock_level: 1,
+            prerequisites: Vec::new(), cooldown: 5, cost: 2, range: 0,
+            target: "self".into(), effect: SkillEffect::Shield, power: 12, duration: 0,
+        }];
+        let actor_id = EntityId::from("caster");
+        let activation = Intent {
+            action_id: "activate-barrier".into(), capability: "senkei.next.activate".into(),
+            actor: Some(actor_id.clone()), target: Some(actor_id.clone()),
+            arguments: vec![DomainValue::String("barrier".into())], priority: None,
+        };
+        let mut actor = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 0);
+        actor.fields.insert("skills".into(), DomainValue::List(vec![DomainValue::String("barrier".into())]));
+        let mut world = WorldState::default();
+        insert(&mut world, "caster", actor);
+        let snapshot = world.clone();
+        prepare_actions(&mut world, &snapshot, &rules, &[(CombatantSide::Attacker, activation.clone())], 0);
+        assert_eq!(support::int(&world.entities[&actor_id], "action_lock_until"), 1);
+        assert_eq!(support::int(&world.entities[&actor_id], "prepared_action_tick"), 1);
+        resolve_from_snapshot(&mut world, &snapshot, &rules, &[(CombatantSide::Attacker, activation.clone())], 0);
+        assert_eq!(support::int(&world.entities[&actor_id], "shield"), 12);
+
+        let mut moving_world = WorldState::default();
+        let mut moving_actor = entity("hero", Some(CombatantSide::Attacker), 0, 50, 0, 0);
+        moving_actor.fields.insert("skills".into(), DomainValue::List(vec![DomainValue::String("barrier".into())]));
+        insert(&mut moving_world, "caster", moving_actor);
+        let moving_snapshot = moving_world.clone();
+        let movement = Intent {
+            action_id: "move-home".into(), capability: "move".into(),
+            actor: Some(actor_id.clone()), target: None, arguments: Vec::new(), priority: None,
+        };
+        let accepted = [
+            (CombatantSide::Attacker, activation),
+            (CombatantSide::Attacker, movement),
+        ];
+        prepare_actions(&mut moving_world, &moving_snapshot, &rules, &accepted, 0);
+        assert_eq!(support::int(&moving_world.entities[&actor_id], "action_lock_until"), 0);
+        resolve_from_snapshot(&mut moving_world, &moving_snapshot, &rules, &accepted, 0);
+        assert_eq!(support::int(&moving_world.entities[&actor_id], "shield"), 0);
     }
 
     #[test]
@@ -1499,13 +1901,13 @@ mod tests {
     #[test]
     fn objectives_respawn_and_bases_determine_match_outcome() {
         let mut rules = rules();
-        rules.map.nodes.insert("attacker_home".into(), senkei_model::MapNode { x: 0, y: 0, region: "base".into() ..Default::default()
+        rules.map.nodes.insert("attacker_home".into(), senkei_model::MapNode { x: 0, y: 0, region: "base".into(), ..Default::default()
 });
-        rules.map.nodes.insert("defender_home".into(), senkei_model::MapNode { x: 100, y: 0, region: "base".into() ..Default::default()
+        rules.map.nodes.insert("defender_home".into(), senkei_model::MapNode { x: 100, y: 0, region: "base".into(), ..Default::default()
 });
-        rules.map.nodes.insert("top_tower".into(), senkei_model::MapNode { x: 50, y: 0, region: "lane".into() ..Default::default()
+        rules.map.nodes.insert("top_tower".into(), senkei_model::MapNode { x: 50, y: 0, region: "lane".into(), ..Default::default()
 });
-        rules.map.nodes.insert("jungle".into(), senkei_model::MapNode { x: 50, y: 50, region: "jungle".into() ..Default::default()
+        rules.map.nodes.insert("jungle".into(), senkei_model::MapNode { x: 50, y: 50, region: "jungle".into(), ..Default::default()
 });
         rules.map.towers.push(senkei_model::TowerPlacement {
             id: "top_1".into(), node: "top_tower".into(), side: "defender".into(), lane: "top".into(),
