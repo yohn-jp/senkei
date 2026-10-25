@@ -728,7 +728,7 @@ fn movement_intent(
         .unwrap_or(0);
     let vision_milli = leader
         .owner
-        .filter(|side| crate::next_vision::minion_vision(world, *side, leader))
+        .filter(|side| crate::next_vision::minion_vision(world, rules, *side, leader))
         .map(|_| param(rules, "minion_vision_speed_milli", 1_200))
         .unwrap_or(1_000);
     let squad_milli = squad_speed_milli(size, rules);
@@ -1117,7 +1117,7 @@ fn route_speed(actor: &EntityState, world: &WorldState, rules: &NextRules, tick:
     let size = members.len().clamp(1, 5);
     let leader = members.first().map(|(_, member)| member).unwrap_or(actor);
     if let Some(side) = leader.owner {
-        if crate::next_vision::minion_vision(world, side, leader) {
+        if crate::next_vision::minion_vision(world, rules, side, leader) {
             speed = speed.saturating_mul(i128::from(
                 param(rules, "minion_vision_speed_milli", 1_200).max(0),
             )) / 1_000;

@@ -11,6 +11,7 @@ mod next_navigation;
 mod next_vision;
 mod next_combat;
 mod next_tactics;
+mod next_battlefield;
 
 pub use validation::ENGINE_VERSION;
 
@@ -93,6 +94,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
         next_combat::initialize_objectives(&mut world, next);
+        next_battlefield::initialize(&mut world, next);
         next_vision::lifecycle(&mut world, next, 0);
     }
     for collection in plan.world.collections.keys() { world.collections.entry(collection.clone()).or_default(); }
@@ -305,8 +307,16 @@ pub fn simulate<P: TacticalExecutionPort>(
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
             next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            // Resolve legality and attacks from one committed position snapshot.
+            // Preparation reserves an exclusive action without moving anyone.
+            let action_start = world.clone();
+            next_battlefield::prepare(&mut world, &action_start, next, &accepted_by_side, tick);
+            let skill_start = world.clone();
+            next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            let adjudication_start = world.clone();
             next_navigation::advance(&mut world, next, tick);
-            next_events = next_combat::resolve(&mut world, next, &accepted_by_side, tick);
+            next_events = next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick);
+            next_events.extend(next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick));
             next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
