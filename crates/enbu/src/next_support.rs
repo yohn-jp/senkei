@@ -361,6 +361,65 @@ mod tests {
         let incumbent = on_edge("a", "b", 50);
         assert!(is_ford_position(&incumbent, &snapshot, &bridge_rules));
     }
+
+    #[test]
+    fn projected_crossing_interval_is_direction_symmetric_and_does_not_cover_the_edge() {
+        let nodes = ["a", "b"].into_iter().map(|id| {
+            (id.to_owned(), MapNode { x: 0, y: 0, region: "jungle".into(), ..Default::default() })
+        }).collect();
+        let mut edge = MapEdge {
+            id: "ab".into(), from: "a".into(), to: "b".into(), length: 100,
+            region: "jungle".into(), blocked: false, ford: true, ..Default::default()
+        };
+        let identity = WorldIdentityRef {
+            world_id: "test-world".into(), schema_version: Version::new(1, 0, 0),
+            minimum_compiler: Version::new(1, 0, 0), maximum_compiler_exclusive: None,
+            validation_profile_id: None, validation_profile_version: None,
+            logic_digest: ContentDigest::new("a".repeat(64)), presentation_digest: ContentDigest::new("b".repeat(64)),
+        };
+        let facts = WorldEdgeFacts {
+            directionality: "undirected".into(), class: "jungle_path".into(),
+            tracks: vec![WorldTrackRange { id: "single".into(), kind: "single".into(), start_progress_wu: 0, end_progress_wu: 100 }],
+            river_crossing: Some(WorldRiverCrossing {
+                river_id: "river".into(), kind: "foot_ford".into(), bridge_site_id: None,
+                start_progress_wu: 40, end_progress_wu: 60,
+            }),
+            terrain_profile_id: "terrain.jungle".into(), terrain_kind: "jungle".into(), observation_semantics: "open".into(),
+        };
+        let mut rules = NextRules {
+            mechanics_version: Version::new(1, 0, 0), world_identity: Some(identity.clone()),
+            map: BattleMap {
+                id: "interval-test".into(), world_identity: Some(identity.clone()),
+                world_projection: Some(BattleMapWorldProjection {
+                    schema_version: Version::new(1, 0, 0), source_identity: identity,
+                    node_ids: ["a".to_owned(), "b".to_owned()].into_iter().collect(),
+                    edge_facts: BTreeMap::from([("ab".into(), facts)]), bridge_sites: BTreeMap::new(),
+                    presentation_artifact: CanonicalPresentationWorldArtifact { schema_version: Version::new(1, 0, 0), content: serde_json::json!({}) },
+                }),
+                nodes, edges: vec![edge.clone()], lanes: BTreeMap::new(),
+                attacker_base: "a".into(), defender_base: "b".into(), towers: Vec::new(),
+            },
+            heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(), camps: Vec::new(), parameters: BTreeMap::new(),
+        };
+        let position = |from: &str, to: &str, progress| {
+            let mut entity = EntityState { entity_type: "hero".into(), owner: None, fields: BTreeMap::new() };
+            set_string(&mut entity, "node", from);
+            set_string(&mut entity, "edge_to", to);
+            set_int(&mut entity, "edge_progress", progress);
+            entity
+        };
+        for (from, to, progress, expected) in [
+            ("a", "b", 39, false), ("a", "b", 40, true), ("a", "b", 60, true), ("a", "b", 61, false),
+            ("b", "a", 39, false), ("b", "a", 40, true), ("b", "a", 60, true), ("b", "a", 61, false),
+        ] {
+            assert_eq!(river_crossing_at(&position(from, to, progress), &edge, &rules).is_some(), expected,
+                "crossing occupancy for {from}->{to} at local progress {progress}");
+            assert_eq!(is_ford_position(&position(from, to, progress), &WorldState::default(), &rules), expected);
+        }
+        rules.map.world_projection = None;
+        edge.ford = true;
+        assert!(occupies_crossing(&position("a", "b", 1), &edge, &rules), "legacy whole-edge flag remains compatible");
+    }
 }
 pub fn in_combat_range(a: &EntityState, b: &EntityState, range: i64, rules: &NextRules) -> bool {
     combat_distance2(a, b, rules).is_some_and(|distance| distance <= i128::from(range.max(0)).pow(2))
@@ -369,32 +428,100 @@ pub fn in_combat_range(a: &EntityState, b: &EntityState, range: i64, rules: &Nex
 /// be derived from permanent Jungle ford edges. Navigation owns and advances
 /// `ford_remaining`, so a destroyed/rebuilt bridge never relocates an actor.
 pub fn is_ford_position(entity: &EntityState, snapshot: &WorldState, rules: &NextRules) -> bool {
-    if int(entity, "ford_active") > 0 || int(entity, "ford_remaining") > 0 {
-        return true;
-    }
     let from = string(entity, "node");
     let to = string(entity, "edge_to");
     if from.is_empty() || to.is_empty() {
         return false;
     }
     rules.map.edges.iter().any(|edge| {
-        let interior = int(entity, "edge_progress") > 0
-            && int(entity, "edge_progress") < edge.length;
-        if !interior || !((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)) {
+        if !((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)) {
             return false;
         }
-        if edge.ford {
+        if rules.map.world_projection.is_none() {
+            let progress = int(entity, "edge_progress");
+            let interior = progress > 0 && progress < edge.length;
+            if !interior { return false; }
+            if edge.ford { return true; }
+            if edge.bridge_site.is_empty() { return false; }
+            let bridge_id = EntityId::from(format!("bridge.{}", edge.bridge_site));
+            return snapshot.entities.get(&bridge_id).is_some_and(|bridge| {
+                bridge.entity_type.as_str() == "bridge" && string(bridge, "bridge_state") == "destroyed"
+            });
+        }
+        let crossing = river_crossing_at(entity, edge, rules);
+        if crossing.is_some_and(|crossing| crossing.kind == "foot_ford") {
             return true;
         }
-        if edge.bridge_site.is_empty() {
+        if crossing.is_some() && !edge.bridge_site.is_empty() {
+            let bridge_id = EntityId::from(format!("bridge.{}", edge.bridge_site));
+            if snapshot.entities.get(&bridge_id).is_some_and(|bridge| {
+                bridge.entity_type.as_str() == "bridge" && string(bridge, "bridge_state") == "destroyed"
+            }) {
+                return true;
+            }
+        }
+        if int(entity, "ford_active") <= 0 && int(entity, "ford_remaining") <= 0 {
             return false;
         }
+        if edge.bridge_site.is_empty() || crossing.is_none() { return false; }
         let bridge_id = EntityId::from(format!("bridge.{}", edge.bridge_site));
-        snapshot.entities.get(&bridge_id).is_some_and(|bridge| {
-            bridge.entity_type.as_str() == "bridge"
-                && string(bridge, "bridge_state") == "destroyed"
-        })
+        let destroyed = snapshot.entities.get(&bridge_id).is_some_and(|bridge| {
+            bridge.entity_type.as_str() == "bridge" && string(bridge, "bridge_state") == "destroyed"
+        });
+        destroyed || int(entity, "ford_active") > 0 || int(entity, "ford_remaining") > 0
     })
+}
+
+/// Return the canonical river-crossing fact only while the entity occupies
+/// its authored progress interval. World intervals use progress from MapEdge.from;
+/// reverse traversal maps progress through `length - local_progress`.
+pub fn river_crossing_at<'a>(
+    entity: &EntityState,
+    edge: &MapEdge,
+    rules: &'a NextRules,
+) -> Option<&'a WorldRiverCrossing> {
+    let progress = if string(entity, "node") == edge.from {
+        int(entity, "edge_progress")
+    } else if string(entity, "node") == edge.to {
+        edge.length.saturating_sub(int(entity, "edge_progress"))
+    } else {
+        return None;
+    };
+    if let Some(projection) = &rules.map.world_projection {
+        let crossing = projection.edge_facts.get(&edge.id)?.river_crossing.as_ref()?;
+        (progress >= crossing.start_progress_wu as i64
+            && progress <= crossing.end_progress_wu as i64)
+            .then_some(crossing)
+    } else if edge.ford {
+        None
+    } else if !edge.bridge_site.is_empty() {
+        None
+    } else {
+        None
+    }
+}
+
+/// `None` projection preserves the pre-projection runtime convention in which
+/// bridge/ford flags describe the whole edge.
+pub fn occupies_crossing(entity: &EntityState, edge: &MapEdge, rules: &NextRules) -> bool {
+    if rules.map.world_projection.is_none() {
+        return edge.ford || !edge.bridge_site.is_empty();
+    }
+    river_crossing_at(entity, edge, rules).is_some()
+}
+
+pub fn is_foot_ford_at(entity: &EntityState, edge: &MapEdge, rules: &NextRules) -> bool {
+    if rules.map.world_projection.is_none() { return edge.ford; }
+    river_crossing_at(entity, edge, rules).is_some_and(|crossing| crossing.kind == "foot_ford")
+}
+
+pub fn world_track_covers(edge: &MapEdge, progress: i64, track: &str, rules: &NextRules) -> bool {
+    let Some(projection) = rules.map.world_projection.as_ref() else { return true };
+    projection.edge_facts.get(&edge.id).is_some_and(|facts| facts.tracks.iter().any(|range| {
+        range.kind.eq_ignore_ascii_case(track)
+            && i64::try_from(range.start_progress_wu).is_ok_and(|start| progress >= start)
+            && i64::try_from(range.end_progress_wu).is_ok_and(|end| progress <= end)
+    }))
 }
 pub fn unit(
     kind: &str,

@@ -54,6 +54,8 @@ Canonical Worldからruntime `BattleMap`へ変換するときは、source IDと�
 
 現行の初期BattlefieldではWorld Definitionがruntime layoutとlogical node positionを所有する。`BattleMapWorldProjection` は全node／edge identity、edgeごとのtrack range、river-crossing progress subrange、bridge site、terrain／observation semanticsをversion付きで保持する。`BattleMap.x/y` は論理座標、`presentation_x/y` は表示座標である。既定の`senritsu::validate`はbuilt-in Worldをresolveし、`validate_with_world_resolver`は明示されたstoreを使う。どちらも完全なpaired identityと生成済みprojection全体を照合し、不在・不一致・projection改変を`VerifiedRulePlan`の生成前に拒否する。
 
+Enbuの整数progressではcrossing intervalの両端を含める。進行方向に応じて、前向きは`start_progress_wu`、逆向きは`edge_length - end_progress_wu`でcrossingへ入る。移動は最初の境界で止まり、次のmovement opportunityから既存のbridge reservation／ford transitを適用する。crossing状態・ford damageは範囲内だけに適用し、範囲へ入るためのautomatic track changeは行わない。必要なtrackがWorldの該当progress範囲に無ければ進入を拒否する。
+
 **必須不変条件はidentityとdigestの束縛**である。Worldは不変content-addressed artifactとして解決する。Canonical WorldからRuntime BattleMapへのlossless projectionはversioned schemaを使い、損失・自己申告digest・欠落参照を成功として扱わない。
 
 ### 2.3 Match、Replay、互換性

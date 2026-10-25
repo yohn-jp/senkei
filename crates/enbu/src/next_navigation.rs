@@ -1,5 +1,6 @@
 //! Deterministic graph navigation for the finite `senkei.next` world.
 
+use crate::next_support as support;
 use crate::next_support::{alive, int, param, set_int, set_string, string};
 use senkei_model::{
     BattleMap, CombatantSide, DomainValue, EntityId, EntityState, MapEdge, NextRules, SkillEffect,
@@ -167,6 +168,7 @@ fn advance_entity(
     if !incumbent_edge.is_empty() {
         if let Some(edge) = edge_for_nodes(&rules.map, &incumbent_node, &incumbent_edge) {
             if is_bridge(edge)
+                && support::occupies_crossing(entity, edge, rules)
                 && bridge_state(snapshot, &edge.bridge_site) == "normal"
                 && string(entity, "track").is_empty()
             {
@@ -179,7 +181,20 @@ fn advance_entity(
     }
     if int(entity, "ford_active") == 0 && !incumbent_edge.is_empty() {
         if let Some(edge) = edge_for_nodes(&rules.map, &incumbent_node, &incumbent_edge) {
-            if is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed" {
+            if is_bridge(edge)
+                && support::river_crossing_at(entity, edge, rules).is_some()
+                && bridge_state(snapshot, &edge.bridge_site) == "normal"
+            {
+                let canonical = if incumbent_node == edge.from { int(entity, "edge_progress") } else { edge.length.saturating_sub(int(entity, "edge_progress")) };
+                if string(entity, "track") != "CENTER" || !support::world_track_covers(edge, canonical, "center", rules) {
+                    mark_moved(entity, tick);
+                    return;
+                }
+            }
+            if is_bridge(edge)
+                && support::occupies_crossing(entity, edge, rules)
+                && bridge_state(snapshot, &edge.bridge_site) == "destroyed"
+            {
                 set_int(entity, "ford_active", 1);
                 let extra = param(rules, "ford_extra_ticks", 24).max(0);
                 if extra > 0 {
@@ -349,11 +364,28 @@ fn advance_entity(
     }
     if int(entity, "ford_active") == 0
         && !edge_to.is_empty()
-        && int(entity, "edge_progress") == 0
     {
         if let Some(edge) = edge_for_nodes(&rules.map, &node, &edge_to) {
-            if edge.ford
-                || (is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed")
+            if support::is_foot_ford_at(entity, edge, rules) {
+                let canonical = canonical_progress_for_entity(entity, edge);
+                if !support::world_track_covers(edge, canonical, "single", rules) {
+                    mark_moved(entity, tick);
+                    return;
+                }
+            }
+            if is_bridge(edge)
+                && support::river_crossing_at(entity, edge, rules).is_some()
+                && bridge_state(snapshot, &edge.bridge_site) == "normal"
+            {
+                let canonical = if node == edge.from { int(entity, "edge_progress") } else { edge.length.saturating_sub(int(entity, "edge_progress")) };
+                if string(entity, "track") != "CENTER" || !support::world_track_covers(edge, canonical, "center", rules) {
+                    mark_moved(entity, tick);
+                    return;
+                }
+            }
+            if support::occupies_crossing(entity, edge, rules)
+                && (support::is_foot_ford_at(entity, edge, rules)
+                    || (is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed"))
             {
                 set_int(entity, "ford_active", 1);
                 let extra = param(rules, "ford_extra_ticks", 24).max(0);
@@ -389,6 +421,7 @@ fn advance_entity(
         }
         let entering_track = bridge_track_for(entity, movement, edge, snapshot);
         if is_bridge(edge)
+            && support::occupies_crossing(entity, edge, rules)
             && !reserve_bridge(
                 actor_id,
                 entity,
@@ -412,8 +445,9 @@ fn advance_entity(
             clear_track(entity);
         }
         set_edge_position(entity, &node, &edge_to, 0, edge, &rules.map, (0, 0));
-        if edge.ford
-            || (is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed")
+        if support::occupies_crossing(entity, edge, rules)
+            && (support::is_foot_ford_at(entity, edge, rules)
+                || (is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed"))
         {
             set_int(entity, "ford_active", 1);
             let extra = param(rules, "ford_extra_ticks", 24).max(0);
@@ -428,6 +462,7 @@ fn advance_entity(
             return;
         };
         if is_bridge(edge)
+            && support::occupies_crossing(entity, edge, rules)
             && !reserve_bridge(
                 actor_id,
                 entity,
@@ -453,6 +488,17 @@ fn advance_entity(
         return;
     }
     let cost = units_to_base_budget(left, terrain);
+    let next_progress = if remaining >= cost {
+        edge.length
+    } else {
+        progress.saturating_add(budget_to_units(remaining, terrain).min(left)).min(edge.length)
+    };
+    if let Some(boundary) = crossing_entry_boundary(entity, edge, rules, next_progress) {
+        set_int(entity, "edge_progress", boundary);
+        set_edge_position(entity, &node, &edge_to, boundary, edge, &rules.map, (0, 0));
+        mark_moved(entity, tick);
+        return;
+    }
     if remaining >= cost {
         set_edge_position(
             entity,
@@ -473,13 +519,53 @@ fn advance_entity(
         ensure_node_position(entity, &node, &rules.map);
         mark_moved(entity, tick);
     } else {
-        let step = budget_to_units(remaining, terrain).min(left);
-        if step > 0 {
-            let next = progress.saturating_add(step).min(edge.length);
-            set_int(entity, "edge_progress", next);
-            set_edge_position(entity, &node, &edge_to, next, edge, &rules.map, (0, 0));
+        if next_progress > progress {
+            set_int(entity, "edge_progress", next_progress);
+            set_edge_position(entity, &node, &edge_to, next_progress, edge, &rules.map, (0, 0));
+            clear_crossing_state_after_exit(entity, edge, rules);
         }
         mark_moved(entity, tick);
+    }
+}
+
+fn clear_crossing_state_after_exit(entity: &mut EntityState, edge: &MapEdge, rules: &NextRules) {
+    if int(entity, "ford_remaining") <= 0
+        && int(entity, "ford_active") > 0
+        && !support::occupies_crossing(entity, edge, rules)
+    {
+        set_int(entity, "ford_active", 0);
+    }
+}
+
+/// Stop exactly at the first authored crossing boundary before entering its
+/// interval. The next movement opportunity then applies crossing reservations
+/// and ford transit while the entity occupies that boundary.
+fn crossing_entry_boundary(
+    entity: &EntityState,
+    edge: &MapEdge,
+    rules: &NextRules,
+    next_local_progress: i64,
+) -> Option<i64> {
+    let projection = rules.map.world_projection.as_ref()?;
+    let crossing = projection.edge_facts.get(&edge.id)?.river_crossing.as_ref()?;
+    let start = i64::try_from(crossing.start_progress_wu).ok()?;
+    let end = i64::try_from(crossing.end_progress_wu).ok()?;
+    let current_local = int(entity, "edge_progress").clamp(0, edge.length);
+    if string(entity, "node") == edge.from {
+        (current_local < start && next_local_progress >= start).then_some(start)
+    } else if string(entity, "node") == edge.to {
+        let boundary = edge.length.saturating_sub(end);
+        (current_local < boundary && next_local_progress >= boundary).then_some(boundary)
+    } else {
+        None
+    }
+}
+
+fn canonical_progress_for_entity(entity: &EntityState, edge: &MapEdge) -> i64 {
+    if string(entity, "node") == edge.from {
+        int(entity, "edge_progress").clamp(0, edge.length)
+    } else {
+        edge.length.saturating_sub(int(entity, "edge_progress").clamp(0, edge.length))
     }
 }
 
@@ -518,10 +604,7 @@ fn should_hold_for_attack(
 /// action lock. Action and Squad-operation selection can call this helper
 /// before reserving an action that would prevent the next movement update.
 pub(crate) fn forced_transit(entity: &EntityState, rules: &NextRules) -> bool {
-    if int(entity, "cross_remaining") > 0
-        || int(entity, "ford_active") > 0
-        || int(entity, "ford_remaining") > 0
-    {
+    if int(entity, "cross_remaining") > 0 || int(entity, "ford_remaining") > 0 {
         return true;
     }
     let from = string(entity, "node");
@@ -532,7 +615,13 @@ pub(crate) fn forced_transit(entity: &EntityState, rules: &NextRules) -> bool {
     let Some(edge) = edge_for_nodes(&rules.map, &from, &to) else {
         return false;
     };
-    edge.ford || (is_bridge(edge) && string(entity, "track") == "CENTER")
+    let crossing = support::river_crossing_at(entity, edge, rules);
+    if rules.map.world_projection.is_some() && crossing.is_none() { return false; }
+    crossing.is_some_and(|crossing| crossing.kind == "foot_ford")
+        || (rules.map.world_projection.is_none() && edge.ford)
+        || (support::occupies_crossing(entity, edge, rules)
+            && is_bridge(edge)
+            && (string(entity, "track") == "CENTER" || int(entity, "ford_active") > 0))
 }
 
 /// Snapshot-aware transit check for action selection. The region for a fixed
@@ -558,7 +647,8 @@ pub(crate) fn forced_transit_in(
         return false;
     };
     let state = bridge_state(world, &edge.bridge_site);
-    is_bridge(edge)
+    support::occupies_crossing(entity, edge, rules)
+        && is_bridge(edge)
         && (state == "destroyed"
             || (state == "normal" && string(entity, "track").is_empty()))
 }
@@ -1684,6 +1774,94 @@ mod tests {
         assert_eq!(path(&forward, "a", "a"), Some(vec!["a".into()]));
         assert_eq!(path(&forward, "missing", "a"), None);
         assert_eq!(path(&forward, "a", "c"), path(&reverse, "a", "c"));
+    }
+
+    #[test]
+    fn authored_crossing_entry_boundary_is_respected_in_forward_and_reverse_progress() {
+        let mut crossing_edge = edge("a", "b", 100, "jungle", false);
+        crossing_edge.id = "edge-ab".into();
+        crossing_edge.ford = true;
+        let mut map = test_map(vec![crossing_edge]);
+        let identity = senkei_model::WorldIdentityRef {
+            world_id: "crossing-test".into(), schema_version: Version::new(1, 0, 0),
+            minimum_compiler: Version::new(1, 0, 0), maximum_compiler_exclusive: None,
+            validation_profile_id: None, validation_profile_version: None,
+            logic_digest: senkei_model::ContentDigest::new("a".repeat(64)),
+            presentation_digest: senkei_model::ContentDigest::new("b".repeat(64)),
+        };
+        map.world_identity = Some(identity.clone());
+        map.world_projection = Some(senkei_model::BattleMapWorldProjection {
+            schema_version: Version::new(1, 0, 0), source_identity: identity,
+            node_ids: ["a".into(), "b".into()].into_iter().collect(),
+            edge_facts: BTreeMap::from([("edge-ab".into(), senkei_model::WorldEdgeFacts {
+                directionality: "undirected".into(), class: "jungle_path".into(),
+                tracks: vec![senkei_model::WorldTrackRange { id: "single".into(), kind: "single".into(), start_progress_wu: 0, end_progress_wu: 100 }],
+                river_crossing: Some(senkei_model::WorldRiverCrossing {
+                    river_id: "river.main".into(), kind: "foot_ford".into(), bridge_site_id: None,
+                    start_progress_wu: 40, end_progress_wu: 60,
+                }),
+                terrain_profile_id: "terrain.jungle".into(), terrain_kind: "jungle".into(), observation_semantics: "open".into(),
+            })]),
+            bridge_sites: BTreeMap::new(),
+            presentation_artifact: senkei_model::CanonicalPresentationWorldArtifact {
+                schema_version: Version::new(1, 0, 0), content: serde_json::json!({}),
+            },
+        });
+        let config = rules(map);
+        let edge = &config.map.edges[0];
+        let mut forward = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_string(&mut forward, "edge_to", "b");
+        assert_eq!(crossing_entry_boundary(&forward, edge, &config, 80), Some(40));
+        set_int(&mut forward, "edge_progress", 40);
+        assert_eq!(crossing_entry_boundary(&forward, edge, &config, 80), None, "movement may proceed once already inside");
+
+        let mut reverse = entity("hero", Some(CombatantSide::Defender), 100, "b", "a");
+        set_string(&mut reverse, "edge_to", "a");
+        assert_eq!(crossing_entry_boundary(&reverse, edge, &config, 80), Some(40));
+        set_int(&mut reverse, "edge_progress", 40);
+        assert_eq!(crate::next_support::river_crossing_at(&reverse, edge, &config).unwrap().kind, "foot_ford");
+        assert_eq!(crate::next_support::river_crossing_at(&reverse, edge, &config).unwrap().start_progress_wu, 40);
+
+        let mut walking_rules = config.clone();
+        walking_rules.parameters.insert("ford_extra_ticks".into(), 2);
+        for (side, start, goal, expected_local) in [
+            (CombatantSide::Attacker, "a", "b", 40),
+            (CombatantSide::Defender, "b", "a", 40),
+        ] {
+            let mut traveler = entity("hero", Some(side), 20, start, goal);
+            let mut world = WorldState::default();
+            world.entities.insert(id("traveler"), traveler.clone());
+            for tick in 0..3 { advance(&mut world, &walking_rules, tick); }
+            traveler = world.entities[&id("traveler")].clone();
+            assert_eq!(int(&traveler, "edge_progress"), expected_local);
+            assert_eq!(int(&traveler, "ford_active"), 0, "no ford transit before the authored interval");
+            advance(&mut world, &walking_rules, 3);
+            let traveler = &world.entities[&id("traveler")];
+            assert_eq!(int(traveler, "edge_progress"), expected_local);
+            assert_eq!(int(traveler, "ford_active"), 1);
+            assert_eq!(int(traveler, "ford_remaining"), 1, "the ford delay starts at the interval boundary in either direction");
+        }
+
+        let mut bridge_rules = config.clone();
+        bridge_rules.map.edges[0].region = "bridge".into();
+        bridge_rules.map.edges[0].bridge_site = "MID".into();
+        let crossing = bridge_rules.map.world_projection.as_mut().unwrap().edge_facts.get_mut("edge-ab").unwrap().river_crossing.as_mut().unwrap();
+        crossing.kind = "fixed_facility_bridge".into();
+        crossing.bridge_site_id = Some("MID".into());
+        let mut bridge_traveler = entity("hero", Some(CombatantSide::Attacker), 20, "a", "b");
+        set_string(&mut bridge_traveler, "edge_to", "b");
+        set_string(&mut bridge_traveler, "track", "CENTER");
+        set_int(&mut bridge_traveler, "edge_progress", 20);
+        assert!(!forced_transit(&bridge_traveler, &bridge_rules), "bridge restrictions do not cover the pre-crossing route");
+        set_int(&mut bridge_traveler, "edge_progress", 40);
+        assert!(forced_transit(&bridge_traveler, &bridge_rules), "center-lane transit begins at the authored bridge interval");
+        let mut destroyed = EntityState { entity_type: "bridge".into(), owner: None, fields: BTreeMap::new() };
+        set_string(&mut destroyed, "bridge_state", "destroyed");
+        let snapshot = WorldState { entities: BTreeMap::from([(id("bridge.MID"), destroyed)]), ..Default::default() };
+        assert!(crate::next_support::is_ford_position(&bridge_traveler, &snapshot, &bridge_rules));
+        set_int(&mut bridge_traveler, "edge_progress", 20);
+        assert!(!crate::next_support::is_ford_position(&bridge_traveler, &snapshot, &bridge_rules),
+            "a destroyed bridge does not turn the whole source edge into a ford");
     }
 
     #[test]
