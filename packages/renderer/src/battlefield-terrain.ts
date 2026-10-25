@@ -214,7 +214,6 @@ function createTerrainData(replay: Replay): TerrainData {
 }
 
 function terrainColor(
-  replay: Replay,
   point: Point2,
   elevation: number,
   slope: number,
@@ -266,7 +265,7 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
       const slope = Math.hypot(slopeX, slopeZ);
       const point = { x, y: z };
       positions.push(x, elevation, z);
-      const color = terrainColor(replay, point, elevation, slope, data.forest(x, z), paths);
+      const color = terrainColor(point, elevation, slope, data.forest(x, z), paths);
       colors.push(color.r, color.g, color.b);
       if (ix < segmentsX && iz < segmentsZ) {
         const a = iz * (segmentsX + 1) + ix, b = a + segmentsX + 1;
