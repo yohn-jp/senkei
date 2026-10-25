@@ -394,6 +394,8 @@ mod tests {
             allegiance: "N".into(),
             x,
             y: 0,
+            presentation_x: x,
+            presentation_y: 0,
             region: "lane".into(),
         };
         NextRules {
@@ -402,6 +404,7 @@ mod tests {
             map: BattleMap {
                 id: "fog-test".into(),
                 world_identity: None,
+                world_projection: None,
                 nodes: BTreeMap::from([
                     ("a".into(), node(0)),
                     ("b".into(), node(80)),

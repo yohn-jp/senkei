@@ -1577,6 +1577,7 @@ mod tests {
         BattleMap {
             id: "test".into(),
             world_identity: None,
+            world_projection: None,
             nodes: BTreeMap::from([node("a", 0), node("b", 10), node("c", 20), node("d", 10)]),
             edges,
             lanes: BTreeMap::new(),

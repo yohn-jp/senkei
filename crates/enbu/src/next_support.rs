@@ -287,6 +287,7 @@ mod tests {
             map: BattleMap {
                 id: "weighted-endpoints".into(),
                 world_identity: None,
+                world_projection: None,
                 nodes,
                 edges: vec![
                     edge("ab", "a", "b", 100),

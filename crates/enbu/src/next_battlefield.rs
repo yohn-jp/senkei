@@ -429,10 +429,10 @@ mod tests {
 
     fn rules() -> NextRules {
         let nodes = BTreeMap::from([
-            ("a_bank".into(), MapNode { x: 0, y: 0, region: "top".into(), allegiance: "A".into() }),
-            ("b_bank".into(), MapNode { x: 100, y: 0, region: "top".into(), allegiance: "B".into() }),
-            ("mid_obs".into(), MapNode { x: 50, y: -10, region: "observation".into(), allegiance: "N".into() }),
-            ("farland".into(), MapNode { x: 300, y: 0, region: "jungle".into(), allegiance: "N".into() }),
+            ("a_bank".into(), MapNode { x: 0, y: 0, presentation_x: 0, presentation_y: 0, region: "top".into(), allegiance: "A".into() }),
+            ("b_bank".into(), MapNode { x: 100, y: 0, presentation_x: 100, presentation_y: 0, region: "top".into(), allegiance: "B".into() }),
+            ("mid_obs".into(), MapNode { x: 50, y: -10, presentation_x: 50, presentation_y: -10, region: "observation".into(), allegiance: "N".into() }),
+            ("farland".into(), MapNode { x: 300, y: 0, presentation_x: 300, presentation_y: 0, region: "jungle".into(), allegiance: "N".into() }),
         ]);
         let edges = vec![
             MapEdge { id: "top".into(), from: "a_bank".into(), to: "b_bank".into(), length: 100,
@@ -447,7 +447,7 @@ mod tests {
         NextRules {
             mechanics_version: Version::new(2, 0, 0),
             world_identity: None,
-            map: BattleMap { id: "test".into(), nodes, edges, lanes: BTreeMap::new(),
+            map: BattleMap { id: "test".into(), nodes, edges, lanes: BTreeMap::new(), world_projection: None,
                 world_identity: None,
                 attacker_base: "a_bank".into(), defender_base: "b_bank".into(), towers: Vec::<TowerPlacement>::new() },
             heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(), camps: Vec::new(),

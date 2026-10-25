@@ -36,10 +36,7 @@ fn presentation_shifted_rules() -> VerifiedRulePlan {
     let world = senkei_world::compile_json(&serde_json::to_vec(&definition).unwrap())
         .expect("translated presentation still compiles as a paired World");
     let base_package = senritsu::next_package();
-    let metadata = senritsu::next_world::ExplicitBattleMapMetadata::from_runtime_map(
-        &base_package.next.as_ref().unwrap().map,
-    );
-    let projection = senritsu::next_world::project_verified_world(&world, Some(&metadata))
+    let projection = senritsu::next_world::project_verified_world(&world, None)
         .expect("translated presentation has an exact runtime map projection");
     let identity = world.identity().to_model_ref();
     let mut package = base_package;

@@ -893,6 +893,8 @@ mod tests {
                     allegiance: "A".into(),
                     x: 0,
                     y: 0,
+                    presentation_x: 0,
+                    presentation_y: 0,
                     region: "lane".into(),
                 },
             ),
@@ -902,6 +904,8 @@ mod tests {
                     allegiance: "N".into(),
                     x: 10,
                     y: 0,
+                    presentation_x: 10,
+                    presentation_y: 0,
                     region: "lane".into(),
                 },
             ),
@@ -911,6 +915,8 @@ mod tests {
                     allegiance: "B".into(),
                     x: 20,
                     y: 0,
+                    presentation_x: 20,
+                    presentation_y: 0,
                     region: "lane".into(),
                 },
             ),
@@ -921,6 +927,7 @@ mod tests {
             map: BattleMap {
                 id: "test".into(),
                 world_identity: None,
+                world_projection: None,
                 nodes,
                 edges: vec![MapEdge { id: "a0-a1".into(), bridge_site: String::new(), ford: false,
                     from: "a0".into(), to: "a1".into(), length: 10,
@@ -1020,6 +1027,7 @@ mod tests {
     fn empty_plan() -> RulePlan {
         RulePlan {
             next: Some(test_rules()),
+            catalog_semantics_digest: None,
             minimum_engine_version: Version::new(1, 0, 0),
             model_version: Version::new(1, 0, 0),
             primitive_set_id: PrimitiveSetId::from("test"),

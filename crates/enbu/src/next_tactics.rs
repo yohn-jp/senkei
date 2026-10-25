@@ -331,6 +331,7 @@ mod tests {
             map: BattleMap {
                 id: "test".into(),
                 world_identity: None,
+                world_projection: None,
                 nodes,
                 edges: vec![MapEdge {
                     from: "mid_a".into(),

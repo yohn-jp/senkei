@@ -103,6 +103,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
     };
     let plan = RulePlan {
         next: None,
+        catalog_semantics_digest: None,
         minimum_engine_version: ENGINE_VERSION,
         model_version: v(),
         primitive_set_id: id("generic-v1"),

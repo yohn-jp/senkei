@@ -913,6 +913,7 @@ mod tests {
             map: BattleMap {
                 id: "test-map".to_owned(),
                 world_identity: None,
+                world_projection: None,
                 nodes: BTreeMap::from([
                     ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned(), ..Default::default()
 }),
