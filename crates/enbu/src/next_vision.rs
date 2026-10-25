@@ -917,8 +917,10 @@ mod tests {
         ]);
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
             map: BattleMap {
                 id: "test".into(),
+                world_identity: None,
                 nodes,
                 edges: vec![MapEdge { id: "a0-a1".into(), bridge_site: String::new(), ford: false,
                     from: "a0".into(), to: "a1".into(), length: 10,

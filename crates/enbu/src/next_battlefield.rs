@@ -446,7 +446,9 @@ mod tests {
         ];
         NextRules {
             mechanics_version: Version::new(2, 0, 0),
+            world_identity: None,
             map: BattleMap { id: "test".into(), nodes, edges, lanes: BTreeMap::new(),
+                world_identity: None,
                 attacker_base: "a_bank".into(), defender_base: "b_bank".into(), towers: Vec::<TowerPlacement>::new() },
             heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(), camps: Vec::new(),
             parameters: BTreeMap::from([

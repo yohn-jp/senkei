@@ -327,8 +327,10 @@ mod tests {
             .collect();
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
             map: BattleMap {
                 id: "test".into(),
+                world_identity: None,
                 nodes,
                 edges: vec![MapEdge {
                     from: "mid_a".into(),

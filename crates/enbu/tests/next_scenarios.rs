@@ -2119,6 +2119,7 @@ fn long_workbench_local_response_fits_versioned_output_limit() {
     let diagnostic_bytes = serde_json::to_vec(&Some(&local_diagnostics)).unwrap().len();
     let local = LocalSimulationResponse {
         owner_replay: artifact.owner_replay.clone(),
+        owner_replays: artifact.owner_replays.clone(),
         result: artifact.result.clone(),
         replay: artifact.replay.clone(),
         diagnostics: Some(local_diagnostics),

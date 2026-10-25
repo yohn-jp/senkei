@@ -1326,8 +1326,10 @@ mod tests {
         let zero = stats(0, 0, 0, 0);
         NextRules {
             mechanics_version: senkei_model::Version::new(1, 0, 0),
+            world_identity: None,
             map: senkei_model::BattleMap {
                 id: "test".into(),
+                world_identity: None,
                 nodes: BTreeMap::from([
                     ("test_a".into(), senkei_model::MapNode { x: 0, y: 0, region: "lane".into(), ..Default::default() }),
                     ("test_b".into(), senkei_model::MapNode { x: 1_000, y: 0, region: "lane".into(), ..Default::default() }),

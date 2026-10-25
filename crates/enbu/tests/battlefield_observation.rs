@@ -275,6 +275,36 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
     }), "Enbu accepts no work against a hidden bridge");
 
     let owner = first.owner_replay.as_ref().expect("attacker owner replay exists");
+    assert_eq!(first.owner_replays.len(), 2, "both teams receive separately authorized replay projections");
+    assert_eq!(
+        first.owner_replays[&CombatantSide::Attacker].perspective,
+        Some(CombatantSide::Attacker),
+    );
+    assert_eq!(
+        first.owner_replays[&CombatantSide::Defender].perspective,
+        Some(CombatantSide::Defender),
+    );
+    for (side, replay) in &first.owner_replays {
+        assert_eq!(replay.world_identity, rules.world_identity().cloned());
+        let state = replay.frames[0].visible_state.as_ref().unwrap();
+        assert!(state.entities.values().any(|entity| {
+            entity.entity_type == TypeId::new("hero") && entity.owner == Some(*side)
+        }), "owner projection contains its side's heroes");
+        assert!(state.entities.values().all(|entity| {
+            entity.entity_type != TypeId::new("hero") || entity.owner != Some(match side {
+                CombatantSide::Attacker => CombatantSide::Defender,
+                CombatantSide::Defender => CombatantSide::Attacker,
+            })
+        }), "hidden enemy heroes are omitted from each owner projection");
+        let fog = match state.global_fields.get(&FieldId::new("fog")) {
+            Some(DomainValue::Record(fog)) => fog,
+            _ => panic!("owner projection carries fog state"),
+        };
+        assert_eq!(fog[&FieldId::new("side")], DomainValue::String(match side {
+            CombatantSide::Attacker => "attacker",
+            CombatantSide::Defender => "defender",
+        }.into()));
+    }
     assert!(owner.frames.iter().all(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| {
             state.entities.values().all(|entity| entity.entity_type != TypeId::new("bridge"))
@@ -297,4 +327,25 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
         "the same Jinrei input charges exactly the same CU"
     );
     assert_eq!(first.result.final_state_digest, repeat.result.final_state_digest);
+    assert!(first.replay.frames.iter().all(|frame| {
+        frame.visible_state.as_ref().is_none_or(|view| !view.global_fields.contains_key(&FieldId::new("fog")))
+    }), "the public replay has no side-authorized fog history");
+}
+
+#[test]
+fn next_match_rejects_missing_or_mismatched_paired_world_identity() {
+    let rules = rules();
+    let program = compile(IDLE_TACTICS, &rules).unwrap().program;
+    let attacker = snapshot(&rules, CombatantSide::Attacker, program.clone());
+    let defender = snapshot(&rules, CombatantSide::Defender, program);
+
+    let mut missing = new_match_context(&rules, MatchId::new("missing-world-identity"));
+    missing.world_identity = None;
+    let error = simulate(&attacker, &defender, &rules, &missing, &mut Vm::new(&rules)).unwrap_err();
+    assert!(error.message.contains("World identity"));
+
+    let mut mismatched = new_match_context(&rules, MatchId::new("mismatched-world-identity"));
+    mismatched.world_identity.as_mut().unwrap().presentation_digest = ContentDigest::new("f".repeat(64));
+    let error = simulate(&attacker, &defender, &rules, &mismatched, &mut Vm::new(&rules)).unwrap_err();
+    assert!(error.message.contains("World identity"));
 }

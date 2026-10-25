@@ -398,8 +398,10 @@ mod tests {
         };
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
             map: BattleMap {
                 id: "fog-test".into(),
+                world_identity: None,
                 nodes: BTreeMap::from([
                     ("a".into(), node(0)),
                     ("b".into(), node(80)),

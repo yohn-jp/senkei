@@ -1576,6 +1576,7 @@ mod tests {
     fn test_map(edges: Vec<MapEdge>) -> BattleMap {
         BattleMap {
             id: "test".into(),
+            world_identity: None,
             nodes: BTreeMap::from([node("a", 0), node("b", 10), node("c", 20), node("d", 10)]),
             edges,
             lanes: BTreeMap::new(),
@@ -1617,6 +1618,7 @@ mod tests {
         ]);
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
             map,
             heroes: Vec::new(),
             minions: Vec::new(),

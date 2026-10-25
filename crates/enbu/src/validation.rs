@@ -52,6 +52,9 @@ pub(crate) fn validate_inputs(
         return Err(version_error("unsupported presentation replay schema version"));
     }
     validate_ruleset_ref(&context.ruleset, rules.ruleset())?;
+    if context.world_identity.as_ref() != rules.world_identity() {
+        return Err(invalid("match context World identity does not match the verified RulePackage"));
+    }
     validate_ruleset_ref(&attacker.ruleset, rules.ruleset())?;
     validate_ruleset_ref(&defender.ruleset, rules.ruleset())?;
     if attacker.schema_version != MODEL_VERSION || defender.schema_version != MODEL_VERSION {

@@ -283,8 +283,10 @@ mod tests {
         };
         let rules = NextRules {
             mechanics_version: crate::Version::new(1, 0, 0),
+            world_identity: None,
             map: BattleMap {
                 id: "weighted-endpoints".into(),
+                world_identity: None,
                 nodes,
                 edges: vec![
                     edge("ab", "a", "b", 100),

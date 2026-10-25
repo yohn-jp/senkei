@@ -909,8 +909,10 @@ mod tests {
     fn rules() -> NextRules {
         NextRules {
             mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
             map: BattleMap {
                 id: "test-map".to_owned(),
+                world_identity: None,
                 nodes: BTreeMap::from([
                     ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned(), ..Default::default()
 }),

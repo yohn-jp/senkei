@@ -24,6 +24,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
         schema_version: plan.model_version,
         match_id,
         ruleset: rules.ruleset().clone(),
+        world_identity: rules.world_identity().cloned(),
         versions: ComponentVersions {
             model: plan.model_version,
             engine: validation::ENGINE_VERSION,
@@ -137,8 +138,11 @@ pub fn simulate<P: TacticalExecutionPort>(
     let mut diagnostics = Vec::new();
     let mut diagnostic_sequence = 0_u64;
     let mut replay_frames = Vec::new();
-    let mut owner_frames = Vec::new();
-    let mut fog_history = next_vision::FogHistory::default();
+    let sides = [CombatantSide::Attacker, CombatantSide::Defender];
+    let mut owner_frames: BTreeMap<CombatantSide, Vec<ReplayFrame>> =
+        sides.into_iter().map(|side| (side, Vec::new())).collect();
+    let mut fog_histories: BTreeMap<CombatantSide, next_vision::FogHistory> =
+        sides.into_iter().map(|side| (side, next_vision::FogHistory::default())).collect();
     let mut event_count = 0_u64;
 
     replay_frames.push(ReplayFrame {
@@ -147,7 +151,17 @@ pub fn simulate<P: TacticalExecutionPort>(
         visible_state: Some(presentation_view(&world, plan)),
     });
 
-    if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick:0, events:Vec::new(), visible_state:Some(next_vision::team_view_with_fog(&world,next,CombatantSide::Attacker,0,&mut fog_history)) }); }
+    if let Some(next) = &plan.next {
+        for side in sides {
+            owner_frames.get_mut(&side).unwrap().push(ReplayFrame {
+                tick: 0,
+                events: Vec::new(),
+                visible_state: Some(next_vision::team_view_with_fog(
+                    &world, next, side, 0, fog_histories.get_mut(&side).unwrap(),
+                )),
+            });
+        }
+    }
     let mut final_outcome = None;
     if let Some((outcome, reason)) = evaluate_termination(plan, &world, 0, &projection_index)? {
         final_outcome = Some((outcome, reason, 0));
@@ -267,7 +281,17 @@ pub fn simulate<P: TacticalExecutionPort>(
                 events: Vec::new(),
                 visible_state: Some(presentation_view(&world, plan)),
             });
-            if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick, events:Vec::new(), visible_state:Some(next_vision::team_view_with_fog(&world,next,CombatantSide::Attacker,tick,&mut fog_history)) }); }
+            if let Some(next) = &plan.next {
+                for side in sides {
+                    owner_frames.get_mut(&side).unwrap().push(ReplayFrame {
+                        tick,
+                        events: Vec::new(),
+                        visible_state: Some(next_vision::team_view_with_fog(
+                            &world, next, side, tick, fog_histories.get_mut(&side).unwrap(),
+                        )),
+                    });
+                }
+            }
             break;
         }
 
@@ -333,7 +357,9 @@ pub fn simulate<P: TacticalExecutionPort>(
             &projection_index,
         )?;
         let before_next = presentation_view(&world, plan);
-        let before_owner = plan.next.as_ref().map(|next| next_vision::team_view(&world,next,CombatantSide::Attacker));
+        let before_owner: BTreeMap<CombatantSide, senkei_model::WorldStateView> = plan.next.as_ref().map(|next| {
+            sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
+        }).unwrap_or_default();
         let mut next_events = Vec::new();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
@@ -365,9 +391,24 @@ pub fn simulate<P: TacticalExecutionPort>(
             .collect();
         if plan.next.is_some() {
             let after = presentation_view(&world, plan);
-            let owner_after = next_vision::team_view_with_fog(&world,plan.next.as_ref().unwrap(),CombatantSide::Attacker,tick,&mut fog_history);
-            let owner_before = before_owner.as_ref().unwrap();
-            owner_frames.push(ReplayFrame { tick, events:next_events.iter().filter(|event| event_references_known(event,owner_before,&owner_after)).cloned().collect(), visible_state:Some(owner_after) });
+            for side in sides {
+                let owner_after = next_vision::team_view_with_fog(
+                    &world,
+                    plan.next.as_ref().unwrap(),
+                    side,
+                    tick,
+                    fog_histories.get_mut(&side).unwrap(),
+                );
+                let owner_before = &before_owner[&side];
+                let frame = ReplayFrame {
+                    tick,
+                    events: next_events.iter()
+                        .filter(|event| event_references_known(event, owner_before, &owner_after))
+                        .cloned().collect(),
+                    visible_state: Some(owner_after),
+                };
+                owner_frames.get_mut(&side).unwrap().push(frame);
+            }
             public_events.extend(next_events.into_iter().filter(|event| {
                 let known = |id: &senkei_model::EntityId| before_next.entities.contains_key(id) && after.entities.contains_key(id);
                 event.entity.as_ref().is_some_and(known) && event.payload.values().all(|v| match v { DomainValue::Entity(id) => known(id), DomainValue::List(_) | DomainValue::Record(_) => false, _ => true })
@@ -410,6 +451,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     let replay = PresentationReplay {
         perspective: None,
         schema_version: Version::new(1, 0, 0),
+        world_identity: context.world_identity.clone(),
         match_id: context.match_id.clone(),
         result_digest: result_digest.clone(),
         frames: if plan.next.is_some() { project_replay_identities(replay_frames) } else { replay_frames },
@@ -427,8 +469,20 @@ pub fn simulate<P: TacticalExecutionPort>(
         rule_package_digest: rules.package_digest().clone(),
         context: context.clone(),
     };
-    let owner_replay = plan.next.as_ref().map(|_| PresentationReplay { perspective:Some(CombatantSide::Attacker),schema_version:Version::new(1,0,0),match_id:context.match_id.clone(),result_digest,frames:project_replay_identities(owner_frames) });
-    let artifact = SimulationArtifact { owner_replay, result, replay, diagnostics, reproduction };
+    let owner_replays: BTreeMap<CombatantSide, PresentationReplay> = if plan.next.is_some() {
+        owner_frames.into_iter().map(|(side, frames)| (side, PresentationReplay {
+            perspective: Some(side),
+            schema_version: Version::new(1, 0, 0),
+            world_identity: context.world_identity.clone(),
+            match_id: context.match_id.clone(),
+            result_digest: result_digest.clone(),
+            frames: project_replay_identities(frames),
+        })).collect()
+    } else {
+        BTreeMap::new()
+    };
+    let owner_replay = owner_replays.get(&CombatantSide::Attacker).cloned();
+    let artifact = SimulationArtifact { owner_replay, owner_replays, result, replay, diagnostics, reproduction };
     let response_size = serde_json::to_vec(&artifact.public_response())
         .map_err(|_| api_error(ApiErrorCode::InternalError, "public simulation response could not be measured"))?
         .len() as u64;

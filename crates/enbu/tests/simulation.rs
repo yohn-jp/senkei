@@ -189,6 +189,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         schema_version: v(),
         match_id: id("simultaneous-test"),
         ruleset: ruleset_ref.clone(),
+        world_identity: None,
         versions: ComponentVersions {
             model: v(), engine: ENGINE_VERSION, ruleset: v(),
             jinrei_language: v(), structured_ast: v(), typed_ir: v(), bytecode: v(), cost_schedule: v(), replay_schema: v(),
