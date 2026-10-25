@@ -15,6 +15,7 @@ type ReplayRun = {
   readonly publicReplay: JsonRecord;
   readonly ownerReplay: JsonRecord;
   readonly sourceReplay: JsonRecord;
+  readonly ruleset: JsonRecord;
   readonly wasmResponses: readonly { status: number; url: string }[];
   readonly pageErrors: readonly string[];
   readonly buildRevision: string | null;
@@ -190,7 +191,11 @@ function firstCenterBridgeTransit(
 }
 
 function observationAt(replay: JsonRecord, tick: number): JsonRecord | undefined {
-  return entitiesAt(replay, tick).map(([, entity]) => entity).find((entity) =>
+  return observationEntryAt(replay, tick)?.[1];
+}
+
+function observationEntryAt(replay: JsonRecord, tick: number): [string, JsonRecord] | undefined {
+  return entitiesAt(replay, tick).find(([, entity]) =>
     entity.entity_type === "observation" && field(entity, "node") === "N.MID.OBS",
   );
 }
@@ -237,6 +242,68 @@ function heroAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord
   return entitiesAt(replay, tick).map(([, entity]) => entity).find((entity) =>
     entity.entity_type === "hero" && field(entity, "catalog_id") === catalogId,
   );
+}
+
+function lateralHeroWithCenterMinionAt(replay: JsonRecord, ruleset: JsonRecord, tick: number, catalogId: string): JsonRecord | undefined {
+  const heroEntry = catalogEntityEntryAt(replay, tick, "hero", catalogId);
+  if (!heroEntry) return undefined;
+  const [heroId, hero] = heroEntry;
+  const node = field(hero, "node");
+  const edgeTo = field(hero, "edge_to");
+  const heroProgress = integerField(hero, "edge_progress");
+  const track = field(hero, "track");
+  if (typeof node !== "string" || typeof edgeTo !== "string" || edgeTo.length === 0 ||
+    heroProgress === null || (track !== "LEFT" && track !== "RIGHT") ||
+    (integerField(hero, "cross_remaining") ?? 0) > 0 || (integerField(hero, "ford_remaining") ?? 0) > 0 ||
+    (integerField(hero, "ford_active") ?? 0) > 0) return undefined;
+
+  const next = requiredRecord(ruleset.next, "Next rules");
+  const map = requiredRecord(next.map, "Battlefield static map");
+  const edges = map.edges as JsonRecord[] | undefined;
+  if (!Array.isArray(edges)) throw new Error("The returned Battlefield ruleset does not contain static map edges.");
+  const edge = edges.find((candidate) =>
+    ((candidate.from === node && candidate.to === edgeTo) || (candidate.from === edgeTo && candidate.to === node)) &&
+    candidate.region === "lane" && !candidate.bridge_site && candidate.ford !== true,
+  );
+  if (!edge) return undefined;
+  const parameters = requiredRecord(next.parameters, "versioned Battlefield parameters");
+  const occupancyRadius = parameters.track_occupancy_radius_wu;
+  if (typeof occupancyRadius !== "number" || !Number.isSafeInteger(occupancyRadius) || occupancyRadius < 0) {
+    throw new Error("The returned ruleset is missing track_occupancy_radius_wu.");
+  }
+  const centerMinion = entitiesAt(replay, tick)
+    .filter(([, entity]) => entity.entity_type === "minion" && entity.owner === hero.owner &&
+      field(entity, "node") === node && field(entity, "edge_to") === edgeTo && field(entity, "track") === "CENTER" &&
+      (integerField(entity, "cross_remaining") ?? 0) === 0 &&
+      (integerField(entity, "ford_remaining") ?? 0) === 0 && (integerField(entity, "ford_active") ?? 0) === 0)
+    .map(([entityId, entity]) => ({ entityId, entity, progress: integerField(entity, "edge_progress") }))
+    .filter((entry) => entry.progress !== null && Math.abs(entry.progress - heroProgress) <= occupancyRadius)
+    .sort((left, right) => Math.abs(left.progress! - heroProgress) - Math.abs(right.progress! - heroProgress))[0];
+  if (!centerMinion || centerMinion.progress === null) return undefined;
+  return {
+    hero: {
+      replayEntityId: heroId,
+      catalogId,
+      owner: hero.owner,
+      node,
+      edgeTo,
+      edgeRegion: edge.region,
+      edgeProgress: heroProgress,
+      track,
+      crossRemaining: integerField(hero, "cross_remaining"),
+    },
+    minion: {
+      replayEntityId: centerMinion.entityId,
+      catalogId: field(centerMinion.entity, "catalog_id"),
+      owner: centerMinion.entity.owner,
+      node,
+      edgeTo,
+      edgeProgress: centerMinion.progress,
+      track: field(centerMinion.entity, "track"),
+    },
+    longitudinalSeparationWu: Math.abs(centerMinion.progress - heroProgress),
+    trackOccupancyRadiusWu: occupancyRadius,
+  };
 }
 
 function heroMovementFactsAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord | null {
@@ -378,11 +445,15 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
           return;
         }
         super.addEventListener(type, (event: Event) => {
-          const data = (event as MessageEvent).data as { request_id?: unknown } | null;
+          const data = (event as MessageEvent).data as { operation?: unknown; request_id?: unknown; ok?: unknown } | null;
           const target = window as typeof window & {
             __visualRequest?: { request_id?: unknown };
             __visualResponse?: unknown;
+            __visualRulesetResponse?: unknown;
           };
+          if (data?.operation === "next_ruleset" && data.ok === true) {
+            target.__visualRulesetResponse = structuredClone(data);
+          }
           if (data?.request_id !== undefined && data.request_id === target.__visualRequest?.request_id) {
             target.__visualResponse = structuredClone(data);
           }
@@ -409,8 +480,8 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => Boolean((window as typeof window & { __visualResponse?: unknown }).__visualResponse))).toBe(true);
   const captured = await page.evaluate(() => {
-    const current = window as typeof window & { __visualRequest?: JsonRecord; __visualResponse?: JsonRecord };
-    return { request: current.__visualRequest ?? null, response: current.__visualResponse ?? null };
+    const current = window as typeof window & { __visualRequest?: JsonRecord; __visualResponse?: JsonRecord; __visualRulesetResponse?: JsonRecord };
+    return { request: current.__visualRequest ?? null, response: current.__visualResponse ?? null, rulesetResponse: current.__visualRulesetResponse ?? null };
   });
   const capturedRequest = requiredRecord(captured.request, "Worker request");
   const capturedResponse = requiredRecord(captured.response, "Worker response");
@@ -424,6 +495,16 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   const requestSnapshot = requiredRecord(requestPayload.snapshot, "Worker snapshot");
   const requestContext = requiredRecord(requestSnapshot.context, "Worker snapshot context");
   const requestedMatchId = requiredString(requestContext.match_id, "Worker snapshot match ID");
+  const rulesetResponse = requiredRecord(captured.rulesetResponse, "WASM next_ruleset response");
+  if (rulesetResponse.operation !== "next_ruleset" || rulesetResponse.ok !== true) {
+    throw new Error("The app did not return the real next_ruleset package from WASM.");
+  }
+  const ruleset = requiredRecord(rulesetResponse.result, "WASM RulePackage");
+  const rulesetRef = requiredRecord(ruleset.ruleset, "WASM ruleset identity");
+  const snapshotRulesetRef = requiredRecord(requestContext.ruleset, "snapshot ruleset identity");
+  if (rulesetRef.digest !== snapshotRulesetRef.digest) {
+    throw new Error("The captured static ruleset does not match the real Enbu simulation snapshot.");
+  }
   const simulation = requiredRecord(capturedResponse.result, "Worker simulation result");
   const outcome = requiredRecord(simulation.outcome, "simulation outcome");
   const result = requiredRecord(outcome.result, "Enbu result");
@@ -448,6 +529,7 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
     publicReplay,
     ownerReplay: ownerReplay!,
     sourceReplay: ownerReplay ?? publicReplay,
+    ruleset,
     wasmResponses,
     pageErrors,
     buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content"),
@@ -901,6 +983,27 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       }, captures);
     }
 
+    for (const trackState of [
+      { tick: 2, id: "lateral-left", expectedTrack: "LEFT" },
+      { tick: 5, id: "lateral-right", expectedTrack: "RIGHT" },
+    ] as const) {
+      const hero = heroAt(canonical.ownerReplay, trackState.tick, "F01");
+      expect(field(hero, "track"), `F01 is on ${trackState.expectedTrack} before/after the T3 transition`).toBe(trackState.expectedTrack);
+      expect(integerField(hero, "cross_remaining"), `F01 has completed its transition at ${trackState.id}`).toBe(0);
+      const target = await followHero(page, viewport, canonical.ownerReplay, trackState.tick, "F01", "Azure");
+      await saveCapture(page, "canonical-real-battle", `${trackState.id}-follow`, trackState.tick, viewport, "Follow", {
+        catalogId: target.catalogId,
+        side: target.side,
+        rendererEntityId: target.id,
+        node: field(hero, "node"),
+        edgeTo: field(hero, "edge_to"),
+        edgeProgress: integerField(hero, "edge_progress"),
+        selectedTrack: field(hero, "track"),
+        effectiveTrack: field(hero, "track"),
+        crossRemaining: integerField(hero, "cross_remaining"),
+      }, captures);
+    }
+
     const lateralHero = heroAt(canonical.ownerReplay, 3, "F01");
     const lateralCrossRemaining = integerField(lateralHero, "cross_remaining");
     if (lateralCrossRemaining === null) throw new Error("The authorized replay must expose F01's lateral crossing timer at T3.");
@@ -1091,6 +1194,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       "authorized owner replay contains the real capture event",
     ).toBe(true);
     await assertMapContract(capturePage);
+    let captureFollowReplayEntityId: string | null = null;
+    let captureFollowRendererEntityId: string | null = null;
     for (const viewport of [viewports[0], viewports[2], viewports[4]]) {
       await ensureViewport(capturePage, viewport);
       await setView(capturePage, viewport, "Tactical");
@@ -1102,18 +1207,43 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
           captureOwner: field(observationAt(captureRun.ownerReplay, tick), "capture_owner"),
         }, captures);
       }
+      for (const state of [
+        { tick: 0, id: "beacon-neutral", expectedOwner: "neutral", expectedProgress: 0, expectedProgressSide: "" },
+        { tick: 7, id: "beacon-capture-progress", expectedOwner: "neutral", expectedProgress: 7, expectedProgressSide: "attacker" },
+        { tick: 8, id: "beacon-captured", expectedOwner: "attacker", expectedProgress: 0, expectedProgressSide: "" },
+      ] as const) {
+        const facilityEntry = observationEntryAt(captureRun.ownerReplay, state.tick);
+        expect(facilityEntry, `authorized owner replay exposes the MID facility at T${state.tick}`).toBeTruthy();
+        const heroEntry = catalogEntityEntryAt(captureRun.ownerReplay, state.tick, "hero", "F01");
+        expect(heroEntry, `F01 is the same owner-authorized Follow target at T${state.tick}`).toBeTruthy();
+        const observation = facilityEntry![1];
+        const heroReplayEntityId = heroEntry![0];
+        expect(field(observation, "capture_owner"), `MID's actual owner at T${state.tick}`).toBe(state.expectedOwner);
+        expect(integerField(observation, "capture_progress"), `MID's actual progress at T${state.tick}`).toBe(state.expectedProgress);
+        expect(field(observation, "capture_progress_side") ?? "", `MID's actual progress side at T${state.tick}`).toBe(state.expectedProgressSide);
+        if (captureFollowReplayEntityId === null) captureFollowReplayEntityId = heroReplayEntityId;
+        expect(heroReplayEntityId, "capture visual states keep the same F01 replay identity").toBe(captureFollowReplayEntityId);
+
+        const target = await followHero(capturePage, viewport, captureRun.ownerReplay, state.tick, "F01", "Azure");
+        if (captureFollowRendererEntityId === null) captureFollowRendererEntityId = target.id;
+        expect(target.catalogId).toBe("F01");
+        expect(target.id, "capture visual states keep the same followed F01 render identity").toBe(captureFollowRendererEntityId);
+        await saveCapture(capturePage, "real-mid-capture", `${state.id}-follow`, state.tick, viewport, "Follow", {
+          catalogId: target.catalogId,
+          side: target.side,
+          sourceHeroEntityId: heroReplayEntityId,
+          rendererEntityId: target.id,
+          sourceObservationEntityId: facilityEntry![0],
+          captureOwner: field(observation, "capture_owner"),
+          captureProgress: integerField(observation, "capture_progress"),
+          captureProgressSide: field(observation, "capture_progress_side"),
+        }, captures);
+      }
       if (viewport.name === "1440x900") {
         await setView(capturePage, viewport, "Overview");
         await seekToTick(capturePage, 8);
         await saveCapture(capturePage, "real-mid-capture", "captured-observation-overview", 8, viewport, "Overview", {
           captureOwner: "attacker",
-        }, captures);
-        await setView(capturePage, viewport, "Tactical");
-        const target = await followHero(capturePage, viewport, captureRun.ownerReplay, 7, "F01");
-        await saveCapture(capturePage, "real-mid-capture", "capture-progress-follow", 7, viewport, "Follow", {
-          catalogId: target.catalogId,
-          side: target.side,
-          captureProgress: 7,
         }, captures);
       }
     }
@@ -1128,6 +1258,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   let normalBridgeEntryFacts: JsonRecord[] = [];
   let defaultAttackHero: { catalogId: string; side: string; coreEntityId: string } | undefined;
   let defaultHeroMovement: JsonRecord | undefined;
+  let defaultLaneOccupancy: JsonRecord | undefined;
   try {
     defaultRun = await launchBattle(defaultPage, baseURL);
     expect(defaultRun.buildRevision, "the default Enbu app preview is built from the capture HEAD").toBe(appRevision);
@@ -1163,6 +1294,13 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     const attackHero = { catalogId: attackCatalogId as string, side: attackSide!, coreEntityId: firstAttack!.entityId };
     defaultAttackHero = attackHero;
     defaultHeroMovement = movement;
+    defaultLaneOccupancy = lateralHeroWithCenterMinionAt(defaultRun.ownerReplay, defaultRun.ruleset, 50, "F03");
+    expect(defaultLaneOccupancy, "the real default replay places F03 on a lateral lane track beside an occupying center-track minion at T50").toBeTruthy();
+    expect((defaultLaneOccupancy!.hero as JsonRecord).track).toBe("LEFT");
+    expect((defaultLaneOccupancy!.hero as JsonRecord).edgeRegion).toBe("lane");
+    expect((defaultLaneOccupancy!.hero as JsonRecord).crossRemaining).toBe(0);
+    expect((defaultLaneOccupancy!.minion as JsonRecord).track).toBe("CENTER");
+    expect(defaultLaneOccupancy!.longitudinalSeparationWu).toBeLessThanOrEqual(defaultLaneOccupancy!.trackOccupancyRadiusWu as number);
     for (const viewport of viewports) {
       await ensureViewport(defaultPage, viewport);
       await setView(defaultPage, viewport, "Tactical");
@@ -1210,6 +1348,17 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         attackTick: clashTick,
         attackEvent: firstAttack?.event.event,
         target: firstAttack?.event.payload?.target ?? null,
+      }, captures);
+      const laneOccupancyTarget = await followHero(defaultPage, viewport, defaultRun.ownerReplay, 50, "F03", "Azure");
+      expect(laneOccupancyTarget.catalogId).toBe("F03");
+      const centerTrackMinionNameplate = defaultPage.locator(".next-renderer-host .entity-world-label").filter({ hasText: /^MINION · RANGED/ });
+      await expect(centerTrackMinionNameplate.first(), `the actual center-track minion beside F03 is rendered at ${viewport.name}`).toBeVisible();
+      await saveCapture(defaultPage, "default-enbu-battle", "lane-track-occupancy-follow", 50, viewport, "Follow", {
+        ...defaultLaneOccupancy,
+        followedCatalogId: laneOccupancyTarget.catalogId,
+        followedSide: laneOccupancyTarget.side,
+        rendererEntityId: laneOccupancyTarget.id,
+        visibleMinionNameplate: await centerTrackMinionNameplate.first().innerText(),
       }, captures);
       await seekToTick(defaultPage, defaultRun.result.final_tick);
       await setView(defaultPage, viewport, "Tactical");
@@ -1280,16 +1429,22 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     expect(damageHeroSide, "the first base damage source is an attacker-owned Hero").toBe("Azure");
 
     const finalTick = baseAssaultRun.result.final_tick as number;
-    const terminalFrame = frameAt(baseAssaultRun.ownerReplay, finalTick);
     const destroyedBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, finalTick, "base", baseCatalogId);
     expect(destroyedBaseEntry, "the terminal owner replay retains the destroyed enemy base").toBeTruthy();
     expect(integerField(destroyedBaseEntry?.[1], "hp"), "the actual terminal base state has zero HP").toBe(0);
-    const objectiveDestroyedEvent = (terminalFrame.events as JsonRecord[]).find((event) =>
-      event.event === "next.objective_destroyed" && event.entity === baseEntityId && event.payload?.kind?.value === "base",
-    );
-    expect(objectiveDestroyedEvent, "the terminal replay confirms next.objective_destroyed for the actual base").toBeTruthy();
-    const terminalAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, finalTick, baseEntityId)[0];
-    expect(terminalAttack, "the terminal base destruction tick contains the Hero attack that dealt the final damage").toBeTruthy();
+    const objectiveDestroyedEntry = (baseAssaultRun.ownerReplay.frames as JsonRecord[])
+      .flatMap((frame) => (frame.events as JsonRecord[]).map((event) => ({ frame, event })))
+      .find(({ event }) =>
+        event.event === "next.objective_destroyed" && event.entity === baseEntityId && event.payload?.kind?.value === "base",
+      );
+    expect(objectiveDestroyedEntry, "the authorized replay confirms next.objective_destroyed for the actual base").toBeTruthy();
+    const objectiveDestroyedEvent = objectiveDestroyedEntry!.event;
+    const baseDestructionTick = objectiveDestroyedEntry!.frame.tick as number;
+    expect(baseDestructionTick, "the confirmed base destruction occurs no later than the Enbu terminal result").toBeLessThanOrEqual(finalTick);
+    const baseAtDestruction = catalogEntityEntryAt(baseAssaultRun.ownerReplay, baseDestructionTick, "base", baseCatalogId);
+    expect(integerField(baseAtDestruction?.[1], "hp"), "the base has zero HP in the confirmed destruction frame").toBe(0);
+    const terminalAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, baseDestructionTick, baseEntityId)[0];
+    expect(terminalAttack, "the confirmed base destruction tick contains the Hero attack that dealt the final damage").toBeTruthy();
     const terminalHeroCatalogId = requiredString(field(terminalAttack?.entity, "catalog_id"), "terminal base damage source Hero catalog ID");
     const terminalHeroSide = terminalAttack?.entity.owner === "attacker" ? "Azure" : undefined;
     expect(terminalHeroSide, "the final base damage source is an attacker-owned Hero").toBe("Azure");
@@ -1316,6 +1471,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       },
       terminal: {
         tick: finalTick,
+        destructionTick: baseDestructionTick,
         outcome: baseAssaultRun.result.outcome,
         terminationReason: baseAssaultRun.result.termination_reason,
         baseHp: integerField(destroyedBaseEntry?.[1], "hp"),
@@ -1355,11 +1511,12 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
           attackEvent: firstDamageAttack!.event.event,
         }, captures);
       }
-      const terminalTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, finalTick, terminalHeroCatalogId, terminalHeroSide);
-      await saveCapture(baseAssaultPage, "real-base-assault", "enemy-base-destroyed-follow", finalTick, viewport, "Follow", {
+      const terminalTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, baseDestructionTick, terminalHeroCatalogId, terminalHeroSide);
+      await saveCapture(baseAssaultPage, "real-base-assault", "enemy-base-destroyed-follow", baseDestructionTick, viewport, "Follow", {
         baseCatalogId,
         baseCoreEntityId: baseEntityId,
         baseHp: 0,
+        terminalResultTick: finalTick,
         outcome: baseAssaultRun.result.outcome,
         terminationReason: baseAssaultRun.result.termination_reason,
         objectiveDestroyedEvent: objectiveDestroyedEvent!.event,
