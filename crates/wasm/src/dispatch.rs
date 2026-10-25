@@ -298,6 +298,14 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
     let public = artifact.public_response();
     let response = LocalSimulationResponse {
         owner_replay: request.include_diagnostics.then(||artifact.owner_replay.clone()).flatten(),
+        owner_replays: if request.include_diagnostics {
+            artifact.owner_replays.iter()
+                .filter(|(side, _)| **side == senkei_model::CombatantSide::Attacker)
+                .map(|(side, replay)| (*side, replay.clone()))
+                .collect()
+        } else {
+            Default::default()
+        },
         result: public.result,
         replay: public.replay,
         diagnostics: request
