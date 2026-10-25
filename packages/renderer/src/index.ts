@@ -2026,20 +2026,19 @@ export class Battlefield {
                   ? "×"
                   : "✚";
         Object.assign(element.style, {
-          alignItems: "center",
           background: "rgba(15, 26, 28, .78)",
           border: `1px solid ${border}`,
           borderRadius: "50%",
           boxShadow: "0 1px 6px rgba(0,0,0,.38)",
           color: "#fff8df",
-          display: "flex",
           fontFamily: '"DM Mono", monospace',
           fontSize: "13px",
           fontWeight: "700",
           height: "24px",
-          justifyContent: "center",
           letterSpacing: "0",
-          lineHeight: "1",
+          // Inline display:flex overrides the native [hidden] rule and leaves
+          // rejected/offscreen cues stacked at the host's top-left corner.
+          lineHeight: "24px",
           padding: "0",
           textAlign: "center",
           whiteSpace: "nowrap",

@@ -26,8 +26,8 @@ struct MovementIntent {
 /// speed, the lowest-ID living member's movement goal, and that member's
 /// minion-vision sample. All members keep their own graph position and edge
 /// progress; the shared movement intent never snaps their coordinates. The
-/// world-unit result floors fractional progress, carrying unused fixed-point
-/// budget over multiple edges in the same tick.
+/// world-unit result floors fractional progress. Arrival discards surplus
+/// movement, and another edge cannot be entered until a later tick.
 pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
     let snapshot = world.clone();
     let mut ids = snapshot
