@@ -769,6 +769,15 @@ export class Battlefield {
   private followForward(entities: readonly DisplayEntity[]): THREE.Vector2 | null {
     const focus = entities.find((entity) => entity.side !== "neutral") ?? entities[0];
     if (!focus) return null;
+    if (focus.kind === "bridge" || focus.kind === "observation") {
+      const site = focus.kind === "observation" ? "MID" : focus.battlefield?.bridgeSite;
+      const route = this.replay.scene.routes?.find(candidate => candidate.bridgeSite === site);
+      if (route) {
+        const first = route.points[0]!, last = route.points[route.points.length - 1]!;
+        const direction = new THREE.Vector2(last.x - first.x, last.y - first.y);
+        if (direction.lengthSq() > 0.0001) return direction.normalize();
+      }
+    }
     const destination = focus.side === "neutral"
       ? undefined
       : this.replay.scene.baseSites?.find((site) => site.side !== focus.side)?.position;
@@ -973,11 +982,12 @@ export class Battlefield {
       new THREE.Vector3(),
     ).multiplyScalar(1 / entities.length);
     const forward = this.followForward(entities);
+    const unitFocus = entities.every(entity => entity.kind === "unit");
     const groupPoints = entities.map(entity => {
       const point = this.renderPoint(entity);
       return new THREE.Vector3(point.x, 0, point.y);
     });
-    if (forward) {
+    if (forward && unitFocus) {
       groupPoints.push(new THREE.Vector3(center.x + forward.x * 6.5, 0, center.z + forward.y * 6.5));
       for (const threat of this.visibleCameraEntities()) {
         if (
@@ -993,7 +1003,6 @@ export class Battlefield {
           groupPoints.push(new THREE.Vector3(threat.position.x, 0, threat.position.y));
       }
     }
-    const unitFocus = entities.every(entity => entity.kind === "unit");
     const groupHalfHeight = THREE.MathUtils.clamp(
       this.projectedFrameHalfHeight(center, groupPoints, "follow", forward, 1.08),
       unitFocus ? 4.2 : this.mobile ? 6 : 5.5,
