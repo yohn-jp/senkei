@@ -84,7 +84,7 @@ function fordCrossings(replay: Replay, river: readonly WorldPoint[]): FordCrossi
 }
 
 function bridgeCrossingCenters(replay: Replay): WorldPoint[] {
-  return (replay.scene.routes ?? []).filter((route) => route.bridgeSite && route.bridgeSite !== "MID")
+  return (replay.scene.routes ?? []).filter((route) => route.bridgeSite && route.bridgeKind === "lane")
     .map((route) => polylinePointAtFraction(route.points, 0.5))
     .filter((point): point is WorldPoint => point !== undefined);
 }

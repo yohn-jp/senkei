@@ -156,7 +156,7 @@ describe("presentation-only discrete battlefield layouts", () => {
     const map = replay(
       [point("A.TOP.BANK", 0, 0, "A"), point("B.TOP.BANK", 12, 0, "B")],
       [],
-      [{ id: "bridge.TOP", region: "bridge", bridgeSite: "TOP", points: [{ x: 0, y: 0 }, { x: 12, y: 0 }] } as RouteRow],
+      [{ id: "bridge.TOP", region: "bridge", bridgeSite: "world.fixed-bridge.top", bridgeKind: "lane", points: [{ x: 0, y: 0 }, { x: 12, y: 0 }] } as RouteRow],
     );
     const makeCrowd = (x: number) => [
       unit("a", "A.TOP.BANK", { x, y: 0 }, { edgeTo: "B.TOP.BANK", progress: 100, track: "CENTER", crossing: "bridge" }),
@@ -235,7 +235,7 @@ describe("presentation-only discrete battlefield layouts", () => {
         { id: "jungle.upper", region: "jungle", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] } as RouteRow,
         { id: "ford.upper", region: "river_ford", ford: true, points: [{ x: 20, y: 0 }, { x: 30, y: 0 }] } as RouteRow,
         { id: "lane.TOP", region: "lane", points: [{ x: 40, y: 0 }, { x: 50, y: 0 }] } as RouteRow,
-        { id: "bridge.TOP", region: "bridge", bridgeSite: "TOP", points: [{ x: 60, y: 0 }, { x: 70, y: 0 }] } as RouteRow,
+        { id: "bridge.TOP", region: "bridge", bridgeSite: "world.fixed-bridge.top", bridgeKind: "lane", points: [{ x: 60, y: 0 }, { x: 70, y: 0 }] } as RouteRow,
       ],
     );
     const jungle = [

@@ -30,7 +30,8 @@ describe("Battlefield architectural models", () => {
     const route = {
       id: "bridge.MID.A",
       region: "bridge",
-      bridgeSite: "MID" as const,
+      bridgeSite: "world.bridge.mid" as const,
+      bridgeKind: "facility" as const,
       points: [{ x: 4, y: 0 }, { x: 0, y: 0 }] as const,
     };
     const bridge = buildBattlefieldBridge(scene, route, 0.8, { x: 0, y: 0 });
@@ -46,6 +47,8 @@ describe("Battlefield architectural models", () => {
     expect(sideDeck.visible).toBe(false);
     expect(broken.visible).toBe(false);
     expect(bridge.group.userData.state).toBe("unknown");
+    expect(bridge.group.userData.site).toBe("world.bridge.mid");
+    expect(bridge.group.position.x).toBeCloseTo(3.26);
 
     bridge.setWork(12, 3, "bridge.MID");
     const firstBeamAngle = beam.rotation.z;
@@ -87,6 +90,21 @@ describe("Battlefield architectural models", () => {
     expect(bridge.group.userData.openWaterGap).toBe(true);
     expect(bridge.group.userData.damageStage).toBe("destroyed");
     expect(fractures.visible).toBe(false);
+    bridge.dispose();
+  });
+
+  it("does not infer facility geometry from the site ID", () => {
+    const scene = new THREE.Scene();
+    const route = {
+      id: "authored-lane",
+      region: "bridge",
+      bridgeSite: "world.bridge.mid" as const,
+      bridgeKind: "lane" as const,
+      points: [{ x: 4, y: 0 }, { x: 0, y: 0 }] as const,
+    };
+    const bridge = buildBattlefieldBridge(scene, route, 0.8, { x: 0, y: 0 });
+    expect(bridge.group.userData.site).toBe("world.bridge.mid");
+    expect(bridge.group.position.x).toBeCloseTo(2);
     bridge.dispose();
   });
 

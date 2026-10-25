@@ -386,7 +386,7 @@ export function buildBattlefieldTower(parent: THREE.Object3D, entity: DisplayEnt
 
 function routeSpan(route: NonNullable<Replay["scene"]["routes"]>[number], islandCenter?: WorldPoint): readonly [WorldPoint, WorldPoint] {
   let [start, end] = route.points;
-  if (islandCenter && route.bridgeSite === "MID") {
+  if (islandCenter && route.bridgeKind === "facility") {
     const distance = (point: WorldPoint) => Math.hypot(point.x - islandCenter.x, point.y - islandCenter.y);
     const startAtIsland = distance(start) < 1e-5;
     const endAtIsland = distance(end) < 1e-5;

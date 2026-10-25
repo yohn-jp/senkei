@@ -121,7 +121,7 @@ export class BattlefieldLandmarks {
       scene.add(plaza);
       if (mid) {
         const approaches = (replay.scene.routes ?? [])
-          .filter((route) => route.bridgeSite === "MID")
+          .filter((route) => route.bridgeKind === "facility")
           .flatMap((route) => route.points.filter((point) => Math.hypot(point.x - node.position.x, point.y - node.position.y) > 0.001));
         this.observation = buildMidObservatory(scene, node.position, approaches, replay.scene.captureTicks ?? 8);
       }

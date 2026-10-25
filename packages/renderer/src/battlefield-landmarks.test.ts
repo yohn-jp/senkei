@@ -13,23 +13,26 @@ describe("canonical Battlefield landmarks", () => {
       { id: "A.TOP.BANK", allegiance: "A", position: { x: 0, y: 1 } },
       { id: "N.MID.OBS", allegiance: "N", position: { x: 1, y: 1 } },
     ];
-    source.scene.routes = [{ id: "edge-a-top", region: "lane", points: [{ x: 0, y: 1 }, { x: 2, y: 1 }], bridgeSite: "TOP" }];
+    source.scene.routes = [
+      { id: "edge-a-top", region: "lane", points: [{ x: 0, y: 1 }, { x: 2, y: 1 }], bridgeSite: "world.fixed-bridge.top", bridgeKind: "lane" },
+      { id: "edge-to-observatory", region: "bridge", points: [{ x: 1, y: 1 }, { x: 6, y: 1 }], bridgeSite: "world.observation-approach.17", bridgeKind: "facility" },
+    ];
     source.scene.river = [{ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 }];
     source.scene.trackOffset = 0.8;
     source.initialView.push(
-      { id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { bridgeSite: "TOP", bridgeState: "normal", buildRemaining: 3 } },
+      { id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { bridgeSite: "world.fixed-bridge.top", bridgeState: "normal", buildRemaining: 3 } },
       { id: "mid-observation", side: "neutral", kind: "observation", archetype: "observation", appearanceKey: "observation", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { captureProgress: 4, captureSide: "vermilion", facilityOwner: "neutral" } },
       { id: "mid-unit-azure", side: "azure", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
       { id: "mid-unit-vermilion", side: "vermilion", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
     );
     source.result = { ...source.result, tick: 2 };
     source.timeline = [
-      { type: "facility-state", tick: 1, order: 0, entityId: "top-bridge", battlefield: { bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0 } },
+      { type: "facility-state", tick: 1, order: 0, entityId: "top-bridge", battlefield: { bridgeSite: "world.fixed-bridge.top", bridgeState: "destroyed", buildRemaining: 0 } },
       { type: "match-end", tick: 2, order: 0, result: { ...source.result } },
     ];
     const replay = decodeReplay(source), scene = new THREE.Scene();
     const landmarks = new BattlefieldLandmarks(scene, replay);
-    const bridge = scene.getObjectByName("fixed-bridge-TOP-edge-a-top") as THREE.Group;
+    const bridge = scene.getObjectByName("fixed-bridge-world.fixed-bridge.top-edge-a-top") as THREE.Group;
     const objective = scene.getObjectByName("mid-observation-objective") as THREE.Group;
     const water = scene.getObjectByName("canonical-river-from-fixed-crossings") as THREE.Mesh;
     const centerDeck = bridge.getObjectByName(`${bridge.name}-center-deck`)!;
@@ -37,7 +40,9 @@ describe("canonical Battlefield landmarks", () => {
     const brokenGap = bridge.getObjectByName(`${bridge.name}-broken-water-gap`)!;
     expect(scene.getObjectByName("canonical-river-from-fixed-crossings")).toBeDefined();
     expect(scene.getObjectByName("combat-domain-N.MID.OBS")).toBeDefined();
+    expect(objective.getObjectByName("mid-island-bridge-gate-0")).toBeDefined();
     expect(bridge.userData.state).toBe("unknown");
+    expect(bridge.userData.site).toBe("world.fixed-bridge.top");
     expect(centerDeck.visible).toBe(false);
     expect(sideDeck.visible).toBe(false);
     expect(brokenGap.visible).toBe(false);

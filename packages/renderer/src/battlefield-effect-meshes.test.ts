@@ -47,7 +47,7 @@ function replay(timeline: Event[], initialView: Entity[] = [hero, bridge, observ
     scene: {
       bounds: { min: { x: 0, y: -2 }, max: { x: 10, y: 8 } },
       lanes: [{ id: "top", label: "TOP", elevation: 0.1, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
-      routes: [{ id: "bridge-top", region: "lane", bridgeSite: "TOP", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
+      routes: [{ id: "bridge-top", region: "lane", bridgeSite: "world.fixed-bridge.top", bridgeKind: "lane", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
       captureTicks: 4,
     },
     initialView,

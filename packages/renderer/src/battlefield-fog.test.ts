@@ -13,14 +13,14 @@ describe("battlefield fog presentation", () => {
         { id: "known", allegiance: "A", position: { x: 0, y: 0 } },
         { id: "unknown", allegiance: "B", position: { x: 2, y: 4 } },
       ],
-      routes: [{ id: "r", region: "lane", bridgeSite: "TOP", points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }],
+      routes: [{ id: "r", region: "lane", bridgeSite: "world.bridge.top", bridgeKind: "lane", points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }],
     });
     const replay = decodeReplay(input);
     const fog = new BattlefieldFog(new THREE.Scene(), replay);
     fog.update(stateAt(replay, 0));
     expect(fog.group.visible).toBe(false);
     const state: DisplayState = { ...stateAt(replay, 2), fog: { worldUnitsPerRenderUnit: 25, state: {
-      schema_version: 1, tick: 2, side: "attacker", nodes: { known: "explored", unknown: "unexplored" }, edges: { r: ["unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored"] }, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "TOP", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
+      schema_version: 1, tick: 2, side: "attacker", nodes: { known: "explored", unknown: "unexplored" }, edges: { r: ["unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored"] }, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "world.bridge.top", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
     } } };
     fog.update(state);
     expect(fog.group.visible).toBe(true);

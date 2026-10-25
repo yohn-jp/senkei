@@ -43,7 +43,7 @@ function topologyReplay(): Replay {
     { id: "lane.TOP.A", region: "lane", points: [{ x: 3, y: 61 }, { x: 10.4, y: 20.8 }] },
     { id: "lane.TOP.t1-t2", region: "lane", points: [{ x: 8.8, y: 48 }, { x: 8.8, y: 34 }] },
     { id: "lane.TOP.t2-j", region: "lane", points: [{ x: 8.8, y: 34 }, { x: 10.4, y: 20.8 }] },
-    { id: "bridge.TOP", region: "bridge", points: [{ x: 14, y: 17.2 }, { x: 17.2, y: 14 }], bridgeSite: "TOP" },
+    { id: "bridge.TOP", region: "bridge", points: [{ x: 14, y: 17.2 }, { x: 17.2, y: 14 }], bridgeSite: "world.bridge.top", bridgeKind: "lane" },
     { id: "jungle.upper", region: "jungle", points: [{ x: 10.4, y: 20.8 }, { x: 18, y: 28 }] },
     { id: "jungle_camp.upper", region: "jungle_camp", points: [{ x: 18, y: 28 }, { x: 14, y: 31.2 }] },
     { id: "ford.upper", region: "river_ford", points: [{ x: 18, y: 28 }, { x: 28, y: 18 }], ford: true },
