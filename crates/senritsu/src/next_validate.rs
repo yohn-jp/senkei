@@ -44,8 +44,16 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
                 if let Some(crossing) = &facts.river_crossing {
                     check(crossing.start_progress_wu < crossing.end_progress_wu && crossing.end_progress_wu <= edge.length.max(0) as u64, "next.map.world_projection.edge_facts.river_crossing", "crossing ranges must be non-empty and fit the source edge length");
                     check(crossing.river_id.trim().len() > 0, "next.map.world_projection.edge_facts.river_crossing", "river ID cannot be empty");
+                    let expected_site = crossing.bridge_site_id.as_deref().unwrap_or("");
+                    check(edge.bridge_site == expected_site, "next.map.world_projection.edge_facts.river_crossing", "runtime bridge-site identity must match the source crossing");
+                    check(edge.ford == (crossing.kind == "foot_ford"), "next.map.world_projection.edge_facts.river_crossing", "runtime ford flag must match the source crossing kind");
+                } else {
+                    check(edge.bridge_site.is_empty() && !edge.ford, "next.map.world_projection.edge_facts.river_crossing", "runtime edge must not invent a bridge site or ford absent from the source");
                 }
                 check(!facts.terrain_profile_id.is_empty(), "next.map.world_projection.edge_facts.terrain_profile_id", "source terrain profile identity must be retained");
+            }
+            for (site_id, site_edges) in &projection.bridge_sites {
+                check(site_edges.iter().all(|edge_id| projection.edge_facts.get(edge_id).is_some_and(|facts| facts.river_crossing.as_ref().and_then(|crossing| crossing.bridge_site_id.as_ref()) == Some(site_id))), "next.map.world_projection.bridge_sites", "bridge sites must enumerate exactly their source crossing edges");
             }
         }
         _ => check(false, "next.map.world_projection", "canonical next BattleMap requires a versioned World projection preserving tracks, crossing intervals, bridge sites, and terrain facts"),

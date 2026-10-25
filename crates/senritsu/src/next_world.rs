@@ -137,6 +137,10 @@ pub enum WorldMapCompatibilityClass {
 pub struct WorldMapCompatibilityReport {
     pub class: WorldMapCompatibilityClass,
     pub world_id_matches: bool,
+    pub paired_identity_matches: bool,
+    pub lossless_projection_matches: bool,
+    pub logical_positions_match: bool,
+    pub presentation_positions_match: bool,
     pub node_ids_match: bool,
     pub node_semantics_match: bool,
     pub edge_ids_match: bool,
@@ -688,7 +692,18 @@ fn compare_world_map(
     let terrain_mismatches = nonrepresentable_terrain(&adapter.simulation);
     let non_full_crossing_ranges = non_full_crossings(&adapter.simulation);
 
-    let world_id_matches = adapter.identity.world_id == runtime_map.id;
+    let paired_identity_matches = runtime_map.world_identity.as_ref()
+        == Some(&adapter.identity.to_model_ref());
+    let world_id_matches = runtime_map.world_identity.as_ref()
+        .is_some_and(|identity| identity.world_id == adapter.identity.world_id);
+    let lossless_projection_matches = runtime_map.world_projection.as_ref()
+        == source.world_projection.as_ref();
+    let logical_positions_match = source.nodes.iter().all(|(id, node)| {
+        runtime_map.nodes.get(id).is_some_and(|runtime| runtime.x == node.x && runtime.y == node.y)
+    });
+    let presentation_positions_match = source.nodes.iter().all(|(id, node)| {
+        runtime_map.nodes.get(id).is_some_and(|runtime| runtime.presentation_x == node.presentation_x && runtime.presentation_y == node.presentation_y)
+    });
     let node_ids_match = source_nodes == runtime_nodes;
     let edge_ids_match = source_edges == runtime_edges;
     let endpoint_pairs_match = source_pair_ids == runtime_pair_ids;
@@ -697,9 +712,11 @@ fn compare_world_map(
         && source.attacker_base == runtime_map.attacker_base
         && source.defender_base == runtime_map.defender_base;
     let tower_sites_match = tower_map(&source.towers) == tower_map(&runtime_map.towers);
+    // The versioned projection payload carries facts absent from legacy
+    // MapEdge fields, so they remain representable when that payload is exact.
     let tracks_representable = track_mismatches.is_empty();
-    let terrain_representable = terrain_mismatches.is_empty();
-    let crossing_ranges_representable = non_full_crossing_ranges.is_empty();
+    let terrain_representable = lossless_projection_matches;
+    let crossing_ranges_representable = lossless_projection_matches;
     let node_exact = node_ids_match && node_semantics_match;
     let edge_exact = edge_ids_match
         && endpoint_pairs_match
@@ -707,6 +724,10 @@ fn compare_world_map(
         && logical_distances_match
         && edge_semantics_match;
     let exact = world_id_matches
+        && paired_identity_matches
+        && lossless_projection_matches
+        && logical_positions_match
+        && presentation_positions_match
         && node_exact
         && edge_exact
         && lane_routes_match
@@ -729,6 +750,10 @@ fn compare_world_map(
     WorldMapCompatibilityReport {
         class,
         world_id_matches,
+        paired_identity_matches,
+        lossless_projection_matches,
+        logical_positions_match,
+        presentation_positions_match,
         node_ids_match,
         node_semantics_match,
         edge_ids_match,
@@ -1268,6 +1293,12 @@ mod tests {
         assert_eq!(adapted.identity().world_id, "senkei-battlefield");
         assert_ne!(adapted.identity().world_id, BATTLEFIELD_MAP_ID);
         assert_eq!(adapted.simulation_world(), world.simulation_world());
+        let self_report = adapted.compatibility_report(adapted.runtime_map());
+        assert!(self_report.is_compatible(), "the sealed canonical projection validates against itself: {self_report:#?}");
+        let mut tampered_projection = adapted.runtime_map().clone();
+        tampered_projection.world_projection.as_mut().unwrap().edge_facts.values_mut().next().unwrap().terrain_profile_id = "forged".into();
+        assert!(adapted.battle_map_if_compatible(&tampered_projection).is_err(),
+            "lossless source metadata must match exactly, even when graph IDs still match");
         assert_eq!(
             adapted
                 .candidate_map
