@@ -1,5 +1,5 @@
 use senkei_model::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Additional finite-system invariants, before constructing a VerifiedRulePlan.
 pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIssue>) {
@@ -41,14 +41,21 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         "exact XP storage requires 2520 quanta per XP",
     );
     check(
-        r.mechanics_version == Version::new(1, 0, 0),
+        package.ruleset.id.as_str() == "senkei.next"
+            && package.ruleset.version.major == 2
+            && package.ruleset.version >= Version::new(2, 0, 0),
+        "ruleset.version",
+        "canonical Battlefield topology requires senkei.next ruleset version 2.x",
+    );
+    check(
+        r.mechanics_version == Version::new(2, 0, 0),
         "next.mechanics_version",
         "unsupported finite battle mechanics version",
     );
     check(
-        package.minimum_engine_version >= Version::new(1, 1, 0),
+        package.minimum_engine_version >= Version::new(1, 2, 0),
         "minimum_engine_version",
-        "next mechanics require Enbu 1.1.0",
+        "next mechanics require Enbu 1.2.0",
     );
     check(
         r.heroes.len() == 12,
@@ -163,6 +170,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         "next.map",
         "bases must be distinct",
     );
+    validate_battlefield_topology(r, &mut check);
     for node in r.map.nodes.values() {
         check(
             (-1_000_000..=1_000_000).contains(&node.x)
@@ -203,6 +211,13 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             "invalid camp position/type/respawn",
         );
     }
+    let camp_nodes: BTreeSet<_> = r.camps.iter().map(|camp| camp.node.as_str()).collect();
+    check(
+        r.camps.len() == 4
+            && camp_nodes == ["N.A.UC", "N.B.UC", "N.A.LC", "N.B.LC"].into_iter().collect(),
+        "next.camps",
+        "Battlefield requires four terminal neutral camp branches",
+    );
     check(
         !r.minions.is_empty() && r.camps.len() >= 2,
         "next",
@@ -232,4 +247,33 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         "domain.capabilities",
         "unsupported finite battle capability",
     );
+}
+
+fn validate_battlefield_topology(r: &NextRules, check: &mut impl FnMut(bool, &str, &str)) {
+    let expected = crate::next_world::battle_map();
+    check(r.map.id == crate::next_world::BATTLEFIELD_MAP_ID, "next.map.id", "Battlefield topology requires its versioned map ID");
+    check(r.map.nodes.len() == 35 && r.map.nodes.len() == expected.nodes.len(), "next.map.nodes", "canonical Battlefield requires exactly 35 nodes");
+    check(r.map.edges.len() == 42 && r.map.edges.len() == expected.edges.len(), "next.map.edges", "canonical Battlefield requires exactly 42 edges");
+    check(r.map.attacker_base == "A.BASE" && r.map.defender_base == "B.BASE", "next.map.bases", "canonical diagonal bases are A.BASE and B.BASE");
+    check(r.map.nodes.keys().eq(expected.nodes.keys()), "next.map.nodes", "node IDs must match the versioned canonical topology");
+    for (id, node) in &r.map.nodes {
+        let Some(canonical) = expected.nodes.get(id) else { continue };
+        check(node.allegiance == canonical.allegiance, "next.map.nodes.allegiance", "node allegiance is static A/B/N geography");
+        check(node.region == canonical.region, "next.map.nodes.region", "node regions must retain canonical terrain classes");
+    }
+    let edge_ids: BTreeSet<_> = r.map.edges.iter().map(|edge| edge.id.as_str()).collect();
+    check(edge_ids.len() == r.map.edges.len() && edge_ids.len() == 42, "next.map.edges.id", "edge IDs must be unique and complete");
+    let expected_edges: BTreeMap<_, _> = expected.edges.iter().map(|edge| (edge.id.as_str(), edge)).collect();
+    for edge in &r.map.edges {
+        let Some(canonical) = expected_edges.get(edge.id.as_str()) else {
+            check(false, "next.map.edges.id", "edge list contains an undeclared shortcut");
+            continue;
+        };
+        check(edge.from == canonical.from && edge.to == canonical.to && edge.length == canonical.length && edge.region == canonical.region && edge.bridge_site == canonical.bridge_site && edge.ford == canonical.ford && edge.blocked == canonical.blocked,
+            "next.map.edges", "edge identity, endpoints, distance, terrain and bridge site are versioned rules");
+    }
+    check(r.map.lanes == expected.lanes, "next.map.lanes", "lane routes must use the canonical consecutive node sequence");
+    let towers: BTreeMap<_, _> = r.map.towers.iter().map(|tower| (tower.id.as_str(), tower)).collect();
+    let expected_towers: BTreeMap<_, _> = expected.towers.iter().map(|tower| (tower.id.as_str(), tower)).collect();
+    check(towers.len() == 12 && towers == expected_towers, "next.map.towers", "each lane requires A/B T1 and T2 tower sites");
 }
