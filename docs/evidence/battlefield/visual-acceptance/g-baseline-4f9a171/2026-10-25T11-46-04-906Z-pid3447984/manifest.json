@@ -1,0 +1,469 @@
+{
+  "status": "PARTIAL_SIGTERM",
+  "runId": "2026-10-25T11-46-04-906Z-pid3447984",
+  "description": "Real canonical Senritsu \u2192 Jinrei \u2192 Enbu/WASM replay browser baseline; 88 fixed-tick captures were written before the process received SIGTERM. This is partial evidence, not a visual acceptance pass.",
+  "failure": "Browser process exited with code 143 / SIGTERM after about 9m38s, before the test runner wrote final metadata or replay digest. The 320x740 viewport has only 6 captures.",
+  "source": {
+    "requestedBaselineRevision": "4f9a17155872da9f11bfbf198a3bf502ec957641",
+    "applicationBuildRevision": "8b28ac81287f21a483d545346bb55c274e59b7eb",
+    "applicationSourceNote": "The only packages/renderer/src and apps/web/src changes between baseline 4f9a171 and build revision 8b28ac8 are an unreferenced camera helper and its unit test; the Vite application bundle runtime is from the 4f9a171 application source.",
+    "wasmBuildRevision": "4f9a17155872da9f11bfbf198a3bf502ec957641",
+    "wasmSha256": "e04a8bac2dbedefd8e9591e4d741d3b918b87dbb17ddba52d9ec47591822cb27"
+  },
+  "browser": {
+    "engine": "Chromium 156.0.8078.47",
+    "renderer": "SwiftShader software GPU",
+    "performanceClaims": "None; this partial run did not capture renderer performance metrics."
+  },
+  "viewportCaptureCounts": {
+    "1440x900": 25,
+    "1920x1080": 20,
+    "320x740": 6,
+    "390x844": 19,
+    "430x932": 18
+  },
+  "imageCount": 88,
+  "replayDigest": null,
+  "files": [
+    {
+      "path": "canonical-real-battle/1440x900/bridge-crossing-follow-t061-follow.png",
+      "sha256": "2fabdfb7921bba4c4f9239dc3b91b6838f0d2263611660ce918bea16e9b7279c",
+      "bytes": 154497
+    },
+    {
+      "path": "canonical-real-battle/1440x900/destroyed-bridge-overview-t023-overview.png",
+      "sha256": "96804fe30afb193616e23518e6672e79028b8bedeb6ae598bb69c56accbce0de",
+      "bytes": 180185
+    },
+    {
+      "path": "canonical-real-battle/1440x900/draw-end-t070-overview.png",
+      "sha256": "f1cffb4a84b45cec09c0c8b6edadde63ae6140e86058b306265a120f261bef02",
+      "bytes": 173616
+    },
+    {
+      "path": "canonical-real-battle/1440x900/draw-end-t070-tactical.png",
+      "sha256": "0317057885dfcec3b55a9d047eb80b00a7558f2abea4bf485063d19b75fdf871",
+      "bytes": 242536
+    },
+    {
+      "path": "canonical-real-battle/1440x900/fixed-bridge-transit-t061-tactical.png",
+      "sha256": "0985144d12331eafc8cda3f95879ed88771ae109e94dbd2019c33faed09492a5",
+      "bytes": 210317
+    },
+    {
+      "path": "canonical-real-battle/1440x900/ford-transit-follow-t056-follow.png",
+      "sha256": "da5f2f1c8f8e732c479edddb4422f4445af4839e42606af54ce9f0d40f1f769f",
+      "bytes": 181266
+    },
+    {
+      "path": "canonical-real-battle/1440x900/ford-transit-t024-tactical.png",
+      "sha256": "697b11071fccd9e6663a6d64d2fd4e43f7407a32a67a307c5cffbd167d28b937",
+      "bytes": 243923
+    },
+    {
+      "path": "canonical-real-battle/1440x900/initial-t000-tactical.png",
+      "sha256": "7d66c11847bbfb95b22c79d4c4acebb7b84f4f4d2ba4bcc159aefadad8a6b911",
+      "bytes": 247576
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lane-crossing-pixel-toggle-t003-tactical.png",
+      "sha256": "c5975133ee997b1ffba457fde018ebd0dd178b0eb8813b7ce67d1cfc8943ac42",
+      "bytes": 244614
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lane-crossing-smooth-toggle-t003-tactical.png",
+      "sha256": "e0648232bdb8aae650e274f46a26202909607cbfa2c99c1ddfcff879441d2e65",
+      "bytes": 375358
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lane-crossing-t003-tactical.png",
+      "sha256": "bd3e2328c8839f3ee2761bbf169b36c6d389a632e589d02f6188592eda4929ff",
+      "bytes": 249784
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lateral-crossing-follow-t003-follow.png",
+      "sha256": "bfa73378a03c327e85e3977d6a21b6c93aec79516740f1adf72c83c99c8cb704",
+      "bytes": 143678
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lateral-left-follow-t002-follow.png",
+      "sha256": "2f7cdf0ae9e1390803c6dfc193b5451099c85a96d18cac5de26cdffda9586d39",
+      "bytes": 142854
+    },
+    {
+      "path": "canonical-real-battle/1440x900/lateral-right-follow-t005-follow.png",
+      "sha256": "d88ef62c212749612e4285b2d3b51e0308c5d912d76a554e9a7a5fc1d4ac9cf3",
+      "bytes": 143740
+    },
+    {
+      "path": "canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png",
+      "sha256": "10865895741fe00dc834b84e51b0dd2a6755757d1a5dee64cfaf55f042e729dd",
+      "bytes": 193207
+    },
+    {
+      "path": "canonical-real-battle/1440x900/mid-bridge-destroyed-t011-tactical.png",
+      "sha256": "d11f6c1bb5c7bbffc2e46b02b4730c1b1242a3e9dc260ae5d6407f6fe36190cd",
+      "bytes": 247183
+    },
+    {
+      "path": "canonical-real-battle/1440x900/node-fight-t001-tactical.png",
+      "sha256": "b3a945181c7d4471f885edffa3ca1845fc081f2611523c0284ad5c4cc61eaac5",
+      "bytes": 246409
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png",
+      "sha256": "ef9e3677c931b355f3f10b94c39337be9252c7b5b2373bc8fcccf5f8e0777e1d",
+      "bytes": 164372
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png",
+      "sha256": "993a8aff42b85ff9f23b8f509662dc0b37f0d98c25b98af00c0ba7d43a21eb99",
+      "bytes": 217695
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png",
+      "sha256": "783ab1be16a92d0b86d42553f3a17bea27b212c19d7fa3ebdc8d40715ee998b8",
+      "bytes": 162502
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png",
+      "sha256": "ab5a086d4fc829a5181d397f0e3c12f6ec4e6a117a6cd2ff6f4abaa0cd81774c",
+      "bytes": 259022
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png",
+      "sha256": "b8f6effc0e18a66b9158cdff44e4dc0c12b7f35fa2f8ea8f22c820dac4a950e9",
+      "bytes": 157253
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png",
+      "sha256": "4012571214fa7fc8f1c678287e154a80dae1c082707fed45c22f2eedddacc9e6",
+      "bytes": 170773
+    },
+    {
+      "path": "canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png",
+      "sha256": "8d33a4e3cc2d44cffe34b877626a0b96d839e3041ae8590e2f246460e9680aad",
+      "bytes": 254347
+    },
+    {
+      "path": "canonical-real-battle/1440x900/world-overview-t000-overview.png",
+      "sha256": "20330868b02a09edff23ae7fe914e9cb445f3b99e08c9555fe0b8c44ab778f4b",
+      "bytes": 174333
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/bridge-crossing-follow-t061-follow.png",
+      "sha256": "5a4c711a880cf0909c5d737a0b60a05fad4adf59b7109c44fb72f475af86ce4e",
+      "bytes": 193000
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/destroyed-bridge-overview-t023-overview.png",
+      "sha256": "ee002dc5e8daa2783e67259a10a8ce51e1f0f6db8577e98083f6d2695c008ea2",
+      "bytes": 228555
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/draw-end-t070-overview.png",
+      "sha256": "4d64517b2c21a56cddbe250f28e6345565dda5c234323736172d3be0237cab56",
+      "bytes": 219501
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/draw-end-t070-tactical.png",
+      "sha256": "23dcce2c04ad0fc2ee7ea527f128c389da59a6812c65dd4313c9cb2759bd2f74",
+      "bytes": 320229
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/ford-transit-follow-t056-follow.png",
+      "sha256": "737dc974d58e72cbf40a75c67766b4d5dd786c623da44ff5c5383b30068e9392",
+      "bytes": 236435
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/ford-transit-t024-tactical.png",
+      "sha256": "3869abf19986fc14940a0e5d25dc6f3d96ad377ea162c07d86d6570c36df74a5",
+      "bytes": 319763
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/initial-t000-tactical.png",
+      "sha256": "788b3b1d3e4a8131744dc43b39ac4b60fb4da963bdc03cf3ad7d04972d58e2b7",
+      "bytes": 319428
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/lane-crossing-t003-tactical.png",
+      "sha256": "0878994101d6e20574ca2667cefcd49cc5dc2ebaaa888c21e15fac5c4a69361e",
+      "bytes": 323263
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/lateral-crossing-follow-t003-follow.png",
+      "sha256": "32d7a9bf48f63a89582139a0774b8b60ab34e7c8fddcb8435bd3bd5c883004e7",
+      "bytes": 185738
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/lateral-left-follow-t002-follow.png",
+      "sha256": "6d7eae306fa47122349c055798c1168514e6f72f8507cfe71546cd01884717d8",
+      "bytes": 185294
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/lateral-right-follow-t005-follow.png",
+      "sha256": "fb0f1e398f1bbf99ac5d27199c7f9d915d8b4fed959d7c0007a875e6f601c350",
+      "bytes": 185028
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/mid-bridge-destroyed-follow-t011-follow.png",
+      "sha256": "b3ab1fb925b29185b2ab9db57aae04cf1161912d700e99afec8ec49c67164bf8",
+      "bytes": 252393
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/node-fight-t001-tactical.png",
+      "sha256": "61c21c344f550f9d68e7d2a96cff210b80e8849d200e370e5eb51c0f79339569",
+      "bytes": 322788
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-destroyed-follow-t023-follow.png",
+      "sha256": "aa2335edc2a27c6ed44e4a4912e01c9353b808d97d6e7c69fa78747062ed586b",
+      "bytes": 211574
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-destroyed-t023-tactical.png",
+      "sha256": "8b9eb94c24e8a90982f6c189e924a13a61395ee1579d0f622ab651655986ff20",
+      "bytes": 281658
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-expanded-follow-t013-follow.png",
+      "sha256": "c5c1eda60665bc6c77fc2bb2a3f3b32d8ec63d23552992cf3d04be88efdf8ea9",
+      "bytes": 206614
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-expanded-t013-tactical.png",
+      "sha256": "1609bfdc5556e5d7d2f806c6ffa6bcd78a4f3e8bd1ffba621a286b2415b8aca9",
+      "bytes": 332360
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-normal-follow-t000-follow.png",
+      "sha256": "c7e65528fbd2177f7f2b8b47d5e4085dd8e35575f2c9c820eb7ccaf6b556f190",
+      "bytes": 199971
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/top-bridge-rebuilt-follow-t049-follow.png",
+      "sha256": "32ec7227118ff25ac51eaab662dad768b7d1dfeb217c84c2c94dab82834dc1a0",
+      "bytes": 219816
+    },
+    {
+      "path": "canonical-real-battle/1920x1080/world-overview-t000-overview.png",
+      "sha256": "1de9efc701835840714e780c90360e1d7730c6e0ff609eb2c87e1f99ea9869c0",
+      "bytes": 220290
+    },
+    {
+      "path": "canonical-real-battle/320x740/draw-end-t070-tactical.png",
+      "sha256": "2c6fb47780802a447dc05d1073d0e8469a219441215822ffa7db9c0c5e8d1ab1",
+      "bytes": 82515
+    },
+    {
+      "path": "canonical-real-battle/320x740/ford-transit-t024-tactical.png",
+      "sha256": "f7c138015bdcaeb72f802ec9326015892a7054a4b9a86c90c01b13868a237504",
+      "bytes": 71552
+    },
+    {
+      "path": "canonical-real-battle/320x740/initial-t000-tactical.png",
+      "sha256": "4ec09610ac7e084e4ea26be8b36707c4f3baf8153efa56ca47ee7526bc1eacb5",
+      "bytes": 80435
+    },
+    {
+      "path": "canonical-real-battle/320x740/lane-crossing-t003-tactical.png",
+      "sha256": "9379acc2455a21a24ef0245b64e23c3e7ef5db9253087ebe3e2aae8ed8ad23e5",
+      "bytes": 81929
+    },
+    {
+      "path": "canonical-real-battle/320x740/lateral-left-follow-t002-follow.png",
+      "sha256": "6e31aba95d05253aadf57b02a3eee5a2b0bfd5f2f526d143fe6ee72579c50726",
+      "bytes": 52462
+    },
+    {
+      "path": "canonical-real-battle/320x740/top-bridge-destroyed-t023-tactical.png",
+      "sha256": "10c54d643f263d5073b161250382c1ecd5292e6806a30364d2a3f9afa534d495",
+      "bytes": 84737
+    },
+    {
+      "path": "canonical-real-battle/390x844/bridge-crossing-follow-t061-follow.png",
+      "sha256": "507789654c736ff7a1647393b06ab9fd4d8e2937f1197be9dc0dc74f652fa49b",
+      "bytes": 69487
+    },
+    {
+      "path": "canonical-real-battle/390x844/destroyed-bridge-overview-t023-overview.png",
+      "sha256": "fef9da50ce37d647dafc7280ffe678c3f1d8a648543e04ae9141b0e0be047141",
+      "bytes": 103657
+    },
+    {
+      "path": "canonical-real-battle/390x844/draw-end-t070-tactical.png",
+      "sha256": "5223fbf00c69a006e0d7d167ef2b9aaa50474dce782cb97ded2bebb28359bdff",
+      "bytes": 91813
+    },
+    {
+      "path": "canonical-real-battle/390x844/ford-transit-follow-t056-follow.png",
+      "sha256": "50402c77a52bbd8a3a02ee2992245c1b870ffd2dc08915ae7095d99a00ba6ecb",
+      "bytes": 69444
+    },
+    {
+      "path": "canonical-real-battle/390x844/ford-transit-t024-tactical.png",
+      "sha256": "c263274316df6c87134c74a422ff78aaace8e6e92f52d36c3255b16b49f90b22",
+      "bytes": 91349
+    },
+    {
+      "path": "canonical-real-battle/390x844/initial-t000-tactical.png",
+      "sha256": "17bacb8b51e773de48d851d51590f4c4f1f932ef68f75547499022181745d156",
+      "bytes": 85491
+    },
+    {
+      "path": "canonical-real-battle/390x844/lane-crossing-details-t003-tactical.png",
+      "sha256": "a91b60d8d9a1549393fcfb609d83a25cb742d76f45936ea7f0200ccc8a83f3d7",
+      "bytes": 101516
+    },
+    {
+      "path": "canonical-real-battle/390x844/lane-crossing-t003-tactical.png",
+      "sha256": "105f9f8e1a23cb8ffe0141e4b37e27511858ca38fa440d63209a2d3a90a27b87",
+      "bytes": 99858
+    },
+    {
+      "path": "canonical-real-battle/390x844/lateral-crossing-follow-t003-follow.png",
+      "sha256": "1837b657506319b354ae3258e5c9d8f539ba948f1efc94c847cfbe931b3ecc8b",
+      "bytes": 58484
+    },
+    {
+      "path": "canonical-real-battle/390x844/lateral-left-follow-t002-follow.png",
+      "sha256": "36d9d1ad4f980c02cf973242c05700f8feadb5174062536df36b2f8f96799ecf",
+      "bytes": 58235
+    },
+    {
+      "path": "canonical-real-battle/390x844/lateral-right-follow-t005-follow.png",
+      "sha256": "940045cd05851633b2d0cbfcae5f391a6211079d434cdeefc51e08281f6fb408",
+      "bytes": 57673
+    },
+    {
+      "path": "canonical-real-battle/390x844/mid-bridge-destroyed-follow-t011-follow.png",
+      "sha256": "6004d1b957b3ac9ead9793828865fcbf2c33506e6eab39fdda42b67e0fb4479a",
+      "bytes": 84344
+    },
+    {
+      "path": "canonical-real-battle/390x844/node-attack-timeline-t001-tactical.png",
+      "sha256": "1e2b381064329ccbf9cc2811fa34f6f650e6159400de4f0a4d3448a0f6290a7e",
+      "bytes": 89182
+    },
+    {
+      "path": "canonical-real-battle/390x844/top-bridge-destroyed-follow-t023-follow.png",
+      "sha256": "e45806e6b0cf155fb67ec7f41144082937b149cce1a35c67dc84ec5ece176258",
+      "bytes": 74212
+    },
+    {
+      "path": "canonical-real-battle/390x844/top-bridge-destroyed-t023-tactical.png",
+      "sha256": "f5ed86529d171341759fb11bfa1dc96473a56b2b2ab792bfe74361333232a77e",
+      "bytes": 82020
+    },
+    {
+      "path": "canonical-real-battle/390x844/top-bridge-expanded-follow-t013-follow.png",
+      "sha256": "44dbe74e62c951b35090c65692f2adb5df0c86670ffcacd2424a17dd5d4087ff",
+      "bytes": 72754
+    },
+    {
+      "path": "canonical-real-battle/390x844/top-bridge-normal-follow-t000-follow.png",
+      "sha256": "fee5df72cb2fd4fe952d97789b7e8f1a7c4f3244e56e11eab1a2c605cc7aae9c",
+      "bytes": 69645
+    },
+    {
+      "path": "canonical-real-battle/390x844/top-bridge-rebuilt-follow-t049-follow.png",
+      "sha256": "8b320d9af7458ec189547d433cff035ae3c75fee535b9308234dd815ba593bfc",
+      "bytes": 77797
+    },
+    {
+      "path": "canonical-real-battle/390x844/world-overview-t000-overview.png",
+      "sha256": "1336ddcc2aeef714913d70396ef83a62355f96e31acd84dd5636742f868dcc9f",
+      "bytes": 103192
+    },
+    {
+      "path": "canonical-real-battle/430x932/destroyed-bridge-overview-t023-overview.png",
+      "sha256": "87425693ec07aa02a69623156aac9ed5782fc2720559f15ea0d195a16ea81058",
+      "bytes": 114984
+    },
+    {
+      "path": "canonical-real-battle/430x932/draw-end-t070-tactical.png",
+      "sha256": "7634d7877445b65b7f9038869271e50befa0cca23b1582e445e6d902242a3c55",
+      "bytes": 106853
+    },
+    {
+      "path": "canonical-real-battle/430x932/ford-transit-follow-t056-follow.png",
+      "sha256": "2349a149209db1b23e516ed7d6cb1b59e4ecedb7ae14a131f5218144930baef2",
+      "bytes": 74876
+    },
+    {
+      "path": "canonical-real-battle/430x932/ford-transit-t024-tactical.png",
+      "sha256": "d1bdbba913fb12e9e0ee1b2a2430d55c142a94a2f64cd7c09b8ea2153d51e692",
+      "bytes": 86259
+    },
+    {
+      "path": "canonical-real-battle/430x932/initial-t000-tactical.png",
+      "sha256": "d6035af03d425a4e79d531916186876afe5374ecae445e63b42ee33ee757711e",
+      "bytes": 106631
+    },
+    {
+      "path": "canonical-real-battle/430x932/lane-crossing-details-t003-tactical.png",
+      "sha256": "755fedf583b68837d06bbfb0f24b3e98a562705dd6ef5c7c7bc542ade49fb530",
+      "bytes": 111001
+    },
+    {
+      "path": "canonical-real-battle/430x932/lane-crossing-t003-tactical.png",
+      "sha256": "e0cb65b24dfdb1c973271fbee652c3a08f61a906596243d9afc3eba7e17ca354",
+      "bytes": 104343
+    },
+    {
+      "path": "canonical-real-battle/430x932/lateral-crossing-follow-t003-follow.png",
+      "sha256": "78f3e804abe4360f1601a3b820ea58058a0fbd254142a46b07739d29ced7a604",
+      "bytes": 62063
+    },
+    {
+      "path": "canonical-real-battle/430x932/lateral-left-follow-t002-follow.png",
+      "sha256": "8c7adc75cccb92aca3bc5075602a683874ec4fdae400d1b76aeb61a8e1cb17e3",
+      "bytes": 62194
+    },
+    {
+      "path": "canonical-real-battle/430x932/lateral-right-follow-t005-follow.png",
+      "sha256": "991b4228e34c17deee592dc4f383c994e160a11935ef178a96734a09f938eba7",
+      "bytes": 61090
+    },
+    {
+      "path": "canonical-real-battle/430x932/mid-bridge-destroyed-follow-t011-follow.png",
+      "sha256": "65483c4ed502ff3804c45a7c9903a63ba13fa11667973adcf829d66ec9d77553",
+      "bytes": 92809
+    },
+    {
+      "path": "canonical-real-battle/430x932/node-attack-timeline-t001-tactical.png",
+      "sha256": "52f3d5656a94df42c2d7272e4bcfc9e8ba3e4cdf8e0072945f099e44dc9aaee0",
+      "bytes": 97508
+    },
+    {
+      "path": "canonical-real-battle/430x932/top-bridge-destroyed-follow-t023-follow.png",
+      "sha256": "d4b3beb5f68e1602879b22d1bb10540ee1a27717112ee2d874a363429da37c83",
+      "bytes": 80757
+    },
+    {
+      "path": "canonical-real-battle/430x932/top-bridge-destroyed-t023-tactical.png",
+      "sha256": "b6e70c8ecb7bfa8b59c77592b3bc2139961ecc5d750259b9b754780dfb7b2049",
+      "bytes": 114762
+    },
+    {
+      "path": "canonical-real-battle/430x932/top-bridge-expanded-follow-t013-follow.png",
+      "sha256": "8f419c548664543c79529912986113c5885d99e40725183c712c169107698c76",
+      "bytes": 78979
+    },
+    {
+      "path": "canonical-real-battle/430x932/top-bridge-normal-follow-t000-follow.png",
+      "sha256": "a21f09e226674a7b81427e2658550af347b2ed7f7e5ae609b1fb5e0fcc13442a",
+      "bytes": 75204
+    },
+    {
+      "path": "canonical-real-battle/430x932/top-bridge-rebuilt-follow-t049-follow.png",
+      "sha256": "89c4f9afc07b5da4ac661c81ad307172fbfc7b8b037649a82c3e317896c34be9",
+      "bytes": 85274
+    },
+    {
+      "path": "canonical-real-battle/430x932/world-overview-t000-overview.png",
+      "sha256": "1fbeb49a7e2647ed07bd511062841fc5e761e52d24390193e6d76c2ea0ac3dbf",
+      "bytes": 114166
+    }
+  ]
+}
