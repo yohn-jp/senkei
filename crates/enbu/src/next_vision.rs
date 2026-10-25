@@ -1131,9 +1131,10 @@ mod tests {
         world
             .entities
             .insert("ally".into(), hero(CombatantSide::Attacker, 0, 10));
-        world
-            .entities
-            .insert("hidden".into(), hero(CombatantSide::Defender, 50, 10));
+        let mut hidden = hero(CombatantSide::Defender, 2, 10);
+        support::set_string(&mut hidden, "edge_to", "a1");
+        support::set_int(&mut hidden, "edge_progress", 8);
+        world.entities.insert("hidden".into(), hidden);
         let snap = observation(&world, &plan, CombatantSide::Attacker, 0);
         assert_eq!(snap.collections[&enemy_collection], Observed::Known(vec![]));
         assert_eq!(
@@ -1141,7 +1142,16 @@ mod tests {
             Observed::Unknown
         );
         if let Some(hidden) = world.entities.get_mut(&EntityId::from("hidden")) {
-            support::set_int(hidden, "x", 2);
+            // Render coordinates can move inside the ally's drawn radius while
+            // logical distance still keeps this enemy hidden.
+            support::set_int(hidden, "x", 0);
+        }
+        let snap = observation(&world, &plan, CombatantSide::Attacker, 0);
+        assert_eq!(snap.collections[&enemy_collection], Observed::Known(vec![]));
+        assert_eq!(snap.fields[&ObservationPath::from("enemy.hp")], Observed::Unknown);
+        if let Some(hidden) = world.entities.get_mut(&EntityId::from("hidden")) {
+            support::set_int(hidden, "x", 10_000);
+            support::set_int(hidden, "edge_progress", 2);
         }
         let snap = observation(&world, &plan, CombatantSide::Attacker, 0);
         let Observed::Known(enemies) = &snap.collections[&enemy_collection] else {
@@ -1164,15 +1174,16 @@ mod tests {
         let mut rules = test_rules();
         rules.parameters.insert("minion_vision".into(), 1);
         let mut world = WorldState::default();
-        world
-            .entities
-            .insert("ally-hero".into(), hero(CombatantSide::Attacker, -3, 10));
-        world
-            .entities
-            .insert("enemy-hero".into(), hero(CombatantSide::Defender, 50, 10));
-        world
-            .entities
-            .insert("enemy-scout".into(), hero(CombatantSide::Defender, 3, 10));
+        let mut ally = hero(CombatantSide::Attacker, -3, 10);
+        support::set_string(&mut ally, "node", "d0");
+        world.entities.insert("ally-hero".into(), ally);
+        let mut enemy = hero(CombatantSide::Defender, 50, 10);
+        support::set_string(&mut enemy, "node", "a1");
+        world.entities.insert("enemy-hero".into(), enemy);
+        let mut scout = hero(CombatantSide::Defender, 3, 10);
+        support::set_string(&mut scout, "edge_to", "a1");
+        support::set_int(&mut scout, "edge_progress", 1);
+        world.entities.insert("enemy-scout".into(), scout);
         let mut minion = support::unit(
             MINION,
             Some(CombatantSide::Attacker),
@@ -1184,6 +1195,11 @@ mod tests {
         support::set_int(&mut minion, "xp", 99);
         support::set_string(&mut minion, "goal", "d0");
         support::set_string(&mut minion, "edge_to", "a1");
+        support::set_int(&mut minion, "edge_progress", 1);
+        support::set_string(&mut minion, "track", "CENTER");
+        support::set_int(&mut minion, "cross_remaining", 0);
+        support::set_int(&mut minion, "ford_remaining", 0);
+        support::set_int(&mut minion, "ford_active", 0);
         support::set_string(&mut minion, "catalog_id", "footman");
         support::set_string(&mut minion, "lane", "top");
         minion.fields.insert(
@@ -1207,7 +1223,7 @@ mod tests {
         );
         assert!(!minion.fields.contains_key(&FieldId::from("xp")));
         assert!(!minion.fields.contains_key(&FieldId::from("goal")));
-        assert!(!minion.fields.contains_key(&FieldId::from("edge_to")));
+        assert_eq!(minion.fields[&FieldId::from("edge_to")], DomainValue::String("a1".into()));
         assert!(!minion.fields.contains_key(&FieldId::from("skills")));
     }
 
@@ -1234,13 +1250,26 @@ mod tests {
         ally.fields
             .insert("cooldowns".into(), DomainValue::Record(cooldowns));
         world.entities.insert("ally-hero".into(), ally);
-        world
-            .entities
-            .insert("hidden-enemy".into(), hero(CombatantSide::Defender, 50, 10));
+        let mut hidden_enemy = hero(CombatantSide::Defender, 2, 10);
+        support::set_string(&mut hidden_enemy, "edge_to", "a1");
+        support::set_int(&mut hidden_enemy, "edge_progress", 8);
+        world.entities.insert("hidden-enemy".into(), hidden_enemy);
 
         let local = team_view(&world, &rules, CombatantSide::Attacker);
         assert!(local.entities.contains_key(&EntityId::from("ally-hero")));
         assert!(!local.entities.contains_key(&EntityId::from("hidden-enemy")));
+        if let Some(hidden) = world.entities.get_mut(&EntityId::from("hidden-enemy")) {
+            support::set_int(hidden, "x", 0);
+        }
+        let local = team_view(&world, &rules, CombatantSide::Attacker);
+        assert!(!local.entities.contains_key(&EntityId::from("hidden-enemy")));
+        if let Some(hidden) = world.entities.get_mut(&EntityId::from("hidden-enemy")) {
+            support::set_int(hidden, "x", 10_000);
+            support::set_int(hidden, "edge_progress", 2);
+        }
+        let local = team_view(&world, &rules, CombatantSide::Attacker);
+        assert!(local.entities.contains_key(&EntityId::from("hidden-enemy")));
+        support::set_int(world.entities.get_mut(&EntityId::from("hidden-enemy")).unwrap(), "edge_progress", 8);
         let own = &local.entities[&EntityId::from("ally-hero")].fields;
         assert_eq!(own[&FieldId::from("xp")], DomainValue::Integer(77));
         assert_eq!(
