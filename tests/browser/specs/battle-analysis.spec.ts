@@ -132,6 +132,6 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await page.getByLabel("Import Next experiment file").setInputFiles(exportedPath);
   await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2);
   await page.getByRole("button", { name: "Open latest comparison" }).click();
-  await expect(page.getByTestId("battle-analysis")).toContainText("Both completed Runs used the same complete SimulationSnapshot identity.");
+  await expect(page.getByTestId("battle-analysis").locator(".battle-analysis-change-list")).toContainText("自軍のJinrei Program");
   expect(pageErrors).toEqual([]);
 });

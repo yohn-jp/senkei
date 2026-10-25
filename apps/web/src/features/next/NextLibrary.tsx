@@ -273,10 +273,10 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
             {props.experimentMismatch && <p className="next-library-warning" role="alert">The saved experiment stays preserved, but this Ruleset, World, Program or replay identity does not match the current runtime. It cannot be opened as a current comparison. {props.experimentMismatch}</p>}
             {props.experiments.length > 0 ? <ol className="next-library-experiment-list">{props.experiments.map((experiment) => <li key={experiment.id}><strong>{experiment.scenario_title ?? "Local PvE"} · {experiment.outcome.replaceAll("_", " ")}</strong><small>{formatDate(experiment.created_at)} · {experiment.final_tick} ticks · {experiment.id}</small></li>)}</ol> : props.experimentsLoaded && !props.experimentMismatch && <p className="next-library-empty">No completed Next Enbu experiments are saved on this device.</p>}
             <div className="next-library-actions">
-              <button className="is-primary" disabled={busy || props.experiments.length === 0 || Boolean(props.experimentMismatch)} onClick={() => void perform(props.onOpenExperiments, "Restored the latest result and comparison baseline.")} type="button">Open latest comparison</button>
+              <button className="is-primary" disabled={busy || !props.experimentsLoaded || props.experiments.length === 0 || Boolean(props.experimentMismatch)} onClick={() => void perform(props.onOpenExperiments, "Restored the latest result and comparison baseline.")} type="button">Open latest comparison</button>
               <button disabled={busy || props.experiments.length === 0} onClick={() => void perform(props.onExportExperiments, "Next experiments exported as JSON.")} type="button">Export experiments</button>
               {props.experiments.length > 0 && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("experiments")} type="button">Clear experiments…</button>}
-              <input accept="application/json,.json" aria-label="Import Next experiment file" className="next-library-file-input" onChange={selectExperimentImport} ref={experimentImportRef} type="file" />
+              <input accept="application/json,.json" aria-label="Import Next experiment file" hidden onChange={selectExperimentImport} ref={experimentImportRef} type="file" />
               <button disabled={busy} onClick={() => experimentImportRef.current?.click()} type="button">Import experiments</button>
             </div>
           </section>
