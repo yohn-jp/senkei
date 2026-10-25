@@ -869,3 +869,4 @@
 @media (max-width: 760px) {
   .journey-screen .journey-desktop { display: none; }
 }
+.journey-screen .next-error { background: #fff1ed; border-color: #cf9a8f; color: #8c2520; font-size: 14px; }
