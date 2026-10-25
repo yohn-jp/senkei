@@ -1,0 +1,2836 @@
+{
+  "schema_version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "id": "senkei-battlefield",
+  "compatibility": {
+    "minimum_compiler": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "maximum_compiler_exclusive": null
+  },
+  "validation_profile": {
+    "id": "senkei.battlefield.initial",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "topology": {
+    "nodes": [
+      {
+        "id": "A.BASE",
+        "allegiance": "a",
+        "kind": "base"
+      },
+      {
+        "id": "B.BASE",
+        "allegiance": "b",
+        "kind": "base"
+      },
+      {
+        "id": "N.MID.OBS",
+        "allegiance": "neutral",
+        "kind": "observation_base"
+      },
+      {
+        "id": "A.TOP.T1",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.TOP.T2",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.TOP.J",
+        "allegiance": "a",
+        "kind": "junction"
+      },
+      {
+        "id": "A.TOP.BANK",
+        "allegiance": "a",
+        "kind": "bank"
+      },
+      {
+        "id": "A.MID.T1",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.MID.T2",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.MID.J",
+        "allegiance": "a",
+        "kind": "junction"
+      },
+      {
+        "id": "A.MID.BANK",
+        "allegiance": "a",
+        "kind": "bank"
+      },
+      {
+        "id": "A.BOT.T1",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.BOT.T2",
+        "allegiance": "a",
+        "kind": "lane"
+      },
+      {
+        "id": "A.BOT.J",
+        "allegiance": "a",
+        "kind": "junction"
+      },
+      {
+        "id": "A.BOT.BANK",
+        "allegiance": "a",
+        "kind": "bank"
+      },
+      {
+        "id": "N.A.UJ",
+        "allegiance": "neutral",
+        "kind": "jungle_junction"
+      },
+      {
+        "id": "N.A.UC",
+        "allegiance": "neutral",
+        "kind": "camp"
+      },
+      {
+        "id": "N.A.LJ",
+        "allegiance": "neutral",
+        "kind": "jungle_junction"
+      },
+      {
+        "id": "N.A.LC",
+        "allegiance": "neutral",
+        "kind": "camp"
+      },
+      {
+        "id": "B.TOP.T1",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.TOP.T2",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.TOP.J",
+        "allegiance": "b",
+        "kind": "junction"
+      },
+      {
+        "id": "B.TOP.BANK",
+        "allegiance": "b",
+        "kind": "bank"
+      },
+      {
+        "id": "B.MID.T1",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.MID.T2",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.MID.J",
+        "allegiance": "b",
+        "kind": "junction"
+      },
+      {
+        "id": "B.MID.BANK",
+        "allegiance": "b",
+        "kind": "bank"
+      },
+      {
+        "id": "B.BOT.T1",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.BOT.T2",
+        "allegiance": "b",
+        "kind": "lane"
+      },
+      {
+        "id": "B.BOT.J",
+        "allegiance": "b",
+        "kind": "junction"
+      },
+      {
+        "id": "B.BOT.BANK",
+        "allegiance": "b",
+        "kind": "bank"
+      },
+      {
+        "id": "N.B.UJ",
+        "allegiance": "neutral",
+        "kind": "jungle_junction"
+      },
+      {
+        "id": "N.B.UC",
+        "allegiance": "neutral",
+        "kind": "camp"
+      },
+      {
+        "id": "N.B.LJ",
+        "allegiance": "neutral",
+        "kind": "jungle_junction"
+      },
+      {
+        "id": "N.B.LC",
+        "allegiance": "neutral",
+        "kind": "camp"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-a-base-a-top-t1",
+        "from": "A.BASE",
+        "to": "A.TOP.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-top-t1-a-top-t2",
+        "from": "A.TOP.T1",
+        "to": "A.TOP.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-top-t2-a-top-j",
+        "from": "A.TOP.T2",
+        "to": "A.TOP.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-top-j-a-top-bank",
+        "from": "A.TOP.J",
+        "to": "A.TOP.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-base-a-mid-t1",
+        "from": "A.BASE",
+        "to": "A.MID.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-mid-t1-a-mid-t2",
+        "from": "A.MID.T1",
+        "to": "A.MID.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-mid-t2-a-mid-j",
+        "from": "A.MID.T2",
+        "to": "A.MID.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-mid-j-a-mid-bank",
+        "from": "A.MID.J",
+        "to": "A.MID.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-base-a-bot-t1",
+        "from": "A.BASE",
+        "to": "A.BOT.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-bot-t1-a-bot-t2",
+        "from": "A.BOT.T1",
+        "to": "A.BOT.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-bot-t2-a-bot-j",
+        "from": "A.BOT.T2",
+        "to": "A.BOT.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-bot-j-a-bot-bank",
+        "from": "A.BOT.J",
+        "to": "A.BOT.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-top-bank-b-top-j",
+        "from": "B.TOP.BANK",
+        "to": "B.TOP.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-top-j-b-top-t2",
+        "from": "B.TOP.J",
+        "to": "B.TOP.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-top-t2-b-top-t1",
+        "from": "B.TOP.T2",
+        "to": "B.TOP.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-top-t1-b-base",
+        "from": "B.TOP.T1",
+        "to": "B.BASE",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-mid-bank-b-mid-j",
+        "from": "B.MID.BANK",
+        "to": "B.MID.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-mid-j-b-mid-t2",
+        "from": "B.MID.J",
+        "to": "B.MID.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-mid-t2-b-mid-t1",
+        "from": "B.MID.T2",
+        "to": "B.MID.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-mid-t1-b-base",
+        "from": "B.MID.T1",
+        "to": "B.BASE",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-bot-bank-b-bot-j",
+        "from": "B.BOT.BANK",
+        "to": "B.BOT.J",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-bot-j-b-bot-t2",
+        "from": "B.BOT.J",
+        "to": "B.BOT.T2",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-bot-t2-b-bot-t1",
+        "from": "B.BOT.T2",
+        "to": "B.BOT.T1",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-bot-t1-b-base",
+        "from": "B.BOT.T1",
+        "to": "B.BASE",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-top-bank-b-top-bank",
+        "from": "A.TOP.BANK",
+        "to": "B.TOP.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "fixed_bridge",
+          "bridge_site_id": "bridge.top"
+        }
+      },
+      {
+        "id": "edge-a-bot-bank-b-bot-bank",
+        "from": "A.BOT.BANK",
+        "to": "B.BOT.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "fixed_bridge",
+          "bridge_site_id": "bridge.bot"
+        }
+      },
+      {
+        "id": "edge-a-mid-bank-n-mid-obs",
+        "from": "A.MID.BANK",
+        "to": "N.MID.OBS",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "fixed_facility_bridge",
+          "bridge_site_id": "bridge.mid"
+        }
+      },
+      {
+        "id": "edge-n-mid-obs-b-mid-bank",
+        "from": "N.MID.OBS",
+        "to": "B.MID.BANK",
+        "directionality": "bidirectional",
+        "class": "lane",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "fixed_facility_bridge",
+          "bridge_site_id": "bridge.mid"
+        }
+      },
+      {
+        "id": "edge-a-top-j-n-a-uj",
+        "from": "A.TOP.J",
+        "to": "N.A.UJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-a-uj-a-mid-j",
+        "from": "N.A.UJ",
+        "to": "A.MID.J",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-a-uj-n-a-uc",
+        "from": "N.A.UJ",
+        "to": "N.A.UC",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-a-mid-j-n-a-lj",
+        "from": "A.MID.J",
+        "to": "N.A.LJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-a-lj-a-bot-j",
+        "from": "N.A.LJ",
+        "to": "A.BOT.J",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-a-lj-n-a-lc",
+        "from": "N.A.LJ",
+        "to": "N.A.LC",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-top-j-n-b-uj",
+        "from": "B.TOP.J",
+        "to": "N.B.UJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-b-uj-b-mid-j",
+        "from": "N.B.UJ",
+        "to": "B.MID.J",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-b-uj-n-b-uc",
+        "from": "N.B.UJ",
+        "to": "N.B.UC",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-b-mid-j-n-b-lj",
+        "from": "B.MID.J",
+        "to": "N.B.LJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-b-lj-b-bot-j",
+        "from": "N.B.LJ",
+        "to": "B.BOT.J",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-b-lj-n-b-lc",
+        "from": "N.B.LJ",
+        "to": "N.B.LC",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": null
+      },
+      {
+        "id": "edge-n-a-uj-n-b-uj",
+        "from": "N.A.UJ",
+        "to": "N.B.UJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "foot_ford",
+          "bridge_site_id": null
+        }
+      },
+      {
+        "id": "edge-n-a-lj-n-b-lj",
+        "from": "N.A.LJ",
+        "to": "N.B.LJ",
+        "directionality": "bidirectional",
+        "class": "jungle",
+        "river_crossing": {
+          "river_id": "river.main",
+          "kind": "foot_ford",
+          "bridge_site_id": null
+        }
+      }
+    ],
+    "bridge_sites": [
+      {
+        "id": "bridge.top",
+        "kind": "lane_bridge",
+        "edge_ids": [
+          "edge-a-top-bank-b-top-bank"
+        ]
+      },
+      {
+        "id": "bridge.bot",
+        "kind": "lane_bridge",
+        "edge_ids": [
+          "edge-a-bot-bank-b-bot-bank"
+        ]
+      },
+      {
+        "id": "bridge.mid",
+        "kind": "facility_bridge",
+        "edge_ids": [
+          "edge-a-mid-bank-n-mid-obs",
+          "edge-n-mid-obs-b-mid-bank"
+        ]
+      }
+    ],
+    "entry_nodes": [
+      "A.BASE",
+      "B.BASE"
+    ]
+  },
+  "metric": {
+    "edge_lengths_wu": [
+      {
+        "edge_id": "edge-a-base-a-top-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-top-t1-a-top-t2",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-top-t2-a-top-j",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-a-top-j-a-top-bank",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-a-base-a-mid-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-mid-t1-a-mid-t2",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-mid-t2-a-mid-j",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-a-mid-j-a-mid-bank",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-a-base-a-bot-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-bot-t1-a-bot-t2",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-bot-t2-a-bot-j",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-a-bot-j-a-bot-bank",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-b-top-bank-b-top-j",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-b-top-j-b-top-t2",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-b-top-t2-b-top-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-b-top-t1-b-base",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-b-mid-bank-b-mid-j",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-b-mid-j-b-mid-t2",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-b-mid-t2-b-mid-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-b-mid-t1-b-base",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-b-bot-bank-b-bot-j",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-b-bot-j-b-bot-t2",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-b-bot-t2-b-bot-t1",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-b-bot-t1-b-base",
+        "length_wu": 150
+      },
+      {
+        "edge_id": "edge-a-top-bank-b-top-bank",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-a-bot-bank-b-bot-bank",
+        "length_wu": 100
+      },
+      {
+        "edge_id": "edge-a-mid-bank-n-mid-obs",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-n-mid-obs-b-mid-bank",
+        "length_wu": 50
+      },
+      {
+        "edge_id": "edge-a-top-j-n-a-uj",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-a-uj-a-mid-j",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-a-uc",
+        "length_wu": 45
+      },
+      {
+        "edge_id": "edge-a-mid-j-n-a-lj",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-a-lj-a-bot-j",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-a-lc",
+        "length_wu": 45
+      },
+      {
+        "edge_id": "edge-b-top-j-n-b-uj",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-b-uj-b-mid-j",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-b-uj-n-b-uc",
+        "length_wu": 45
+      },
+      {
+        "edge_id": "edge-b-mid-j-n-b-lj",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-b-lj-b-bot-j",
+        "length_wu": 325
+      },
+      {
+        "edge_id": "edge-n-b-lj-n-b-lc",
+        "length_wu": 45
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-b-uj",
+        "length_wu": 620
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-b-lj",
+        "length_wu": 620
+      }
+    ],
+    "edge_tracks": [
+      {
+        "edge_id": "edge-a-base-a-top-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-top-t1-a-top-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-top-t2-a-top-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-top-j-a-top-bank",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-base-a-mid-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-mid-t1-a-mid-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-mid-t2-a-mid-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-mid-j-a-mid-bank",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-base-a-bot-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-bot-t1-a-bot-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-bot-t2-a-bot-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-bot-j-a-bot-bank",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-top-bank-b-top-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-top-j-b-top-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-top-t2-b-top-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-top-t1-b-base",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-mid-bank-b-mid-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-mid-j-b-mid-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-mid-t2-b-mid-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-mid-t1-b-base",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-bot-bank-b-bot-j",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-bot-j-b-bot-t2",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-bot-t2-b-bot-t1",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-bot-t1-b-base",
+        "tracks": [
+          {
+            "id": "left",
+            "kind": "left",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          },
+          {
+            "id": "right",
+            "kind": "right",
+            "start_progress_wu": 0,
+            "end_progress_wu": 150
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-top-bank-b-top-bank",
+        "tracks": [
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-bot-bank-b-bot-bank",
+        "tracks": [
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 100
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-mid-bank-n-mid-obs",
+        "tracks": [
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-mid-obs-b-mid-bank",
+        "tracks": [
+          {
+            "id": "center",
+            "kind": "center",
+            "start_progress_wu": 0,
+            "end_progress_wu": 50
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-top-j-n-a-uj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-uj-a-mid-j",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-a-uc",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 45
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-a-mid-j-n-a-lj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-lj-a-bot-j",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-a-lc",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 45
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-top-j-n-b-uj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-b-uj-b-mid-j",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-b-uj-n-b-uc",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 45
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-b-mid-j-n-b-lj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-b-lj-b-bot-j",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 325
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-b-lj-n-b-lc",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 45
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-b-uj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 620
+          }
+        ]
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-b-lj",
+        "tracks": [
+          {
+            "id": "single",
+            "kind": "single",
+            "start_progress_wu": 0,
+            "end_progress_wu": 620
+          }
+        ]
+      }
+    ],
+    "river_crossing_ranges": [
+      {
+        "edge_id": "edge-a-top-bank-b-top-bank",
+        "river_id": "river.main",
+        "start_progress_wu": 0,
+        "end_progress_wu": 100
+      },
+      {
+        "edge_id": "edge-a-bot-bank-b-bot-bank",
+        "river_id": "river.main",
+        "start_progress_wu": 0,
+        "end_progress_wu": 100
+      },
+      {
+        "edge_id": "edge-a-mid-bank-n-mid-obs",
+        "river_id": "river.main",
+        "start_progress_wu": 40,
+        "end_progress_wu": 50
+      },
+      {
+        "edge_id": "edge-n-mid-obs-b-mid-bank",
+        "river_id": "river.main",
+        "start_progress_wu": 0,
+        "end_progress_wu": 10
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-b-uj",
+        "river_id": "river.main",
+        "start_progress_wu": 260,
+        "end_progress_wu": 360
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-b-lj",
+        "river_id": "river.main",
+        "start_progress_wu": 260,
+        "end_progress_wu": 360
+      }
+    ]
+  },
+  "terrain": {
+    "profiles": [
+      {
+        "id": "terrain.lane",
+        "kind": "lane",
+        "observation": "open"
+      },
+      {
+        "id": "terrain.jungle",
+        "kind": "jungle",
+        "observation": "concealing"
+      }
+    ],
+    "edge_profiles": [
+      {
+        "edge_id": "edge-a-base-a-top-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-top-t1-a-top-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-top-t2-a-top-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-top-j-a-top-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-base-a-mid-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-mid-t1-a-mid-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-mid-t2-a-mid-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-mid-j-a-mid-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-base-a-bot-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-bot-t1-a-bot-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-bot-t2-a-bot-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-bot-j-a-bot-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-top-bank-b-top-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-top-j-b-top-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-top-t2-b-top-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-top-t1-b-base",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-mid-bank-b-mid-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-mid-j-b-mid-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-mid-t2-b-mid-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-mid-t1-b-base",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-bot-bank-b-bot-j",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-bot-j-b-bot-t2",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-bot-t2-b-bot-t1",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-b-bot-t1-b-base",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-top-bank-b-top-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-bot-bank-b-bot-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-mid-bank-n-mid-obs",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-n-mid-obs-b-mid-bank",
+        "profile_id": "terrain.lane"
+      },
+      {
+        "edge_id": "edge-a-top-j-n-a-uj",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-a-mid-j",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-a-uc",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-a-mid-j-n-a-lj",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-a-bot-j",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-a-lc",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-b-top-j-n-b-uj",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-uj-b-mid-j",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-uj-n-b-uc",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-b-mid-j-n-b-lj",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-lj-b-bot-j",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-lj-n-b-lc",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-b-uj",
+        "profile_id": "terrain.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-b-lj",
+        "profile_id": "terrain.jungle"
+      }
+    ]
+  },
+  "presentation": {
+    "view_box": {
+      "width": 1200,
+      "height": 900
+    },
+    "node_positions": [
+      {
+        "node_id": "A.BASE",
+        "position": {
+          "x": 50,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.BASE",
+        "position": {
+          "x": 1150,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.MID.OBS",
+        "position": {
+          "x": 600,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.TOP.BANK",
+        "position": {
+          "x": 520,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.TOP.J",
+        "position": {
+          "x": 400,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.TOP.T2",
+        "position": {
+          "x": 280,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.TOP.T1",
+        "position": {
+          "x": 160,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.MID.BANK",
+        "position": {
+          "x": 520,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.MID.J",
+        "position": {
+          "x": 400,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.MID.T2",
+        "position": {
+          "x": 280,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.MID.T1",
+        "position": {
+          "x": 160,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.BOT.BANK",
+        "position": {
+          "x": 520,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.BOT.J",
+        "position": {
+          "x": 400,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.BOT.T2",
+        "position": {
+          "x": 280,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "A.BOT.T1",
+        "position": {
+          "x": 160,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.A.UJ",
+        "position": {
+          "x": 400,
+          "y": 285
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.A.UC",
+        "position": {
+          "x": 475,
+          "y": 285
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.A.LJ",
+        "position": {
+          "x": 400,
+          "y": 615
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.A.LC",
+        "position": {
+          "x": 475,
+          "y": 615
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.TOP.BANK",
+        "position": {
+          "x": 680,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.TOP.J",
+        "position": {
+          "x": 800,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.TOP.T2",
+        "position": {
+          "x": 920,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.TOP.T1",
+        "position": {
+          "x": 1020,
+          "y": 120
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.MID.BANK",
+        "position": {
+          "x": 680,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.MID.J",
+        "position": {
+          "x": 800,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.MID.T2",
+        "position": {
+          "x": 920,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.MID.T1",
+        "position": {
+          "x": 1020,
+          "y": 450
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.BOT.BANK",
+        "position": {
+          "x": 680,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.BOT.J",
+        "position": {
+          "x": 800,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.BOT.T2",
+        "position": {
+          "x": 920,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "B.BOT.T1",
+        "position": {
+          "x": 1020,
+          "y": 780
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.B.UJ",
+        "position": {
+          "x": 800,
+          "y": 285
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.B.UC",
+        "position": {
+          "x": 725,
+          "y": 285
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.B.LJ",
+        "position": {
+          "x": 800,
+          "y": 615
+        },
+        "material_id": "mat.node"
+      },
+      {
+        "node_id": "N.B.LC",
+        "position": {
+          "x": 725,
+          "y": 615
+        },
+        "material_id": "mat.node"
+      }
+    ],
+    "edge_paths": [
+      {
+        "edge_id": "edge-a-base-a-top-t1",
+        "points": [
+          {
+            "x": 50,
+            "y": 780
+          },
+          {
+            "x": 160,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-top-t1-a-top-t2",
+        "points": [
+          {
+            "x": 160,
+            "y": 120
+          },
+          {
+            "x": 280,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-top-t2-a-top-j",
+        "points": [
+          {
+            "x": 280,
+            "y": 120
+          },
+          {
+            "x": 400,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-top-j-a-top-bank",
+        "points": [
+          {
+            "x": 400,
+            "y": 120
+          },
+          {
+            "x": 520,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-base-a-mid-t1",
+        "points": [
+          {
+            "x": 50,
+            "y": 780
+          },
+          {
+            "x": 160,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-mid-t1-a-mid-t2",
+        "points": [
+          {
+            "x": 160,
+            "y": 450
+          },
+          {
+            "x": 280,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-mid-t2-a-mid-j",
+        "points": [
+          {
+            "x": 280,
+            "y": 450
+          },
+          {
+            "x": 400,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-mid-j-a-mid-bank",
+        "points": [
+          {
+            "x": 400,
+            "y": 450
+          },
+          {
+            "x": 520,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-base-a-bot-t1",
+        "points": [
+          {
+            "x": 50,
+            "y": 780
+          },
+          {
+            "x": 160,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-bot-t1-a-bot-t2",
+        "points": [
+          {
+            "x": 160,
+            "y": 780
+          },
+          {
+            "x": 280,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-bot-t2-a-bot-j",
+        "points": [
+          {
+            "x": 280,
+            "y": 780
+          },
+          {
+            "x": 400,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-bot-j-a-bot-bank",
+        "points": [
+          {
+            "x": 400,
+            "y": 780
+          },
+          {
+            "x": 520,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-top-bank-b-top-j",
+        "points": [
+          {
+            "x": 680,
+            "y": 120
+          },
+          {
+            "x": 800,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-top-j-b-top-t2",
+        "points": [
+          {
+            "x": 800,
+            "y": 120
+          },
+          {
+            "x": 920,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-top-t2-b-top-t1",
+        "points": [
+          {
+            "x": 920,
+            "y": 120
+          },
+          {
+            "x": 1020,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-top-t1-b-base",
+        "points": [
+          {
+            "x": 1020,
+            "y": 120
+          },
+          {
+            "x": 1150,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-mid-bank-b-mid-j",
+        "points": [
+          {
+            "x": 680,
+            "y": 450
+          },
+          {
+            "x": 800,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-mid-j-b-mid-t2",
+        "points": [
+          {
+            "x": 800,
+            "y": 450
+          },
+          {
+            "x": 920,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-mid-t2-b-mid-t1",
+        "points": [
+          {
+            "x": 920,
+            "y": 450
+          },
+          {
+            "x": 1020,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-mid-t1-b-base",
+        "points": [
+          {
+            "x": 1020,
+            "y": 450
+          },
+          {
+            "x": 1150,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-bot-bank-b-bot-j",
+        "points": [
+          {
+            "x": 680,
+            "y": 780
+          },
+          {
+            "x": 800,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-bot-j-b-bot-t2",
+        "points": [
+          {
+            "x": 800,
+            "y": 780
+          },
+          {
+            "x": 920,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-bot-t2-b-bot-t1",
+        "points": [
+          {
+            "x": 920,
+            "y": 780
+          },
+          {
+            "x": 1020,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-b-bot-t1-b-base",
+        "points": [
+          {
+            "x": 1020,
+            "y": 780
+          },
+          {
+            "x": 1150,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.road"
+      },
+      {
+        "edge_id": "edge-a-top-bank-b-top-bank",
+        "points": [
+          {
+            "x": 520,
+            "y": 120
+          },
+          {
+            "x": 680,
+            "y": 120
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.bridge"
+      },
+      {
+        "edge_id": "edge-a-bot-bank-b-bot-bank",
+        "points": [
+          {
+            "x": 520,
+            "y": 780
+          },
+          {
+            "x": 680,
+            "y": 780
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.bridge"
+      },
+      {
+        "edge_id": "edge-a-mid-bank-n-mid-obs",
+        "points": [
+          {
+            "x": 520,
+            "y": 450
+          },
+          {
+            "x": 600,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.bridge"
+      },
+      {
+        "edge_id": "edge-n-mid-obs-b-mid-bank",
+        "points": [
+          {
+            "x": 600,
+            "y": 450
+          },
+          {
+            "x": 680,
+            "y": 450
+          }
+        ],
+        "visual_width": 12,
+        "material_id": "mat.bridge"
+      },
+      {
+        "edge_id": "edge-a-top-j-n-a-uj",
+        "points": [
+          {
+            "x": 400,
+            "y": 120
+          },
+          {
+            "x": 400,
+            "y": 285
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-a-mid-j",
+        "points": [
+          {
+            "x": 400,
+            "y": 285
+          },
+          {
+            "x": 400,
+            "y": 450
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-a-uc",
+        "points": [
+          {
+            "x": 400,
+            "y": 285
+          },
+          {
+            "x": 475,
+            "y": 285
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-a-mid-j-n-a-lj",
+        "points": [
+          {
+            "x": 400,
+            "y": 450
+          },
+          {
+            "x": 400,
+            "y": 615
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-a-bot-j",
+        "points": [
+          {
+            "x": 400,
+            "y": 615
+          },
+          {
+            "x": 400,
+            "y": 780
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-a-lc",
+        "points": [
+          {
+            "x": 400,
+            "y": 615
+          },
+          {
+            "x": 475,
+            "y": 615
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-b-top-j-n-b-uj",
+        "points": [
+          {
+            "x": 800,
+            "y": 120
+          },
+          {
+            "x": 800,
+            "y": 285
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-uj-b-mid-j",
+        "points": [
+          {
+            "x": 800,
+            "y": 285
+          },
+          {
+            "x": 800,
+            "y": 450
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-uj-n-b-uc",
+        "points": [
+          {
+            "x": 800,
+            "y": 285
+          },
+          {
+            "x": 725,
+            "y": 285
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-b-mid-j-n-b-lj",
+        "points": [
+          {
+            "x": 800,
+            "y": 450
+          },
+          {
+            "x": 800,
+            "y": 615
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-lj-b-bot-j",
+        "points": [
+          {
+            "x": 800,
+            "y": 615
+          },
+          {
+            "x": 800,
+            "y": 780
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-b-lj-n-b-lc",
+        "points": [
+          {
+            "x": 800,
+            "y": 615
+          },
+          {
+            "x": 725,
+            "y": 615
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-uj-n-b-uj",
+        "points": [
+          {
+            "x": 400,
+            "y": 285
+          },
+          {
+            "x": 800,
+            "y": 285
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      },
+      {
+        "edge_id": "edge-n-a-lj-n-b-lj",
+        "points": [
+          {
+            "x": 400,
+            "y": 615
+          },
+          {
+            "x": 800,
+            "y": 615
+          }
+        ],
+        "visual_width": 8,
+        "material_id": "mat.jungle"
+      }
+    ],
+    "rivers": [
+      {
+        "id": "river.main",
+        "points": [
+          {
+            "x": 520,
+            "y": 40
+          },
+          {
+            "x": 600,
+            "y": 450
+          },
+          {
+            "x": 680,
+            "y": 860
+          }
+        ],
+        "visual_width": 42,
+        "material_id": "mat.water"
+      }
+    ],
+    "visual_regions": [
+      {
+        "id": "region.a.jungle.upper",
+        "terrain_profile_id": "terrain.jungle",
+        "outline": [
+          {
+            "x": 330,
+            "y": 210
+          },
+          {
+            "x": 470,
+            "y": 210
+          },
+          {
+            "x": 470,
+            "y": 360
+          },
+          {
+            "x": 330,
+            "y": 360
+          }
+        ],
+        "material_id": "mat.foliage"
+      },
+      {
+        "id": "region.a.jungle.lower",
+        "terrain_profile_id": "terrain.jungle",
+        "outline": [
+          {
+            "x": 330,
+            "y": 540
+          },
+          {
+            "x": 470,
+            "y": 540
+          },
+          {
+            "x": 470,
+            "y": 690
+          },
+          {
+            "x": 330,
+            "y": 690
+          }
+        ],
+        "material_id": "mat.foliage"
+      },
+      {
+        "id": "region.b.jungle.upper",
+        "terrain_profile_id": "terrain.jungle",
+        "outline": [
+          {
+            "x": 730,
+            "y": 210
+          },
+          {
+            "x": 870,
+            "y": 210
+          },
+          {
+            "x": 870,
+            "y": 360
+          },
+          {
+            "x": 730,
+            "y": 360
+          }
+        ],
+        "material_id": "mat.foliage"
+      },
+      {
+        "id": "region.b.jungle.lower",
+        "terrain_profile_id": "terrain.jungle",
+        "outline": [
+          {
+            "x": 730,
+            "y": 540
+          },
+          {
+            "x": 870,
+            "y": 540
+          },
+          {
+            "x": 870,
+            "y": 690
+          },
+          {
+            "x": 730,
+            "y": 690
+          }
+        ],
+        "material_id": "mat.foliage"
+      }
+    ],
+    "materials": [
+      {
+        "id": "mat.node",
+        "color": "#E8E0CC",
+        "opacity_percent": 100
+      },
+      {
+        "id": "mat.road",
+        "color": "#A1835A",
+        "opacity_percent": 100
+      },
+      {
+        "id": "mat.bridge",
+        "color": "#76634A",
+        "opacity_percent": 100
+      },
+      {
+        "id": "mat.jungle",
+        "color": "#31553B",
+        "opacity_percent": 100
+      },
+      {
+        "id": "mat.foliage",
+        "color": "#31553B",
+        "opacity_percent": 100
+      },
+      {
+        "id": "mat.water",
+        "color": "#367F9B",
+        "opacity_percent": 100
+      }
+    ],
+    "lighting": {
+      "ambient_percent": 55,
+      "key_percent": 70
+    },
+    "foliage": [
+      {
+        "id": "foliage.a.jungle.upper",
+        "region_id": "region.a.jungle.upper",
+        "species": "forest",
+        "density_per_mille": 720
+      },
+      {
+        "id": "foliage.a.jungle.lower",
+        "region_id": "region.a.jungle.lower",
+        "species": "forest",
+        "density_per_mille": 720
+      },
+      {
+        "id": "foliage.b.jungle.upper",
+        "region_id": "region.b.jungle.upper",
+        "species": "forest",
+        "density_per_mille": 720
+      },
+      {
+        "id": "foliage.b.jungle.lower",
+        "region_id": "region.b.jungle.lower",
+        "species": "forest",
+        "density_per_mille": 720
+      }
+    ]
+  }
+}
