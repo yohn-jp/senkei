@@ -1056,6 +1056,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const roleFollowCaptures: Record<string, JsonRecord> = {};
   const semanticCueAssertions: Record<string, JsonRecord> = {};
   const clusterInspection: Record<string, JsonRecord> = {};
+  // A Hero may have died/respawned before the follow tick. Select only from
+  // that current authorized frame, rather than retaining a tick-zero identity.
+  await seekToTick(page, followTick);
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
   const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
@@ -1323,8 +1326,13 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
         followSupport[viewport.name] = false;
       }
     } else if (followTarget.target) {
+      if (followTarget.catalogId) {
+        const currentTarget = await selectVisibleHero(page, followTarget.catalogId);
+        expect(currentTarget.supported, "Follow uses a Hero visible at this exact tick after seeking").toBe(true);
+      }
       const followControl = page.getByRole("button", { name: /^(Follow selected unit|Follow)$/i });
       if (await followControl.count()) {
+        await expect(followControl.first()).toBeEnabled();
         await followControl.first().click();
         followSupport[viewport.name] = true;
       } else {
