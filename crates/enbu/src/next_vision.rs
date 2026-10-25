@@ -22,6 +22,10 @@ const PUBLIC_FIELDS: &[&str] = &[
     "y",
     "edge_to",
     "edge_progress",
+    "track",
+    "cross_remaining",
+    "ford_remaining",
+    "ford_active",
     "node",
     "lane",
     "catalog_id",
@@ -40,7 +44,9 @@ const PUBLIC_FIELDS: &[&str] = &[
     "defense_until",
     "camp",
 ];
-const MINION_PUBLIC_FIELDS: &[&str] = &["hp", "max_hp", "x", "y", "catalog_id", "lane"];
+const MINION_PUBLIC_FIELDS: &[&str] = &["hp", "max_hp", "x", "y", "catalog_id", "lane", "node", "edge_to", "edge_progress", "track", "cross_remaining", "ford_remaining", "ford_active"];
+const BRIDGE_PUBLIC_FIELDS: &[&str] = &["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "x", "y", "node", "edge_to", "edge_progress"];
+const OBSERVATION_PUBLIC_FIELDS: &[&str] = &["node", "capture_progress", "capture_owner", "capture_progress_side", "x", "y"];
 const OWNER_ONLY_FIELDS: &[&str] = &[
     "xp",
     "cooldowns",
@@ -118,15 +124,15 @@ pub fn visible(
     }
     world.entities.values().any(|source| {
         source.owner == Some(side)
-            && matches!(source.entity_type.as_str(), HERO | MINION)
-            && support::alive(source)
+            && matches!(source.entity_type.as_str(), HERO | MINION | "observation")
+            && (source.entity_type.as_str() == "observation" || support::alive(source))
             && within_vision(source, entity, rules)
     })
 }
 
 /// Whether a hero is inside any living friendly minion's vision. The result is
 /// a boolean so overlapping minions apply the movement modifier only once.
-pub fn minion_vision(world: &WorldState, side: CombatantSide, entity: &EntityState) -> bool {
+pub fn minion_vision(world: &WorldState, rules: &NextRules, side: CombatantSide, entity: &EntityState) -> bool {
     if entity.entity_type != TypeId::from(HERO) {
         return false;
     }
@@ -134,7 +140,7 @@ pub fn minion_vision(world: &WorldState, side: CombatantSide, entity: &EntitySta
         source.entity_type == TypeId::from(MINION)
             && source.owner == Some(side)
             && support::alive(source)
-            && within_radius(source, entity, support::int(source, "vision"))
+            && within_radius(source, entity, support::int(source, "vision"), rules)
     })
 }
 
@@ -231,10 +237,11 @@ fn projected_fields(
     include_owner_only: bool,
     rules: &NextRules,
 ) -> BTreeMap<FieldId, DomainValue> {
-    let public_fields = if entity.entity_type == TypeId::from(MINION) {
-        MINION_PUBLIC_FIELDS
-    } else {
-        PUBLIC_FIELDS
+    let public_fields = match entity.entity_type.as_str() {
+        MINION => MINION_PUBLIC_FIELDS,
+        "bridge" => BRIDGE_PUBLIC_FIELDS,
+        "observation" => OBSERVATION_PUBLIC_FIELDS,
+        _ => PUBLIC_FIELDS,
     };
     let mut fields: BTreeMap<_, _> = public_fields
         .iter()
@@ -394,7 +401,9 @@ fn expire_reveals(world: &mut WorldState, tick: u32) {
 }
 
 fn within_vision(source: &EntityState, target: &EntityState, rules: &NextRules) -> bool {
-    let radius = if source.entity_type == TypeId::from(MINION) {
+    let radius = if source.entity_type.as_str() == "observation" {
+        rules.parameters.get("mid_observation_radius_wu").copied().unwrap_or(240)
+    } else if source.entity_type == TypeId::from(MINION) {
         rules
             .parameters
             .get("minion_vision")
@@ -403,12 +412,14 @@ fn within_vision(source: &EntityState, target: &EntityState, rules: &NextRules) 
     } else {
         support::int(source, "vision")
     };
-    within_radius(source, target, radius)
+    within_radius(source, target, radius, rules)
 }
 
-fn within_radius(source: &EntityState, target: &EntityState, radius: i64) -> bool {
-    // Current baseline uses a circular integer radius and no occlusion model.
-    radius >= 0 && support::distance2(source, target) <= i128::from(radius) * i128::from(radius)
+fn within_radius(source: &EntityState, target: &EntityState, radius: i64, rules: &NextRules) -> bool {
+    // Sight follows the versioned graph and logical position; projected x/y
+    // never reveal an entity across an unconnected map location.
+    radius >= 0 && crate::next_support::world_distance2(source, target, rules)
+        .is_some_and(|distance2| distance2 <= i128::from(radius) * i128::from(radius))
 }
 
 fn collection_observation(
@@ -798,29 +809,29 @@ mod tests {
             (
                 "a0".to_string(),
                 MapNode {
+                    allegiance: "A".into(),
                     x: 0,
                     y: 0,
                     region: "lane".into(),
-                ..Default::default()
-},
+                },
             ),
             (
                 "a1".to_string(),
                 MapNode {
+                    allegiance: "N".into(),
                     x: 10,
                     y: 0,
                     region: "lane".into(),
-                ..Default::default()
-},
+                },
             ),
             (
                 "d0".to_string(),
                 MapNode {
+                    allegiance: "B".into(),
                     x: 20,
                     y: 0,
                     region: "lane".into(),
-                ..Default::default()
-},
+                },
             ),
         ]);
         NextRules {
@@ -828,7 +839,9 @@ mod tests {
             map: BattleMap {
                 id: "test".into(),
                 nodes,
-                edges: vec![],
+                edges: vec![MapEdge { id: "a0-a1".into(), bridge_site: String::new(), ford: false,
+                    from: "a0".into(), to: "a1".into(), length: 10,
+                    region: "lane".into(), blocked: false }],
                 lanes: BTreeMap::from([(
                     "top".into(),
                     vec!["a0".into(), "a1".into(), "d0".into()],
@@ -1033,17 +1046,21 @@ mod tests {
         support::set_int(&mut minion, "vision", 5);
         world.entities.insert("minion-one".into(), minion.clone());
         world.entities.insert("minion-two".into(), minion);
-        assert!(minion_vision(&world, CombatantSide::Attacker, &target));
-        assert!(!minion_vision(&world, CombatantSide::Defender, &target));
-        target.fields.insert("x".into(), DomainValue::Integer(11));
-        assert!(!minion_vision(&world, CombatantSide::Attacker, &target));
+        assert!(minion_vision(&world, &rules, CombatantSide::Attacker, &target));
+        assert!(!minion_vision(&world, &rules, CombatantSide::Defender, &target));
+        // Changing render coordinates cannot change whether the same logical
+        // node is visible; a graph position beyond the radius can.
+        target.fields.insert("x".into(), DomainValue::Integer(11_000));
+        assert!(minion_vision(&world, &rules, CombatantSide::Attacker, &target));
+        support::set_string(&mut target, "node", "a1");
+        assert!(!minion_vision(&world, &rules, CombatantSide::Attacker, &target));
         if let Some(dead) = world.entities.get_mut(&EntityId::from("minion-one")) {
             support::set_int(dead, "hp", 0);
         }
         if let Some(dead) = world.entities.get_mut(&EntityId::from("minion-two")) {
             support::set_int(dead, "hp", 0);
         }
-        assert!(!minion_vision(&world, CombatantSide::Attacker, &target));
+        assert!(!minion_vision(&world, &rules, CombatantSide::Attacker, &target));
     }
 
     #[test]

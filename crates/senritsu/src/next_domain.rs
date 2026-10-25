@@ -153,8 +153,11 @@ fn common_fields() -> BTreeMap<FieldId, FieldSchema> {
         ("attack_ready", 0, i64::from(u32::MAX)),
         ("x", -MAX_INT, MAX_INT), ("y", -MAX_INT, MAX_INT),
         ("edge_progress", 0, MAX_INT), ("cross_remaining", 0, MAX_INT),
-        ("ford_remaining", 0, MAX_INT),
+        ("ford_remaining", 0, MAX_INT), ("ford_active", 0, 1),
+        ("track_wait_ticks", 0, MAX_INT),
         ("moved_tick", 0, i64::from(u32::MAX) + 1),
+        ("move_intent_tick", 0, i64::from(u32::MAX) + 1),
+        ("track_intent_tick", 0, i64::from(u32::MAX) + 1),
         ("action_lock_until", 0, i64::from(u32::MAX) + 1),
         ("prepared_action_tick", 0, i64::from(u32::MAX) + 1),
         ("build_remaining", 0, MAX_INT),
@@ -174,7 +177,9 @@ fn common_fields() -> BTreeMap<FieldId, FieldSchema> {
             "attack_ready" => Visibility::OwningSide,
             "reveal_attacker_until" | "reveal_defender_until" | "reveal_until"
             | "xp_reward" | "death_tick" | "prepared_action_tick"
-            | "build_started_tick" | "build_lock_until" => Visibility::Internal,
+            | "build_started_tick" | "build_lock_until" | "moved_tick"
+            | "move_intent_tick" | "track_intent_tick" | "track_wait_ticks" => Visibility::Internal,
+            "action_lock_until" | "retreating" => Visibility::OwningSide,
             _ => Visibility::Public,
         };
         fields.insert(id(name), field(int_type(minimum, maximum), visibility, true));
@@ -189,6 +194,7 @@ fn common_fields() -> BTreeMap<FieldId, FieldSchema> {
     for name in ["track_cross_from", "track_cross_to", "builder_side", "builder_squad"] {
         fields.insert(id(name), field(string_type(MAX_STRING_BYTES), Visibility::Internal, true));
     }
+    fields.insert(id("track_goal"), field(string_type(MAX_STRING_BYTES), Visibility::OwningSide, true));
     fields.insert(id("goal"), field(string_type(MAX_STRING_BYTES), Visibility::OwningSide, true));
     fields
 }
@@ -246,18 +252,18 @@ fn observation_collections(skill_ids: &BTreeSet<FieldId>) -> BTreeMap<Collection
         "slot_id", "catalog_id", "squad", "skill_path", "xp", "level", "maturity", "formation",
         "respawn_at", "energy", "skills", "cooldowns", "hp", "max_hp", "attack", "defense", "speed",
         "range", "attack_interval", "vision", "attack_ready", "x", "y", "node", "edge_to", "edge_progress",
-        "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "moved_tick", "retreating", "goal", "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until",
+        "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "ford_active", "retreating", "goal", "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until",
         "defense_bonus", "defense_until",
     ];
     let enemy_hero_fields = [
         "catalog_id", "level", "maturity", "formation", "energy", "skills", "hp", "max_hp", "attack", "defense",
-        "speed", "range", "attack_interval", "vision", "x", "y", "node", "edge_to", "edge_progress", "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "moved_tick", "retreating",
+        "speed", "range", "attack_interval", "vision", "x", "y", "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active",
         "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until", "defense_bonus",
         "defense_until",
     ];
     let common_public = [
         "catalog_id", "hp", "max_hp", "attack", "defense", "speed", "range", "attack_interval", "vision", "x", "y",
-        "node", "edge_to", "edge_progress", "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "moved_tick", "action_lock_until", "retreating", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
+        "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
         "empower_until", "defense_bonus", "defense_until",
     ];
     let mut result = BTreeMap::new();
@@ -301,7 +307,7 @@ fn observation_collections(skill_ids: &BTreeSet<FieldId>) -> BTreeMap<Collection
     ));
     result.insert(id("battlefield.bridges"), observed_collection(
         "bridge", 3, Visibility::EnemyVisible, EntityOwnerSelector::Any,
-        current_fields("bridge", &["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "x", "y"]), &[], false,
+        current_fields("bridge", &["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "node", "edge_to", "edge_progress", "x", "y"]), &[], false,
     ));
     result.insert(id("battlefield.observations"), observed_collection(
         "observation", 1, Visibility::EnemyVisible, EntityOwnerSelector::Any,
@@ -447,14 +453,14 @@ fn cost_schedule() -> CostSchedule {
 fn presentation_policy() -> PresentationPolicy {
     let visible = [
         "catalog_id", "hp", "max_hp", "attack", "defense", "speed", "range", "attack_interval", "vision", "x", "y",
-        "node", "edge_to", "edge_progress", "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "moved_tick", "action_lock_until", "retreating", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
+        "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
         "empower_until", "defense_bonus", "defense_until",
     ].into_iter().map(id).collect::<BTreeSet<_>>();
     let mut hero = visible.clone();
     hero.extend(["level", "maturity", "formation", "energy", "skills"].into_iter().map(id));
     let mut monster = visible.clone();
     monster.insert(id("camp"));
-    let bridge = ["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "x", "y"]
+    let bridge = ["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "node", "edge_to", "edge_progress", "x", "y"]
         .into_iter().map(id).collect::<BTreeSet<_>>();
     let observation = ["node", "capture_progress", "capture_owner", "capture_progress_side", "x", "y"]
         .into_iter().map(id).collect::<BTreeSet<_>>();
@@ -721,6 +727,20 @@ mod tests {
         assert!(matches!(bridge_work.arguments[2].value_type, DomainType::Enum { ref domain, .. } if domain == &SymbolDomainId::from("bridge_operation")));
         assert!(package.world.entity_types[&TypeId::from("bridge")].fields.contains_key(&FieldId::from("build_remaining")));
         assert!(package.world.entity_types[&TypeId::from("observation")].fields.contains_key(&FieldId::from("capture_progress_side")));
+        let movement_fields = &package.world.entity_types[&TypeId::from("hero")].fields;
+        assert_eq!(movement_fields[&FieldId::from("ford_active")].visibility, Visibility::Public);
+        assert_eq!(movement_fields[&FieldId::from("track_goal")].visibility, Visibility::OwningSide);
+        assert_eq!(movement_fields[&FieldId::from("retreating")].visibility, Visibility::OwningSide);
+        assert_eq!(movement_fields[&FieldId::from("action_lock_until")].visibility, Visibility::OwningSide);
+        for field in ["moved_tick", "move_intent_tick", "track_intent_tick", "track_wait_ticks"] {
+            assert_eq!(movement_fields[&FieldId::from(field)].visibility, Visibility::Internal);
+        }
+        let bridge_view = &package.domain.collections[&CollectionId::from("battlefield.bridges")];
+        assert!(bridge_view.visible_fields.contains_key(&FieldId::from("edge_progress")));
+        assert!(!bridge_view.visible_fields.contains_key(&FieldId::from("builder")));
+        let observation_view = &package.domain.collections[&CollectionId::from("battlefield.observations")];
+        assert!(observation_view.visible_fields.contains_key(&FieldId::from("capture_progress_side")));
+        assert!(!observation_view.visible_fields.contains_key(&FieldId::from("builder")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("pursue")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("activate")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("split")));
