@@ -865,3 +865,7 @@
 .journey-checklist button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; }
 .journey-checklist small { display: block; margin-top: 4px; font-size: 11px; }
 .journey-checklist b { flex-shrink: 0; font-size: 11px; }
+.journey-screen h3:focus { outline: none; }
+@media (max-width: 760px) {
+  .journey-screen .journey-desktop { display: none; }
+}
