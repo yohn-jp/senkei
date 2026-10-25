@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-tower-pressure",
-  "request_sha256": "13fade091b0778e15fe80260cb4c7c84d81b2036c0c0b978ea064ab0b068fbea",
+  "request_sha256": "c457282359f1ac692c582b7a8a523d442058bf70624bd032db26f4645ac3c2d5",
   "response_sha256": "64b3d47d1a94a75eec670b9354e9147b3ab8e4b7e1552d8545706ce8feed12ee",
   "summary": {
     "outcome": "defender_victory",

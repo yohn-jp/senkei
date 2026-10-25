@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
@@ -205,7 +206,8 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await page.screenshot({ path: join(evidenceDirectory, `mobile-${width}x${height}-bridge-transit.png`), animations: "disabled" });
   }
   expect(pageErrors).toEqual([]);
-  return { result, publicReplay, frameCount: publicReplay.frames.length, wasmStatuses: wasmResponses };
+  return { result, publicReplay, ownerReplay: replay, frameCount: publicReplay.frames.length, wasmStatuses: wasmResponses,
+    buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content") };
 }
 
 test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ page, browser }) => {
@@ -222,7 +224,21 @@ test("real Enbu Battlefield replay is readable on desktop and mobile", async ({ 
   try {
     const mobile = await runBattle(mobilePage, snapshot, 390, 844);
     expect(mobile.result.final_state_digest).toBe(desktop.result.final_state_digest);
-    expect(mobile.publicReplay.result_digest).toBe(desktop.publicReplay.result_digest);
+    expect(mobile.publicReplay).toEqual(desktop.publicReplay);
+    expect(mobile.ownerReplay).toEqual(desktop.ownerReplay);
+    const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+    writeFileSync(join(evidenceDirectory, "metadata.json"), JSON.stringify({
+      evidenceKind: "compiled real Jinrei executed by desktop and mobile browser WASM",
+      sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim(),
+      buildRevision: desktop.buildRevision, inputSha256: digest(snapshot),
+      ruleset: snapshot.context.ruleset, engineVersion: snapshot.context.versions.engine,
+      result: desktop.result, publicReplaySha256: digest(desktop.publicReplay), ownerReplaySha256: digest(desktop.ownerReplay),
+      fullDesktopMobileReplayEquality: true,
+      viewports: [{ width: 1440, height: 900 }, { width: 390, height: 844 }],
+      wasmStatuses: [...desktop.wasmStatuses, ...mobile.wasmStatuses],
+      ticks: { lateralCrossing: 3, midDestroyed: 11, topExpanded: 13, topDestroyed: 23, ford: 24, topRebuilt: 49, bridgeTransit: 50 },
+      renderer: "Chromium with SwiftShader; hardware GPU and physical touch not checked",
+    }, null, 2) + "\n");
   } finally {
     await mobilePage.close();
   }

@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-hold-under-pressure",
-  "request_sha256": "289bc6ce711e6683c1e3b71b363e647a33f418420ec07138d556536c722d1c4c",
+  "request_sha256": "19b86a609e72328e2cb78d84af81ec4cf0b871abf0383ff0eb3ef84fb40b957e",
   "response_sha256": "8671a1755119eed31c9e382d97cfd0c92c04902f46541136d97fc8b8b8b751c2",
   "summary": {
     "outcome": "defender_victory",
