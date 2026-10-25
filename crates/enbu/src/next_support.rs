@@ -1,6 +1,27 @@
 //! Shared deterministic scalar access for finite battle primitives.
 use senkei_model::*;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct VisionGraphKey {
+    nodes: Vec<String>,
+    edges: Vec<(String, String, i64)>,
+}
+
+#[derive(Clone, Debug)]
+struct VisionGraphDistances {
+    node_index: BTreeMap<String, usize>,
+    distances: Vec<Vec<Option<i64>>>,
+}
+
+thread_local! {
+    /// Non-authoritative, thread-local memo for the last complete vision graph.
+    /// Equality checks the graph contents on every call, so matching map IDs or
+    /// allocation addresses can never return stale distances.
+    static VISION_GRAPH_CACHE: RefCell<Option<(VisionGraphKey, VisionGraphDistances)>> = RefCell::new(None);
+}
+
 pub fn int(e: &EntityState, key: &str) -> i64 {
     match e.fields.get(&FieldId::from(key)) {
         Some(DomainValue::Integer(v)) => *v,
@@ -137,64 +158,104 @@ pub fn world_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> O
     };
     let a_points = endpoints(a)?;
     let b_points = endpoints(b)?;
-    graph_distance_between(&rules.map, &a_points, &b_points)
+    graph_distance_cached(&rules.map, &a_points, &b_points)
         .map(|distance| i128::from(distance) * i128::from(distance))
 }
 
-fn graph_distance_between(map: &BattleMap, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
-    let destinations: BTreeMap<_, _> = to.iter().filter(|(node, _)| map.nodes.contains_key(node))
-        .map(|(node, offset)| (node.clone(), *offset)).collect();
-    if destinations.is_empty() {
-        return None;
-    }
-    let mut queue = BTreeMap::<(i64, String), ()>::new();
-    let mut best = BTreeMap::<String, i64>::new();
-    for (node, offset) in from.iter().filter(|(node, _)| map.nodes.contains_key(node)) {
-        let distance = (*offset).max(0);
-        if best.get(node).map_or(true, |known| distance < *known) {
-            best.insert(node.clone(), distance);
-            queue.insert((distance, node.clone()), ());
+fn vision_graph_key(map: &BattleMap) -> VisionGraphKey {
+    let nodes = map.nodes.keys().cloned().collect();
+    let mut edges: Vec<_> = map.edges.iter().map(|edge| {
+        let (from, to) = if edge.from <= edge.to {
+            (edge.from.clone(), edge.to.clone())
+        } else {
+            (edge.to.clone(), edge.from.clone())
+        };
+        (from, to, edge.length)
+    }).collect();
+    edges.sort();
+    VisionGraphKey { nodes, edges }
+}
+
+fn graph_distance_cached(map: &BattleMap, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
+    let key = vision_graph_key(map);
+    VISION_GRAPH_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.as_ref().is_none_or(|(cached_key, _)| *cached_key != key) {
+            *cache = Some((key, build_vision_graph_distances(map)));
         }
+        let (_, graph) = cache.as_ref()?;
+        graph_distance_between(graph, from, to)
+    })
+}
+
+fn build_vision_graph_distances(map: &BattleMap) -> VisionGraphDistances {
+    let node_index: BTreeMap<_, _> = map.nodes.keys().cloned().enumerate()
+        .map(|(index, node)| (node, index)).collect();
+    let count = node_index.len();
+    let mut distances = vec![vec![None; count]; count];
+    for index in 0..count {
+        distances[index][index] = Some(0);
     }
-    let mut best_destination = None;
-    while let Some(((distance, node), ())) = queue.pop_first() {
-        if best.get(&node).copied() != Some(distance) {
+    for edge in &map.edges {
+        // Traversal blockages do not imply vision occlusion.
+        if edge.length <= 0 || edge.from == edge.to {
             continue;
         }
-        // All edge lengths and target offsets are non-negative, so no
-        // remaining queue entry can beat a destination once its lower bound
-        // reaches the best complete source-to-position distance.
-        if best_destination.is_some_and(|known| distance >= known) {
-            return best_destination;
-        }
-        if let Some(offset) = destinations.get(&node) {
-            if let Some(candidate) = distance.checked_add(*offset) {
-                best_destination = Some(best_destination.map_or(candidate, |known: i64| known.min(candidate)));
-            }
-        }
-        for edge in &map.edges {
-            // Traversal blockages do not imply vision occlusion.
-            if edge.length <= 0 || edge.from == edge.to {
-                continue;
-            }
-            let neighbor = if edge.from == node {
-                &edge.to
-            } else if edge.to == node {
-                &edge.from
-            } else {
-                continue;
-            };
-            if !map.nodes.contains_key(neighbor) {
-                continue;
-            }
-            let candidate = distance.checked_add(edge.length)?;
-            if best.get(neighbor).map_or(true, |known| candidate < *known) {
-                best.insert(neighbor.clone(), candidate);
-                queue.insert((candidate, neighbor.clone()), ());
+        let (Some(&from), Some(&to)) = (node_index.get(&edge.from), node_index.get(&edge.to)) else {
+            continue;
+        };
+        for (source, destination) in [(from, to), (to, from)] {
+            if distances[source][destination].map_or(true, |known| edge.length < known) {
+                distances[source][destination] = Some(edge.length);
             }
         }
     }
-    best_destination
+
+    // A bounded all-pairs matrix makes repeated vision queries O(1) per
+    // endpoint pair instead of running a fresh graph traversal for every
+    // visible-source/target pair.
+    for pivot in 0..count {
+        for source in 0..count {
+            let Some(to_pivot) = distances[source][pivot] else {
+                continue;
+            };
+            for destination in 0..count {
+                let Some(from_pivot) = distances[pivot][destination] else {
+                    continue;
+                };
+                let Some(candidate) = to_pivot.checked_add(from_pivot) else {
+                    continue;
+                };
+                if distances[source][destination].map_or(true, |known| candidate < known) {
+                    distances[source][destination] = Some(candidate);
+                }
+            }
+        }
+    }
+    VisionGraphDistances { node_index, distances }
+}
+
+fn graph_distance_between(graph: &VisionGraphDistances, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
+    let mut best = None;
+    for (source_node, source_offset) in from {
+        let Some(&source_index) = graph.node_index.get(source_node) else {
+            continue;
+        };
+        for (destination_node, destination_offset) in to {
+            let Some(&destination_index) = graph.node_index.get(destination_node) else {
+                continue;
+            };
+            let Some(path) = graph.distances[source_index][destination_index] else {
+                continue;
+            };
+            let Some(candidate) = source_offset.max(&0).checked_add(path)
+                .and_then(|distance| distance.checked_add((*destination_offset).max(0))) else {
+                continue;
+            };
+            best = Some(best.map_or(candidate, |known: i64| known.min(candidate)));
+        }
+    }
+    best
 }
 
 #[cfg(test)]
@@ -248,6 +309,17 @@ mod tests {
         // while D is reached later but has only 10 WU remaining (70 + 10 = 80).
         let target = on_edge("c", "d", 90);
         assert_eq!(world_distance2(&source, &target, &rules), Some(80 * 80));
+
+        // Cache identity is the full graph contents, not the map ID. Mutating
+        // edge weights under the same ID must rebuild the all-pairs matrix.
+        let mut changed_graph_rules = rules.clone();
+        for edge in &mut changed_graph_rules.map.edges {
+            if edge.id == "bx" || edge.id == "xd" {
+                edge.length = 200;
+            }
+        }
+        assert_eq!(changed_graph_rules.map.id, rules.map.id);
+        assert_eq!(world_distance2(&source, &target, &changed_graph_rules), Some(150 * 150));
 
         let unpositioned = on_edge("", "", 0);
         assert_eq!(combat_distance2(&unpositioned, &unpositioned, &rules), None);
