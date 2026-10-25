@@ -13,6 +13,8 @@
 
 既存CI／Playwright／Rust／WASM検証を再利用し、重いBrowserテストは検証単位で分割し、共有ビルドを活用する。Assertionや権限チェックを緩めて高速化しない。未実施の実機GPU／タッチ／IME／造形の目視評価はNOT_CHECKED。
 
+CIの証拠は次の単位で読む。`Native Rust build and tests`と`Web application build`はContract／型・ロジック回帰、`Native and real WebAssembly conformance`はDeterminism、browser shardの`journeys`はJourney、`verification-*`と`visual-*`はそれぞれ実行・画面の別証拠、Next scenario reportはGameplayの固定ケース証拠である。Visual shardはChromium/SwiftShaderのソフトウェア描画を用いるため、GPU性能の根拠にしない。CIはハードウェア性能受入を行わず、その判定はNOT_CHECKED。
+
 **G01**：合法戦型の結果差をまず計測。**G03保留**：現行の600 TickとDraw600は単なる観測値であり、意図的な理想試合時間と解釈しない。**G04**：戦術課題型PvEと難易度進行を組み合わせる。数値調整にはSenritsuの版／Digestと複数シナリオの実測が必要。
 
 ## Q03 — 原則削除

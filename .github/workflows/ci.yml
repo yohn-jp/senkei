@@ -45,9 +45,21 @@ jobs:
       - run: npm ci
       - run: cargo build --locked --release --bin senkei-wasm-dispatch
       - run: bash scripts/wasm/build.sh
-      - run: node tests/conformance/generate-scenario-inputs.mjs --check
-      - run: node tests/conformance/compare-adapters.mjs
-      - run: bash scripts/balance/run-next.sh
+      - name: Contract — generated scenario inputs are current
+        run: node tests/conformance/generate-scenario-inputs.mjs --check
+      - name: Determinism — native and real WebAssembly adapters
+        run: node tests/conformance/compare-adapters.mjs
+      - name: Gameplay — fixed Next scenario matrix and adapter parity
+        run: bash scripts/balance/run-next.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gameplay-evidence-next-scenarios
+          compression-level: 0
+          path: |
+            target/next-balance/latest.json
+            target/next-balance/adapter/
+          if-no-files-found: ignore
 
   web:
     name: Web application build
@@ -59,6 +71,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Check generated replay contract types
+        run: npm run contract:types && git diff --exit-code -- packages/replay-contract/src/generated.ts
       - run: npm test
       - run: node --test scripts/ci/verify-browser-captures.test.mjs
       - run: npm run build
