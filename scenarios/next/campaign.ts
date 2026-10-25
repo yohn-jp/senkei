@@ -33,15 +33,15 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       order: 1,
       difficulty: "beginner",
       title: "March to the lane",
-      description: "A five-Hero patrol advances toward the opposing side through the TOP route.",
-      objective: "Follow one Hero from its base to the first lane node and find the accepted move in the replay.",
+      description: "Five Solo Heroes take a direct route toward the opposing base.",
+      objective: "Follow the accepted move orders and compare how Solo routes converge on the same objective.",
       criteria: [
-        { id: "find-move", label: "Find the accepted move and see which node the Hero reaches." },
-        { id: "follow-line", label: "Compare the patrol's lane progress with the opposing patrol." },
+        { id: "find-move", label: "Find the accepted move orders and the route each Hero takes." },
+        { id: "follow-line", label: "Compare Solo movement with a grouped patrol before editing your tactic." },
       ],
-      roster: ["F01", "R01", "F02", "R02", "F03"],
+      roster: ["F01", "F03", "F06", "R02", "R04"],
       squads: [1, 1, 1, 1, 1],
-      destinations: ["B.TOP.T1", "B.TOP.T1", "B.TOP.T1", "B.TOP.T1", "B.TOP.T1"],
+      destinations: ["A.BASE", "A.BASE", "A.BASE", "A.BASE", "A.BASE"],
     },
     {
       id: "read-the-map",
@@ -50,7 +50,7 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       order: 1,
       difficulty: "beginner",
       title: "Scout the center",
-      description: "A scout takes the jungle route to the central observation point while the rest hold the lanes.",
+      description: "A scout takes the jungle route to the central observation point while the other Heroes spread across lanes.",
       objective: "Inspect the route and current visibility around the center before choosing where to reinforce.",
       criteria: [
         { id: "scout-route", label: "Trace the scout's route through a jungle node." },
@@ -58,7 +58,7 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       ],
       roster: ["R03", "F01", "R01", "F02", "R02"],
       squads: [1, 1, 1, 1, 1],
-      destinations: ["N.MID.OBS", "B.TOP.T1", "B.MID.T1", "B.BOT.T1", "B.MID.T1"],
+      destinations: ["N.MID.OBS", "A.TOP.T1", "A.MID.T1", "A.BOT.T1", "A.MID.T1"],
     },
     {
       id: "share-the-pressure",
@@ -75,7 +75,7 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       ],
       roster: ["F01", "F02", "R01", "R02", "F03"],
       squads: [2, 2, 1],
-      destinations: ["B.TOP.T2", "B.TOP.T2", "B.BOT.T2", "B.BOT.T2", "N.MID.OBS"],
+      destinations: ["A.TOP.T2", "A.TOP.T2", "A.BOT.T2", "A.BOT.T2", "N.MID.OBS"],
     },
     {
       id: "jungle-objective",
@@ -92,7 +92,7 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       ],
       roster: ["F04", "F05", "R03", "R04", "F06"],
       squads: [3, 2],
-      destinations: ["N.B.UC", "N.B.UC", "N.B.UC", "B.TOP.T1", "B.TOP.T1"],
+      destinations: ["N.A.UC", "N.A.UC", "N.A.UC", "A.TOP.T1", "A.TOP.T1"],
     },
     {
       id: "bridge-approach",
@@ -101,15 +101,15 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       order: 1,
       difficulty: "expert",
       title: "Approach the bridge together",
-      description: "A trained quintet advances toward the BOT bridge, while the defenders stage near its far bank.",
-      objective: "Read bridge occupancy and squad movement together before choosing whether to cross or rotate.",
+      description: "A trained quintet crosses the BOT bridge together into the opposing bank.",
+      objective: "Read bridge occupancy and squad movement together, then compare crossing with a faster split patrol.",
       criteria: [
         { id: "bridge-state", label: "Check the bridge state and the Heroes' crossing progress." },
         { id: "formation-cost", label: "Compare quintet movement with a faster split patrol." },
       ],
       roster: ["F01", "F02", "F03", "R01", "R03"],
       squads: [5],
-      destinations: ["B.BOT.T2", "B.BOT.T2", "B.BOT.T2", "B.BOT.T2", "B.BOT.T2"],
+      destinations: ["A.BOT.BANK", "A.BOT.BANK", "A.BOT.BANK", "A.BOT.BANK", "A.BOT.BANK"],
     },
     {
       id: "protect-the-core",
@@ -213,7 +213,7 @@ function createNpcDraft(ruleset: RulePackage, recipe: ScenarioRecipe): SenkeiDra
   });
 
   const heroes = selected.map(({ hero, path }, index) => domainRecord({
-    slot_id: domainString(`npc-${recipe.id}-${index + 1}`),
+    slot_id: domainString(`slot-${index + 1}`),
     catalog_id: domainString(hero.id),
     squad: domainString(squadForSlot[index]),
     node: domainString(recipe.startNodes?.[index] ?? next.map.defender_base),

@@ -100,6 +100,17 @@ respawn tick; hidden neutral lifecycle fields are not read from the owner
 projection. Longer-term objectives, broader composition coverage, and victory
 rates remain unmeasured.
 
+## Authored campaign clear
+
+The first authored NPC was also run through the production `senkei-runner` and
+Enbu path with a distinct, valid quintet base assault. On the same package
+digest above, the player destroyed the opposing base at tick 417
+(`AttackerVictory`, `base_destroyed`); the NPC accepted 18 movement intents.
+This fixed clear proves that the first progression step can unlock within the
+600-tick package limit. It is one tested input, not a win-rate estimate.
+[`campaign-clear.json`](../../docs/evidence/next/campaign-clear.json) records
+the exact setup and outcome.
+
 The suite covers minion vision as a movement modifier and checks that the
 initial public fog view does not reveal distant enemies. Separate actual-Enbu
 integration tests cover hidden-bridge Unknown handling, zero unauthorized

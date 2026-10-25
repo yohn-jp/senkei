@@ -1,0 +1,36 @@
+{
+  "schema": "senkei-next-campaign-clear/v1",
+  "ruleset_id": "senkei.next",
+  "ruleset_version": "2.0.0",
+  "mechanics_version": "2.0.0",
+  "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+  "scenario_id": "first-march",
+  "match_id": "campaign-first-march-clear",
+  "max_ticks": 600,
+  "attacker": {
+    "roster": ["F02", "F04", "R01", "R03", "R05"],
+    "squad_sizes": [5],
+    "start_node": "A.BASE",
+    "target": "B.BASE",
+    "tactic": "persistent per-Hero move orders toward the opposing base"
+  },
+  "defender_npc": {
+    "roster": ["F01", "F03", "F06", "R02", "R04"],
+    "squad_sizes": [1, 1, 1, 1, 1],
+    "start_node": "B.BASE",
+    "target": "A.BASE",
+    "tactic": "five persistent per-Hero move orders toward the opposing base"
+  },
+  "result": {
+    "outcome": "AttackerVictory",
+    "termination_reason": "base_destroyed",
+    "final_tick": 417,
+    "npc_accepted_move_intents": 18,
+    "attacker_logical_cu": 83640,
+    "defender_logical_cu": 83832
+  },
+  "limits": [
+    "This is one deterministic clear input, not a win-rate sample or a balance threshold.",
+    "Progression unlocks only from the actual Enbu attacker victory and base_destroyed termination."
+  ]
+}

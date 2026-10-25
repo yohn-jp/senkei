@@ -276,6 +276,92 @@ fn authored_next_campaign_recipes_compile_against_real_next_senritsu() {
     }
 }
 
+#[test]
+fn beginner_next_campaign_opponent_has_a_natural_base_destroyed_matchup() {
+    let sources = load_next_npc_sources();
+    let npc_tactics = &sources
+        .iter()
+        .find(|(id, _)| id == "first-march")
+        .expect("the first authored challenge source exists")
+        .1;
+    let mut player_moves = Vec::new();
+    for slot in 1..=5 {
+        let slot_id = format!("slot-{slot}");
+        player_moves.push(format!(
+            "action advance_slot_{slot} {{ when any hero in allies.heroes {{ hero.slot_id == \"{slot_id}\", hero.goal == \"\", hero.hp > 0, }}, do move(argmin hero in filter hero in allies.heroes {{ hero.slot_id == \"{slot_id}\", }} by hero.hp then hero.id, \"B.BASE\"), }}"
+        ));
+    }
+    let player_tactics = format!("senkei w9_persistent_movement {{ {} }}", player_moves.join(", "));
+    let npc_roster = ["F01", "F03", "F06", "R02", "R04"];
+    let attacker = next_combatant(
+        "campaign-player",
+        &player_tactics,
+        &["F02", "F04", "R01", "R03", "R05"],
+        &["squad-0"; 5],
+        "A.BASE",
+    );
+    let defender = next_combatant(
+        "npc-first-march",
+        npc_tactics,
+        &npc_roster,
+        &["npc-squad-1", "npc-squad-2", "npc-squad-3", "npc-squad-4", "npc-squad-5"],
+        "B.BASE",
+    );
+    let result = run(LocalMatchInput {
+        schema_version: INPUT_SCHEMA_VERSION,
+        match_id: "campaign-first-march-clear".into(),
+        ruleset_ref: senritsu::next_package().ruleset,
+        attacker,
+        defender,
+    })
+    .expect("authored beginner opponent and player tactics compile and simulate through Enbu");
+    let npc_accepted_moves = result.diagnostics.events.iter().filter(|event| {
+        event.side == CombatantSide::Defender
+            && matches!(&event.record, senkei_model::DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "move")
+    }).count();
+    eprintln!(
+        "first-march measured result: outcome={:?}, tick={}, termination={:?}, npc_accepted_moves={}, attacker_cu={}, defender_cu={}",
+        result.public.result.outcome,
+        result.public.result.final_tick,
+        result.public.result.termination_reason,
+        npc_accepted_moves,
+        result.public.result.cu_spent[&CombatantSide::Attacker].0,
+        result.public.result.cu_spent[&CombatantSide::Defender].0,
+    );
+    assert_eq!(result.public.result.outcome, MatchOutcome::AttackerVictory);
+    assert_eq!(result.public.result.termination_reason.as_str(), "base_destroyed");
+    assert!(result.public.result.final_tick < 600, "the authored challenge can be cleared within the canonical max tick");
+    assert!(npc_accepted_moves >= 5, "the five-Hero NPC issues its opening march orders");
+}
+
+fn next_combatant(
+    id: &str,
+    tactics: &str,
+    roster: &[&str; 5],
+    squads: &[&str; 5],
+    node: &str,
+) -> CombatantInput {
+    let heroes = roster.iter().enumerate().map(|(index, catalog_id)| {
+        DomainValue::Record(BTreeMap::from([
+            (FieldId::new("slot_id"), DomainValue::String(format!("slot-{}", index + 1))),
+            (FieldId::new("catalog_id"), DomainValue::String((*catalog_id).into())),
+            (FieldId::new("squad"), DomainValue::String(squads[index].into())),
+            (FieldId::new("node"), DomainValue::String(node.into())),
+            (FieldId::new("skill_path"), DomainValue::String("path_a".into())),
+        ]))
+    }).collect();
+    CombatantInput {
+        id: id.into(),
+        revision: "1".into(),
+        configuration: BTreeMap::from([(
+            FieldId::new("heroes"),
+            DomainValue::List(heroes),
+        )]),
+        initial_memory: BTreeMap::new(),
+        tactics: tactics.to_owned(),
+    }
+}
+
 fn load_npc_sources() -> Vec<(String, String)> {
     use std::path::Path;
 
