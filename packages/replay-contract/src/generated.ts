@@ -212,8 +212,8 @@ export interface Route {
   points: [WorldPoint, WorldPoint, ...WorldPoint[]];
   bridgeSite?: string;
   bridgeKind?: "lane" | "facility";
-  ford?: boolean;
   bridgePosition?: WorldPoint;
+  ford?: boolean;
 }
 export interface MapNode {
   id: string;
