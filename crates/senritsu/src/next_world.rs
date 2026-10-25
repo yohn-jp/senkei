@@ -22,42 +22,48 @@ pub fn battle_map() -> BattleMap {
             },
         );
     };
-    add_node("A.BASE", 0, 800, "base", "A");
-    add_node("B.BASE", 1200, 0, "base", "B");
+    add_node("A.BASE", 80, 1520, "base", "A");
+    add_node("B.BASE", 1520, 80, "base", "B");
     for (id, x, y, region, allegiance) in [
-        ("A.TOP.T1", 100, 650, "top", "A"),
-        ("A.TOP.T2", 210, 480, "top", "A"),
-        ("A.TOP.J", 340, 320, "top", "A"),
-        ("A.TOP.BANK", 435, 225, "riverbank", "A"),
-        ("B.TOP.BANK", 500, 190, "riverbank", "B"),
-        ("B.TOP.J", 620, 140, "top", "B"),
-        ("B.TOP.T2", 800, 90, "top", "B"),
-        ("B.TOP.T1", 1000, 40, "top", "B"),
-        ("A.MID.T1", 35, 700, "mid", "A"),
-        ("A.MID.T2", 150, 590, "mid", "A"),
-        ("A.MID.J", 310, 475, "mid", "A"),
-        ("A.MID.BANK", 465, 410, "riverbank", "A"),
-        ("B.MID.BANK", 720, 375, "riverbank", "B"),
-        ("B.MID.J", 825, 330, "mid", "B"),
-        ("B.MID.T2", 970, 235, "mid", "B"),
-        ("B.MID.T1", 1100, 110, "mid", "B"),
-        ("A.BOT.T1", 45, 950, "bot", "A"),
-        ("A.BOT.T2", 200, 850, "bot", "A"),
-        ("A.BOT.J", 385, 740, "bot", "A"),
-        ("A.BOT.BANK", 565, 665, "riverbank", "A"),
-        ("B.BOT.BANK", 650, 630, "riverbank", "B"),
-        ("B.BOT.J", 790, 550, "bot", "B"),
-        ("B.BOT.T2", 960, 390, "bot", "B"),
-        ("B.BOT.T1", 1100, 180, "bot", "B"),
-        ("N.MID.OBS", 590, 390, "observation", "N"),
-        ("N.A.UJ", 325, 397, "jungle", "N"),
-        ("N.B.UJ", 722, 235, "jungle", "N"),
-        ("N.A.LJ", 350, 610, "jungle", "N"),
-        ("N.B.LJ", 760, 465, "jungle", "N"),
-        ("N.A.UC", 270, 360, "camp", "N"),
-        ("N.B.UC", 780, 200, "camp", "N"),
-        ("N.A.LC", 300, 680, "camp", "N"),
-        ("N.B.LC", 810, 425, "camp", "N"),
+        // TOP forms the upper outer arc. B-side coordinates transpose the A
+        // side across the diagonal river rather than crowding the MID route.
+        ("A.TOP.T1", 220, 1200, "top", "A"),
+        ("A.TOP.T2", 220, 850, "top", "A"),
+        ("A.TOP.J", 260, 520, "top", "A"),
+        ("A.TOP.BANK", 380, 400, "riverbank", "A"),
+        ("B.TOP.BANK", 400, 380, "riverbank", "B"),
+        ("B.TOP.J", 520, 260, "top", "B"),
+        ("B.TOP.T2", 850, 220, "top", "B"),
+        ("B.TOP.T1", 1200, 220, "top", "B"),
+        // MID remains on x + y = 1600 and frames the river-island objective.
+        ("A.MID.T1", 330, 1270, "mid", "A"),
+        ("A.MID.T2", 510, 1090, "mid", "A"),
+        ("A.MID.J", 650, 950, "mid", "A"),
+        ("A.MID.BANK", 735, 865, "riverbank", "A"),
+        ("B.MID.BANK", 865, 735, "riverbank", "B"),
+        ("B.MID.J", 950, 650, "mid", "B"),
+        ("B.MID.T2", 1090, 510, "mid", "B"),
+        ("B.MID.T1", 1270, 330, "mid", "B"),
+        // BOT occupies the lower outer arc, mirrored with TOP by side.
+        ("A.BOT.T1", 340, 1440, "bot", "A"),
+        ("A.BOT.T2", 700, 1380, "bot", "A"),
+        ("A.BOT.J", 1080, 1340, "bot", "A"),
+        ("A.BOT.BANK", 1200, 1220, "riverbank", "A"),
+        ("B.BOT.BANK", 1220, 1200, "riverbank", "B"),
+        ("B.BOT.J", 1340, 1080, "bot", "B"),
+        ("B.BOT.T2", 1380, 700, "bot", "B"),
+        ("B.BOT.T1", 1440, 340, "bot", "B"),
+        ("N.MID.OBS", 800, 800, "observation", "N"),
+        // Upper/lower jungle crossings meet the diagonal river between fixed
+        // bridge sites. Camp terminals sit off the jungle trunk paths.
+        ("N.A.UJ", 450, 700, "jungle", "N"),
+        ("N.B.UJ", 700, 450, "jungle", "N"),
+        ("N.A.LJ", 930, 1150, "jungle", "N"),
+        ("N.B.LJ", 1150, 930, "jungle", "N"),
+        ("N.A.UC", 350, 780, "camp", "N"),
+        ("N.B.UC", 780, 350, "camp", "N"),
+        ("N.A.LC", 700, 1220, "camp", "N"),
+        ("N.B.LC", 1220, 700, "camp", "N"),
     ] {
         add_node(id, x, y, region, allegiance);
     }
@@ -504,6 +510,69 @@ mod tests {
                 && map.nodes["A.BASE"].y > map.nodes["B.BASE"].y
         );
         assert!(map.nodes["N.MID.OBS"].allegiance == "N");
+    }
+
+    #[test]
+    fn visual_embedding_keeps_lane_arcs_river_crossings_and_side_symmetry() {
+        let map = battle_map();
+        let mut symmetric_pairs = vec![("A.BASE".to_owned(), "B.BASE".to_owned())];
+        for lane in ["TOP", "MID", "BOT"] {
+            for segment in ["T1", "T2", "J", "BANK"] {
+                symmetric_pairs.push((
+                    format!("A.{lane}.{segment}"),
+                    format!("B.{lane}.{segment}"),
+                ));
+            }
+        }
+        symmetric_pairs.extend([
+            ("N.A.UJ".to_owned(), "N.B.UJ".to_owned()),
+            ("N.A.LJ".to_owned(), "N.B.LJ".to_owned()),
+            ("N.A.UC".to_owned(), "N.B.UC".to_owned()),
+            ("N.A.LC".to_owned(), "N.B.LC".to_owned()),
+        ]);
+        for (a, b) in symmetric_pairs {
+            assert_eq!(
+                map.nodes[&a].x,
+                map.nodes[&b].y,
+                "{a} ↔ {b} x/y symmetry"
+            );
+            assert_eq!(
+                map.nodes[&a].y,
+                map.nodes[&b].x,
+                "{a} ↔ {b} y/x symmetry"
+            );
+        }
+
+        let point = |id: &str| (map.nodes[id].x, map.nodes[id].y);
+        let edge_midpoint = |id: &str| {
+            let edge = map.edges.iter().find(|edge| edge.id == id).unwrap();
+            let (x1, y1) = point(&edge.from);
+            let (x2, y2) = point(&edge.to);
+            ((x1 + x2) / 2, (y1 + y2) / 2)
+        };
+        let river_crossings = [
+            edge_midpoint("bridge.TOP"),
+            edge_midpoint("ford.jungle.upper"),
+            point("N.MID.OBS"),
+            edge_midpoint("ford.jungle.lower"),
+            edge_midpoint("bridge.BOT"),
+        ];
+        assert_eq!(
+            river_crossings,
+            [
+                (390, 390),
+                (575, 575),
+                (800, 800),
+                (1040, 1040),
+                (1210, 1210)
+            ]
+        );
+        assert!(river_crossings
+            .windows(2)
+            .all(|pair| pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1));
+        assert!(map.nodes.values().all(|node| {
+            (0..=1600).contains(&node.x) && (0..=1600).contains(&node.y)
+        }));
     }
 
     #[test]
