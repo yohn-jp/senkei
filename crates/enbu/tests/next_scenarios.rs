@@ -1497,7 +1497,7 @@ fn battlefield_interaction_match(
         .unwrap_or_else(|error| panic!("canonical track, bridge, ford, movement and retreat Jinrei source compiles: {error:?}"));
     let defender_program = compile(&defender_source, rules)
         .unwrap_or_else(|error| panic!("canonical contested-node exit policy compiles: {error:?}"));
-    let attacker_nodes = ["A.TOP.T1", "A.TOP.BANK", "N.A.UJ", "N.MID.OBS", "A.MID.BANK"].map(str::to_owned);
+    let attacker_nodes = ["A.TOP.T1", "A.TOP.BANK", "N.A.UJ", "N.MID.OBS", "A.MID.T2"].map(str::to_owned);
     let defender_nodes = ["N.MID.OBS", "N.MID.OBS", "B.BASE", "B.BASE", "B.BASE"].map(str::to_owned);
     let mut attacker = configured_snapshot(
         rules,
@@ -1571,7 +1571,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(lane_mover, "track"), "LEFT");
     assert!(entity_integer(lane_mover, "edge_progress") > 0);
     let pursuer = owner_hero_at(&artifact, 1, "slot-5");
-    assert_eq!(entity_string(pursuer, "edge_to"), "N.MID.OBS", "the actual pursuit begins along a connected edge to the observed target node");
+    assert_eq!(entity_string(pursuer, "node"), "A.MID.T2");
+    assert_eq!(entity_string(pursuer, "edge_to"), "A.MID.J", "the actual pursuit begins along the next connected edge to the observed target node");
     assert!(entity_integer(pursuer, "edge_progress") > 0);
     let retreating = owner_hero_at(&artifact, 2, "slot-4");
     assert_eq!(entity_string(retreating, "node"), "N.MID.OBS");
