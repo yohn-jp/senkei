@@ -165,6 +165,8 @@ export interface CoreClient {
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
   formatAst(ast: StructuredTacticsAst, ruleset_ref: RulesetRef): Promise<string>;
   compile(input: TacticalInput): Promise<CompileOutcome>;
+  /** Validate the exact Enbu launch snapshot without executing any match ticks. */
+  preflight(snapshot: SimulationSnapshot): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
     options?: { readonly include_diagnostics?: boolean },

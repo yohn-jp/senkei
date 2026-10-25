@@ -1,0 +1,37 @@
+[
+  {
+    "viewport": "mobile-320",
+    "result": "Confirmed result · Draw",
+    "finalTick": 600,
+    "rendered": "true",
+    "wasm200": true
+  },
+  {
+    "viewport": "mobile-390",
+    "result": "Confirmed result · Draw",
+    "finalTick": 600,
+    "rendered": "true",
+    "wasm200": true
+  },
+  {
+    "viewport": "mobile-430",
+    "result": "Confirmed result · Draw",
+    "finalTick": 600,
+    "rendered": "true",
+    "wasm200": true
+  },
+  {
+    "viewport": "desktop-1440",
+    "result": "Confirmed result · Draw",
+    "finalTick": 600,
+    "rendered": "true",
+    "wasm200": true
+  },
+  {
+    "viewport": "desktop-1920",
+    "result": "Confirmed result · Draw",
+    "finalTick": 600,
+    "rendered": "true",
+    "wasm200": true
+  }
+]

@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
 
 type JsonRecord = Record<string, any>;
 type Viewport = { readonly name: string; readonly width: number; readonly height: number };
@@ -488,6 +489,7 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   const launch = page.getByRole("button", { name: /Launch local battle|New local battle/i });
   await expect(launch).toBeEnabled();
   await launch.click();
+  await completePreflight(page);
   await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
   const canvas = page.locator(".next-renderer-host canvas");
   await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 30_000 });

@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
 
 type JsonRecord = Record<string, any>;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -103,6 +104,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await page.locator("#next-tab-battle").click();
   await page.getByRole("button", { name: /Launch local battle|New local battle/i }).click();
+  await completePreflight(page);
   await expect(page.getByText(/AUTHORITATIVE ENBU RESULT|Confirmed result/i).first()).toBeVisible({ timeout: 120_000 });
   const canvas = page.locator(".next-renderer-host canvas");
   await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 30_000 });

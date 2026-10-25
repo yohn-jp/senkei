@@ -93,3 +93,4 @@ jobs:
             docs/evidence/next/
             docs/evidence/battlefield/
             tests/browser/test-results/
+            test-results/ux-session-1/

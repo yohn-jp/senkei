@@ -1,4 +1,4 @@
-use enbu::{new_match_context, simulate};
+use enbu::{new_match_context, preflight, simulate};
 use jinrei::{compile, Vm};
 use senkei_model::*;
 use std::collections::BTreeMap;
@@ -1437,6 +1437,8 @@ fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
     let (attacker, defender, mut context) =
         build_match(&rules, &[1, 1, 1, 1, 1], "w9-invalid-roster", 1, None, None);
     let mut vm = Vm::new(&rules);
+    assert_eq!(preflight(&attacker, &defender, &rules, &context), Ok(()),
+        "the canonical initial state passes Enbu preflight");
 
     let mut four_heroes = attacker.clone();
     let DomainValue::List(heroes) = four_heroes
@@ -1447,6 +1449,8 @@ fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
         panic!("hero configuration is a list");
     };
     heroes.pop();
+    assert!(preflight(&four_heroes, &defender, &rules, &context).is_err(),
+        "preflight applies the same exact-roster validation as simulation");
     assert!(simulate(&four_heroes, &defender, &rules, &context, &mut vm).is_err(),
         "a roster with fewer than five Heroes is invalid");
 
@@ -1479,6 +1483,8 @@ fn next_match_setup_rejects_bad_rosters_and_incompatible_context_versions() {
     if let DomainValue::Record(fields) = &mut heroes[0] {
         fields.insert(FieldId::new("skill_path"), DomainValue::String("w9_unknown_path".into()));
     }
+    assert!(preflight(&unknown_path, &defender, &rules, &context).is_err(),
+        "preflight applies the same catalog path validation as simulation");
     assert!(simulate(&unknown_path, &defender, &rules, &context, &mut vm).is_err(),
         "a skill path outside the selected catalog Hero is invalid");
 

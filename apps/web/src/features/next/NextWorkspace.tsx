@@ -1,3 +1,5 @@
+import { CoreClientError } from "../../worker";
+import { JourneyScreens } from "./JourneyScreens";
 import { HeroModelPreview } from "./HeroModelPreview";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -33,6 +35,17 @@ import { EditorFeature } from "../editor";
 import { JinreiDomainPanel } from "./JinreiDomainPanel";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
 import "./next-workspace.css";
+
+class PreflightProblem extends Error {
+  constructor(message: string, readonly status: "invalid" | "unverified") { super(message); }
+}
+
+function preflightFailureStatus(cause: unknown): "invalid" | "unverified" | "failed" {
+  if (cause instanceof PreflightProblem) return cause.status;
+  if (cause instanceof CoreClientError && cause.code === "core_error" && isRecord(cause.details)
+    && ["invalid_snapshot", "invalid_program", "validation_failed", "compile_failed", "invalid_ruleset", "incompatible_version", "unsupported_primitive", "budget_exceeded"].includes(String(cause.details.code))) return "invalid";
+  return "failed";
+}
 
 const SLOT_IDS = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"] as const;
 const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
@@ -110,6 +123,7 @@ interface SavedNextSetup {
 
 interface WorkspaceProps {
   readonly active: boolean;
+  readonly entry: { readonly screen: "home" | "workspace"; readonly request: number };
   readonly core: CoreClient | null;
   readonly ruleset: RulePackage | null;
   readonly rulesetError: string | null;
@@ -548,8 +562,15 @@ function diagnosticDetails(diagnostics: RestrictedDiagnostics): readonly { tick:
   });
 }
 
-export function NextWorkspace({ active, core, ruleset: packageValue, rulesetError }: WorkspaceProps): ReactElement {
+export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError }: WorkspaceProps): ReactElement {
   const nextRules = packageValue?.next ?? null;
+  const [screen, setScreen] = useState<"home" | "conditions" | "preset" | "ready" | "workspace" | "resume" | "running">("home");
+  const [entryMode, setEntryMode] = useState<"quick" | "custom" | "review">("quick");
+  const [checking, setChecking] = useState(false);
+  const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
+  const [preflightFailure, setPreflightFailure] = useState<{ key: string; message: string; status: "invalid" | "unverified" | "failed" } | null>(null);
+  const operationInFlight = useRef(false);
+  useEffect(() => { if (!operationInFlight.current) setScreen(entry.screen); }, [entry]);
   const [tab, setTab] = useState<WorkspaceTab>("formation");
   const [atelierScreen, setAtelierScreen] = useState<AtelierScreen>("collection");
   const [saveDetailsOpen, setSaveDetailsOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 761px)").matches);
@@ -740,17 +761,26 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   }, [packageValue?.ruleset.digest, recoverySetupLoaded]);
 
   const compilerContextKey = draft && editorCatalogMatchesRuleset(editorCatalog, packageValue)
-    ? stableKey({ draft, catalog: catalogStamp(editorCatalog) })
+    ? stableKey({ draft, slots, catalog: catalogStamp(editorCatalog) })
     : null;
   const activeCompilation = compilerContextKey !== null && compilation?.key === compilerContextKey
     ? compilation.result
     : null;
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
+  const draftIsSaved = Boolean(savedSetup && !savedSetupError && draft
+    && stableKey({ draft, slots, rivalSlots, formationShape }) === stableKey({
+      draft: savedSetup.draft, slots: savedSetup.slots, rivalSlots: savedSetup.rival_slots, formationShape: savedSetup.formation_shape,
+    }));
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
   const runIsCurrent = Boolean(run && activeCompilation &&
     run.snapshot.attacker.program.content_digest === activeCompilation.program.content_digest &&
     stableKey(run.snapshot.attacker.configuration.heroes) === stableKey(heroConfiguration(slots)));
+  const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset });
+  const launchKeyRef = useRef(launchKey);
+  launchKeyRef.current = launchKey;
+  const readySnapshot = prepared?.key === launchKey && activeCompilation ? prepared.snapshot : null;
+  const currentPreflightError = preflightFailure?.key === launchKey ? preflightFailure : null;
   const activeSlotValue = slots[activeSlot] ?? null;
   const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
   const heroes = nextRules?.heroes ?? [];
@@ -1064,7 +1094,6 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     };
     draftRef.current = nextDraft;
     setDraft(nextDraft);
-    setCompilation(null);
   }, [packageValue]);
 
   useEffect(() => {
@@ -1114,8 +1143,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   }, [isPlaying, player]);
 
   useEffect(() => {
-    if (!active || tab !== "battle") player?.pause();
-  }, [active, player, tab]);
+    if (!active || tab !== "battle" || screen !== "workspace") player?.pause();
+  }, [active, player, tab, screen]);
 
   useEffect(() => {
     const host = rendererHost.current;
@@ -1196,7 +1225,6 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const updateDraft = useCallback((next: SenkeiDraft | null): void => {
     draftRef.current = next;
     setDraft(next);
-    setCompilation(null);
     setError(null);
   }, []);
 
@@ -1206,7 +1234,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     updateDraft({ ...current, program_input: { kind: "text", source } });
   }, [updateDraft]);
 
-  const compileTactics = useCallback(async (input: TacticalInput): Promise<void> => {
+  const compileTactics = useCallback(async (input: TacticalInput): Promise<CompileOutcome> => {
     if (!core) throw new Error("The local Rust core is still loading.");
     const current = draftRef.current;
     if (!current) throw new Error("Create a formation before compiling Jinrei.");
@@ -1220,7 +1248,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       || input.ruleset_ref.digest !== packageValue.ruleset.digest) {
       throw new Error("This Jinrei draft targets a different RulePackage than the selected Catalog.");
     }
-    const key = stableKey({ draft: current, catalog: catalogStamp(editorCatalog) });
+    const key = stableKey({ draft: current, slots, catalog: catalogStamp(editorCatalog) });
     let result: CompileOutcome;
     if (input.kind === "text") {
       if (editorCompileRevision.current >= Number.MAX_SAFE_INTEGER) {
@@ -1234,7 +1262,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       }
       if (envelope.reply.status === "rejected") {
         const { code, message, path } = envelope.reply.error;
-        throw new Error(`${code}${path ? ` at ${path}` : ""}: ${message}`);
+        throw new PreflightProblem(`${code}${path ? ` at ${path}` : ""}: ${message}`, "invalid");
       }
       result = envelope.reply.result;
     } else {
@@ -1245,63 +1273,67 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     }
     setCompilation({ key, result });
     setError(null);
-  }, [core, editorCatalog, editorCatalogError, packageValue]);
+    return result;
+  }, [core, editorCatalog, editorCatalogError, packageValue, slots]);
 
   const onCatalogCompile = useCallback((result: CompileOutcome, key: string): void => {
     if (draftRef.current && editorCatalogMatchesRuleset(editorCatalog, packageValue)
-      && stableKey({ draft: draftRef.current, catalog: catalogStamp(editorCatalog) }) === key) {
+      && stableKey({ draft: draftRef.current, slots, catalog: catalogStamp(editorCatalog) }) === key) {
       setCompilation({ key, result });
       setError(null);
     }
-  }, [editorCatalog, packageValue]);
+  }, [editorCatalog, packageValue, slots]);
 
-  const launchBattle = useCallback(async (): Promise<void> => {
-    if (!editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
-      setError(editorCatalogError ?? "A matching Senritsu Domain Catalog is required before compiling or launching this draft.");
-      return;
+  const prepareBattle = async (): Promise<SimulationSnapshot> => {
+    if (!core || !packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
+      throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
     }
-    if (!core || !packageValue || !nextRules || !draft || !activeCompilation) {
-      setError("Compile the current Jinrei draft before launching a local battle.");
-      return;
-    }
-    if (slots.length !== 5 || rivalSlots.length !== 5 || slots.some((slot) => !slot.catalog_id || !slot.node || !slot.skill_path)) {
-      setError("Choose a catalog hero, starting node and skill path for all five slots.");
-      setTab("formation");
-      return;
-    }
+    const key = launchKey;
+    const playerCompilation = activeCompilation ?? await compileTactics(draft.program_input.kind === "text"
+      ? { kind: "text", source: draft.program_input.source, ruleset_ref: draft.ruleset }
+      : { kind: "structured_ast", ast: draft.program_input.ast, ruleset_ref: draft.ruleset });
+    const rivalDraft = createTacticDraft(packageValue, nextRules, "defender");
+    const rivalSource = createStarterJinrei(packageValue, "defender", rivalSlots);
+    const revision = ++editorCompileRevision.current;
+    const stamp = catalogStamp(editorCatalog);
+    const envelope = await core.editorCompile({ source: rivalSource, stamp, revision });
+    if (envelope.revision !== revision || !sameCatalog(stamp, envelope.reply.stamp)) throw new Error("NPC compiler identity mismatch.");
+    if (envelope.reply.status === "rejected") throw new PreflightProblem(`${envelope.reply.error.code}: ${envelope.reply.error.message}`, "invalid");
+    const attacker = makeSideSnapshot(draft, playerCompilation.program, slots);
+    const defender = makeSideSnapshot(rivalDraft, envelope.reply.result.program, rivalSlots);
+    const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, attacker, defender }));
+    const snapshot = { attacker, defender, context };
+    await core.preflight(snapshot);
+    if (launchKeyRef.current !== key) throw new PreflightProblem("設定が変更されました。現在の設定を再検証してください。", "unverified");
+    setPrepared({ key, snapshot });
+    return snapshot;
+  };
+
+  const checkReadiness = async (): Promise<void> => {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
+    setChecking(true);
+    setPreflightFailure(null);
+    setPrepared(null);
+    setError(null);
+    const key = launchKey;
+    try { await prepareBattle(); }
+    catch (cause) { setPreflightFailure({ key, message: cause instanceof Error ? cause.message : String(cause), status: preflightFailureStatus(cause) }); }
+    finally { operationInFlight.current = false; setChecking(false); }
+  };
+
+  const launchBattle = async (): Promise<void> => {
+    if (operationInFlight.current || !core || !packageValue || !readySnapshot) return;
+    operationInFlight.current = true;
     setBusy(true);
+    setScreen("running");
     setError(null);
     setRendererError(null);
     try {
-      const rivalDraft = createTacticDraft(packageValue, nextRules, "defender");
-      const rivalSource = rivalDraft.program_input.kind === "text" ? rivalDraft.program_input.source : "";
-      if (editorCompileRevision.current >= Number.MAX_SAFE_INTEGER) {
-        throw new Error("The editor compile revision space is exhausted. Reload the workspace before compiling again.");
-      }
-      const rivalRevision = ++editorCompileRevision.current;
-      const stamp = catalogStamp(editorCatalog);
-      const rivalEnvelope = await core.editorCompile({ source: rivalSource, stamp, revision: rivalRevision });
-      if (rivalEnvelope.revision !== rivalRevision || !sameCatalog(stamp, rivalEnvelope.reply.stamp)) {
-        throw new Error("Jinrei compiler response does not match the selected Catalog revision.");
-      }
-      if (rivalEnvelope.reply.status === "rejected") {
-        const { code, message, path } = rivalEnvelope.reply.error;
-        throw new Error(`${code}${path ? ` at ${path}` : ""}: ${message}`);
-      }
-      const rivalCompilation = rivalEnvelope.reply.result;
-      const attacker = makeSideSnapshot(draft, activeCompilation.program, slots);
-      const defender = makeSideSnapshot(rivalDraft, rivalCompilation.program, rivalSlots);
-      const matchId = stableMatchId({ ruleset: packageValue.ruleset, attacker, defender });
-      const context = await core.newMatchContext(packageValue.ruleset, matchId);
-      const snapshot: SimulationSnapshot = { attacker, defender, context };
+      const snapshot = readySnapshot;
       const response = await core.simulate(snapshot, { include_diagnostics: includeDiagnostics });
       const sourceReplay = response.owner_replay ?? response.outcome.presentation_replay;
-      const graphicsReplay = presentationToGraphics(
-        sourceReplay,
-        packageValue,
-        response.outcome.result,
-        context.versions.engine,
-      );
+      const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
       setBaselineRun(run);
       setRun({ snapshot, response, sourceReplay, graphicsReplay });
       setSelectedEntityId(null);
@@ -1311,18 +1343,15 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       setFocusedReplayPoint(null);
       setBattleMobileView("battle");
       setTab("battle");
+      setScreen("workspace");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The local Next battle could not be launched.");
-    } finally {
-      setBusy(false);
-    }
-  }, [activeCompilation, core, draft, editorCatalog, editorCatalogError, includeDiagnostics, nextRules, packageValue, rivalSlots, slots]);
+      setPrepared(null);
+      setScreen("ready");
+    } finally { operationInFlight.current = false; setBusy(false); }
+  };
 
-  const rematch = useCallback((): void => {
-    if (!run) return;
-    setTab("battle");
-    void launchBattle();
-  }, [launchBattle, run]);
+  const rematch = (): void => { if (run) setScreen("ready"); };
 
   const chooseFormation = (shape: "single" | "three-lane" | "wings") => {
     if (!nextRules) return;
@@ -1500,23 +1529,24 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         </header>
         <div className={`next-load-state${rulesetError ? " is-error" : ""}`} role={rulesetError ? "alert" : "status"}>
           <span className="next-load-mark">{rulesetError ? "!" : "◌"}</span>
-          <div><strong>{rulesetError ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p></div>
+          <div><strong>{rulesetError ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p><button type="button" onClick={() => window.location.reload()}>読込を再試行</button></div>
         </div>
       </section>
     );
   }
 
   return (
-    <section className={`next-workspace${tab === "battle" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
+    <section className={`next-workspace${tab === "battle" && screen === "workspace" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
       <header className="next-heading">
-        <div><span className="next-eyebrow">NEXT · SENRITSU 1.0 · LOCAL ENBU</span><h2>Battle <em>workbench</em></h2><p>Build five heroes, write Jinrei, run the local core and study the synchronized replay.</p></div>
+        <div><span className="next-eyebrow">NEXT · {packageValue.ruleset.id} · LOCAL ENBU</span><h2>{screen === "workspace" ? <>Battle <em>workbench</em></> : <>Senkei <em>始める</em></>}</h2><p>5 Heroの戦型を準備し、ローカルPvEを実行する。</p></div>
         <div className="next-heading-status"><span className="next-live-dot" />REAL LOCAL SIMULATION<span className="next-heading-mark" aria-hidden="true">兵</span></div>
       </header>
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
+      {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => window.location.reload()}>読込を再試行</button><button type="button" onClick={() => setScreen("resume")}>保存・復旧へ</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError} Playback is paused at the current tick.</span><button type="button" onClick={retryRenderer}>Retry battlefield renderer</button></div>}
 
-      <details className="next-save-disclosure" open={saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
+      <details className="next-save-disclosure" hidden={screen !== "workspace" && screen !== "resume"} open={screen === "resume" || saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
       <summary><strong>Save and recovery</strong><small>{recoveryLoadError ? "Recovery needs attention" : savedSetup ? "Pinned setup available" : "No pinned setup"} · opens local setup controls</small></summary>
       <section aria-label="Next setup save and restore" className="next-save-bar">
         <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Saved setup and recovery copy</strong><small>Save setup pins a restore point; current edits are recovered separately after reload.</small></div>
@@ -1548,6 +1578,25 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
       </section>
       </details>
 
+      <p className="journey-draft-status" hidden={screen === "workspace" && tab === "battle"}>{draft?.id} · {draftIsSaved ? "保存済み" : savedSetup ? "未保存の変更あり" : "未保存Draft"} · {activeCompilation ? "Compiled" : compilation ? "Compile失効" : "未コンパイル"}</p>
+      <JourneyScreens screen={screen} setScreen={setScreen} entryMode={entryMode} setEntryMode={setEntryMode}
+        slots={slots} rivalSlots={rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={draft}
+        ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
+        compiled={Boolean(activeCompilation)} compilationCU={activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
+        coreReady={Boolean(core && editorCatalogMatchesRuleset(editorCatalog, packageValue))}
+        includeDiagnostics={includeDiagnostics} setIncludeDiagnostics={setIncludeDiagnostics}
+        check={() => void checkReadiness()} launch={() => void launchBattle()}
+        edit={(target) => { setScreen("workspace"); setTab(target === "jinrei" ? "jinrei" : "formation"); if (target !== "jinrei") setAtelierScreen(target); }}
+        recoveryRestored={recoveryRestored} saved={canRestoreSavedSetup}
+        newPreset={() => {
+          if (!nextRules || !packageValue) return;
+          const playerSlots = defaultSlots(nextRules, "attacker", DEFAULT_HERO_IDS);
+          setSlots(playerSlots); setRivalSlots(defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS));
+          setFormationShape("single"); updateDraft(createTacticDraft(packageValue, nextRules, "attacker"));
+          setPrepared(null); setPreflightFailure(null); setScreen("preset");
+        }} />
+      <div className="journey-workspace" hidden={screen !== "workspace"}>
+      <div className="journey-toolbar" hidden={tab === "battle"}><button type="button" onClick={() => setScreen("home")}>Homeへ戻る</button><span>Hero / Jinrei / Replay / Analysis</span><button type="button" onClick={() => setScreen("ready")}>準備確認へ</button></div>
       <div className="next-layout">
         <nav className="next-tabs" aria-label="Next workbench" role="tablist">
           <div className="next-tabs-title"><span className="next-eyebrow">LOCAL WORKSPACE</span><strong>FIELD CONSOLE</strong></div>
@@ -1648,13 +1697,13 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               onDraftChange={updateDraft}
               onParse={(source, rulesetRef) => core ? core.parseText(source, rulesetRef) : Promise.reject(new Error("The local Rust core is still loading."))}
               onFormat={(ast, rulesetRef) => core ? core.formatAst(ast, rulesetRef) : Promise.reject(new Error("The local Rust core is still loading."))}
-              onCompile={compileTactics}
+              onCompile={async (input) => { await compileTactics(input); }}
             />}
             {draft && core && editorCatalogMatchesRuleset(editorCatalog, packageValue) ? (
               <JinreiDomainPanel
                 catalog={editorCatalog}
                 core={core}
-                draftKey={compilerContextKey ?? stableKey({ draft, catalog: catalogStamp(editorCatalog) })}
+                draftKey={compilerContextKey ?? stableKey({ draft, slots, catalog: catalogStamp(editorCatalog) })}
                 onCompiled={onCatalogCompile}
                 onSourceChange={updateFoundationSource}
                 slot={activeSlotValue ? {
@@ -1677,8 +1726,8 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             <div className="next-jinrei-note"><span>LOCAL DRAFT</span><p>Starter orders move each slot and target path-selected skills only when their unlock level, energy, cooldown and target conditions are met. This draft stays separate from saved initial Senkei strategies.</p></div>
           </section>
 
-          <section aria-labelledby="next-tab-battle" className="next-panel next-battle-panel" hidden={tab !== "battle"} id="next-panel-battle" role="tabpanel">
-            <div className="next-panel-header next-battle-header"><div><span className="next-eyebrow">03 · LOCAL ENBU REPLAY</span><h3>Battlefield <em>console</em></h3><p>{run ? `${run.graphicsReplay.header.view === "attacker" ? "Local owner view" : "Public replay"} · Tick ${displayState?.tick ?? 0} / ${run.graphicsReplay.result.tick}` : "Launch a compiled local battle, then observe the confirmed replay."}</p></div><div className="next-battle-actions"><button aria-label="Battle situation details" aria-expanded={battleInspectorOpen} className="next-secondary-button next-desktop-inspector-toggle" disabled={!run} onClick={() => setBattleInspectorOpen(value => !value)} type="button">{battleInspectorOpen ? "Close details" : "Situation details"}</button><button className="next-secondary-button" disabled={!run || busy || !activeCompilation} onClick={rematch} type="button">{runIsCurrent ? "Rematch" : "Run revised battle"} <b>↻</b></button><button className="next-launch-button" disabled={busy || !activeCompilation} onClick={() => void launchBattle()} type="button"><span>{busy ? "◌" : "▶"}</span>{busy ? "Running local core…" : run ? "New local battle" : "Launch local battle"}</button></div></div>
+          <section aria-labelledby="next-tab-battle" className="next-panel next-battle-panel" hidden={tab !== "battle" || screen !== "workspace"} id="next-panel-battle" role="tabpanel">
+            <div className="next-panel-header next-battle-header"><div><span className="next-eyebrow">03 · LOCAL ENBU REPLAY</span><h3>Battlefield <em>console</em></h3><p>{run ? `${run.graphicsReplay.header.view === "attacker" ? "Local owner view" : "Public replay"} · Tick ${displayState?.tick ?? 0} / ${run.graphicsReplay.result.tick}` : "Launch a compiled local battle, then observe the confirmed replay."}</p></div><div className="next-battle-actions"><button aria-label="Battle situation details" aria-expanded={battleInspectorOpen} className="next-secondary-button next-desktop-inspector-toggle" disabled={!run} onClick={() => setBattleInspectorOpen(value => !value)} type="button">{battleInspectorOpen ? "Close details" : "Situation details"}</button><button className="next-secondary-button" disabled={!run || busy || !activeCompilation} onClick={rematch} type="button">{runIsCurrent ? "Rematch" : "Run revised battle"} <b>↻</b></button><button className="next-launch-button" disabled={busy || !activeCompilation} onClick={() => setScreen("ready")} type="button"><span>{busy ? "◌" : "▶"}</span>{busy ? "Running local core…" : run ? "New local battle" : "Launch local battle"}</button></div></div>
             <div className="next-battle-setup"><details className="next-battle-options"><summary>Replay access · {includeDiagnostics ? "owner diagnostics on" : "public replay only"}</summary><label className="next-diagnostic-toggle"><input checked={includeDiagnostics} onChange={(event) => setIncludeDiagnostics(event.target.checked)} type="checkbox" /><span className="next-checkbox" /><span><strong>Include my local replay and diagnostics</strong><small>Owner replay, visible Hero state, ability trace, intents and CU only</small></span></label></details><span className="next-match-badge">{runResult ? `MATCH ${runResult.match_id.slice(0, 16)}` : "READY WHEN JINREI IS COMPILED"}</span></div>
             {runResult && run ? <>
               <div className="next-battle-stage">
@@ -1789,6 +1838,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             {baselineRun && runResult && run && <div className="next-run-comparison"><div className="next-comparison-heading"><div><span className="next-eyebrow">LAST RUN · CURRENT RUN</span><strong>{stableKey(baselineRun.snapshot) === stableKey(run.snapshot) ? "Exact deterministic rematch" : "Result after revision"}</strong></div><span>BEFORE / CURRENT</span></div><div className="next-comparison-values"><div><small>BEFORE</small><strong>{formatId(baselineRun.response.outcome.result.outcome)}</strong><span>{baselineRun.response.outcome.result.final_tick} ticks · {baselineRun.response.outcome.result.cu_spent.attacker} CU</span></div><span className="next-comparison-arrow">→</span><div><small>CURRENT</small><strong>{formatId(runResult.outcome)}</strong><span>{runResult.final_tick} ticks · {runResult.cu_spent.attacker} CU</span></div><div className="next-comparison-delta"><small>CHANGE</small><strong>{signed(runResult.final_tick - baselineRun.response.outcome.result.final_tick)} ticks</strong><span>{signed(runResult.cu_spent.attacker - baselineRun.response.outcome.result.cu_spent.attacker)} attacker CU</span></div></div></div>}
           </section>
         </div>
+      </div>
       </div>
     </section>
   );
