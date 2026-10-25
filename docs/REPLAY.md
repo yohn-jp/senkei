@@ -61,7 +61,7 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 
 公開Replayは**許可リスト方式で生成**する。内部診断トレースをまるごと出力してからクライアント側で隠す方式は禁止する。相手の非公開Jinreiソース、IR、条件、戦術メモリ、内部CU内訳、未観測状態を含めない。
 
-自軍のCU・ルール発火等の分析は別のRestrictedDiagnostics契約を経由し、可視権限を検証する。リプレイの挙動から相手の戦術を推測される可能性は残るが、直接ソースを配布してはならない。
+自軍のCU・ルール発火等の分析は別のRestrictedDiagnostics契約を経由し、可視権限を検証する。Default/Inherited/Explicitの行動根拠、候補の採否、拒否理由、CU等を含むDecision Traceは [BEHAVIOR.md](BEHAVIOR.md) で定義する**認可済み内部診断**であり、公開PresentationReplayへ埋め込まない。Editorへの現在観測値も同じ権限境界を維持する。リプレイの挙動から相手の戦術を推測される可能性は残るが、直接ソースを配布してはならない。
 
 ## 6. 最初に実装するFixtureと適合テスト
 
@@ -76,3 +76,10 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 すべて**合成のサンプルデータ**であり、正式なSenritsuの兵科数値・Enbuの勝敗計算結果ではない。
 
 実装受入: Schema正常例を受理し異常例を拒否、同Tick順序を固定、シークと順再生のDisplay State一致、RendererはEnbuから独立してFixtureで動作、公開Replayに内部情報フィールドがない、再生をHTTP/Cloudflareへ結びつけない。
+
+## 7. Jinrei Editor / Decision Coverageとの境界
+
+- [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md) は観測フィールド・型・可視性の静的な正本。実際の値は同じRulePackageとTickの**陣営別Observation**からのみ取得する。
+- [JINREI-EDITOR.md](JINREI-EDITOR.md) のDefault／Effective／Observed比較のうち、Observedは正しいMatch／Tick／Program digestを持つ**認可済みRestrictedDiagnostics**から取得する。
+- 敵側の非公開Jinrei、内部Decision Trace、予定目的地、観測できなかった現在位置を、ReplayのEntityやUIの補間から推定して公開しない。
+- World Presentationは [WORLD-DEFINITION.md](WORLD-DEFINITION.md) の専用Digestで識別できるが、描画位置・LOD・CameraによってReplayの確定戦闘結果が変わってはならない。

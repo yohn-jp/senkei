@@ -2,7 +2,7 @@
 
 ## 1. 位置づけと確定度
 
-この文書はSenkeiの**次期ゲームデザインとして合意した戦場構造**を整理する。ノード・エッジ・距離・橋・三トラック・ノード交戦の具体契約は [BATTLEFIELD.md](BATTLEFIELD.md) を正本とする。戦場の具体的なRulePackageやマップデータを既に実装したという意味ではない。ゲームとルールの責務は [COMPONENTS.md](COMPONENTS.md)／[SENRITSU.md](SENRITSU.md)、戦闘は [COMBAT.md](COMBAT.md)、戦闘主体は [UNITS.md](UNITS.md)、係数・調整は [BALANCE.md](BALANCE.md) に従う。
+この文書はSenkeiの**次期ゲームデザインとして合意した戦場構造**を整理する。ノード・エッジ・距離・橋・三トラック・ノード交戦の具体契約は [BATTLEFIELD.md](BATTLEFIELD.md) を正本とし、WorldデータとCompilerの責務は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を正本とする。戦場の具体的なRulePackageやマップデータを既に実装したという意味ではない。ゲームとルールの責務は [COMPONENTS.md](COMPONENTS.md)／[SENRITSU.md](SENRITSU.md)、戦闘は [COMBAT.md](COMBAT.md)、戦闘主体は [UNITS.md](UNITS.md)、係数・調整は [BALANCE.md](BALANCE.md) に従う。
 
 用語：
 - **合意**: 会話で採用した規則・設計方向。
@@ -33,7 +33,7 @@
 | Objective | 塔、本拠地、ジャングルキャンプ等の戦略目標 |
 | Timed State | 出撃・再出現・復活のためのTickとクールタイム |
 
-マップ設計はSenritsuの**版付きデータ**。Enbuは検証済みの地形・ナビゲーション・視界遷移を実行する。Jinreiは公開された観測とCapabilityだけで進路や攻撃目標を選択する。RendererはReplay上の位置・イベントを3Dへ投影するが、通行可否や最短経路をルールとして再計算しない。
+マップ設計はSenritsuの**版付きデータ**。静的Topology・Metric・Terrain semanticsと描画用Presentationを宣言的Worldとして分離し、検証・Compileする契約は [WORLD-DEFINITION.md](WORLD-DEFINITION.md) を参照する。Enbuは検証済みの地形・ナビゲーション・視界遷移を実行する。Jinreiは公開された観測とCapabilityだけで進路や攻撃目標を選択する。RendererはReplay上の位置・イベントを3Dへ投影するが、通行可否や最短経路をルールとして再計算しない。
 
 地形の増設で新たな物理的処理が必要なら、Senritsuデータの追加だけで済むと決めつけずEnbuの有限な遷移プリミティブを明示的に拡張する。
 
@@ -118,3 +118,19 @@ Rendererはレーン曲線・キャンプ・現在視界／Unknown・戦線の�
 [BATTLEFIELD.md](BATTLEFIELD.md) で初期トポロジー・塔配置案・キャンプ配置案・仮距離・通行と交戦の規範方針を定義済み。残るのは座標埋め込み、視界形状・半径・遮蔽、Heroと塔による索敵条件、Minionの出撃周期と個別操作範囲、Tick境界・端数・占有粒度、ジャングル報酬・復活、塔の特性、本拠地攻撃制約、時間切れ裁定等の版付き実装パラメータ。
 
 未決定の項目は**仕様値を推測して固定しない**。地形1.00／0.80とMinion視界1.20は合意済みのバランス初期値として [BALANCE.md](BALANCE.md) にも記録する。
+
+## 12. 地形・論理視界の効果（追加合意）
+
+**視界半径＋地形の論理遮蔽**を基本モデルとする。地形は移動だけでなく、観測や戦闘にも型付き効果を持てる。ただし全地形に全効果を必須にはしない。
+
+- **森林／ジャングル**：視界・発見条件と機動の違いを生む。単なる移動係数だけの地形にしない。
+- **高台**：観測上の優位を与え得る。影響範囲・方向・有効半径は版付き地形効果で定義する。
+- **岩場などの遮蔽物**：論理的な遮蔽領域を作ることができる。移動幅やCombat Domainとの関係はSenritsuで型付けする。
+- **河川／橋**：渡河時間・被ダメに加え、必要なら局所観測を型付きで定義する。川の描画形状だけから通行や遮蔽を判断しない。
+- **MID観測基地**：周辺の局所視界と、**許可された観測から得る敵の実際の移動方向**を提供する。全マップの全敵表示、未観測の目的地・Jinrei・未来予測は提供しない。
+
+遮蔽形状は**World DefinitionのTerrain semantics**、半径・効果はSenritsuのルール値としてCompileする。Three.js Raycastや描画FPS・LODが観測判定を変更してはならない。敵の視認可否はEnbuの同一Tickの陣営別Snapshotが確定し、JinreiのKnown/Unknownへ投影する。
+
+Minion視界によるHero移動速度×1.20（重複なし）、Lane×1.00/Jungle×0.80の合意を維持する。上記の**意味論は確定**、地形別半径・遮蔽マスク・高台補正・MID効果量等の**数値とマップ別データは版付きパラメータとして後から調整**する。
+
+経路の合法性・経路選好の違い、見えていない敵を経路探索に利用しない制約は [BEHAVIOR.md](BEHAVIOR.md) を参照する。

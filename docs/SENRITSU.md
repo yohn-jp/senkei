@@ -10,10 +10,11 @@ Senritsuは言語ではなく**型付き・検証済みのルールパッケー�
 
 | 領域 | Senritsuが提供するもの |
 | --- | --- |
-| World / topology | 戦場の座標・領域、レーン等の領域分類、接続グラフ、時間・終局上限 |
+| World / topology | World DefinitionによるTopology・Metric・Terrain semantics、接続グラフ、時間・終局上限。描画用Presentationを独立管理 |
 | Entity | 自軍・敵軍・中立を含むオブジェクトの分類・タグ・同一性 |
 | Component schema | HP、位置、速度、装備、状態効果などの型・有効範囲 |
 | Capability | 移動、攻撃、出撃、生産、指揮など、対象に許可される行動 |
+| Behavior Profile | 共通／Hero／Squad／Armyの型付き既定選好、集約、Jinreiの条件付き上書き・競合契約 |
 | Resource | 戦力予算、資源、クールダウン、所持数、戦術CUの利用規則 |
 | Observation | 陣営別の観測可能な値・集合・イベント・マスク |
 | Intent schema | Jinreiが発行できる命令候補、引数型、対象・範囲、前提条件 |
@@ -22,6 +23,7 @@ Senritsuは言語ではなく**型付き・検証済みのルールパッケー�
 | Victory / termination | 本拠地破壊、時間切れ、引き分け・同時終局の裁定 |
 | Presentation visibility | 公開可能な戦場状態・イベントの分類、非公開情報の境界 |
 | CU schedule | 観測・演算・状態・命令の論理費用テーブルと版 |
+| Public Domain Catalog | Editor/Compilerに共通の定数、観測変数、集合、Capability、Profile、Known/Unknown、CUメタデータ |
 
 この分類は設計モデルであり、実装に特定のECSライブラリを要求しない。EntityとComponentは型付き・有限・バージョン付きのデータスキーマとして扱う。
 
@@ -71,13 +73,24 @@ SenritsuはコンテンツとしてOSSで配布可能。初期実装ではサン
 
 ## 8. 次期Senritsuゲームデザインの正本
 
-現行の `senkei.initial` は3レーン・歩兵／射手／騎兵／衛生兵等を含む**既存の小規模なローカルPvE用ルールパッケージ**である。最新の議論で合意した5 Hero、初期12種6+6、動的Squadと死亡Solo復活、MOBA型ジャングル、Minion視界、XP等分などは**まだ現行Rulesetの値ではない**。
+`senkei.initial` は3レーン・歩兵／射手／騎兵／衛生兵等を含む**従来の小規模なローカルPvE用ルールパッケージ**である。別系列の `senkei.next` はHero、Squad、Minion、ジャングル等を実装しており、さらにBattlefield v2を統合する作業は個別の実装・検証状態で管理する。本節に記す**新しい宣言的World Compiler・Behavior Profile・自己記述Domain Catalogは設計契約であり、既に実装された機能とみなさない**。
 
 次期ゲームルール設計の分担：
 - [WORLD.md](WORLD.md)：地形、対角拠点と三レーン、Minion視界、ジャングル、施設。
+- [WORLD-DEFINITION.md](WORLD-DEFINITION.md)：宣言的World Definition／Compiler、LogicとPresentationの分離、識別子・Digest。
 - [BATTLEFIELD.md](BATTLEFIELD.md)：初期トポロジー、仮距離、河川・橋、トラック、射程とノード退出の規範。
 - [UNITS.md](UNITS.md)：Hero Catalogと属性、5Hero/Squad、合流・分離、死亡・復活。
 - [COMBAT.md](COMBAT.md)：通常攻撃、追撃／撤退、XP、レベル、Skill Tree、Tick解決。
+- [BEHAVIOR.md](BEHAVIOR.md)：Hero既定選好、Army/Squad/Hero/限定Minionの作用範囲、上書き、Decision Trace。
+- [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)：自己記述的Senritsu Domain CatalogとCompiler/Editorの型一致。
 - [BALANCE.md](BALANCE.md)：確定した初期係数、残る未決定数値、バランス検証。
 
 これらはSenritsuのドメインデータと規則を具体化する文書であり、Jinreiの文法とEnbuの汎用遷移エンジンを暗黙に変更するものではない。次期実装では独立したRuleset ID／版／内容digest、Domain Schema／Capability Catalog／検証済みRulePlan、コンフォーマンステストを必要とする。ゲーム特有の効果を初期SenritsuのHardcodeとして言語コアへ持ち込まない。
+
+## 9. World CompilerとBehavior Catalog（追加確定契約）
+
+- Worldは**宣言的Definition → Validator/Compiler → Canonical Simulation World＋Canonical Presentation World**で生成する。Topology、Metric、Terrain semanticsはシミュレーション側、描画座標・形状はPresentation側で保持し、別々のDigestを与える。入力のYAML/JSON等の表層ファイル形式は未固定。 [WORLD-DEFINITION.md](WORLD-DEFINITION.md) が正本。
+- HeroごとのDefault Behavior、Squadでの有効Profile集約、Armyからの上位選好、限定的なMinion制御を**型付きのSenritsuルールデータ**として定義する。Jinreiは既存文法のCapabilityで条件付き上書きを発行する。[BEHAVIOR.md](BEHAVIOR.md)が正本。
+- RulePackageは **Domain Catalogを自己記述的な公開インターフェースとして同梱**する。CompilerとJinrei Editorが同じ定数・観測変数・集合・Capability・Profile・型・権限・CU・版を利用する。Enbuは同じRulePlanで現在の認可済みObservationを提供する。[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)が正本。
+- 新しいProfile/World/Editor契約によって、Jinreiのv0.1構文、CUの評価規範、同時評価・Unknownの意味、Enbuの権威的な更新責務を変更しない。
+- 本項は追加ルールの**実装完了の宣言ではない**。既存senkei.nextのバージョン／RulePlanと混同せず、新しい互換性・Schema・コンフォーマンスとして実装する。
