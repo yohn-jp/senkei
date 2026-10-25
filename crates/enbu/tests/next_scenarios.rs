@@ -1777,6 +1777,117 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
 }
 
 #[test]
+fn real_jinrei_squad_enters_and_crosses_the_normal_bot_bridge() {
+    let rules = rules();
+    let attacker_policy = compile(
+        &persistent_movement_tactics(
+            &(1..=5)
+                .map(|slot| (format!("slot-{slot}"), "B.BOT.J".into()))
+                .collect::<Vec<_>>(),
+        ),
+        &rules,
+    )
+    .unwrap_or_else(|error| panic!("attacker bridge route compiles: {error:?}"));
+    let attacker_nodes = ["A.BOT.BANK"; 5].map(str::to_owned);
+    let defender_nodes = ["B.BOT.BANK"; 5].map(str::to_owned);
+    let (mut attacker, mut defender, context) = build_match(
+        &rules,
+        &[2, 1, 1, 1],
+        "real-normal-bot-bridge-five-hero-transit",
+        30,
+        Some(&attacker_nodes),
+        Some(&defender_nodes),
+    );
+    attacker.program = attacker_policy.program;
+    set_catalog(&mut attacker, 0, "F03", &rules);
+    set_catalog(&mut defender, 0, "R05", &rules);
+
+    let mut vm = Vm::new(&rules);
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("real normal-bridge Enbu match executes: {error:?}"));
+    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "move").len(), 5,
+        "all five Heroes receive a real persistent movement order");
+    let bridge_entry_tick = (1..=artifact.result.final_tick)
+        .find(|tick| {
+            let hero = owner_hero_at(&artifact, *tick, "slot-1");
+            entity_string(hero, "node") == "A.BOT.BANK"
+                && entity_string(hero, "edge_to") == "B.BOT.BANK"
+        })
+        .unwrap_or_else(|| panic!("the real Jinrei move takes F03 from its Jungle node onto the fixed BOT bridge: {:?}",
+            (0..=artifact.result.final_tick).map(|tick| {
+                let hero = owner_hero_at(&artifact, tick, "slot-1");
+                (tick, entity_string(hero, "node"), entity_string(hero, "edge_to"),
+                    entity_integer(hero, "edge_progress"), entity_string(hero, "track"))
+            }).collect::<Vec<_>>()));
+    let entry = owner_hero_at(&artifact, bridge_entry_tick, "slot-1");
+    assert_eq!(entity_string(entry, "track"), "CENTER");
+    assert_eq!(entity_string(owner_hero_at(&artifact, 0, "slot-1"), "track"), "");
+
+    let next_tick = bridge_entry_tick + 1;
+    let continued = owner_hero_at(&artifact, next_tick, "slot-1");
+    if entity_string(continued, "edge_to") == "B.BOT.BANK" {
+        assert_eq!(entity_string(continued, "node"), "A.BOT.BANK");
+        assert!(entity_integer(continued, "edge_progress") > entity_integer(entry, "edge_progress"),
+            "the F03 squad continues across the bridge after entering legal attack range");
+    } else {
+        assert_eq!(entity_string(continued, "node"), "B.BOT.BANK",
+            "a fast cohort may complete the bridge, but cannot camp at its interior progress");
+    }
+
+    let member = owner_hero_at(&artifact, next_tick, "slot-2");
+    assert_eq!(entity_string(member, "node"), entity_string(continued, "node"));
+    assert_eq!(entity_string(member, "edge_to"), entity_string(continued, "edge_to"));
+    assert_eq!(entity_string(member, "track"), entity_string(continued, "track"),
+        "both living members of the Squad use the same normal-bridge center passage");
+
+    let source_ids = (1..=5)
+        .map(|slot| {
+            owner_state_at(&artifact, 0)
+                .entities
+                .iter()
+                .find(|(_, entity)| {
+                    entity.entity_type.as_str() == "hero"
+                        && entity.owner == Some(CombatantSide::Attacker)
+                        && entity.fields.get(&FieldId::new("slot_id"))
+                            == Some(&DomainValue::String(format!("slot-{slot}")))
+                })
+                .map(|(id, _)| id.clone())
+                .unwrap_or_else(|| panic!("attacker owner replay identifies slot-{slot}"))
+        })
+        .collect::<Vec<_>>();
+    let owner = artifact.owner_replay.as_ref().expect("real Enbu emits owner replay");
+    for slot in 1..=5 {
+        let mut saw_bridge = false;
+        for tick in 1..=artifact.result.final_tick {
+            let previous = owner_hero_at(&artifact, tick - 1, &format!("slot-{slot}"));
+            let hero = owner_hero_at(&artifact, tick, &format!("slot-{slot}"));
+            if entity_string(hero, "edge_to") != "B.BOT.BANK"
+                || entity_string(hero, "node") != "A.BOT.BANK"
+            {
+                continue;
+            }
+            saw_bridge = true;
+            assert_eq!(entity_string(hero, "track"), "CENTER",
+                "normal BOT bridge traversal uses its only permitted Hero track");
+            if entity_string(previous, "edge_to") == "B.BOT.BANK"
+                && entity_string(previous, "node") == "A.BOT.BANK"
+            {
+                assert!(entity_integer(hero, "edge_progress") > entity_integer(previous, "edge_progress"),
+                    "an incumbent continues instead of waiting on the normal bridge");
+            }
+            let frame = owner.frames.iter().find(|frame| frame.tick == tick).unwrap();
+            assert!(!frame.events.iter().any(|event|
+                event.event.as_str() == "next.attack" && event.entity.as_ref() == Some(&source_ids[slot - 1])
+            ), "a CENTER-only normal-bridge transit cannot attack and camp at tick {tick}");
+        }
+        assert!(saw_bridge, "slot-{slot} receives a real bridge traversal");
+    }
+    assert!(owner.frames.iter().flat_map(|frame| frame.events.iter()).any(|event|
+        event.event.as_str() == "next.attack" && event.entity.as_ref() == Some(&source_ids[0])
+    ), "after reaching the hostile bank node, F03 resumes ordinary node combat");
+}
+
+#[test]
 fn real_jinrei_enbu_capture_match_exports_visual_snapshot() {
     let rules = rules();
     let program = compile(IDLE_TACTICS, &rules)

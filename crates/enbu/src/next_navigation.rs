@@ -164,6 +164,19 @@ fn advance_entity(
     // promote that incumbent to a ford state without relocating its progress.
     let incumbent_edge = string(entity, "edge_to");
     let incumbent_node = string(entity, "node");
+    if !incumbent_edge.is_empty() {
+        if let Some(edge) = edge_for_nodes(&rules.map, &incumbent_node, &incumbent_edge) {
+            if is_bridge(edge)
+                && bridge_state(snapshot, &edge.bridge_site) == "normal"
+                && string(entity, "track").is_empty()
+            {
+                // Legacy bridge-region states omitted the CENTER track. The
+                // normal fixed bridge has no other legal Hero passage, so
+                // normalize that known case before transit/reservation.
+                set_string(entity, "track", "CENTER");
+            }
+        }
+    }
     if int(entity, "ford_active") == 0 && !incumbent_edge.is_empty() {
         if let Some(edge) = edge_for_nodes(&rules.map, &incumbent_node, &incumbent_edge) {
             if is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed" {
@@ -390,7 +403,7 @@ fn advance_entity(
         set_string(entity, "node", &node);
         set_string(entity, "edge_to", &edge_to);
         set_int(entity, "edge_progress", 0);
-        if edge.region == "lane" {
+        if edge.region == "lane" || is_bridge(edge) {
             set_string(entity, "track", &entering_track);
         } else {
             clear_track(entity);
@@ -519,10 +532,12 @@ pub(crate) fn forced_transit(entity: &EntityState, rules: &NextRules) -> bool {
     edge.ford || (is_bridge(edge) && string(entity, "track") == "CENTER")
 }
 
-/// Snapshot-aware transit check for action selection. A bridge can be
-/// destroyed during resolution after movement has already sampled this
-/// entity; a traveler on any bridge track is committed to the ford from the
-/// next snapshot even before navigation writes `ford_active`.
+/// Snapshot-aware transit check for action selection. The region for a fixed
+/// bridge edge is `bridge`, so older bridge occupants can have an empty track
+/// even when the normal bridge requires CENTER-only transit. Treat that
+/// empty track as CENTER only while the observed bridge is still normal;
+/// expanded LEFT/RIGHT lanes remain tactical positions. A destroyed bridge
+/// commits every incumbent to its ford before navigation writes `ford_active`.
 pub(crate) fn forced_transit_in(
     entity: &EntityState,
     rules: &NextRules,
@@ -539,7 +554,10 @@ pub(crate) fn forced_transit_in(
     let Some(edge) = edge_for_nodes(&rules.map, &from, &to) else {
         return false;
     };
-    is_bridge(edge) && bridge_state(world, &edge.bridge_site) == "destroyed"
+    let state = bridge_state(world, &edge.bridge_site);
+    is_bridge(edge)
+        && (state == "destroyed"
+            || (state == "normal" && string(entity, "track").is_empty()))
 }
 
 fn bridge_track_for(
@@ -2379,7 +2397,7 @@ mod tests {
 
     #[test]
     fn ford_is_a_persistent_extra_time_state_even_if_bridge_is_rebuilt() {
-        let mut crossing = edge("a", "b", 100, "lane", false);
+        let mut crossing = edge("a", "b", 100, "bridge", false);
         crossing.id = "bridge.top".into();
         crossing.bridge_site = "TOP".into();
         let map = test_map(vec![crossing]);
@@ -2410,20 +2428,20 @@ mod tests {
 
     #[test]
     fn normal_bridge_center_and_lateral_crossing_cannot_freeze_for_an_attack() {
-        let mut crossing = edge("a", "b", 100, "lane", false);
+        let mut crossing = edge("a", "b", 100, "bridge", false);
         crossing.id = "bridge.top".into();
         crossing.bridge_site = "TOP".into();
         let config = rules(test_map(vec![crossing]));
         let mut mover = entity("hero", Some(CombatantSide::Attacker), 10, "a", "b");
         set_string(&mut mover, "edge_to", "b");
         set_int(&mut mover, "edge_progress", 50);
-        set_string(&mut mover, "track", "CENTER");
+        set_string(&mut mover, "track", "");
         set_int(&mut mover, "range", 100);
         set_int(&mut mover, "attack_ready", 0);
         let mut target = entity("hero", Some(CombatantSide::Defender), 0, "a", "");
         set_string(&mut target, "edge_to", "b");
         set_int(&mut target, "edge_progress", 55);
-        set_string(&mut target, "track", "CENTER");
+        set_string(&mut target, "track", "");
         set_int(&mut target, "range", 100);
         set_int(&mut target, "attack_ready", 0);
         let mut bridge = EntityState {
@@ -2448,6 +2466,7 @@ mod tests {
         ));
         advance(&mut world, &config, 1);
         assert_eq!(int(&world.entities[&id("mover")], "edge_progress"), 60);
+        assert_eq!(string(&world.entities[&id("mover")], "track"), "CENTER");
         assert_eq!(int(&world.entities[&id("mover")], "moved_tick"), 2);
 
         let mut lane = entity("hero", Some(CombatantSide::Attacker), 10, "a", "b");
@@ -2487,7 +2506,7 @@ mod tests {
 
     #[test]
     fn forced_transit_covers_bridge_center_crossing_and_ford_states() {
-        let mut bridge = edge("a", "b", 100, "lane", false);
+        let mut bridge = edge("a", "b", 100, "bridge", false);
         bridge.bridge_site = "TOP".into();
         let config = rules(test_map(vec![bridge]));
         let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
@@ -2507,7 +2526,7 @@ mod tests {
 
     #[test]
     fn forced_transit_in_sees_destroyed_expanded_side_bridge_before_ford_marker() {
-        let mut crossing = edge("a", "b", 100, "lane", false);
+        let mut crossing = edge("a", "b", 100, "bridge", false);
         crossing.bridge_site = "TOP".into();
         let config = rules(test_map(vec![crossing]));
         let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
@@ -2532,6 +2551,27 @@ mod tests {
             );
             assert!(!forced_transit_in(&hero, &config, &world));
         }
+
+        // A bridge-region edge does not retain a lane track in legacy state.
+        // On an intact normal bridge that missing field means its only legal
+        // passage, CENTER. Expanded side lanes remain ordinary tactical spots.
+        set_string(&mut hero, "track", "");
+        set_string(
+            world.entities.get_mut(&id("bridge")).unwrap(),
+            "bridge_state",
+            "normal",
+        );
+        assert!(forced_transit_in(&hero, &config, &world));
+        set_string(
+            world.entities.get_mut(&id("bridge")).unwrap(),
+            "bridge_state",
+            "expanded",
+        );
+        assert!(!forced_transit_in(&hero, &config, &world));
+
+        set_string(&mut hero, "track", "LEFT");
+        assert!(!forced_transit_in(&hero, &config, &world),
+            "expanded LEFT bridge traffic may hold a legal tactical position");
         set_string(
             world.entities.get_mut(&id("bridge")).unwrap(),
             "bridge_state",
