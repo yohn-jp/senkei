@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
@@ -12,6 +13,33 @@ const viewports = [
   { width: 1440, height: 900, name: "desktop-1440" },
   { width: 1920, height: 1080, name: "desktop-1920" },
 ] as const;
+type FirstRunViewport = typeof viewports[number];
+
+function selectQuickViewports(raw: string | undefined): readonly FirstRunViewport[] {
+  if (raw === undefined) return viewports;
+
+  const requested = raw.split(",").map((name) => name.trim());
+  if (requested.some((name) => name.length === 0)) {
+    throw new Error("SENKEI_FIRST_RUN_VIEWPORTS must contain comma-separated viewport names without empty entries.");
+  }
+
+  const unique = new Set(requested);
+  if (unique.size !== requested.length) {
+    const duplicates = requested.filter((name, index) => requested.indexOf(name) !== index);
+    throw new Error(`SENKEI_FIRST_RUN_VIEWPORTS contains duplicate viewport name(s): ${[...new Set(duplicates)].join(", ")}.`);
+  }
+
+  const unknown = requested.filter((name) => !viewports.some((viewport) => viewport.name === name));
+  if (unknown.length > 0) {
+    throw new Error(`SENKEI_FIRST_RUN_VIEWPORTS contains unknown viewport name(s): ${unknown.join(", ")}. Accepted names: ${viewports.map((viewport) => viewport.name).join(", ")}.`);
+  }
+
+  const selected = new Set(requested);
+  return viewports.filter((viewport) => selected.has(viewport.name));
+}
+
+const quickViewports = selectQuickViewports(process.env.SENKEI_FIRST_RUN_VIEWPORTS);
+const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot, encoding: "utf8" }).trim();
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page, width: number): Promise<void> {
   // Restoring two complete Enbu records after a viewport reload can occupy
@@ -62,14 +90,14 @@ test("first-run Quick reaches a confirmed Enbu replay on mobile and desktop layo
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
   mkdirSync(journeyScreenshots, { recursive: true });
   const wasmResponses: number[] = [];
-  const viewportRunReport: { viewport: string; result: string; finalTick: number; rendered: string | null; wasm200: boolean }[] = [];
+  const viewportRunReport: { viewport: string; result: string; finalTick: number; rendered: string | null; wasm200: boolean; buildRevision: string | null }[] = [];
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.context().on("response", (response) => {
     if (new URL(response.url()).pathname.endsWith("/wasm/senkei_wasm.wasm")) wasmResponses.push(response.status());
   });
 
-  for (const viewport of viewports) {
+  for (const viewport of quickViewports) {
     const responseStart = wasmResponses.length;
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(baseURL, { waitUntil: "networkidle" });
@@ -90,6 +118,8 @@ test("first-run Quick reaches a confirmed Enbu replay on mobile and desktop layo
     await expect(canvas).toHaveAttribute("data-rendered", "true");
     await expect(page.getByRole("slider", { name: "Seek replay tick" })).toBeVisible();
     const resultText = await page.locator(".next-result-disclosure summary").innerText();
+    const buildRevision = await page.locator('meta[name="senkei-build-revision"]').getAttribute("content");
+    expect(buildRevision, "the app build revision meta must be present").toBeTruthy();
     const tickReadout = await page.locator(".next-tick-readout").innerText();
     const finalTick = Number(tickReadout.match(/\/\s*(\d+)/)?.[1]);
     expect(finalTick).toBeGreaterThan(0);
@@ -102,6 +132,7 @@ test("first-run Quick reaches a confirmed Enbu replay on mobile and desktop layo
       finalTick,
       rendered: await canvas.getAttribute("data-rendered"),
       wasm200,
+      buildRevision,
     });
     await expectNoHorizontalOverflow(page, viewport.width);
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -110,7 +141,9 @@ test("first-run Quick reaches a confirmed Enbu replay on mobile and desktop layo
 
   expect(wasmResponses.some((status) => status === 200)).toBe(true);
   expect(pageErrors).toEqual([]);
-  writeFileSync(resolve(journeyScreenshots, "viewport-run-report.json"), JSON.stringify(viewportRunReport, null, 2) + "\n");
+  const report = JSON.stringify({ sourceSha, viewportRuns: viewportRunReport }, null, 2) + "\n";
+  writeFileSync(resolve(journeyScreenshots, "first-run-report.json"), report);
+  writeFileSync(resolve(journeyScreenshots, "viewport-run-report.json"), report);
 });
 
 test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight, then repairs and runs", async ({ page, baseURL }) => {
