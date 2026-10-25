@@ -586,6 +586,23 @@ fn merge(
     if !cohesive(world, &members, distance, rules) {
         return;
     }
+    // Bridge range deliberately ignores lateral offsets. That does not permit
+    // a merge to distribute one new tactical subject across separate tracks.
+    for (index, left_id) in members.iter().enumerate() {
+        let left = &world.entities[left_id];
+        let from = support::string(left, "node");
+        let to = support::string(left, "edge_to");
+        if to.is_empty() { continue; }
+        let on_bridge = rules.map.edges.iter().any(|edge| !edge.bridge_site.is_empty()
+            && ((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)));
+        if !on_bridge { continue; }
+        for right_id in members.iter().skip(index + 1) {
+            let right = &world.entities[right_id];
+            if support::combat_distance2(left, right, rules).is_some()
+                && support::string(left, "track") != support::string(right, "track")
+            { return; }
+        }
+    }
 
     // The target Hero anchors the merged squad. All members receive its
     // current route and target so old cohort orders cannot immediately split
@@ -1276,6 +1293,31 @@ mod tests {
         let x = support::int(&world.entities[&members[0]], "x");
         support::set_int(world.entities.get_mut(&members[1]).unwrap(), "x", x);
         assert!(!cohesive(&world, &members, 30, &rules));
+    }
+
+
+    #[test]
+    fn expanded_bridge_merge_requires_a_shared_track() {
+        let mut rules = rules();
+        rules.map.edges.push(senkei_model::MapEdge {
+            from: "field".into(), to: "home".into(), length: 100,
+            region: "bridge".into(), bridge_site: "TOP".into(), ..Default::default()
+        });
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        for (slot, track) in [("h1", "LEFT"), ("h2", "LEFT"), ("h3", "RIGHT"), ("h4", "RIGHT")] {
+            let entity = world.entities.get_mut(&hero_id(slot)).unwrap();
+            support::set_string(entity, "edge_to", "home");
+            support::set_int(entity, "edge_progress", 20);
+            support::set_string(entity, "track", track);
+        }
+        merge(&mut world, &rules, CombatantSide::Attacker, &hero_id("h1"), &hero_id("h3"));
+        assert_ne!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h3"), "squad"));
+        for slot in ["h3", "h4"] {
+            support::set_string(world.entities.get_mut(&hero_id(slot)).unwrap(), "track", "LEFT");
+        }
+        merge(&mut world, &rules, CombatantSide::Attacker, &hero_id("h1"), &hero_id("h3"));
+        assert_eq!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h3"), "squad"));
     }
 
 }
