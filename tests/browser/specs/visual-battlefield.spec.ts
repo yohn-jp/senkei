@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -85,7 +85,11 @@ const outputRoot = resolve(repoRoot, process.env.BATTLEFIELD_VISUAL_OUTPUT_DIR ?
 const runId = `${new Date().toISOString().replaceAll(/[:.]/g, "-")}-pid${process.pid}`;
 const outputDirectory = join(outputRoot, runId);
 let activeSourceRevision: string | null = null;
+let activeBuildRevision: string | null = null;
+let activeWasmSha256: string | null = null;
+let activeBrowserVersion: string | null = null;
 const evidenceKind = "real-ui-jinrei-enbu-wasm-authorized-presentation-replay";
+const canonicalOnly = process.env.BATTLEFIELD_VISUAL_CANONICAL_ONLY === "1";
 
 const canonicalStates = [
   { id: "initial", tick: 0 },
@@ -101,6 +105,32 @@ const canonicalStates = [
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function flushCaptureProgress(captures: readonly CaptureEntry[], status: string, details: JsonRecord = {}): void {
+  const path = join(outputDirectory, "capture-progress.json");
+  const temporaryPath = `${path}.tmp-${process.pid}`;
+  const manifest = {
+    schema: "senkei-battlefield-visual-capture-progress/v1",
+    status,
+    captureRunId: runId,
+    evidenceKind,
+    canonicalOnly,
+    updatedAt: new Date().toISOString(),
+    sourceRevision: activeSourceRevision,
+    buildRevision: activeBuildRevision ?? captures[captures.length - 1]?.buildRevision ?? null,
+    wasmSha256: activeWasmSha256,
+    wasmBuildRevision: process.env.BATTLEFIELD_WASM_BUILD_REVISION ?? null,
+    baselineBaseRevision: process.env.BATTLEFIELD_BASE_REVISION ?? null,
+    browser: activeBrowserVersion,
+    renderer: "Chromium/SwiftShader; software-GPU measurements are not physical-GPU results",
+    requestedViewports: viewports,
+    captureCount: captures.length,
+    captures,
+    ...details,
+  };
+  writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  renameSync(temporaryPath, path);
 }
 
 function numericAttribute(value: string | null): number | null {
@@ -433,7 +463,7 @@ function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: s
   return { catalogId, entityType: "hero", side };
 }
 
-async function createScenarioSnapshots(): Promise<void> {
+async function createScenarioSnapshots(canonicalOnlyRun: boolean): Promise<void> {
   mkdirSync(dirname(canonicalSnapshotPath), { recursive: true });
   execFileSync("cargo", [
     "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",
@@ -443,6 +473,7 @@ async function createScenarioSnapshots(): Promise<void> {
     env: { ...process.env, BATTLEFIELD_SCENARIO_SNAPSHOT_PATH: canonicalSnapshotPath },
     stdio: "inherit",
   });
+  if (canonicalOnlyRun) return;
   execFileSync("cargo", [
     "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",
     "real_jinrei_enbu_capture_match_exports_visual_snapshot", "--", "--exact",
@@ -971,7 +1002,7 @@ async function saveCapture(
   }
   const pixelToggle = page.getByRole("button", { name: "Toggle Pixel 3D" });
   const pressed = await pixelToggle.getAttribute("aria-pressed");
-  captures.push({
+  const capture: CaptureEntry = {
     evidenceKind,
     sourceRevision: activeSourceRevision,
     buildRevision: await page.locator('meta[name="senkei-build-revision"]').getAttribute("content"),
@@ -1002,7 +1033,15 @@ async function saveCapture(
       path: relative(repoRoot, screenshotPath).replaceAll("\\", "/"),
       sha256: sha256(readFileSync(screenshotPath)),
     },
-  });
+  };
+  captures.push(capture);
+  flushCaptureProgress(captures, "CAPTURING");
+  const progress = JSON.parse(readFileSync(join(outputDirectory, "capture-progress.json"), "utf8")) as JsonRecord;
+  const persistedCapture = progress.captures?.[progress.captures.length - 1] as JsonRecord | undefined;
+  expect(progress.captureCount, "progress metadata is updated after every saved screenshot").toBe(captures.length);
+  expect(persistedCapture?.image?.sha256, "the durable entry includes the screenshot SHA-256").toBe(capture.image.sha256);
+  expect(persistedCapture?.camera?.mode, "the durable entry includes the camera mode").toBe(capture.camera.mode);
+  expect(persistedCapture?.renderer?.performance, "the durable entry includes renderer performance counters").toEqual(capture.renderer.performance);
 }
 
 function saveGzip(name: string, value: unknown): { path: string; uncompressedBytes: number; compressedBytes: number; sha256: string } {
@@ -1018,15 +1057,20 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   if (!baseURL) throw new Error("The visual acceptance capture requires the production preview URL.");
   const appRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
   activeSourceRevision = appRevision;
+  activeBrowserVersion = browser.version();
+  const wasmArtifactPath = join(repoRoot, "apps/web/public/wasm/senkei_wasm.wasm");
+  if (!existsSync(wasmArtifactPath)) throw new Error(`The local WASM artifact is missing: ${wasmArtifactPath}`);
+  activeWasmSha256 = sha256(readFileSync(wasmArtifactPath));
   mkdirSync(outputDirectory, { recursive: true });
-  await createScenarioSnapshots();
+  flushCaptureProgress([], "PREPARING", { outputDirectory: relative(repoRoot, outputDirectory).replaceAll("\\", "/") });
+  await createScenarioSnapshots(canonicalOnly);
   const canonicalSnapshot = JSON.parse(readFileSync(canonicalSnapshotPath, "utf8")) as JsonRecord;
-  const captureSnapshot = JSON.parse(readFileSync(captureSnapshotPath, "utf8")) as JsonRecord;
-  const baseAssaultSnapshot = JSON.parse(readFileSync(baseAssaultSnapshotPath, "utf8")) as JsonRecord;
   const captures: CaptureEntry[] = [];
   const viewportChecks: JsonRecord = {};
 
   const canonical = await launchBattle(page, baseURL, canonicalSnapshot);
+  activeBuildRevision = canonical.buildRevision;
+  flushCaptureProgress(captures, "CAPTURING", { matchId: canonical.result.match_id, finalTick: canonical.result.final_tick });
   expect(canonical.buildRevision, "the app preview is built from the capture HEAD").toBe(appRevision);
   expect(canonical.result.final_tick).toBe(70);
   expect(canonical.result.outcome).toBe("draw");
@@ -1268,6 +1312,120 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       mobileConsole: viewport.width <= 760 ? await page.getByTestId("battle-mobile-console").isVisible() : null,
     };
   }
+
+  if (canonicalOnly) {
+    const artifacts = {
+      canonicalInput: saveGzip("canonical-real-battle-input.json.gz", canonical.request.payload.snapshot),
+      canonicalPublicReplay: saveGzip("canonical-real-battle-public-replay.json.gz", canonical.publicReplay),
+      canonicalOwnerReplay: saveGzip("canonical-real-battle-owner-replay.json.gz", canonical.ownerReplay),
+    };
+    const screenshotPaths = captures.map((capture) => join(repoRoot, capture.image.path));
+    const imageHashes = Object.fromEntries(captures.map((capture) => [capture.image.path, capture.image.sha256]));
+    const metadata = {
+      schema: "senkei-battlefield-visual-acceptance/v1",
+      status: "COMPLETE",
+      captureMode: "canonical-only",
+      omittedScenarios: ["real-mid-capture", "default-enbu-battle", "real-base-assault"],
+      evidenceKind,
+      captureRunId: runId,
+      sourceRevision: appRevision,
+      buildRevision: canonical.buildRevision,
+      wasmSha256: activeWasmSha256,
+      wasmBuildRevision: process.env.BATTLEFIELD_WASM_BUILD_REVISION ?? null,
+      baselineBaseRevision: process.env.BATTLEFIELD_BASE_REVISION ?? null,
+      browser: activeBrowserVersion,
+      renderer: "Three.js production renderer in Chromium/SwiftShader; physical GPU and touch hardware NOT_CHECKED",
+      rendererPerformance: Object.fromEntries(viewports.map((viewport) => [viewport.name, performanceSummary(captures, viewport)])),
+      viewports,
+      viewportChecks,
+      scenarios: {
+        canonical: {
+          provenance: "snapshot generated by the real Jinrei + Enbu canonical interaction test; simulated again by the browser Worker and WASM",
+          matchId: canonical.result.match_id,
+          outcome: canonical.result.outcome,
+          finalTick: canonical.result.final_tick,
+          finalStateDigest: canonical.result.final_state_digest,
+          publicReplayDigest: canonical.publicReplay.result_digest,
+          ownerReplayDigest: canonical.ownerReplay.result_digest,
+          workerRequestId: canonical.request.request_id,
+          wasmResponses: canonical.wasmResponses,
+          nodes: 35,
+          edges: 42,
+          confirmedNodeAttackTick: 1,
+          ticks: {
+            initial: 0,
+            nodeFight: 1,
+            lateralCrossing: 3,
+            midBridgeDestroyed: 11,
+            topBridgeExpanded: 13,
+            topBridgeDestroyed: 23,
+            fordTransit: 24,
+            topBridgeRebuilt: 49,
+            fixedBridgeTransit: fixedBridgeTransit!.tick,
+            end: 70,
+          },
+          fixedBridgeTransit,
+          pageErrors: canonical.pageErrors,
+        },
+      },
+      interactionChecks: {
+        replaySeek: true,
+        replayPlayPause: viewportChecks["1440x900"] !== undefined,
+        pixelAndSmooth3dToggle: captures.some((capture) => capture.state === "lane-crossing-smooth-toggle") &&
+          captures.some((capture) => capture.state === "lane-crossing-pixel-toggle"),
+        tacticalOverviewFollow: captures.some((capture) => capture.requestedView === "Tactical") &&
+          captures.some((capture) => capture.requestedView === "Overview") && captures.some((capture) => capture.requestedView === "Follow"),
+        followAuthorizedBridgeFacility: captures.some((capture) => capture.facts.cameraOperation !== undefined),
+        followAuthorizedHeroMovement: captures.some((capture) => capture.state === "lateral-crossing-follow"),
+        followBridgeFreeFordTransit: captures.some((capture) => capture.state === "ford-transit-follow"),
+        mobileDetailsAndTimeline: captures.some((capture) => capture.state === "lane-crossing-details") &&
+          captures.some((capture) => capture.state === "node-attack-timeline"),
+        pageErrors: [...canonical.pageErrors],
+      },
+      artifacts,
+      captures,
+      imageHashes,
+      captureCount: captures.length,
+      uncompressedImageBytes: screenshotPaths.reduce((sum, path) => sum + readFileSync(path).length, 0),
+    };
+    const metadataPath = join(outputDirectory, "metadata.json");
+    writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+    const captureLink = (viewport: Viewport, state: string, requestedView?: CaptureEntry["requestedView"]): string => {
+      const capture = captures.find((entry) => entry.viewport.width === viewport.width &&
+        entry.viewport.height === viewport.height && entry.state === state &&
+        (requestedView === undefined || entry.requestedView === requestedView));
+      if (!capture) return "not captured";
+      const path = relative(outputDirectory, join(repoRoot, capture.image.path)).replaceAll("\\", "/");
+      return `[${state}](${path})`;
+    };
+    writeFileSync(join(outputDirectory, "comparison.md"), [
+      "# Battlefield canonical visual captures",
+      "",
+      `Source HEAD: \`${appRevision}\`. Capture mode: canonical real Senritsu → Jinrei → Enbu/WASM replay only.`,
+      "",
+      "| Viewport | Overview | Tactical | Follow |",
+      "| --- | --- | --- | --- |",
+      ...viewports.map((viewport) => `| ${viewport.name} | ${captureLink(viewport, "world-overview", "Overview")} | ${captureLink(viewport, "initial", "Tactical")} | ${captureLink(viewport, "ford-transit-follow", "Follow")} |`),
+      "",
+      "Each image SHA-256, source/build revision, replay digest, camera, renderer counters, viewport and scene facts are in `metadata.json`.",
+      "",
+    ].join("\n"));
+    flushCaptureProgress(captures, "COMPLETE", {
+      matchId: canonical.result.match_id,
+      finalTick: canonical.result.final_tick,
+      finalStateDigest: canonical.result.final_state_digest,
+      publicReplayDigest: canonical.publicReplay.result_digest,
+      ownerReplayDigest: canonical.ownerReplay.result_digest,
+      metadataPath: relative(repoRoot, metadataPath).replaceAll("\\", "/"),
+      artifactPaths: Object.values(artifacts).map((artifact) => artifact.path),
+    });
+    expect(existsSync(metadataPath)).toBe(true);
+    expect(captures.length).toBeGreaterThanOrEqual(viewports.length * 15);
+    return;
+  }
+
+  const captureSnapshot = JSON.parse(readFileSync(captureSnapshotPath, "utf8")) as JsonRecord;
+  const baseAssaultSnapshot = JSON.parse(readFileSync(baseAssaultSnapshotPath, "utf8")) as JsonRecord;
 
   // Canonical captures are complete. Release their WebGL context before the
   // next scenario so SwiftShader does not render an unused background scene.
@@ -1674,6 +1832,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   };
   const metadata = {
     schema: "senkei-battlefield-visual-acceptance/v1",
+    status: "COMPLETE",
+    captureMode: "full-acceptance",
     evidenceKind,
     captureRunId: runId,
     sourceRevision: appRevision,
@@ -1826,6 +1986,10 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     "",
   ].join("\n");
   writeFileSync(join(outputDirectory, "comparison.md"), comparison);
+  flushCaptureProgress(captures, "COMPLETE", {
+    metadataPath: relative(repoRoot, join(outputDirectory, "metadata.json")).replaceAll("\\", "/"),
+    artifactPaths: Object.values(artifacts).map((artifact) => artifact.path),
+  });
   expect(existsSync(join(outputDirectory, "metadata.json"))).toBe(true);
   expect(captures.length).toBeGreaterThanOrEqual(viewports.length === allViewports.length ? 70 : 20);
 });
