@@ -1,20 +1,23 @@
 use senkei_model::{DomainType, DomainValue};
 use senritsu::{
-    next_engine_compatibility, next_package, validate, BehaviorFieldDefinition,
+    next_engine_compatibility, next_package, validate, validate_with_catalog_extension,
+    canonical_digest, BehaviorFieldDefinition,
     BehaviorOverridePolicy, BehaviorProfileMetadata, BehaviorScope, CatalogMetadataExtension,
     DomainCatalog, NamedBehaviorPreset, ProfileLayer, DOMAIN_CATALOG_SCHEMA_VERSION,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use senritsu::catalog::catalog_semantics_digest;
 
 /// Build a real producer Catalog with an authored test profile. The profile
 /// exists only in this fixture helper; the bundled RulePackage remains unchanged.
 pub fn authored_profile_catalog_json() -> String {
-    let plan = validate(next_package(), &next_engine_compatibility())
+    let mut package = next_package();
+    let plan = validate(package.clone(), &next_engine_compatibility())
         .expect("bundled next package validates");
     let field_id = "navigation.mode".to_owned();
     let field_type = DomainType::String { max_bytes: 64 };
     let value = DomainValue::String("safest".to_owned());
-    let extension = CatalogMetadataExtension {
+    let mut extension = CatalogMetadataExtension {
         schema_version: DOMAIN_CATALOG_SCHEMA_VERSION,
         ruleset_id: plan.ruleset().id.clone(),
         ruleset_version: plan.ruleset().version,
@@ -56,6 +59,12 @@ pub fn authored_profile_catalog_json() -> String {
             )]),
         },
     };
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension)
+        .expect("fixture Behavior semantics have a canonical digest"));
+    package.ruleset.digest = canonical_digest(&package).expect("bound fixture package has a digest");
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    let plan = validate_with_catalog_extension(package, &next_engine_compatibility(), extension.clone())
+        .expect("fixture RulePackage binds its authored Behavior semantics before validation");
     let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension)
         .expect("authored profile fixture validates");
     String::from_utf8(catalog.canonical_json().expect("canonical catalog JSON"))

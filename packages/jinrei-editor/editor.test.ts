@@ -34,6 +34,13 @@ const expected = {
   rulesetDigest: fixtureIdentity.rulesetDigest,
 };
 
+const profileIdentity = (JSON.parse(rawProfileCatalog) as DomainCatalogDocument).identity;
+const expectedProfile = {
+  rulesetId: profileIdentity.rulesetId,
+  rulesetVersion: profileIdentity.rulesetVersion,
+  rulesetDigest: profileIdentity.rulesetDigest,
+};
+
 async function catalog(): Promise<DomainCatalogDocument> { return loadDomainCatalog(rawCatalog, expected); }
 
 describe("Jinrei Editor catalog client", () => {
@@ -47,7 +54,9 @@ describe("Jinrei Editor catalog client", () => {
   });
 
   it("loads typed profile fields and named presets emitted by the real Catalog producer", async () => {
-    const value = await loadDomainCatalog(rawProfileCatalog, expected);
+    expect(expectedProfile.rulesetDigest).not.toBe(expected.rulesetDigest);
+    await expect(loadDomainCatalog(rawProfileCatalog, expected)).rejects.toMatchObject({ code: "package_mismatch" });
+    const value = await loadDomainCatalog(rawProfileCatalog, expectedProfile);
     expect(value.behaviorProfiles.status).toBe("authored_extension");
     if (value.behaviorProfiles.status !== "authored_extension") return;
     const profile = value.behaviorProfiles.value!.metadata;
@@ -75,7 +84,7 @@ describe("Jinrei Editor catalog client", () => {
     const material = digestMaterialJson(augmented);
     const digest = createHash("sha256").update(material).digest("hex");
     const augmentedWithDigest = augmented.replace(/"catalogDigest":"[0-9a-f]{64}"/, `"catalogDigest":"${digest}"`);
-    const value = await loadDomainCatalog(augmentedWithDigest, expected);
+    const value = await loadDomainCatalog(augmentedWithDigest, expectedProfile);
     expect(value.capabilities.activate?.behaviorOverrideArguments).toEqual({ "navigation.mode": 1 });
     expect(value.capabilities.activate?.futureMetadata).toEqual({ enabled: true });
     const wrongArgumentType = augmentedWithDigest.replace('"navigation.mode":1', '"navigation.mode":0');
@@ -222,7 +231,7 @@ describe("catalog-backed editor model", () => {
   });
 
   it("renders an escaped, operable foundation view with all comparison surfaces", async () => {
-    const value = await loadDomainCatalog(rawProfileCatalog, expected);
+    const value = await loadDomainCatalog(rawProfileCatalog, expectedProfile);
     const unsafeActor = { scope: "hero", side: "attacker", squadId: "<squad>", heroId: "hero-1", packageEntityType: "hero" } as const;
     const source = "senkei draft { } <script>";
     const sourceView = renderJinreiEditorMarkup(value, unsafeActor, "source", source);
