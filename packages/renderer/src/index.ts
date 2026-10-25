@@ -7,6 +7,7 @@ import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
+import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -2329,6 +2330,7 @@ export class Battlefield {
           phase,
         );
         g.userData.actionPose = actionPose;
+        const rigMotion = battlefieldUnitRigMotion(actionPose);
         const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
@@ -2353,16 +2355,24 @@ export class Battlefield {
           }
           const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
           for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
-          for (const [name, direction] of [["leg.left", 1], ["leg.right", -1], ["arm.left", -0.55], ["arm.right", 0.55]] as const) {
+          for (const [name, delta] of Object.entries(rigMotion.joints)) {
             const joint = rig.joints[name];
-            if (joint) joint.rotation.x += actionPose.walk * direction;
+            if (joint) {
+              joint.rotation.x += delta.x;
+              joint.rotation.y += delta.y;
+              joint.rotation.z += delta.z;
+            }
           }
-          if (rig.joints["arm.right"]) rig.joints["arm.right"].rotation.x -= actionPose.strike * 0.85;
-          if (rig.weaponPivots.main) rig.weaponPivots.main.rotation.x -= actionPose.strike * 0.22;
-          if (rig.joints.torso) rig.joints.torso.rotation.z += actionPose.hit * 0.08;
-          if (rig.joints.cape) rig.joints.cape.rotation.x += Math.abs(actionPose.walk) * 0.18;
+          for (const [name, delta] of Object.entries(rigMotion.weaponPivots)) {
+            const pivot = rig.weaponPivots[name];
+            if (pivot) {
+              pivot.rotation.x += delta.x;
+              pivot.rotation.y += delta.y;
+              pivot.rotation.z += delta.z;
+            }
+          }
         }
-        g.rotation.z = actionPose.attackLean;
+        g.rotation.z = rigMotion.rootZ;
         const collapsing =
           this.playing &&
           !this.reducedMotion &&
