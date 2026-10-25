@@ -1,0 +1,16 @@
+[package]
+name = "senkei-behavior"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+senkei-model = { path = "../senkei-model" }
+senritsu = { path = "../senritsu" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+jinrei = { path = "../jinrei" }

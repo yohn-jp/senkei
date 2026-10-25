@@ -203,6 +203,10 @@ pub struct CapabilityDefinition {
     pub effect_lifetime: CapabilityLifetime,
     pub active_phases: BTreeSet<PhaseId>,
     pub rejection_codes: RejectionMetadata,
+    /// Behavior profile fields explicitly patched from same-Tick Intent
+    /// arguments. Empty when the RulePackage does not declare this contract.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub behavior_override_arguments: BTreeMap<String, u16>,
     pub logical_cost_reference: CostOperationId,
     pub arbitration: Option<ArbitrationRule>,
 }
@@ -225,6 +229,10 @@ pub struct CapabilityContractMetadata {
     pub effect_lifetime: CapabilityLifetime,
     pub rejection_codes: BTreeSet<DiagnosticCode>,
     pub description: Option<String>,
+    /// Profile field ID to zero-based typed capability argument index.
+    /// Missing on older serialized extensions means no profile bindings.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub behavior_override_arguments: BTreeMap<String, u16>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -549,6 +557,9 @@ impl DomainCatalog {
                                 RejectionMetadata::Declared(metadata.rejection_codes.clone())
                             })
                             .unwrap_or(RejectionMetadata::NotDeclaredByRulePackage),
+                        behavior_override_arguments: capability_metadata
+                            .map(|metadata| metadata.behavior_override_arguments.clone())
+                            .unwrap_or_default(),
                         logical_cost_reference: schema.issue_cost.clone(),
                         arbitration,
                     },
@@ -1027,6 +1038,7 @@ fn validate_extension(
         domain,
         world,
         &extension.capabilities,
+        &extension.entity_scopes,
         next_rules,
         &mut issues,
     );
@@ -1137,6 +1149,7 @@ fn validate_behavior_profiles(
     domain: &DomainSchema,
     world: &WorldSchema,
     capability_metadata: &BTreeMap<CapabilityId, CapabilityContractMetadata>,
+    entity_scopes: &BTreeMap<TypeId, EntityControlScope>,
     next_rules: Option<&NextRules>,
     issues: &mut Vec<DomainCatalogIssue>,
 ) {
@@ -1316,6 +1329,13 @@ fn validate_behavior_profiles(
             );
         }
     }
+    validate_behavior_override_bindings(
+        metadata,
+        domain,
+        entity_scopes,
+        capability_metadata,
+        issues,
+    );
     for (preset_id, preset) in &metadata.presets {
         let path = format!("extension.behaviorProfiles.presets.{preset_id}");
         if preset_id.trim().is_empty()
@@ -1382,6 +1402,96 @@ fn validate_behavior_profiles(
             && !seen_layers.contains(&ProfileLayer::JinreiConditionalPreference)
         {
             issue!("missing_inheritance_layer", "extension.behaviorProfiles.inheritanceOrder".into(), format!("profile field {field_id} allows conditional overrides but omits the Jinrei layer"));
+        }
+    }
+}
+
+fn validate_behavior_override_bindings(
+    profiles: &BehaviorProfileMetadata,
+    domain: &DomainSchema,
+    entity_scopes: &BTreeMap<TypeId, EntityControlScope>,
+    capability_metadata: &BTreeMap<CapabilityId, CapabilityContractMetadata>,
+    issues: &mut Vec<DomainCatalogIssue>,
+) {
+    for (capability_id, metadata) in capability_metadata {
+        let path = format!("extension.capabilities.{capability_id}.behaviorOverrideArguments");
+        if metadata.behavior_override_arguments.is_empty() {
+            continue;
+        }
+        let Some(capability) = domain.capabilities.get(capability_id) else {
+            continue; // The unknown capability diagnostic is emitted above.
+        };
+        if !matches!(
+            metadata.effect_lifetime,
+            CapabilityLifetime::IntentOnly | CapabilityLifetime::UntilNextTick
+        ) {
+            issues.push(DomainCatalogIssue {
+                code: "behavior_override_not_tick_bounded",
+                path: format!("{path}"),
+                message: "conditional Behavior preference bindings require intent-only or Tick-bounded lifetime".into(),
+            });
+        }
+        let actor_scope = capability
+            .actor_argument
+            .and_then(|index| capability.arguments.get(index as usize))
+            .and_then(|parameter| match &parameter.value_type {
+                DomainType::Entity {
+                    entity_type: Some(entity_type),
+                } => entity_scopes.get(entity_type),
+                _ => None,
+            })
+            .map(|scope| match scope {
+                EntityControlScope::Army => BehaviorScope::Army,
+                EntityControlScope::Squad => BehaviorScope::Squad,
+                EntityControlScope::Hero => BehaviorScope::Hero,
+                EntityControlScope::LaneLimitedMinion => BehaviorScope::LaneLimitedMinion,
+            });
+        if actor_scope.is_none() {
+            issues.push(DomainCatalogIssue {
+                code: "behavior_override_actor_scope_missing",
+                path: format!("{path}"),
+                message: "conditional Behavior preference capability must declare an actor argument with an authored entity control scope".into(),
+            });
+        }
+        for (field_id, argument_index) in &metadata.behavior_override_arguments {
+            let field_path = format!("{path}.{field_id}");
+            let Some(field) = profiles.fields.get(field_id) else {
+                issues.push(DomainCatalogIssue {
+                    code: "unknown_behavior_override_field",
+                    path: field_path,
+                    message: "capability preference binding must reference a declared Behavior Profile field".into(),
+                });
+                continue;
+            };
+            if !field.override_policy.conditional_tick_override {
+                issues.push(DomainCatalogIssue {
+                    code: "behavior_override_forbidden",
+                    path: field_path.clone(),
+                    message: "bound Profile field does not permit conditional Tick overrides".into(),
+                });
+            }
+            if actor_scope.is_some_and(|scope| !field.scopes.contains(&scope)) {
+                issues.push(DomainCatalogIssue {
+                    code: "behavior_override_scope_mismatch",
+                    path: field_path.clone(),
+                    message: "bound Profile field is not permitted for the capability actor scope".into(),
+                });
+            }
+            let Some(argument) = capability.arguments.get(*argument_index as usize) else {
+                issues.push(DomainCatalogIssue {
+                    code: "behavior_override_argument_out_of_range",
+                    path: field_path,
+                    message: "bound capability argument index is out of range".into(),
+                });
+                continue;
+            };
+            if argument.value_type != field.value_type {
+                issues.push(DomainCatalogIssue {
+                    code: "behavior_override_argument_type_mismatch",
+                    path: field_path,
+                    message: "bound capability argument type must exactly match the Behavior Profile field type".into(),
+                });
+            }
         }
     }
 }
@@ -1668,8 +1778,8 @@ mod tests {
 
     fn test_extension(plan: &VerifiedRulePlan, mode: &str) -> CatalogMetadataExtension {
         let hero_id = plan.plan().next.as_ref().unwrap().heroes[0].id.clone();
-        let persistent_capability = CapabilityId::new("move");
-        let string_type = DomainType::String { max_bytes: 24 };
+        let persistent_capability = CapabilityId::new("retreat");
+        let string_type = DomainType::String { max_bytes: 64 };
         let behavior_profiles = BehaviorProfileMetadata {
             inheritance_order: vec![
                 ProfileLayer::SenritsuDefault,
@@ -1696,6 +1806,20 @@ mod tests {
                     },
                 ),
                 (
+                    "navigation.destination".into(),
+                    BehaviorFieldDefinition {
+                        value_type: string_type.clone(),
+                        scopes: [BehaviorScope::Hero].into_iter().collect(),
+                        aggregation: None,
+                        override_policy: BehaviorOverridePolicy {
+                            conditional_tick_override: true,
+                            persistent_capability: None,
+                        },
+                        description: "Test fixture navigation destination".into(),
+                        unit: None,
+                    },
+                ),
+                (
                     "survival.threshold".into(),
                     BehaviorFieldDefinition {
                         value_type: DomainType::Integer {
@@ -1715,6 +1839,10 @@ mod tests {
             ]),
             senritsu_default: BTreeMap::from([
                 ("navigation.mode".into(), DomainValue::String(mode.into())),
+                (
+                    "navigation.destination".into(),
+                    DomainValue::String("lane.mid".into()),
+                ),
                 ("survival.threshold".into(), DomainValue::Integer(30)),
             ]),
             hero_defaults: BTreeMap::from([(
@@ -1743,17 +1871,33 @@ mod tests {
                 (TypeId::new("hero"), EntityControlScope::Hero),
                 (TypeId::new("minion"), EntityControlScope::LaneLimitedMinion),
             ]),
-            capabilities: BTreeMap::from([(
-                persistent_capability,
-                CapabilityContractMetadata {
+            capabilities: BTreeMap::from([
+                (
+                    CapabilityId::new("move"),
+                    CapabilityContractMetadata {
+                        version: Version::new(1, 0, 0),
+                        effect_lifetime: CapabilityLifetime::IntentOnly,
+                        rejection_codes: BTreeSet::new(),
+                        description: Some("Tick-local navigation preference fixture".into()),
+                        behavior_override_arguments: BTreeMap::from([(
+                            "navigation.destination".into(),
+                            1,
+                        )]),
+                    },
+                ),
+                (
+                    persistent_capability,
+                    CapabilityContractMetadata {
                     version: Version::new(1, 0, 0),
                     effect_lifetime: CapabilityLifetime::Persistent,
                     rejection_codes: [DiagnosticCode::new("profile_override_denied")]
                         .into_iter()
                         .collect(),
                     description: Some("Authored persistent-profile test capability".into()),
-                },
-            )]),
+                        behavior_override_arguments: BTreeMap::new(),
+                    },
+                ),
+            ]),
             behavior_profiles,
         }
     }
@@ -1835,8 +1979,20 @@ mod tests {
         );
         assert_eq!(first.catalog_digest(), second.catalog_digest());
         assert!(first.is_compatible_with(&second.compatibility_key()));
+        let wire: serde_json::Value = serde_json::from_slice(&first.canonical_json().unwrap()).unwrap();
+        assert!(wire["capabilities"].as_object().unwrap().values().all(|capability| {
+            capability.get("behaviorOverrideArguments").is_none()
+        }));
 
         let next_plan = verified_next();
+        let extension = test_extension(&next_plan, "steady");
+        let extension_wire = serde_json::to_value(&extension).unwrap();
+        assert!(extension_wire["capabilities"]["move"]
+            .get("behaviorOverrideArguments")
+            .is_some());
+        assert!(extension_wire["capabilities"]["retreat"]
+            .get("behaviorOverrideArguments")
+            .is_none());
         let mut extension = test_extension(&next_plan, "steady");
         extension.ruleset_digest = ContentDigest::new("0".repeat(64));
         let error =
@@ -1960,7 +2116,7 @@ mod tests {
         assert_eq!(
             first
                 .capabilities()
-                .get(&CapabilityId::new("move"))
+                .get(&CapabilityId::new("retreat"))
                 .unwrap()
                 .effect_lifetime,
             CapabilityLifetime::Persistent
@@ -1968,7 +2124,7 @@ mod tests {
         assert_eq!(
             first
                 .capabilities()
-                .get(&CapabilityId::new("move"))
+                .get(&CapabilityId::new("retreat"))
                 .unwrap()
                 .version,
             Some(Version::new(1, 0, 0))
@@ -1976,11 +2132,27 @@ mod tests {
         assert!(matches!(
             first
                 .capabilities()
-                .get(&CapabilityId::new("move"))
+                .get(&CapabilityId::new("retreat"))
                 .unwrap()
                 .rejection_codes,
             RejectionMetadata::Declared(_)
         ));
+        assert_eq!(
+            first
+                .capabilities()
+                .get(&CapabilityId::new("move"))
+                .unwrap()
+                .behavior_override_arguments,
+            BTreeMap::from([("navigation.destination".to_owned(), 1)])
+        );
+        assert_eq!(
+            first
+                .capabilities()
+                .get(&CapabilityId::new("move"))
+                .unwrap()
+                .effect_lifetime,
+            CapabilityLifetime::IntentOnly
+        );
         assert_eq!(
             first.entity_scopes(),
             &MetadataStatus::AuthoredExtension {
@@ -2031,6 +2203,37 @@ mod tests {
         assert!(codes.contains("unknown_profile_field"));
         assert!(codes.contains("unknown_persistent_override_capability"));
         assert!(codes.contains("missing_inheritance_layer"));
+    }
+
+    #[test]
+    fn behavior_override_bindings_require_tick_lifetime_scope_and_exact_types() {
+        let plan = verified_next();
+        let mut invalid = test_extension(&plan, "steady");
+        let move_contract = invalid.capabilities.get_mut(&CapabilityId::new("move")).unwrap();
+        move_contract.behavior_override_arguments.insert("navigation.destination".into(), 99);
+        move_contract.behavior_override_arguments.insert("survival.threshold".into(), 1);
+        move_contract.effect_lifetime = CapabilityLifetime::Persistent;
+
+        let error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid).unwrap_err();
+        let codes = error.issues.iter().map(|issue| issue.code).collect::<BTreeSet<_>>();
+        assert!(codes.contains("behavior_override_argument_out_of_range"));
+        assert!(codes.contains("behavior_override_argument_type_mismatch"));
+        assert!(codes.contains("behavior_override_not_tick_bounded"));
+    }
+
+    #[test]
+    fn older_serialized_extensions_default_new_behavior_bindings() {
+        let plan = verified_next();
+        let extension = test_extension(&plan, "steady");
+        let mut value = serde_json::to_value(extension).unwrap();
+        let move_contract = value
+            .get_mut("capabilities")
+            .and_then(|capabilities| capabilities.get_mut("move"))
+            .unwrap();
+        move_contract.as_object_mut().unwrap().remove("behaviorOverrideArguments");
+        let decoded: CatalogMetadataExtension = serde_json::from_value(value).unwrap();
+        let move_contract = decoded.capabilities.get(&CapabilityId::new("move")).unwrap();
+        assert!(move_contract.behavior_override_arguments.is_empty());
     }
 
     #[test]
