@@ -27,9 +27,8 @@ pub fn compiled_authored_world() -> VerifiedWorld {
     .expect("checked-in World Definition compiles")
 }
 
-/// Lane routes, bases, and tower sites are currently absent from World Definition.
-/// A caller must provide these values explicitly from an owned source when
-/// projecting a compiled World into the older `BattleMap` shape.
+/// Optional explicitly supplied layout assertion. The canonical layout is
+/// authored by World Definition; supplemental metadata must match it exactly.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExplicitBattleMapMetadata {
     pub attacker_base: String,
@@ -41,6 +40,7 @@ pub struct ExplicitBattleMapMetadata {
 impl ExplicitBattleMapMetadata {
     /// Explicitly copy the runtime-only layout fields from an existing map.
     /// This does not infer routes or sites from the compiled World.
+    #[cfg(test)]
     pub fn from_runtime_map(map: &BattleMap) -> Self {
         Self {
             attacker_base: map.attacker_base.clone(),
@@ -824,7 +824,8 @@ fn nonrepresentable_terrain(simulation: &CanonicalSimulationWorld) -> Vec<String
         .collect()
 }
 
-/// Construct the canonical 35-node, 42-edge battlefield from BATTLEFIELD.md.
+/// Previous runtime topology, retained only as an adapter comparison fixture.
+#[cfg(test)]
 pub fn legacy_battle_map() -> BattleMap {
     let mut nodes = BTreeMap::new();
     let mut add_node = |id: &str, x: i64, y: i64, region: &str, allegiance: &str| {
