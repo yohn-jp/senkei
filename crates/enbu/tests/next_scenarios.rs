@@ -1575,8 +1575,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(pursuer, "edge_to"), "A.MID.J", "the actual pursuit begins along the next connected edge to the observed target node");
     assert!(entity_integer(pursuer, "edge_progress") > 0);
     let retreating = owner_hero_at(&artifact, 2, "slot-4");
-    assert_eq!(entity_string(retreating, "node"), "N.MID.OBS");
-    assert_eq!(entity_string(retreating, "edge_to"), "A.MID.BANK", "retreat uses the legal allied connector out of MID");
+    assert_eq!(entity_string(retreating, "node"), "A.MID.BANK", "retreat arrives at the adjacent allied node");
+    assert_eq!(entity_string(retreating, "edge_to"), "", "arrival consumes the tick and does not also enter the next edge");
     let bridge_crossing = owner_hero_at(&artifact, 50, "slot-2");
     assert_eq!(entity_string(bridge_crossing, "node"), "A.TOP.BANK");
     assert_eq!(entity_string(bridge_crossing, "edge_to"), "B.TOP.BANK", "the rebuilt fixed bridge remains an actual traversable edge");
@@ -1595,8 +1595,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         "an A unit cannot leave the contested observation node directly into B territory");
     let defender_mid = mid_state.entities.values().find(|entity| entity.entity_type.as_str() == "hero"
         && entity.owner == Some(CombatantSide::Defender)
-        && entity.fields.get(&FieldId::new("slot_id")) == Some(&DomainValue::String("slot-1".into())))
-        .expect("defender observation-node fighter is visible in attacker owner replay");
+        && entity.fields.get(&FieldId::new("catalog_id")) == Some(&DomainValue::String("F04".into())))
+        .expect("defender observation-node F04 is visible in attacker owner replay without exposing its private slot");
     assert_eq!(entity_string(defender_mid, "node"), "N.MID.OBS",
         "a B unit cannot leave the contested observation node directly into A territory");
     assert!(artifact.replay.frames.iter().any(|frame| frame.tick == 1 && frame.events.iter().any(|event| event.event.as_str() == "next.attack")),
@@ -1624,16 +1624,20 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     }
     if let Some(directory) = std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(PathBuf::from) {
         fs::create_dir_all(&directory).expect("adapter fixture directory exists");
-        let mut request = serde_json::json!({
-            "api_version": Version::new(1, 0, 0),
-            "request_id": "next-battlefield-canonical",
-            "operation": "simulate",
-            "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": false }
-        });
-        request["request_id"] = "next-battlefield-canonical".into();
-        let bytes = serde_json::to_vec_pretty(&request).expect("native/WASM battle input serializes");
-        fs::write(directory.join("next-battlefield-canonical.request.json"), bytes)
-            .expect("write canonical Enbu battle for both adapters");
+        for (request_id, include_diagnostics) in [
+            ("next-battlefield-canonical", false),
+            ("next-battlefield-owner", true),
+        ] {
+            let request = serde_json::json!({
+                "api_version": Version::new(1, 0, 0),
+                "request_id": request_id,
+                "operation": "simulate",
+                "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": include_diagnostics }
+            });
+            let bytes = serde_json::to_vec_pretty(&request).expect("native/WASM battle input serializes");
+            fs::write(directory.join(format!("{request_id}.request.json")), bytes)
+                .unwrap_or_else(|error| panic!("write {request_id} Enbu battle for both adapters: {error}"));
+        }
     }
     assert!(artifact.result.final_tick > ford_frame.tick);
 }

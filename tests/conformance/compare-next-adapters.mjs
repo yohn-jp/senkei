@@ -90,9 +90,10 @@ const paths = await requestFiles();
 if (paths.length < 2) fail(`expected the success and negative Next cases in ${fixturesDirectory}`);
 const requests = await Promise.all(paths.map(async (path) => JSON.parse(await readFile(path, "utf8"))));
 for (const request of requests) {
-  if (request.operation !== "simulate" || request.payload?.include_diagnostics !== false ||
+  const ownerScenario = request.request_id === "next-battlefield-owner";
+  if (request.operation !== "simulate" || request.payload?.include_diagnostics !== ownerScenario ||
       typeof request.request_id !== "string") {
-    fail(`${request.request_id ?? "fixture"} must use simulate, diagnostics=false, and a request_id`);
+    fail(`${request.request_id ?? "fixture"} has an invalid operation, diagnostics scope, or request_id`);
   }
 }
 
@@ -143,31 +144,56 @@ for (let index = 0; index < requests.length; index += 1) {
         !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
       fail("canonical public battle is missing its confirmed terminal state, digest, or side CU");
     }
-    const frame = (tick) => replay.frames.find((candidate) => candidate.tick === tick)?.visible_state?.entities ?? {};
-    const field = (entity, name) => entity?.fields?.[name]?.kind === "string" || entity?.fields?.[name]?.kind === "enum"
-      ? entity.fields[name].value : undefined;
-    const entries = (tick) => Object.values(frame(tick));
-    const bridgeAt = (tick) => entries(tick).find((entity) => entity.entity_type === "bridge" && field(entity, "site") === "TOP");
-    if (field(bridgeAt(0), "bridge_state") !== "normal" || field(bridgeAt(13), "bridge_state") !== "expanded" ||
-        field(bridgeAt(23), "bridge_state") !== "destroyed" || field(bridgeAt(49), "bridge_state") !== "normal") {
-      fail("authorized public replay does not expose the actual normal → expanded → destroyed → rebuilt TOP bridge states");
-    }
-    if (!entries(2).some((entity) => field(entity, "track") === "LEFT" && field(entity, "edge_to") === "A.TOP.T2")) {
-      fail("authorized public replay does not expose the real selected LEFT lane track and edge movement");
-    }
     if (!replay.frames.some((candidate) => candidate.events.some((event) => event.event === "next.attack"))) {
       fail("canonical mid-node encounter produced no confirmed combat event");
     }
-    if (!replay.frames.some((candidate) => Object.values(candidate.visible_state?.entities ?? {}).some((entity) =>
-      entity.entity_type === "hero" && Number.isSafeInteger(entity.fields?.ford_remaining?.value) && entity.fields.ford_remaining.value > 0))) {
-      fail("authorized public replay contains no real unit traversing a Jungle ford");
-    }
-    if (!entries(50).some((entity) => entity.entity_type === "hero" &&
-        field(entity, "node") === "A.TOP.BANK" && field(entity, "edge_to") === "B.TOP.BANK")) {
-      fail("authorized public replay contains no real unit traversing the rebuilt fixed TOP bridge");
-    }
     if (["slot_id", "squad", "goal", "internal_secret_marker"].some((marker) => JSON.stringify(result).includes(marker))) {
       fail("canonical public replay leaked owner-only identities or tactical goals");
+    }
+  } else if (request.request_id === "next-battlefield-owner") {
+    if (!nativeResponse.ok) fail(`authorized owner battle failed: ${JSON.stringify(nativeResponse.error)}`);
+    const result = nativeResponse.result;
+    const match = result.result;
+    const replay = result.owner_replay;
+    if (result.diagnostics === null || !replay || replay.perspective !== "attacker") {
+      fail("explicit diagnostics-enabled request lacks its authorized attacker replay");
+    }
+    if (match.final_tick < 50 || typeof match.final_state_digest !== "string" ||
+        !Number.isSafeInteger(match.cu_spent?.attacker) || !Number.isSafeInteger(match.cu_spent?.defender)) {
+      fail("authorized owner battle is missing its confirmed terminal state, digest, or side CU");
+    }
+    const frameEntities = (tick) => {
+      const entities = replay.frames.find((candidate) => candidate.tick === tick)?.visible_state?.entities;
+      return entities ? Object.values(entities) : [];
+    };
+    const field = (entity, name) => entity?.fields?.[name]?.kind === "string" || entity?.fields?.[name]?.kind === "enum"
+      ? entity.fields[name].value : undefined;
+    const integer = (entity, name) => entity?.fields?.[name]?.kind === "integer"
+      ? entity.fields[name].value : undefined;
+    const hero = (tick, catalogId) => frameEntities(tick).find((entity) =>
+      entity.entity_type === "hero" && field(entity, "catalog_id") === catalogId);
+    const bridge = (tick) => frameEntities(tick).find((entity) =>
+      entity.entity_type === "bridge" && field(entity, "site") === "TOP");
+    if (field(bridge(0), "bridge_state") !== "normal" || field(bridge(13), "bridge_state") !== "expanded" ||
+        field(bridge(23), "bridge_state") !== "destroyed" || field(bridge(49), "bridge_state") !== "normal") {
+      fail("authorized attacker replay does not expose the real normal → expanded → destroyed → rebuilt TOP bridge states");
+    }
+    if (field(hero(2, "F01"), "track") !== "LEFT" || field(hero(2, "F01"), "node") !== "A.TOP.T1" ||
+        field(hero(2, "F01"), "edge_to") !== "A.TOP.T2") {
+      fail("authorized attacker replay does not expose selected LEFT track movement on the canonical TOP edge");
+    }
+    if (!Number.isSafeInteger(integer(hero(1, "F02"), "ford_remaining")) || integer(hero(1, "F02"), "ford_remaining") <= 0) {
+      fail("authorized attacker replay contains no Hero in the actual Jungle ford transit state");
+    }
+    if (field(hero(1, "F03"), "node") !== "A.MID.T2" || field(hero(1, "F03"), "edge_to") !== "A.MID.J" ||
+        integer(hero(1, "F03"), "edge_progress") <= 0) {
+      fail("authorized attacker replay does not expose actual movement driven by the MID pursuit");
+    }
+    if (field(hero(2, "R02"), "node") !== "A.MID.BANK" || field(hero(2, "R02"), "edge_to") !== "") {
+      fail("authorized attacker replay does not expose the retreat's adjacent-node arrival and tick boundary");
+    }
+    if (field(hero(50, "R01"), "node") !== "A.TOP.BANK" || field(hero(50, "R01"), "edge_to") !== "B.TOP.BANK") {
+      fail("authorized attacker replay does not expose the rebuilt fixed TOP bridge transit");
     }
   } else if (nativeResponse.ok) {
     fail(`${request.request_id} should be rejected, but the adapter accepted it`);

@@ -99,12 +99,32 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   const simulation = response.result as JsonRecord;
   const result = simulation.outcome.result as JsonRecord;
   const publicReplay = simulation.outcome.presentation_replay as JsonRecord;
-  const replay = (simulation.owner_replay as JsonRecord | undefined) ?? publicReplay;
+  const replay = simulation.owner_replay as JsonRecord | undefined;
+  expect(replay?.perspective, "the local WASM result includes the authorized attacker replay").toBe("attacker");
   expect(result.match_id).toBe(snapshot.context.match_id);
   expect(result.final_tick).toBeGreaterThanOrEqual(50);
   expect(result.final_state_digest).toBeTruthy();
   expect(publicReplay.result_digest).toBeTruthy();
-  expect(replay.frames.some((frame: JsonRecord) => frame.visible_state?.entities && Object.values(frame.visible_state.entities).some((entity: any) => entity.entity_type === "hero" && entity.fields?.ford_remaining?.value > 0))).toBe(true);
+  const ownerEntitiesAt = (tick: number): JsonRecord[] => {
+    const frame = replay!.frames.find((candidate: JsonRecord) => candidate.tick === tick);
+    return Object.values(frame?.visible_state?.entities ?? {}) as JsonRecord[];
+  };
+  const ownerHeroAt = (tick: number, catalogId: string): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
+    entity.entity_type === "hero" && entity.fields?.catalog_id?.value === catalogId);
+  const bridgeAt = (tick: number): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
+    entity.entity_type === "bridge" && entity.fields?.site?.value === "TOP");
+  expect(ownerHeroAt(1, "F02")?.fields?.ford_remaining?.value).toBeGreaterThan(0);
+  expect(ownerHeroAt(1, "F03")?.fields?.edge_to?.value).toBe("A.MID.J");
+  expect(ownerHeroAt(2, "F01")?.fields?.track?.value).toBe("LEFT");
+  expect(ownerHeroAt(2, "F01")?.fields?.edge_to?.value).toBe("A.TOP.T2");
+  expect(ownerHeroAt(2, "R02")?.fields?.node?.value).toBe("A.MID.BANK");
+  expect(ownerHeroAt(2, "R02")?.fields?.edge_to?.value ?? "").toBe("");
+  expect(ownerHeroAt(50, "R01")?.fields?.node?.value).toBe("A.TOP.BANK");
+  expect(ownerHeroAt(50, "R01")?.fields?.edge_to?.value).toBe("B.TOP.BANK");
+  expect(bridgeAt(0)?.fields?.bridge_state?.value).toBe("normal");
+  expect(bridgeAt(13)?.fields?.bridge_state?.value).toBe("expanded");
+  expect(bridgeAt(23)?.fields?.bridge_state?.value).toBe("destroyed");
+  expect(bridgeAt(49)?.fields?.bridge_state?.value).toBe("normal");
   expect(JSON.stringify(publicReplay)).not.toContain("slot_id");
   expect(JSON.stringify(publicReplay)).not.toContain("goal");
 
