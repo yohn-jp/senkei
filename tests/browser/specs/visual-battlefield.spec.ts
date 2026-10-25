@@ -257,11 +257,6 @@ function lateralHeroWithCenterMinionAt(replay: JsonRecord, ruleset: JsonRecord, 
   const map = requiredRecord(next.map, "Battlefield static map");
   const edges = map.edges as JsonRecord[] | undefined;
   if (!Array.isArray(edges)) throw new Error("The returned Battlefield ruleset does not contain static map edges.");
-  const edge = edges.find((candidate) =>
-    ((candidate.from === node && candidate.to === edgeTo) || (candidate.from === edgeTo && candidate.to === node)) &&
-    candidate.region === "lane" && !candidate.bridge_site && candidate.ford !== true,
-  );
-  if (!edge) return undefined;
   const parameters = requiredRecord(next.parameters, "versioned Battlefield parameters");
   const occupancyRadius = parameters.track_occupancy_radius_wu;
   if (typeof occupancyRadius !== "number" || !Number.isSafeInteger(occupancyRadius) || occupancyRadius < 0) {

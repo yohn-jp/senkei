@@ -125,7 +125,10 @@
     },
     "focused1440AfterTestFix": {
       "statusAtReportCreation": "RUNNING",
-      "result": "NOT_CHECKED"
+      "result": "FAIL",
+      "failure": "ReferenceError: node is not defined in an obsolete edges.find block outside the live-Hero candidate loop.",
+      "classification": "test-only reference error; obsolete block removed on integrated main",
+      "afterCleanupBrowserVerification": "NOT_CHECKED"
     },
     "viewport375x812": {
       "status": "NOT_CHECKED"
