@@ -1,4 +1,4 @@
-const MAX_WASM_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_WASM_RESPONSE_BYTES = 64_000_000;
 
 interface SenkeiWasmExports extends WebAssembly.Exports {
   readonly memory: WebAssembly.Memory;

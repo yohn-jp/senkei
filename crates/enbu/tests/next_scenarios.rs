@@ -1775,3 +1775,91 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     }
     assert!(artifact.result.final_tick > ford_frame.tick);
 }
+
+#[test]
+fn long_workbench_local_response_fits_versioned_output_limit() {
+    let rules = rules();
+    let own_slots = ["slot-01", "slot-02", "slot-03", "slot-04", "slot-05"];
+    let actions = own_slots.iter().enumerate().map(|(index, slot)| {
+        let selector = format!(
+            "argmin hero in filter hero in allies.heroes {{ hero.slot_id == \"{slot}\", }} by hero.level then hero.slot_id"
+        );
+        let condition = format!(
+            "any hero in allies.heroes {{ hero.slot_id == \"{slot}\", hero.goal == \"\", hero.hp > 0, }}"
+        );
+        let condition = if index == 0 {
+            format!("and {{ {condition}, match.tick < 374, }}")
+        } else { condition };
+        format!(
+            "action advance_{} {{ when {}, do move({}, \"B.BASE\"), }}",
+            index + 1, condition, selector
+        )
+    }).collect::<Vec<_>>().join(", ");
+    let attacker_tactics = format!("senkei workbench_long {{ {actions} }}");
+    let defender_tactics = persistent_movement_tactics(&own_slots.iter().map(|slot| ((*slot).to_owned(), "A.BASE".to_owned())).collect::<Vec<_>>());
+    let attacker_program = compile(&attacker_tactics, &rules).unwrap();
+    let defender_program = compile(&defender_tactics, &rules).unwrap();
+    let mut attacker = configured_snapshot(&rules, CombatantSide::Attacker, &[1, 1, 1, 1, 1], attacker_program.program, None);
+    let mut defender = configured_snapshot(&rules, CombatantSide::Defender, &[1, 1, 1, 1, 1], defender_program.program, None);
+    for (index, hero) in ["F01", "F03", "F06", "R02", "R04"].iter().enumerate() {
+        set_catalog(&mut attacker, index, hero, &rules);
+    }
+    for (index, hero) in ["R01", "R03", "R05", "F02", "F04"].iter().enumerate() {
+        set_catalog(&mut defender, index, hero, &rules);
+    }
+    for snapshot in [&mut attacker, &mut defender] {
+        if let Some(DomainValue::List(heroes)) = snapshot.configuration.get_mut(&FieldId::new("heroes")) {
+            for (index, hero) in heroes.iter_mut().enumerate() {
+                if let DomainValue::Record(fields) = hero {
+                    fields.insert(FieldId::new("slot_id"), DomainValue::String(format!("slot-{:02}", index + 1)));
+                }
+            }
+        }
+    }
+    let next = rules.plan().next.as_ref().unwrap();
+    let path_b = next.heroes.iter().find(|hero| hero.id == "F01").unwrap()
+        .skill_paths.keys().find(|path| path.as_str().ends_with('b')).cloned();
+    if let Some(path) = path_b {
+        if let Some(DomainValue::List(heroes)) = attacker.configuration.get_mut(&FieldId::new("heroes")) {
+            if let Some(DomainValue::Record(fields)) = heroes.first_mut() {
+                fields.insert(FieldId::new("skill_path"), DomainValue::String(path));
+            }
+        }
+    }
+    let mut context = new_match_context(&rules, MatchId::new("workbench-long-response-measure"));
+    context.max_ticks = 600;
+    let mut vm = Vm::new(&rules);
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut vm).unwrap();
+    let public_bytes = serde_json::to_vec(&artifact.public_response()).unwrap().len();
+    let owner_bytes = serde_json::to_vec(&artifact.owner_replay).unwrap().len();
+    let mut local_diagnostics = artifact.diagnostics.clone();
+    local_diagnostics.events.retain(|event| event.side == CombatantSide::Attacker);
+    local_diagnostics.cu_by_side.retain(|side, _| *side == CombatantSide::Attacker);
+    local_diagnostics.final_memory_by_side.retain(|side, _| *side == CombatantSide::Attacker);
+    let diagnostic_bytes = serde_json::to_vec(&Some(&local_diagnostics)).unwrap().len();
+    let local = LocalSimulationResponse {
+        owner_replay: artifact.owner_replay.clone(),
+        result: artifact.result.clone(),
+        replay: artifact.replay.clone(),
+        diagnostics: Some(local_diagnostics),
+    };
+    let local_bytes = serde_json::to_vec(&local).unwrap().len();
+    eprintln!("workbench long response: tick={} public={} owner={} diagnostics={} local={} bytes", artifact.result.final_tick, public_bytes, owner_bytes, diagnostic_bytes, local_bytes);
+    assert_eq!(artifact.result.final_tick, 600, "this regression must exercise the configured timeout boundary");
+    assert!(public_bytes < 32_000_000, "the public-only projection remains under its previous cap");
+    assert!(local_bytes > 32_000_000, "including the authorized owner replay crosses the previous core adapter cap");
+    assert!(local_bytes <= rules.plan().limits.max_output_bytes as usize,
+        "the full owner-local response must fit the content-versioned output limit");
+    if let Some(directory) = std::env::var_os("NEXT_ADAPTER_FIXTURE_DIR").map(PathBuf::from) {
+        fs::create_dir_all(&directory).expect("adapter fixture directory exists");
+        let request = serde_json::json!({
+            "api_version": WASM_API_VERSION,
+            "request_id": "next-workbench-long-owner",
+            "operation": "simulate",
+            "payload": { "attacker": attacker, "defender": defender, "context": context, "include_diagnostics": true }
+        });
+        let bytes = serde_json::to_vec_pretty(&request).expect("long real Enbu match input serializes");
+        fs::write(directory.join("next-workbench-long-owner.request.json"), bytes)
+            .expect("write the long authorized Workbench simulation for native/WASM parity");
+    }
+}

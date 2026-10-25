@@ -91,7 +91,8 @@ const paths = await requestFiles();
 if (paths.length < 2) fail(`expected the success and negative Next cases in ${fixturesDirectory}`);
 const requests = await Promise.all(paths.map(async (path) => JSON.parse(await readFile(path, "utf8"))));
 for (const request of requests) {
-  const ownerScenario = request.request_id === "next-battlefield-owner";
+  const ownerScenario = request.request_id === "next-battlefield-owner" ||
+    request.request_id === "next-workbench-long-owner";
   if (request.operation !== "simulate" || request.payload?.include_diagnostics !== ownerScenario ||
       typeof request.request_id !== "string") {
     fail(`${request.request_id ?? "fixture"} has an invalid operation, diagnostics scope, or request_id`);
@@ -125,6 +126,7 @@ for (let index = 0; index < requests.length; index += 1) {
     fail(`${request.request_id} differs between native and real WebAssembly dispatch`);
   }
 
+  let encodedResponseBytes;
   if (request.request_id === "next-public-simulation") {
     if (!nativeResponse.ok) fail(`public scenario failed: ${JSON.stringify(nativeResponse.error)}`);
     const result = nativeResponse.result;
@@ -207,13 +209,31 @@ for (let index = 0; index < requests.length; index += 1) {
     if (field(hero(50, "R01"), "node") !== "A.TOP.BANK" || field(hero(50, "R01"), "edge_to") !== "B.TOP.BANK") {
       fail("authorized attacker replay does not expose the rebuilt fixed TOP bridge transit");
     }
+  } else if (request.request_id === "next-workbench-long-owner") {
+    if (!nativeResponse.ok) fail(`long authorized Workbench battle failed: ${JSON.stringify(nativeResponse.error)}`);
+    const result = nativeResponse.result;
+    const match = result.result;
+    if (match.final_tick !== 600 || result.diagnostics === null || result.owner_replay?.perspective !== "attacker") {
+      fail("long Workbench battle is missing its timeout result, attacker owner replay, or diagnostics");
+    }
+    if (result.owner_replay.frames.length !== 601 || result.replay.frames.length !== 601) {
+      fail("long Workbench battle does not retain the full deterministic replay for each tick");
+    }
+    if (result.diagnostics.events.some((event) => event.side !== "attacker")) {
+      fail("long owner replay exposed opponent restricted diagnostics");
+    }
+    encodedResponseBytes = new TextEncoder().encode(JSON.stringify(nativeResponse)).byteLength;
+    if (encodedResponseBytes <= 32_000_000 || encodedResponseBytes > 64_000_000) {
+      fail(`long local response has unexpected encoded size ${encodedResponseBytes}`);
+    }
   } else if (nativeResponse.ok) {
     fail(`${request.request_id} should be rejected, but the adapter accepted it`);
   }
   const match = nativeResponse.ok ? nativeResponse.result.result : undefined;
   evidence.push({ request_id: request.request_id, input_sha256: digest(request),
     native_sha256: digest(nativeResponse), repeated_native_sha256: digest(repeatedNative[index]), wasm_sha256: digest(wasmResponse),
-    ok: nativeResponse.ok, ...(match ? { final_tick: match.final_tick, final_state_digest: match.final_state_digest, cu_spent: match.cu_spent,
+    ok: nativeResponse.ok, ...(encodedResponseBytes === undefined ? {} : { response_bytes: encodedResponseBytes }),
+    ...(match ? { final_tick: match.final_tick, final_state_digest: match.final_state_digest, cu_spent: match.cu_spent,
       public_replay_sha256: digest(nativeResponse.result.replay),
       ...(nativeResponse.result.owner_replay ? { owner_replay_sha256: digest(nativeResponse.result.owner_replay) } : {}) } : {}) });
   console.log(`PASS ${request.request_id} (${nativeResponse.ok ? request.payload.include_diagnostics ? "authorized owner simulation" : "public simulation" : "matching rejection"})`);

@@ -3,7 +3,7 @@ import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts
 import { WasmRuntime } from "./wasm-runtime";
 
 const MAX_WORKER_REQUEST_BYTES = 16 * 1024 * 1024;
-const MAX_WORKER_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_WORKER_RESPONSE_BYTES = 64_000_000;
 const MAX_BENCHMARK_CASES = 256;
 const MAX_IDENTIFIER_LENGTH = 128;
 

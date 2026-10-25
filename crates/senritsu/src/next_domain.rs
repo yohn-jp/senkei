@@ -75,7 +75,7 @@ pub fn configure(package: &mut RulePackage) {
     package.limits.max_intents_per_side_per_tick = 32;
     package.limits.max_events = 200_000;
     package.limits.max_diagnostic_events = 250_000;
-    package.limits.max_output_bytes = 32_000_000;
+    package.limits.max_output_bytes = 64_000_000;
     package.limits.max_value_depth = 32;
 }
 
