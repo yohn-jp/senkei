@@ -45,7 +45,14 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
         entities[event.entityId] = { ...current, destroyed: true };
     }
   }
-  return freeze({ tick, entities, cues, result });
+  let fogFrame: NonNullable<Replay["fog"]>["frames"][number] | undefined;
+  for (const frame of replay.fog?.frames ?? []) {
+    if (frame.tick > tick) break;
+    fogFrame = frame;
+  }
+  return freeze({ tick, entities, cues, result, ...(fogFrame ? {
+    fog: { state: fogFrame, worldUnitsPerRenderUnit: replay.fog!.worldUnitsPerRenderUnit },
+  } : {}) });
 }
 export class ReplayPlayer {
   private current: DisplayState;

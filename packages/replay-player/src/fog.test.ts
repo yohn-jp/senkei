@@ -1,0 +1,43 @@
+import { describe, expect, it } from "vitest";
+import { decodeReplay, type PresentationReplay } from "@senkei/replay-contract";
+import { stateAt } from "./index";
+import basic from "../../replay-contract/fixtures/basic-three-lane.json";
+
+const samples = (s: "visible" | "explored") => [s, s, s, s, s, s, s, s, s] as [typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s, typeof s];
+
+function input(): PresentationReplay {
+  const replay = structuredClone(basic) as unknown as PresentationReplay;
+  replay.header.view = "attacker";
+  replay.scene.nodes = [{ id: "n", allegiance: "N", position: { x: 0, y: 0 } }];
+  replay.scene.routes = [{ id: "r", region: "lane", points: [{ x: 0, y: 0 }, { x: 2, y: 0 }] }];
+  replay.fog = { worldUnitsPerRenderUnit: 25, frames: [
+    { schema_version: 1, tick: 0, side: "attacker", nodes: { n: "visible" }, edges: { r: samples("visible") }, contacts: [] },
+    { schema_version: 1, tick: 2, side: "attacker", nodes: { n: "explored" }, edges: { r: samples("explored") }, contacts: [{ id: "contact-1", state: "last_known", kind: "hero", side: "defender", x: 25, y: 0, last_seen_tick: 1 }] },
+    { schema_version: 1, tick: 4, side: "attacker", nodes: { n: "visible" }, edges: { r: samples("visible") }, contacts: [] },
+  ] };
+  return replay;
+}
+
+describe("authorized fog projection and seek", () => {
+  it("restores historical visibility and contacts in both seek directions", () => {
+    const replay = decodeReplay(input());
+    expect(stateAt(replay, 3).fog?.state.contacts[0].last_seen_tick).toBe(1);
+    expect(stateAt(replay, 4).fog?.state.contacts).toEqual([]);
+    expect(stateAt(replay, 1).fog?.state.nodes.n).toBe("visible");
+    expect(stateAt(replay, 2).fog?.state.nodes.n).toBe("explored");
+    expect(stateAt(replay, 0).fog?.state.contacts).toEqual([]);
+  });
+  it("rejects perspective changes, future contacts and unknown map references", () => {
+    const publicView = input(); publicView.header.view = "public";
+    expect(() => decodeReplay(publicView)).toThrow("authorized");
+    const future = input(); future.fog!.frames[1].contacts[0].last_seen_tick = 3;
+    expect(() => decodeReplay(future)).toThrow("contact");
+    const unknown = input(); unknown.fog!.frames[0].nodes.secret = "visible";
+    expect(() => decodeReplay(unknown)).toThrow("node");
+    const mutable = input(); Object.assign(mutable.fog!.frames[1].contacts[0], { hp: 99 });
+    expect(() => decodeReplay(mutable)).toThrow("additional properties");
+  });
+  it("keeps legacy replay compatibility without fabricating a fog mask", () => {
+    expect(stateAt(decodeReplay(basic), 1).fog).toBeUndefined();
+  });
+});

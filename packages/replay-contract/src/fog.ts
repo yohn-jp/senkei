@@ -73,8 +73,8 @@ export function parseFogReplayValue(
     if (kind !== "hero" && kind !== "minion" && kind !== "monster") throw new FogReplayError(`${path}.kind is not an observable unit type`);
     const contactSide = combatantSide(contact.value.side, `${path}.side`);
     if (contactSide === side) throw new FogReplayError(`${path}.side must be the opposing side`);
-    const x = integer(contact.value.x, `${path}.x`);
-    const y = integer(contact.value.y, `${path}.y`);
+    const x = integer(contact.value.x, `${path}.x`, true);
+    const y = integer(contact.value.y, `${path}.y`, true);
     const lastSeenTick = integer(contact.value.last_seen_tick, `${path}.last_seen_tick`);
     if (lastSeenTick >= tick) throw new FogReplayError(`${path} must refer to a prior visible tick`);
     return { id, state: "last_known", kind, side: contactSide, x, y, last_seen_tick: lastSeenTick };
@@ -97,8 +97,8 @@ function onlyKeys(value: Readonly<Record<string, DomainValue>>, allowed: readonl
   }
 }
 
-function integer(value: DomainValue | undefined, path: string): number {
-  if (!value || value.kind !== "integer" || !Number.isSafeInteger(value.value) || value.value < 0)
+function integer(value: DomainValue | undefined, path: string, signed = false): number {
+  if (!value || value.kind !== "integer" || !Number.isSafeInteger(value.value) || (!signed && value.value < 0))
     throw new FogReplayError(`${path} must be a non-negative safe integer`);
   return value.value;
 }

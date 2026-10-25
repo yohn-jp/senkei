@@ -229,6 +229,27 @@
     },
     "result": {
       "$ref": "#/$defs/Result"
+    },
+    "fog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "worldUnitsPerRenderUnit": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FogFrame"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "worldUnitsPerRenderUnit",
+        "frames"
+      ]
     }
   },
   "required": [
@@ -867,6 +888,106 @@
           ]
         }
       }
+    },
+    "FogFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "side": {
+          "enum": [
+            "attacker",
+            "defender"
+          ]
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "unexplored",
+              "explored",
+              "visible"
+            ]
+          }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "unexplored",
+                "explored",
+                "visible"
+              ]
+            },
+            "minItems": 9,
+            "maxItems": 9
+          }
+        },
+        "contacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^contact-[1-9][0-9]*$"
+              },
+              "state": {
+                "const": "last_known"
+              },
+              "kind": {
+                "enum": [
+                  "hero",
+                  "minion",
+                  "monster"
+                ]
+              },
+              "side": {
+                "enum": [
+                  "attacker",
+                  "defender"
+                ]
+              },
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "last_seen_tick": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "kind",
+              "side",
+              "x",
+              "y",
+              "last_seen_tick"
+            ]
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "tick",
+        "side",
+        "nodes",
+        "edges",
+        "contacts"
+      ]
     }
   }
 }

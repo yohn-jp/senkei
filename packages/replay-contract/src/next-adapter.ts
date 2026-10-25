@@ -1,5 +1,6 @@
 import { decodeReplay, ReplayError, type Replay, type Entity, type Event, type Result } from "./index";
 import type { PresentationReplay as CoreReplay, RulePackage, MatchResult, EntityStateView, DomainValue } from "../../../apps/web/src/contracts/core-model";
+import { parseFogReplayValue, type FogReplayState } from "./fog";
 
 export const NEXT_WORLD_UNITS_PER_RENDER_UNIT = 25;
 type StaticEdge = NonNullable<RulePackage["next"]>["map"]["edges"][number];
@@ -121,6 +122,7 @@ export function presentationToGraphics(
   const active = new Map<string, Entity>();
   const initialView: Entity[] = [];
   const timeline: Event[] = [];
+  const fogFrames: FogReplayState[] = [];
   let order = 0;
   const emit = (event: Event): void => { timeline.push(event); };
   const project = (raw: EntityStateView): Entity => {
@@ -152,6 +154,12 @@ export function presentationToGraphics(
     if (frame.tick <= priorTick || frame.tick > result.tick) throw new ReplayError("Invalid core frame order");
     priorTick = frame.tick;
     if (!frame.visible_state) continue;
+    const fog = parseFogReplayValue(frame.visible_state.global_fields.fog, frame.tick, source.perspective);
+    if (fog) {
+      if (!source.perspective) throw new ReplayError("Fog requires an authorized perspective");
+      const routeIds = new Set(next.map.edges.filter(edge => !edge.blocked).map(edge => edge.id || `${edge.from}-${edge.to}`));
+      fogFrames.push({ ...fog, edges: Object.fromEntries(Object.entries(fog.edges).filter(([id]) => routeIds.has(id))) });
+    }
     const current = frame.visible_state.entities;
     order = 0;
     // Absence means visibility loss, never an inferred death.
@@ -202,6 +210,7 @@ export function presentationToGraphics(
   emit({ type:"match-end", tick:result.tick, order:order++, result });
   return decodeReplay({ schemaVersion:"0.3", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-battlefield-2",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
+    ...(fogFrames.length ? { fog: { worldUnitsPerRenderUnit: scale, frames: fogFrames } } : {}),
     scene:{ bounds:{min:{x:Math.min(...extent.map(point=>point.x))-3,y:Math.min(...extent.map(point=>point.y))-3},max:{x:Math.max(...extent.map(point=>point.x))+3,y:Math.max(...extent.map(point=>point.y))+3}},
       lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(nodePoint)})),
       trackOffset:(next.parameters.lane_track_offset_wu ?? 20) / scale,

@@ -1,4 +1,4 @@
-import type { Entity, Event, Replay } from "@senkei/replay-contract";
+import type { Entity, Replay } from "@senkei/replay-contract";
 
 type BattlefieldState = NonNullable<Entity["battlefield"]>;
 

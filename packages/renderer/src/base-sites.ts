@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { DisplayEntity, Replay, DisplayState } from "@senkei/replay-contract";
-import { buildBattlefieldBase } from "./battlefield-architecture";
+import { buildBattlefieldBase, battlefieldStructureDamageStage } from "./battlefield-architecture";
 
 type BaseSite = NonNullable<Replay["scene"]["baseSites"]>[number];
 type BaseSiteEntry = {
@@ -63,7 +63,7 @@ export class KnownBaseSites {
         entity.kind === "base" && entity.side === site.side &&
         Math.hypot(entity.position.x - site.position.x, entity.position.y - site.position.y) < 0.01,
       );
-      const signature = base ? (base.destroyed ? "destroyed" : "intact") : "unknown";
+      const signature = base ? battlefieldStructureDamageStage(base) : "unknown";
       if (signature !== entry.architectureState) {
         if (entry.architecture) {
           this.scene.remove(entry.architecture);

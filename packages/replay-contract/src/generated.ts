@@ -158,6 +158,13 @@ export interface PresentationReplay {
    */
   timeline: [Event, ...Event[]];
   result: Result;
+  fog?: {
+    worldUnitsPerRenderUnit: number;
+    /**
+     * @minItems 1
+     */
+    frames: [FogFrame, ...FogFrame[]];
+  };
 }
 export interface WorldPoint {
   x: number;
@@ -219,4 +226,38 @@ export interface Result {
   winner: "azure" | "vermilion" | "draw";
   reason: string;
   tick: number;
+}
+export interface FogFrame {
+  schema_version: 1;
+  tick: number;
+  side: "attacker" | "defender";
+  nodes: {
+    [k: string]: "unexplored" | "explored" | "visible";
+  };
+  edges: {
+    /**
+     * @minItems 9
+     * @maxItems 9
+     */
+    [k: string]: [
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible",
+      "unexplored" | "explored" | "visible"
+    ];
+  };
+  contacts: {
+    id: string;
+    state: "last_known";
+    kind: "hero" | "minion" | "monster";
+    side: "attacker" | "defender";
+    x: number;
+    y: number;
+    last_seen_tick: number;
+  }[];
 }

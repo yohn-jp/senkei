@@ -9,6 +9,7 @@ mod next_support;
 mod next_squads;
 mod next_navigation;
 mod next_vision;
+pub(crate) mod next_fog;
 mod next_combat;
 mod next_tactics;
 mod next_battlefield;
@@ -137,6 +138,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     let mut diagnostic_sequence = 0_u64;
     let mut replay_frames = Vec::new();
     let mut owner_frames = Vec::new();
+    let mut fog_history = next_vision::FogHistory::default();
     let mut event_count = 0_u64;
 
     replay_frames.push(ReplayFrame {
@@ -145,7 +147,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         visible_state: Some(presentation_view(&world, plan)),
     });
 
-    if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick:0, events:Vec::new(), visible_state:Some(next_vision::team_view(&world,next,CombatantSide::Attacker)) }); }
+    if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick:0, events:Vec::new(), visible_state:Some(next_vision::team_view_with_fog(&world,next,CombatantSide::Attacker,0,&mut fog_history)) }); }
     let mut final_outcome = None;
     if let Some((outcome, reason)) = evaluate_termination(plan, &world, 0, &projection_index)? {
         final_outcome = Some((outcome, reason, 0));
@@ -265,7 +267,7 @@ pub fn simulate<P: TacticalExecutionPort>(
                 events: Vec::new(),
                 visible_state: Some(presentation_view(&world, plan)),
             });
-            if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick, events:Vec::new(), visible_state:Some(next_vision::team_view(&world,next,CombatantSide::Attacker)) }); }
+            if let Some(next) = &plan.next { owner_frames.push(ReplayFrame { tick, events:Vec::new(), visible_state:Some(next_vision::team_view_with_fog(&world,next,CombatantSide::Attacker,tick,&mut fog_history)) }); }
             break;
         }
 
@@ -363,7 +365,7 @@ pub fn simulate<P: TacticalExecutionPort>(
             .collect();
         if plan.next.is_some() {
             let after = presentation_view(&world, plan);
-            let owner_after = next_vision::team_view(&world,plan.next.as_ref().unwrap(),CombatantSide::Attacker);
+            let owner_after = next_vision::team_view_with_fog(&world,plan.next.as_ref().unwrap(),CombatantSide::Attacker,tick,&mut fog_history);
             let owner_before = before_owner.as_ref().unwrap();
             owner_frames.push(ReplayFrame { tick, events:next_events.iter().filter(|event| event_references_known(event,owner_before,&owner_after)).cloned().collect(), visible_state:Some(owner_after) });
             public_events.extend(next_events.into_iter().filter(|event| {

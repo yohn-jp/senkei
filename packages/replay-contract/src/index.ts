@@ -6,6 +6,7 @@ import type {
   Event,
   Result,
   WorldPoint,
+  FogFrame,
 } from "./generated";
 export type {
   PresentationReplay,
@@ -13,6 +14,7 @@ export type {
   Event,
   Result,
   WorldPoint,
+  FogFrame,
 } from "./generated";
 export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
@@ -24,6 +26,7 @@ export type DisplayState = DeepReadonly<{
   entities: Record<string, DisplayEntity>;
   cues: Event[];
   result: Result | null;
+  fog?: { state: FogFrame; worldUnitsPerRenderUnit: number };
 }>;
 export function freeze<T>(value: T): DeepReadonly<T> {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -77,6 +80,25 @@ export function decodeReplay(input: unknown): Replay {
     point(node.position);
   }
   for (const p of r.scene.river ?? []) point(p);
+  if (r.fog) {
+    if (r.header.view === "public") fail("Fog requires a side-authorized replay");
+    let priorFogTick = -1;
+    for (const frame of r.fog.frames) {
+      if (frame.tick <= priorFogTick || frame.tick > r.result.tick || frame.side !== r.header.view)
+        fail("Invalid authorized fog frame");
+      priorFogTick = frame.tick;
+      for (const id of Object.keys(frame.nodes)) if (!nodeIds.has(id)) fail("Unknown fog node");
+      for (const id of Object.keys(frame.edges)) if (!routeIds.has(id)) fail("Unknown fog route");
+      const contacts = new Set<string>();
+      for (const contact of frame.contacts) {
+        if (contacts.has(contact.id) || contact.last_seen_tick > frame.tick || contact.side === frame.side)
+          fail("Invalid last-known contact");
+        contacts.add(contact.id);
+        point({ x: contact.x / r.fog.worldUnitsPerRenderUnit, y: contact.y / r.fog.worldUnitsPerRenderUnit });
+      }
+    }
+    if (r.fog.frames[0].tick !== 0) fail("Fog requires an initial observation");
+  }
   if (r.schemaVersion === "0.3" && (!r.scene.nodes?.length || !r.scene.routes?.length))
     fail("Battlefield replay requires authored map nodes and routes");
   const baseSiteIds = new Set<string>();

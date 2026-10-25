@@ -1671,6 +1671,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
             {runResult && run ? <>
               <div className="next-battle-stage">
                 <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />
+                {displayState?.fog && <span className="next-fog-legend" role="note">Fog: dark unexplored · muted explored · clear visible · dashed last known</span>}
                 <button aria-label="Toggle Pixel 3D" aria-pressed={pixel} className="next-mobile-render-mode" onClick={() => setPixel(value => !value)} type="button">{pixel ? "Pixel 3D" : "Smooth 3D"}</button>
                 <aside className={`next-battle-minimap${battleMapContextOpen ? " is-open" : ""}`} aria-label="Current battlefield map context">
                   <button aria-expanded={battleMapContextOpen} aria-label="Toggle battlefield map context" className="next-minimap-toggle" onClick={() => setBattleMapContextOpen((open) => !open)} type="button"><span>MAP · T{displayState?.tick ?? 0}</span><small>{battleMapContextOpen ? "HIDE" : "OPEN"}</small></button>
@@ -1689,6 +1690,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                     })}
                     {(run.graphicsReplay.scene.nodes ?? []).map((node) => { const point = miniMapPoint(node.position); return <circle data-testid="battle-map-node" data-node-id={node.id} data-allegiance={node.allegiance} cx={point.x} cy={point.y} key={node.id} r={node.id === "N.MID.OBS" ? 1.45 : 0.65} />; })}
                     {(run.graphicsReplay.scene.camps ?? []).map((camp) => { const point = miniMapPoint(camp.position); return <path className="next-minimap-camp" d={`M ${point.x} ${point.y - 1.9} l 1.9 1.9 -1.9 1.9 -1.9 -1.9 z`} key={camp.id} />; })}
+                    {displayState?.fog?.state.contacts.map((contact) => {
+                      const point = miniMapPoint({ x: contact.x / displayState.fog!.worldUnitsPerRenderUnit, y: contact.y / displayState.fog!.worldUnitsPerRenderUnit });
+                      return <circle key={contact.id} data-testid="battle-map-last-known" cx={point.x} cy={point.y} r="2" fill="none" stroke="#d5bc88" strokeDasharray="1 0.7"><title>Last known {contact.kind} · Tick {contact.last_seen_tick}</title></circle>;
+                    })}
                     {miniMapBases.map(({ id, label, node }) => {
                       if (!node) return null;
                       const point = miniMapPoint({ x: node.x / NEXT_WORLD_UNITS_PER_RENDER_UNIT, y: node.y / NEXT_WORLD_UNITS_PER_RENDER_UNIT });

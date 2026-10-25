@@ -870,3 +870,17 @@
   .journey-screen .journey-desktop { display: none; }
 }
 .journey-screen .next-error { background: #fff1ed; border-color: #cf9a8f; color: #8c2520; font-size: 14px; }
+
+.next-fog-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  padding: 4px 7px;
+  border-radius: 3px;
+  background: #14232ddb;
+  color: #c8d1d2;
+  font-size: 10px;
+  pointer-events: none;
+}

@@ -1,13 +1,17 @@
 import * as THREE from "three";
 export { createHeroModelPreview } from "./renderer-hero-model-preview";
+import { fitBattlefieldCameraFrame } from "./battlefield-camera";
 import { KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
+import { BattlefieldFog } from "./battlefield-fog";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
+import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
+import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -305,6 +309,7 @@ export class Battlefield {
   private camps = new THREE.Group();
   private baseSites: KnownBaseSites;
   private battlefieldLandmarks: BattlefieldLandmarks;
+  private battlefieldFog: BattlefieldFog;
   private state: DisplayState | null = null;
   private playing = false;
   private changedAt = 0;
@@ -323,6 +328,7 @@ export class Battlefield {
   private trackedIds: string[] = [];
   private readonly unitLayout = new NodeDisplayLayout();
   private readonly unitMotion: BattlefieldUnitMotionIndex;
+  private readonly transitionEffects: BattlefieldReplayEffectIndex;
   private modelOffsets: ReadonlyMap<string, WorldPoint> = new Map();
   private labels: {
     element: HTMLSpanElement;
@@ -345,6 +351,8 @@ export class Battlefield {
     private onFailure: (message: string) => void,
   ) {
     this.unitMotion = new BattlefieldUnitMotionIndex(replay);
+    this.transitionEffects = new BattlefieldReplayEffectIndex(replay);
+    this.battlefieldFog = new BattlefieldFog(this.scene, replay);
     this.gl = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.gl.domElement;
     this.canvas.setAttribute(
@@ -649,30 +657,14 @@ export class Battlefield {
     forward?: THREE.Vector2 | null,
     fitScale = 1.16,
   ) {
-    const offset = this.authoredCameraOffset(purpose, forward);
-    const position = center.clone().add(offset);
-    const direction = center.clone().sub(position).normalize();
-    const right = new THREE.Vector3()
-      .crossVectors(direction, this.camera.up)
-      .normalize();
-    const screenUp = new THREE.Vector3()
-      .crossVectors(right, direction)
-      .normalize();
-    let horizontal = 0;
-    let vertical = 0;
-    for (const point of points)
-      for (const height of [-1, 5]) {
-        const corner = new THREE.Vector3(point.x, height, point.z).sub(center);
-        horizontal = Math.max(horizontal, Math.abs(corner.dot(right)));
-        vertical = Math.max(vertical, Math.abs(corner.dot(screenUp)));
-      }
-    const aspect = Math.max(
-      0.25,
-      this.host.clientWidth / Math.max(1, this.host.clientHeight),
-    );
-    const minimum = purpose === "follow" ? 5 : 6.5;
-    return Math.max(minimum, Math.max(vertical, horizontal / aspect) * fitScale + 0.35);
+    return fitBattlefieldCameraFrame({
+      center, points, cameraOffset: this.authoredCameraOffset(purpose, forward),
+      viewport: { width: this.host.clientWidth, height: this.host.clientHeight },
+      verticalExtents: [-1, 5], fitScale, padding: 0.35,
+      minimumHalfHeight: purpose === "follow" ? 5 : 6.5,
+    }).halfHeight;
   }
+
   private authoredOverviewHalfHeight(center: THREE.Vector3) {
     const { min, max } = this.replay.scene.bounds;
     const corners = [min.x, max.x].flatMap((x) =>
@@ -745,27 +737,17 @@ export class Battlefield {
     purpose: "strategic" | "overview" = "strategic",
   ) {
     const hostHeight = Math.max(1, this.host.clientHeight);
-    const topInset = Math.min(this.mobile ? 58 : 50, hostHeight * 0.3);
-    const bottomInset = Math.min(16, hostHeight * 0.1);
-    const safeHeight = Math.max(1, hostHeight - topInset - bottomInset);
-    const safeRatio = safeHeight / hostHeight;
-    const cameraPosition = center.clone().add(this.authoredCameraOffset(purpose));
-    const direction = center.clone().sub(cameraPosition).normalize();
-    const right = new THREE.Vector3()
-      .crossVectors(direction, this.camera.up)
-      .normalize();
-    const screenUp = new THREE.Vector3()
-      .crossVectors(right, direction)
-      .normalize();
-    // Center the map in the unobscured vertical band and enlarge the frustum
-    // just enough to keep every authored endpoint inside that band.
-    const fittedHalfHeight = halfHeight / safeRatio;
-    const centerShift = ((topInset - bottomInset) * fittedHalfHeight) / hostHeight;
-    return {
-      center: center.clone().addScaledVector(screenUp, centerShift),
-      halfHeight: fittedHalfHeight,
-    };
+    const top = Math.min(this.mobile ? 58 : 50, hostHeight * 0.3);
+    const bottom = Math.min(16, hostHeight * 0.1);
+    const fit = fitBattlefieldCameraFrame({
+      center, points: [], cameraOffset: this.authoredCameraOffset(purpose),
+      viewport: { width: this.host.clientWidth, height: hostHeight, insets: { top, bottom } },
+      verticalExtents: [center.y, center.y],
+      minimumHalfHeight: halfHeight / Math.max(0.01, (hostHeight - top - bottom) / hostHeight),
+    });
+    return { center: new THREE.Vector3(fit.center.x, fit.center.y, fit.center.z), halfHeight: fit.halfHeight };
   }
+
   private authoredCloseHalfHeight() {
     const { min, max } = this.replay.scene.bounds;
     return Math.max(
@@ -1010,10 +992,9 @@ export class Battlefield {
           groupPoints.push(new THREE.Vector3(threat.position.x, 0, threat.position.y));
       }
     }
-    const groupHalfHeight = THREE.MathUtils.clamp(
+    const groupHalfHeight = Math.max(
       this.projectedFrameHalfHeight(center, groupPoints, "follow", forward, 1.08),
       unitFocus ? 4.2 : this.mobile ? 6 : 5.5,
-      unitFocus ? 5.2 : this.mobile ? 7.5 : 8,
     );
     this.cameraMode = "tactical";
     this.controls.enableDamping = false;
@@ -1926,7 +1907,11 @@ export class Battlefield {
           this.scene.remove(g);
           disposeTree(g);
         }
-        g = this.model(e);
+        // Keep the authored rig for the confirmed death tick so its fall pose
+        // is visible. Visibility loss never reaches this branch as a death.
+        const dyingHero = Boolean(this.replay.scene.routes?.length &&
+          e.destroyed && recentDeaths.has(e.id) && this.isHero(e));
+        g = this.model(dyingHero ? { ...e, destroyed: false } : e);
         g.userData.signature = signature;
         if (position && !this.replay.scene.routes?.length) g.position.copy(position);
         else {
@@ -1998,8 +1983,10 @@ export class Battlefield {
         g.position.copy(g.userData.to);
     }
     this.battlefieldLandmarks.update(state);
+    this.battlefieldFog.update(state);
     disposeTree(this.effects);
     this.effects.clear();
+    buildBattlefieldTransitionEffects(this.effects, this.replay, state, this.transitionEffects.at(state.tick));
     for (const cueLabel of this.cueLabels) cueLabel.element.remove();
     this.cueLabels = [];
     this.cueLayoutSignature = "";
@@ -2398,6 +2385,13 @@ export class Battlefield {
           ? 0.8 + Math.sin(phase * Math.PI) * 0.35
           : 1;
       for (const effect of this.effects.children)
+        if (effect.userData.replayTransition) {
+          const progress = this.playing && !this.reducedMotion
+            ? Math.min(1, (performance.now() - this.changedAt) / effect.userData.transitionDurationMs)
+            : 0.5;
+          effect.visible = !this.playing || progress < 1;
+          effect.scale.setScalar(0.85 + progress * 0.3);
+        } else
         if (
           effect.userData.spawnCue ||
           effect.userData.skillCue ||
@@ -2799,6 +2793,10 @@ export class Battlefield {
       this.canvas.dataset.tick = String(this.state?.tick ?? 0);
       this.canvas.dataset.cameraTarget = this.controls.target.toArray().map((value) => value.toFixed(3)).join(",");
       this.canvas.dataset.cameraMode = this.cameraMode;
+      this.canvas.dataset.fog = this.state?.fog ? "authorized-graph-samples" : "unavailable";
+      this.canvas.dataset.fogTick = this.state?.fog ? String(this.state.fog.state.tick) : "";
+      this.canvas.dataset.lastKnownContacts = String(this.state?.fog?.state.contacts.length ?? 0);
+      this.canvas.dataset.fogNodes = this.state?.fog ? JSON.stringify(this.state.fog.state.nodes) : "";
       this.canvas.dataset.tracking = this.trackedIds.join(",");
       const poseEntityId = this.selected && this.units.has(this.selected)
         ? this.selected
@@ -2807,7 +2805,7 @@ export class Battlefield {
       const pose = poseGroup?.userData.actionPose as ReturnType<typeof battlefieldUnitPose> | undefined;
       this.canvas.dataset.unitPoseEntity = poseEntityId ?? "";
       this.canvas.dataset.unitPose = pose
-        ? pose.strike > 0.001 ? "attack" : pose.hit > 0.001 ? "hit" : Math.abs(pose.walk) > 0.001 ? "move" : "idle"
+        ? pose.death > 0.001 ? "death" : pose.skill > 0.001 ? "skill" : pose.strike > 0.001 ? "attack" : pose.hit > 0.001 ? "hit" : Math.abs(pose.walk) > 0.001 ? "move" : "idle"
         : "none";
       this.canvas.dataset.unitPoseSample = pose
         ? [pose.walk, pose.strike, pose.hit, pose.attackLean].map((value) => value.toFixed(3)).join(",")
@@ -2837,6 +2835,7 @@ export class Battlefield {
     this.canvas.removeEventListener("webglcontextlost", this.contextLost);
     this.canvas.removeEventListener("pointerdown", this.pointerDown);
     this.canvas.removeEventListener("pointerup", this.pointerUp);
+    this.battlefieldFog.dispose();
     disposeTree(this.scene);
     disposeTree(this.output);
     this.target.dispose();
