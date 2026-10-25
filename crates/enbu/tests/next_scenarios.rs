@@ -1505,8 +1505,10 @@ fn battlefield_interaction_match(
         defender_program.program,
         Some(&defender_nodes),
     );
-    for (slot, hero) in ["F01", "F01", "F01", "F01", "F01"].iter().enumerate() {
+    for (slot, hero) in ["F01", "R01", "F02", "R02", "F03"].iter().enumerate() {
         set_catalog(&mut attacker, slot, hero, rules);
+    }
+    for (slot, hero) in ["F04", "F05", "F06", "R03", "R04"].iter().enumerate() {
         set_catalog(&mut defender, slot, hero, rules);
     }
     let mut context = new_match_context(rules, MatchId::new("battlefield-canonical-interactions"));
