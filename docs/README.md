@@ -20,6 +20,8 @@
 | [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) | **Jinrei文法v0.1の正本**：状態・行動、三値論理、集合、順序とCU |
 | [SENRITSU.md](SENRITSU.md) | Senritsuのルールパッケージ、拡張と型付きCapability |
 | [WORLD.md](WORLD.md) | **次期Senritsuゲームデザイン**：MOBAマップ・Minion・視界・中立拠点 |
+| [BATTLEFIELD.md](BATTLEFIELD.md) | **戦場ルールの正本**：トポロジー・距離・橋・3トラック・交戦境界 |
+| [BATTLEFIELD-VISUAL.md](BATTLEFIELD-VISUAL.md) | **実Battlefieldの視覚受入正本**：地理・造形・カメラ・Desktop/Mobile・実画面検証 |
 | [UNITS.md](UNITS.md) | **次期Senritsuゲームデザイン**：5 Hero・12種Catalog・Squad・死亡復活 |
 | [COMBAT.md](COMBAT.md) | **次期Senritsuゲームデザイン**：通常戦闘・移動・XP・Skill Tree |
 | [BALANCE.md](BALANCE.md) | **次期Senritsuバランスの正本**：合意倍率・未決数値・対戦検証 |

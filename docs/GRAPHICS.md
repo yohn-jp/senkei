@@ -2,7 +2,7 @@
 
 ## 1. 位置づけ
 
-本書はSenkeiの**戦闘描画とグラフィック制作**の設計正本。ゲームルール・戦術言語・勝敗計算の正本ではない。名称と責務は [COMPONENTS.md](COMPONENTS.md)、シミュレーションは [ENBU.md](ENBU.md)、表示データは [REPLAY.md](REPLAY.md)、画面体験は [UI-DESIGN.md](UI-DESIGN.md)、実装順序は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md)。
+本書はSenkeiの**戦闘描画とグラフィック制作**の設計正本。ゲームルール・戦術言語・勝敗計算の正本ではない。**実Battlefieldの地理・造形・カメラ・視覚受入**は [BATTLEFIELD-VISUAL.md](BATTLEFIELD-VISUAL.md) を専用正本とする。名称と責務は [COMPONENTS.md](COMPONENTS.md)、シミュレーションは [ENBU.md](ENBU.md)、表示データは [REPLAY.md](REPLAY.md)、画面体験は [UI-DESIGN.md](UI-DESIGN.md)、実装順序は [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md)。
 
 **合意済みの方向**: 立体的な3D戦場を2.5D的な俯瞰で見せる。Pixel 3Dを第一候補にし、手動の3Dアセット制作を必須とせず、Codexがコードで制作・調整・再生成できるようにする。レンダラーはEnbuから独立し、クライアント側で動作する。デスクトップ／モバイルの操作体験は別設計。
 

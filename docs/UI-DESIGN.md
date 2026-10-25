@@ -87,6 +87,8 @@ Desktopを縦積みするだけのレイアウトは禁止。同じドメイン�
 
 ## 7. 画面検証
 
+実Battlefieldの地理・造形・戦闘可読性・Tactical/Overview/Followの画面受入は [BATTLEFIELD-VISUAL.md](BATTLEFIELD-VISUAL.md) に従う。
+
 - Desktop: 1920×1080 / 1440×900。Mobile: 390×844 / 430×932、狭幅320pxでも主要導線を確認。
 - 各デバイスで初期戦場、再生途中、施設破壊、終局、契約不正、描画不可を確認。
 - 再生／停止／シーク、カメラ操作、部隊選択、画面の移動と復帰をPlaywright等で実操作する。
