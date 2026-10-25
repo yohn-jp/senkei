@@ -40,7 +40,7 @@ export default defineConfig({
     command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
     cwd: repositoryRoot,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

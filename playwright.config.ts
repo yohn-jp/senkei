@@ -19,9 +19,9 @@ export default defineConfig({
       ],
     },
   },
-  webServer: {
+  webServer: process.env.SENKEI_BROWSER_EXTERNAL_PREVIEW ? undefined : {
     command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
     url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });
