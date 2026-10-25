@@ -55,6 +55,13 @@ function silhouetteBounds(root: THREE.Object3D): string {
   }).sort().join(";");
 }
 
+function worldBounds(root: THREE.Object3D): THREE.Box3 {
+  let sceneRoot = root;
+  while (sceneRoot.parent) sceneRoot = sceneRoot.parent;
+  sceneRoot.updateMatrixWorld(true);
+  return new THREE.Box3().setFromObject(root);
+}
+
 describe("Battlefield unit models", () => {
   it("builds twelve Atelier identities with articulated rig anchors and bounded LOD draw calls", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
@@ -132,6 +139,21 @@ describe("Battlefield unit models", () => {
       return meshes(pivot).reduce((sum, mesh) => sum + mesh.geometry.getAttribute("position").count, 0);
     };
     expect(weaponGeometry("R04")).toBeGreaterThan(weaponGeometry("R01"));
+  });
+
+  it("keeps paired Hero blades clear of the torso silhouette", () => {
+    for (const id of ["F04", "R03"]) {
+      const group = new THREE.Group();
+      const rig = buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id.toLowerCase()}`, id), 0x347e83, `senkei.next.hero.${id.toLowerCase()}`);
+      const torsoSurface = rig.joints.torso.getObjectByName("joint.torso.leather");
+      expect(torsoSurface).toBeInstanceOf(THREE.Mesh);
+      const torsoBounds = worldBounds(torsoSurface!);
+      const mainBlade = worldBounds(rig.weaponPivots.main);
+      const offBlade = worldBounds(rig.weaponPivots.off);
+      expect(mainBlade.max.x, `${id} right-hand blade clears the torso`).toBeGreaterThan(torsoBounds.max.x);
+      expect(offBlade.min.x, `${id} left-hand blade clears the torso`).toBeLessThan(torsoBounds.min.x);
+      expect(mainBlade.max.x - offBlade.min.x, `${id} paired weapon span`).toBeGreaterThan(0.9);
+    }
   });
 
   it("keeps melee, ranged and siege Minions visually distinct with a compact shared-material far LOD", () => {
