@@ -26,7 +26,7 @@ for (const viewport of viewports) test(`Custom, Coverage, Library and recovery a
   const pageErrors: string[] = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.goto("/");
-  if (viewport.width < 761) await page.getByText("自分で作る・再開する", { exact: true }).click();
+  if (viewport.width < 761) await page.getByTestId("journey-home").locator(".journey-start-mobile details > summary").click();
   await page.getByRole("button", { name: "自分で編成", exact: true }).click();
   await page.getByRole("button", { name: "この条件で進む" }).click();
   const atelier = page.getByRole("tablist", { name: "Hero Atelier" });
