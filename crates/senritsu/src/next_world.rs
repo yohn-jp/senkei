@@ -25,13 +25,13 @@ pub fn battle_map() -> BattleMap {
     add_node("A.BASE", 80, 1520, "base", "A");
     add_node("B.BASE", 1520, 80, "base", "B");
     for (id, x, y, region, allegiance) in [
-        // TOP forms the upper outer arc. B-side coordinates transpose the A
-        // side across the diagonal river rather than crowding the MID route.
+        // TOP forms the upper outer arc. B-side coordinates are the exact
+        // diagonal mirror of A, and BOT is the opposing-side 180° rotation.
         ("A.TOP.T1", 220, 1200, "top", "A"),
         ("A.TOP.T2", 220, 850, "top", "A"),
         ("A.TOP.J", 260, 520, "top", "A"),
-        ("A.TOP.BANK", 380, 400, "riverbank", "A"),
-        ("B.TOP.BANK", 400, 380, "riverbank", "B"),
+        ("A.TOP.BANK", 350, 430, "riverbank", "A"),
+        ("B.TOP.BANK", 430, 350, "riverbank", "B"),
         ("B.TOP.J", 520, 260, "top", "B"),
         ("B.TOP.T2", 850, 220, "top", "B"),
         ("B.TOP.T1", 1200, 220, "top", "B"),
@@ -44,26 +44,26 @@ pub fn battle_map() -> BattleMap {
         ("B.MID.J", 950, 650, "mid", "B"),
         ("B.MID.T2", 1090, 510, "mid", "B"),
         ("B.MID.T1", 1270, 330, "mid", "B"),
-        // BOT occupies the lower outer arc, mirrored with TOP by side.
-        ("A.BOT.T1", 340, 1440, "bot", "A"),
-        ("A.BOT.T2", 700, 1380, "bot", "A"),
+        // BOT is exactly the 180° rotation of the opposite TOP side.
+        ("A.BOT.T1", 400, 1380, "bot", "A"),
+        ("A.BOT.T2", 750, 1380, "bot", "A"),
         ("A.BOT.J", 1080, 1340, "bot", "A"),
-        ("A.BOT.BANK", 1200, 1220, "riverbank", "A"),
-        ("B.BOT.BANK", 1220, 1200, "riverbank", "B"),
+        ("A.BOT.BANK", 1170, 1250, "riverbank", "A"),
+        ("B.BOT.BANK", 1250, 1170, "riverbank", "B"),
         ("B.BOT.J", 1340, 1080, "bot", "B"),
-        ("B.BOT.T2", 1380, 700, "bot", "B"),
-        ("B.BOT.T1", 1440, 340, "bot", "B"),
+        ("B.BOT.T2", 1380, 750, "bot", "B"),
+        ("B.BOT.T1", 1380, 400, "bot", "B"),
         ("N.MID.OBS", 800, 800, "observation", "N"),
         // Upper/lower jungle crossings meet the diagonal river between fixed
         // bridge sites. Camp terminals sit off the jungle trunk paths.
         ("N.A.UJ", 450, 700, "jungle", "N"),
         ("N.B.UJ", 700, 450, "jungle", "N"),
-        ("N.A.LJ", 930, 1150, "jungle", "N"),
-        ("N.B.LJ", 1150, 930, "jungle", "N"),
+        ("N.A.LJ", 900, 1150, "jungle", "N"),
+        ("N.B.LJ", 1150, 900, "jungle", "N"),
         ("N.A.UC", 350, 780, "camp", "N"),
         ("N.B.UC", 780, 350, "camp", "N"),
-        ("N.A.LC", 700, 1220, "camp", "N"),
-        ("N.B.LC", 1220, 700, "camp", "N"),
+        ("N.A.LC", 820, 1250, "camp", "N"),
+        ("N.B.LC", 1250, 820, "camp", "N"),
     ] {
         add_node(id, x, y, region, allegiance);
     }
@@ -515,35 +515,48 @@ mod tests {
     #[test]
     fn visual_embedding_keeps_lane_arcs_river_crossings_and_side_symmetry() {
         let map = battle_map();
-        let mut symmetric_pairs = vec![("A.BASE".to_owned(), "B.BASE".to_owned())];
-        for lane in ["TOP", "MID", "BOT"] {
-            for segment in ["T1", "T2", "J", "BANK"] {
-                symmetric_pairs.push((
-                    format!("A.{lane}.{segment}"),
-                    format!("B.{lane}.{segment}"),
+        let mut rotation_pairs = vec![
+            ("A.BASE".to_owned(), "B.BASE".to_owned()),
+            ("N.MID.OBS".to_owned(), "N.MID.OBS".to_owned()),
+        ];
+        for segment in ["T1", "T2", "J", "BANK"] {
+            for (a_lane, b_lane) in [("TOP", "BOT"), ("MID", "MID"), ("BOT", "TOP")] {
+                rotation_pairs.push((
+                    format!("A.{a_lane}.{segment}"),
+                    format!("B.{b_lane}.{segment}"),
                 ));
             }
         }
-        symmetric_pairs.extend([
-            ("N.A.UJ".to_owned(), "N.B.UJ".to_owned()),
-            ("N.A.LJ".to_owned(), "N.B.LJ".to_owned()),
-            ("N.A.UC".to_owned(), "N.B.UC".to_owned()),
-            ("N.A.LC".to_owned(), "N.B.LC".to_owned()),
+        rotation_pairs.extend([
+            ("N.A.UJ".to_owned(), "N.B.LJ".to_owned()),
+            ("N.B.UJ".to_owned(), "N.A.LJ".to_owned()),
+            ("N.A.UC".to_owned(), "N.B.LC".to_owned()),
+            ("N.B.UC".to_owned(), "N.A.LC".to_owned()),
         ]);
-        for (a, b) in symmetric_pairs {
+        for (a, b) in rotation_pairs {
             assert_eq!(
-                map.nodes[&a].x,
-                map.nodes[&b].y,
-                "{a} ↔ {b} x/y symmetry"
-            );
-            assert_eq!(
-                map.nodes[&a].y,
-                map.nodes[&b].x,
-                "{a} ↔ {b} y/x symmetry"
+                (map.nodes[&b].x, map.nodes[&b].y),
+                (1600 - map.nodes[&a].x, 1600 - map.nodes[&a].y),
+                "{a} ↔ {b} 180° rotation symmetry"
             );
         }
 
         let point = |id: &str| (map.nodes[id].x, map.nodes[id].y);
+        for id in [
+            "A.TOP.BANK",
+            "B.TOP.BANK",
+            "A.MID.BANK",
+            "B.MID.BANK",
+            "A.BOT.BANK",
+            "B.BOT.BANK",
+        ] {
+            let (x, y) = point(id);
+            // 75 WU is just over 2.1 render units perpendicular to x = y.
+            assert!(
+                (x - y).abs() >= 75,
+                "{id} must stay dry outside the 4.05-unit river ribbon"
+            );
+        }
         let edge_midpoint = |id: &str| {
             let edge = map.edges.iter().find(|edge| edge.id == id).unwrap();
             let (x1, y1) = point(&edge.from);
@@ -563,7 +576,7 @@ mod tests {
                 (390, 390),
                 (575, 575),
                 (800, 800),
-                (1040, 1040),
+                (1025, 1025),
                 (1210, 1210)
             ]
         );
