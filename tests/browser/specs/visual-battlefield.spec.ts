@@ -36,7 +36,17 @@ type CaptureEntry = {
     readonly target: string | null;
     readonly tracking: string | null;
   };
-  readonly renderer: { readonly pixel3d: boolean | null; readonly rendered: string | null };
+  readonly renderer: {
+    readonly pixel3d: boolean | null;
+    readonly rendered: string | null;
+    readonly performance: {
+      readonly drawCalls: number | null;
+      readonly triangles: number | null;
+      readonly fps: number | null;
+      /** CPU time for the render callback; it excludes GPU completion time. */
+      readonly renderCpuMs: number | null;
+    };
+  };
   readonly replay: {
     readonly matchId: string | null;
     readonly finalStateDigest: string | null;
@@ -71,7 +81,7 @@ const beforeImages = {
   desktop: `https://github.com/yohn-jp/senkei/blob/${beforeCommit}/docs/evidence/battlefield/canonical-browser/desktop-1440x900-bridge-destroyed.png`,
   mobile: `https://github.com/yohn-jp/senkei/blob/${beforeCommit}/docs/evidence/battlefield/canonical-default/mobile-390x844-t016.png`,
 } as const;
-const outputRoot = resolve(process.env.BATTLEFIELD_VISUAL_OUTPUT_DIR ?? join(repoRoot, "docs/evidence/battlefield/visual-acceptance"));
+const outputRoot = resolve(repoRoot, process.env.BATTLEFIELD_VISUAL_OUTPUT_DIR ?? "docs/evidence/battlefield/visual-acceptance");
 const runId = `${new Date().toISOString().replaceAll(/[:.]/g, "-")}-pid${process.pid}`;
 const outputDirectory = join(outputRoot, runId);
 let activeSourceRevision: string | null = null;
@@ -91,6 +101,37 @@ const canonicalStates = [
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function numericAttribute(value: string | null): number | null {
+  if (value === null || value.length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function performanceSummary(captures: readonly CaptureEntry[], viewport: Viewport): JsonRecord {
+  const entries = captures.filter((capture) =>
+    capture.viewport.width === viewport.width && capture.viewport.height === viewport.height,
+  );
+  const summary = (key: keyof CaptureEntry["renderer"]["performance"]) => {
+    const values = entries.map((entry) => entry.renderer.performance[key]).filter((value): value is number => value !== null).sort((a, b) => a - b);
+    if (!values.length) return { samples: 0, min: null, median: null, max: null };
+    return {
+      samples: values.length,
+      min: values[0]!,
+      median: values[Math.floor((values.length - 1) / 2)]!,
+      max: values[values.length - 1]!,
+    };
+  };
+  return {
+    captures: entries.length,
+    drawCalls: summary("drawCalls"),
+    triangles: summary("triangles"),
+    fps: summary("fps"),
+    renderCpuMs: summary("renderCpuMs"),
+    fpsMeaning: "requestAnimationFrame cadence, sampled by the renderer; software-GPU result only",
+    renderCpuMsMeaning: "JavaScript CPU callback duration; does not measure GPU completion or presentation latency",
+  };
 }
 
 function frameAt(replay: JsonRecord, tick: number): JsonRecord {
@@ -948,6 +989,12 @@ async function saveCapture(
     renderer: {
       pixel3d: pressed === null ? null : pressed === "true",
       rendered: await canvas.getAttribute("data-rendered"),
+      performance: {
+        drawCalls: numericAttribute(await canvas.getAttribute("data-draw-calls")),
+        triangles: numericAttribute(await canvas.getAttribute("data-triangles")),
+        fps: numericAttribute(await canvas.getAttribute("data-fps")),
+        renderCpuMs: numericAttribute(await canvas.getAttribute("data-render-cpu-ms")),
+      },
     },
     replay,
     facts: { ...facts, visibleWorldLabelCount: visibleLabelBounds.length, visibleWorldLabelsWithinHost: true },
@@ -1632,8 +1679,11 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     sourceRevision: appRevision,
     buildRevision: defaultRun.buildRevision,
     wasmSha256: sha256(readFileSync(wasmPath)),
+    wasmBuildRevision: process.env.BATTLEFIELD_WASM_BUILD_REVISION ?? null,
+    baselineBaseRevision: process.env.BATTLEFIELD_BASE_REVISION ?? null,
     browser: await browser.version(),
     renderer: "Three.js production renderer in Chromium/SwiftShader; physical GPU and touch hardware NOT_CHECKED",
+    rendererPerformance: Object.fromEntries(viewports.map((viewport) => [viewport.name, performanceSummary(captures, viewport)])),
     comparisonBefore: {
       commit: beforeCommit,
       desktop: beforeImages.desktop,
