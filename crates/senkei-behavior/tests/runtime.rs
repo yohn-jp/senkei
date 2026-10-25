@@ -4,7 +4,7 @@ use senkei_model::*;
 use senritsu::catalog::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-const FIELDS: [(&str, &str); 7] = [
+const FIELDS: [(&str, &str); 8] = [
     ("navigation.preference", "balanced"),
     ("engagement.mode", "defensive"),
     ("targeting.mode", "nearest"),
@@ -12,6 +12,45 @@ const FIELDS: [(&str, &str); 7] = [
     ("survival.mode", "retreat"),
     ("objective.kind", "lane.mid"),
     ("navigation.destination", "lane.mid"),
+    ("navigation.minion_lane", "lane.center"),
+];
+
+// These are intentionally unresolved RulePackage producer decisions. Fixture
+// values below exercise shape and composition contracts only; they are not
+// defaults or balance recommendations for the shipped next behavior.
+const DECISION_REQUIRED: [(&str, &str); 8] = [
+    (
+        "DEC-BEHAVIOR-NAVIGATION-001",
+        "Preference vocabulary, scoring weights, and Unknown-risk policy",
+    ),
+    (
+        "DEC-BEHAVIOR-ENGAGEMENT-001",
+        "Preference vocabulary and the rule-owned meaning of each value",
+    ),
+    (
+        "DEC-BEHAVIOR-TARGETING-001",
+        "Target eligibility and stable tie-break contract",
+    ),
+    (
+        "DEC-BEHAVIOR-PURSUIT-001",
+        "Pursuit limits, visibility semantics, and path legality",
+    ),
+    (
+        "DEC-BEHAVIOR-SURVIVAL-001",
+        "Thresholds and their versioned unit/range",
+    ),
+    (
+        "DEC-BEHAVIOR-OBJECTIVE-001",
+        "Objective identifiers, ownership scope, and preference aggregation",
+    ),
+    (
+        "DEC-BEHAVIOR-AGGREGATION-001",
+        "Numeric Hero-to-Squad formulas and cross-scope preference precedence",
+    ),
+    (
+        "DEC-BEHAVIOR-BINDING-001",
+        "Physical representation of the exact-pinned Behavior extension",
+    ),
 ];
 
 struct Fixture {
@@ -45,7 +84,10 @@ fn test_extension(
     for (field, _) in FIELDS {
         let hero_only = field == "targeting.mode" || field == "navigation.destination";
         let army_only = field == "objective.kind";
-        let scopes = if hero_only {
+        let minion_only = field == "navigation.minion_lane";
+        let scopes = if minion_only {
+            [BehaviorScope::LaneLimitedMinion].into_iter().collect()
+        } else if hero_only {
             [BehaviorScope::Hero].into_iter().collect()
         } else if army_only {
             [BehaviorScope::Army].into_iter().collect()
@@ -57,7 +99,7 @@ fn test_extension(
             BehaviorFieldDefinition {
                 value_type: DomainType::String { max_bytes: 64 },
                 scopes,
-                aggregation: (!hero_only && !army_only)
+                aggregation: (!hero_only && !army_only && !minion_only)
                     .then_some(AggregationPolicy::FirstByStableSubjectId),
                 override_policy: BehaviorOverridePolicy {
                     conditional_tick_override: true,
@@ -76,7 +118,9 @@ fn test_extension(
     for (index, hero_id) in hero_ids.iter().enumerate() {
         let mut values = default_values
             .iter()
-            .filter(|(field, _)| field.as_str() != "objective.kind")
+            .filter(|(field, _)| {
+                field.as_str() != "objective.kind" && field.as_str() != "navigation.minion_lane"
+            })
             .map(|(field, value)| (field.clone(), value.clone()))
             .collect::<BTreeMap<_, _>>();
         values.insert(
@@ -210,6 +254,7 @@ fn profile_composes_all_six_domains_and_only_applicable_fields() {
     assert_eq!(composed.values["survival.mode"], DomainValue::String("retreat".into()));
     assert_eq!(composed.values["objective.kind"], DomainValue::String("lane.mid".into()));
     assert_eq!(composed.values["navigation.destination"], DomainValue::String("hero-0".into()));
+    assert!(!composed.values.contains_key("navigation.minion_lane"));
     assert_eq!(composed.provenance["engagement.mode"].layer, ProfileLayer::SquadAggregate);
     assert_eq!(composed.unknown_conditions, Vec::<UnknownCondition>::new());
     assert_eq!(composed.unknown_overrides, Vec::<UnknownOverride>::new());
@@ -230,6 +275,32 @@ fn profile_composes_all_six_domains_and_only_applicable_fields() {
     assert_eq!(squad_profile.values["engagement.mode"], DomainValue::String("defensive".into()));
     assert!(!squad_profile.values.contains_key("targeting.mode"));
     assert!(!squad_profile.values.contains_key("navigation.destination"));
+
+    let minion = ProfileActor {
+        subject_id: EntityId::new("lane-minions-mid"),
+        scope: BehaviorScope::LaneLimitedMinion,
+        movement_authority: MovementAuthority::LaneGroup,
+        hero_catalog_id: None,
+        squad_members: Vec::new(),
+    };
+    let minion_profile = fixture
+        .resolver
+        .compose(
+            &minion,
+            &ProfilePreferences::default(),
+            8,
+            CombatantSide::Attacker,
+            &execution,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+    assert_eq!(
+        minion_profile.values,
+        BTreeMap::from([(
+            "navigation.minion_lane".into(),
+            DomainValue::String("lane.center".into()),
+        )])
+    );
 }
 
 #[test]
@@ -254,6 +325,44 @@ fn squad_tie_break_and_composition_digest_are_stable_and_membership_sensitive() 
     assert_eq!(
         fixture.resolver.resolve_candidates(&left, &squad(vec![member("hero-a", &fixture.hero_ids[1])]), 3, CombatantSide::Defender, &[], None),
         Err(BehaviorError::StaleComposition),
+    );
+}
+
+#[test]
+fn squad_aggregation_rejects_conflicting_hero_defaults_when_agreement_is_required() {
+    let fixture = fixture();
+    let mut extension = test_extension(&fixture.plan, &fixture.hero_ids);
+    extension
+        .behavior_profiles
+        .fields
+        .get_mut("engagement.mode")
+        .expect("fixture engagement field")
+        .aggregation = Some(AggregationPolicy::RequireAgreement);
+    let catalog = DomainCatalog::from_verified_plan_with_extension(&fixture.plan, extension)
+        .expect("explicit RequireAgreement policy is valid");
+    let resolver = BehaviorResolver::new(&catalog, &catalog.compatibility_key()).unwrap();
+    let squad = ProfileActor {
+        subject_id: EntityId::new("squad-conflict"),
+        scope: BehaviorScope::Squad,
+        movement_authority: MovementAuthority::Squad,
+        hero_catalog_id: None,
+        squad_members: vec![
+            member("hero-a", &fixture.hero_ids[0]),
+            member("hero-b", &fixture.hero_ids[1]),
+        ],
+    };
+    assert_eq!(
+        resolver.compose(
+            &squad,
+            &ProfilePreferences::default(),
+            3,
+            CombatantSide::Attacker,
+            &empty_execution(),
+            &BTreeMap::new(),
+        ),
+        Err(BehaviorError::SquadAggregationConflict(
+            "engagement.mode".into()
+        ))
     );
 }
 
@@ -518,4 +627,63 @@ fn package_identity_and_rule_plan_canonical_arbitration_are_consumed() {
     };
     assert_eq!(BehaviorResolver::new(&fixture.catalog, &other).err(), Some(BehaviorError::CatalogIdentityMismatch));
     assert_eq!(fixture.catalog.ordering().arbitration, fixture.plan.plan().arbitration);
+}
+
+#[test]
+fn producer_contract_keeps_six_domain_schemas_typed_and_values_unresolved() {
+    let fixture = fixture();
+    let (metadata_digest, metadata) = match fixture.catalog.behavior_profiles() {
+        MetadataStatus::AuthoredExtension { digest, metadata } => (digest, metadata),
+        MetadataStatus::NotDeclaredByRulePackage => panic!("fixture extension must be authored"),
+    };
+    let schemas = metadata.typed_schemas().expect("typed fixture profile schema");
+    assert_eq!(
+        BehaviorDomain::ALL.map(BehaviorDomain::as_str),
+        ["navigation", "engagement", "targeting", "pursuit", "survival", "objective"]
+    );
+    assert!(schemas.navigation.fields.contains_key("preference"));
+    assert!(schemas.engagement.fields.contains_key("mode"));
+    assert!(schemas.targeting.fields.contains_key("mode"));
+    assert!(schemas.pursuit.fields.contains_key("mode"));
+    assert!(schemas.survival.fields.contains_key("mode"));
+    assert!(schemas.objective.fields.contains_key("kind"));
+    assert!(metadata.presets["balanced.safe"].values.contains_key("survival.mode"));
+    assert_eq!(
+        fixture.catalog.compatibility_key().metadata_extension_digest.as_ref(),
+        Some(metadata_digest)
+    );
+    assert_eq!(DECISION_REQUIRED.len(), BehaviorDomain::ALL.len() + 2);
+    assert!(DECISION_REQUIRED
+        .iter()
+        .all(|(id, decision)| id.starts_with("DEC-BEHAVIOR-") && !decision.trim().is_empty()));
+
+    // The current next RulePackage has no authored Behavior section. The
+    // resolver refuses to fabricate one, leaving Enbu/runtime integration
+    // deferred until the producer supplies the decided data.
+    let bare_catalog = DomainCatalog::from_verified_plan(&fixture.plan).unwrap();
+    assert!(matches!(
+        bare_catalog.behavior_profiles(),
+        MetadataStatus::NotDeclaredByRulePackage
+    ));
+    assert_eq!(
+        BehaviorResolver::new(&bare_catalog, &bare_catalog.compatibility_key()).err(),
+        Some(BehaviorError::ProfilesNotDeclared)
+    );
+
+    // Both metadata and catalog digest materials must reproduce exactly for
+    // identical producer input, including their complete compatibility key.
+    let first = DomainCatalog::from_verified_plan_with_extension(
+        &fixture.plan,
+        test_extension(&fixture.plan, &fixture.hero_ids),
+    )
+    .unwrap();
+    let second = DomainCatalog::from_verified_plan_with_extension(
+        &fixture.plan,
+        test_extension(&fixture.plan, &fixture.hero_ids),
+    )
+    .unwrap();
+    assert_eq!(first.metadata_extension_digest(), Some(metadata_digest));
+    assert_eq!(first.metadata_extension_digest(), second.metadata_extension_digest());
+    assert_eq!(first.catalog_digest(), second.catalog_digest());
+    assert_eq!(first.compatibility_key(), second.compatibility_key());
 }

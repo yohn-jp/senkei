@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-pub const DOMAIN_CATALOG_SCHEMA_VERSION: Version = Version::new(1, 0, 0);
+pub const DOMAIN_CATALOG_SCHEMA_VERSION: Version = Version::new(1, 1, 0);
 const MAX_PROFILE_TYPE_DEPTH: u32 = 64;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -344,6 +344,212 @@ pub struct BehaviorProfileMetadata {
     pub presets: BTreeMap<String, NamedBehaviorPreset>,
 }
 
+impl BehaviorProfileMetadata {
+    /// Projects the stable, namespaced field map into six domain-specific
+    /// schema views. The views are derived from the serialized field IDs, so
+    /// the authored metadata and its digest remain the single source of truth.
+    pub fn typed_schemas(&self) -> Result<BehaviorProfileSchemas, BehaviorFieldIdError> {
+        let mut schemas = BehaviorProfileSchemas::default();
+        for (raw_id, definition) in &self.fields {
+            let id = BehaviorFieldId::parse(raw_id)?;
+            let default = self
+                .senritsu_default
+                .get(raw_id)
+                .cloned()
+                .ok_or_else(|| BehaviorFieldIdError::MissingDefault(raw_id.clone()))?;
+            let hero_defaults = self
+                .hero_defaults
+                .iter()
+                .filter_map(|(hero_id, values)| {
+                    values.get(raw_id).map(|value| (hero_id.clone(), value.clone()))
+                })
+                .collect();
+            let schema = BehaviorProfileFieldSchema {
+                definition: definition.clone(),
+                default,
+                hero_defaults,
+            };
+            schemas
+                .fields_mut(id.domain)
+                .insert(id.local_id, schema);
+        }
+        Ok(schemas)
+    }
+}
+
+/// The six profile domains defined by the Behavior contract. Field IDs use
+/// one of these names as their stable namespace, for example
+/// `navigation.destination`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BehaviorDomain {
+    Navigation,
+    Engagement,
+    Targeting,
+    Pursuit,
+    Survival,
+    Objective,
+}
+
+impl BehaviorDomain {
+    pub const ALL: [Self; 6] = [
+        Self::Navigation,
+        Self::Engagement,
+        Self::Targeting,
+        Self::Pursuit,
+        Self::Survival,
+        Self::Objective,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Navigation => "navigation",
+            Self::Engagement => "engagement",
+            Self::Targeting => "targeting",
+            Self::Pursuit => "pursuit",
+            Self::Survival => "survival",
+            Self::Objective => "objective",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "navigation" => Some(Self::Navigation),
+            "engagement" => Some(Self::Engagement),
+            "targeting" => Some(Self::Targeting),
+            "pursuit" => Some(Self::Pursuit),
+            "survival" => Some(Self::Survival),
+            "objective" => Some(Self::Objective),
+            _ => None,
+        }
+    }
+}
+
+/// Stable profile-field key split into a typed domain and a local field name.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BehaviorFieldId {
+    domain: BehaviorDomain,
+    local_id: String,
+}
+
+impl BehaviorFieldId {
+    pub fn new(
+        domain: BehaviorDomain,
+        local_id: impl Into<String>,
+    ) -> Result<Self, BehaviorFieldIdError> {
+        let local_id = local_id.into();
+        if local_id.trim().is_empty() {
+            return Err(BehaviorFieldIdError::EmptyLocalId);
+        }
+        Ok(Self { domain, local_id })
+    }
+
+    pub fn parse(value: &str) -> Result<Self, BehaviorFieldIdError> {
+        let (namespace, local_id) = value
+            .split_once('.')
+            .ok_or_else(|| BehaviorFieldIdError::MissingNamespace(value.to_owned()))?;
+        let domain = BehaviorDomain::parse(namespace)
+            .ok_or_else(|| BehaviorFieldIdError::UnknownDomain(namespace.to_owned()))?;
+        Self::new(domain, local_id).map_err(|error| match error {
+            BehaviorFieldIdError::EmptyLocalId => {
+                BehaviorFieldIdError::EmptyLocalIdFor(value.to_owned())
+            }
+            error => error,
+        })
+    }
+
+    pub fn as_key(&self) -> String {
+        format!("{}.{}", self.domain.as_str(), self.local_id)
+    }
+
+    pub fn domain(&self) -> BehaviorDomain {
+        self.domain
+    }
+
+    pub fn local_id(&self) -> &str {
+        &self.local_id
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BehaviorFieldIdError {
+    MissingNamespace(String),
+    UnknownDomain(String),
+    EmptyLocalId,
+    EmptyLocalIdFor(String),
+    MissingDefault(String),
+}
+
+impl fmt::Display for BehaviorFieldIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingNamespace(id) => {
+                write!(f, "Behavior field ID `{id}` must use a typed domain namespace")
+            }
+            Self::UnknownDomain(domain) => write!(f, "unknown Behavior field domain `{domain}`"),
+            Self::EmptyLocalId => write!(f, "Behavior field local ID cannot be empty"),
+            Self::EmptyLocalIdFor(id) => {
+                write!(f, "Behavior field ID `{id}` must include a local field ID")
+            }
+            Self::MissingDefault(id) => write!(f, "Behavior field `{id}` has no Senritsu default"),
+        }
+    }
+}
+
+impl std::error::Error for BehaviorFieldIdError {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BehaviorProfileFieldSchema {
+    pub definition: BehaviorFieldDefinition,
+    pub default: DomainValue,
+    pub hero_defaults: BTreeMap<String, DomainValue>,
+}
+
+macro_rules! behavior_domain_schema {
+    ($name:ident) => {
+        #[derive(Clone, Debug, Default, PartialEq, Eq)]
+        pub struct $name {
+            /// Keys are local to the enclosing typed domain.
+            pub fields: BTreeMap<String, BehaviorProfileFieldSchema>,
+        }
+    };
+}
+
+behavior_domain_schema!(NavigationBehaviorSchema);
+behavior_domain_schema!(EngagementBehaviorSchema);
+behavior_domain_schema!(TargetingBehaviorSchema);
+behavior_domain_schema!(PursuitBehaviorSchema);
+behavior_domain_schema!(SurvivalBehaviorSchema);
+behavior_domain_schema!(ObjectiveBehaviorSchema);
+
+/// Typed views of all Behavior schema domains. Empty maps mean no fields for
+/// that domain were authored; they do not imply an executable default.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BehaviorProfileSchemas {
+    pub navigation: NavigationBehaviorSchema,
+    pub engagement: EngagementBehaviorSchema,
+    pub targeting: TargetingBehaviorSchema,
+    pub pursuit: PursuitBehaviorSchema,
+    pub survival: SurvivalBehaviorSchema,
+    pub objective: ObjectiveBehaviorSchema,
+}
+
+impl BehaviorProfileSchemas {
+    fn fields_mut(
+        &mut self,
+        domain: BehaviorDomain,
+    ) -> &mut BTreeMap<String, BehaviorProfileFieldSchema> {
+        match domain {
+            BehaviorDomain::Navigation => &mut self.navigation.fields,
+            BehaviorDomain::Engagement => &mut self.engagement.fields,
+            BehaviorDomain::Targeting => &mut self.targeting.fields,
+            BehaviorDomain::Pursuit => &mut self.pursuit.fields,
+            BehaviorDomain::Survival => &mut self.survival.fields,
+            BehaviorDomain::Objective => &mut self.objective.fields,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileLayer {
@@ -400,6 +606,20 @@ pub struct NamedBehaviorPreset {
     pub scope: BehaviorScope,
     pub values: BTreeMap<String, DomainValue>,
     pub description: String,
+}
+
+impl NamedBehaviorPreset {
+    /// Returns the already-validated preset values with domain-aware keys.
+    pub fn typed_values(
+        &self,
+    ) -> Result<BTreeMap<BehaviorFieldId, DomainValue>, BehaviorFieldIdError> {
+        self.values
+            .iter()
+            .map(|(raw_id, value)| {
+                BehaviorFieldId::parse(raw_id).map(|id| (id, value.clone()))
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -1276,6 +1496,13 @@ fn validate_behavior_profiles(
     }
     for (field_id, field) in &metadata.fields {
         let path = format!("extension.behaviorProfiles.fields.{field_id}");
+        if let Err(error) = BehaviorFieldId::parse(field_id) {
+            issue!(
+                "invalid_behavior_field_id",
+                path.clone(),
+                format!("profile field IDs must use a recognized typed domain namespace: {error}")
+            );
+        }
         if field_id.trim().is_empty() || field.description.trim().is_empty() {
             issue!(
                 "incomplete_profile_field",
@@ -2183,6 +2410,119 @@ mod tests {
                 ]),
             }
         );
+    }
+
+    #[test]
+    fn behavior_profile_metadata_projects_into_six_typed_domain_schemas() {
+        let plan = verified_next();
+        let extension = test_extension(&plan, "steady");
+        let schemas = extension
+            .behavior_profiles
+            .typed_schemas()
+            .expect("fixture fields use typed domains and have defaults");
+
+        assert_eq!(
+            BehaviorDomain::ALL.map(BehaviorDomain::as_str),
+            ["navigation", "engagement", "targeting", "pursuit", "survival", "objective"]
+        );
+        assert_eq!(
+            schemas.navigation.fields.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["destination", "mode"]
+        );
+        assert!(schemas.engagement.fields.is_empty());
+        assert!(schemas.targeting.fields.is_empty());
+        assert!(schemas.pursuit.fields.is_empty());
+        assert_eq!(
+            schemas.survival.fields["threshold"].default,
+            DomainValue::Integer(30)
+        );
+        assert!(schemas.objective.fields.is_empty());
+        let typed_preset = extension.behavior_profiles.presets["fixture.safe"]
+            .typed_values()
+            .expect("preset field IDs have typed domains");
+        assert_eq!(
+            typed_preset[&BehaviorFieldId::new(BehaviorDomain::Survival, "threshold").unwrap()],
+            DomainValue::Integer(55)
+        );
+
+        let navigation_id = BehaviorFieldId::new(BehaviorDomain::Navigation, "destination")
+            .expect("non-empty field ID");
+        assert_eq!(navigation_id.as_key(), "navigation.destination");
+        assert_eq!(
+            BehaviorFieldId::parse(&navigation_id.as_key()).expect("roundtrip field ID"),
+            navigation_id
+        );
+        assert!(matches!(
+            BehaviorFieldId::parse("navigation."),
+            Err(BehaviorFieldIdError::EmptyLocalIdFor(_))
+        ));
+    }
+
+    #[test]
+    fn behavior_profile_rejects_untyped_field_namespaces() {
+        let plan = verified_next();
+        let mut invalid = test_extension(&plan, "steady");
+        let field = invalid
+            .behavior_profiles
+            .fields
+            .remove("navigation.mode")
+            .expect("navigation field");
+        let default = invalid
+            .behavior_profiles
+            .senritsu_default
+            .remove("navigation.mode")
+            .expect("navigation default");
+        invalid
+            .behavior_profiles
+            .fields
+            .insert("movement.mode".into(), field);
+        invalid
+            .behavior_profiles
+            .senritsu_default
+            .insert("movement.mode".into(), default);
+
+        let error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid)
+            .unwrap_err();
+        assert!(error
+            .issues
+            .iter()
+            .any(|issue| issue.code == "invalid_behavior_field_id"));
+    }
+
+    #[test]
+    fn named_behavior_presets_require_the_field_type_and_declared_scope() {
+        let plan = verified_next();
+        let mut invalid_type = test_extension(&plan, "steady");
+        invalid_type
+            .behavior_profiles
+            .presets
+            .get_mut("fixture.safe")
+            .unwrap()
+            .values
+            .insert(
+                "survival.threshold".into(),
+                DomainValue::String("test-only".into()),
+            );
+        let type_error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid_type)
+            .unwrap_err();
+        assert!(type_error.issues.iter().any(|issue| {
+            issue.code == "profile_value_type_mismatch"
+                && issue.path.contains("presets.fixture.safe.values.survival.threshold")
+        }));
+
+        let mut invalid_scope = test_extension(&plan, "steady");
+        invalid_scope
+            .behavior_profiles
+            .presets
+            .get_mut("fixture.safe")
+            .unwrap()
+            .scope = BehaviorScope::Army;
+        let scope_error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid_scope)
+            .unwrap_err();
+        assert!(scope_error.issues.iter().any(|issue| {
+            issue.code == "profile_scope_mismatch"
+                && issue.path.contains("presets.fixture.safe.values.survival.threshold")
+        }));
     }
 
     #[test]
