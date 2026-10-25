@@ -4,7 +4,7 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
-import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore } from "../persistence/repository";
+import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer, BattlefieldInformationLayers } from "@senkei/renderer";
@@ -187,6 +187,43 @@ function reviseDraft(previous: SenkeiDraft | null, next: SenkeiDraft): SenkeiDra
   return stableKey(previousContent) === stableKey(nextContent)
     ? next
     : { ...next, revision: incrementRevision(previous.revision) };
+}
+
+function polylineMidpoint(points: readonly WorldPoint[]): WorldPoint | null {
+  if (points.length === 0) return null;
+  const lengths = points.slice(1).map((point, index) => Math.hypot(point.x - points[index].x, point.y - points[index].y));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  if (total === 0) return points[0];
+  let target = total / 2;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (target <= length) {
+      const from = points[index], to = points[index + 1];
+      const t = length === 0 ? 0 : target / length;
+      return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+    }
+    target -= length;
+  }
+  return points[points.length - 1];
+}
+
+function nearestPolylineTangent(points: readonly WorldPoint[], point: WorldPoint, travel: WorldPoint): WorldPoint | null {
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let nearest: WorldPoint | null = null;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index], to = points[index + 1];
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) continue;
+    const t = Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared));
+    const distance = Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
+    if (distance >= nearestDistance) continue;
+    const length = Math.sqrt(lengthSquared);
+    const orientation = dx * travel.x + dy * travel.y >= 0 ? 1 : -1;
+    nearestDistance = distance;
+    nearest = { x: dx / length * orientation, y: dy / length * orientation };
+  }
+  return nearest;
 }
 
 function sameRulesetRef(left: RulesetRef, right: RulesetRef): boolean {
@@ -573,6 +610,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [experimentLoadedDigest, setExperimentLoadedDigest] = useState<string | null>(null);
   const [experimentError, setExperimentError] = useState<string | null>(null);
   const [experimentMismatch, setExperimentMismatch] = useState<string | null>(null);
+  const [experimentImportAttempt, setExperimentImportAttempt] = useState(0);
   const [screen, setScreen] = useState<"home" | "conditions" | "preset" | "ready" | "workspace" | "resume" | "running">("home");
   const [libraryView, setLibraryView] = useState<"library" | "recovery">("library");
   const [libraryReturn, setLibraryReturn] = useState<typeof screen>("home");
@@ -612,6 +650,13 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [run, setRun] = useState<BattleRun | null>(null);
   const [baselineRun, setBaselineRun] = useState<BattleRun | null>(null);
   const experimentRestoreGeneration = useRef(0);
+  const experimentPersistGeneration = useRef(0);
+  const experimentWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const enqueueExperimentWrite = useCallback((write: () => Promise<void>): Promise<void> => {
+    const next = experimentWriteQueue.current.then(write);
+    experimentWriteQueue.current = next.catch(() => undefined);
+    return next;
+  }, []);
   const [busy, setBusy] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -716,7 +761,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       }
     })();
     return () => { experimentRestoreGeneration.current += 1; };
-  }, [core, packageValue]);
+  }, [core, experimentImportAttempt, packageValue]);
 
   useEffect(() => {
     const digest = packageValue?.ruleset.digest;
@@ -732,10 +777,13 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       estimated_cu: item.estimatedCU,
     }));
     const store: LocalNextExperimentStore = { format_version: 1, ruleset_digest: digest, experiments };
-    void saveNextExperimentStore(store).then(() => setExperimentStore(store)).catch((cause: unknown) => {
+    const generation = ++experimentPersistGeneration.current;
+    void enqueueExperimentWrite(() => saveNextExperimentStore(store)).then(() => {
+      if (generation === experimentPersistGeneration.current) setExperimentStore(store);
+    }).catch((cause: unknown) => {
       setExperimentError(cause instanceof Error ? `Experiment could not be saved: ${cause.message}` : "Experiment could not be saved.");
     });
-  }, [baselineRun, experimentLoadedDigest, experimentMismatch, packageValue?.ruleset.digest, run]);
+  }, [baselineRun, enqueueExperimentWrite, experimentLoadedDigest, experimentMismatch, packageValue?.ruleset.digest, run]);
   const [rendererAttempt, setRendererAttempt] = useState(0);
   const [savedSetup, setSavedSetup] = useState<SavedNextSetup | null>(null);
   const [savedSetupLoaded, setSavedSetupLoaded] = useState(false);
@@ -1741,15 +1789,18 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const nodes = run?.graphicsReplay.scene.nodes ?? [];
     const from = nodes.find(node => node.id === logical.node)?.position;
     const to = nodes.find(node => node.id === logical.edgeTo)?.position;
-    const edge = (run?.graphicsReplay.scene.routes ?? []).find(route =>
-      ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
-       (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
-    );
+    const edge = (run?.graphicsReplay.scene.routes ?? []).find(route => {
+      if (route.points.length < 2 || !from || !to) return false;
+      const first = route.points[0], last = route.points[route.points.length - 1];
+      return (first.x === from.x && first.y === from.y && last.x === to.x && last.y === to.y) ||
+        (last.x === from.x && last.y === from.y && first.x === to.x && first.y === to.y);
+    });
     if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return miniMapPoint(point);
-    const dx = edge.points[1].x - edge.points[0].x, dy = edge.points[1].y - edge.points[0].y, length = Math.hypot(dx, dy) || 1;
+    const tangent = nearestPolylineTangent(edge.points, point, { x: to.x - from.x, y: to.y - from.y });
+    if (!tangent) return miniMapPoint(point);
     const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
     const offset = (run?.graphicsReplay.scene.trackOffset ?? 0.8) * direction;
-    return miniMapPoint({ x: point.x + dy / length * offset, y: point.y - dx / length * offset });
+    return miniMapPoint({ x: point.x + tangent.y * offset, y: point.y - tangent.x * offset });
   };
   const miniMapBases = nextRules ? [
     { id: "attacker", label: "A", node: nextRules.map.nodes[nextRules.map.attacker_base] },
@@ -1870,10 +1921,25 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       link.download = `senkei-next-experiments-${experimentStore.ruleset_digest.slice(0, 12)}.json`;
       link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
     }}
+    onImportExperiments={async (file) => {
+      if (file.size > 64 * 1024 * 1024) throw new Error("Next experiment import exceeds the 64 MiB size limit.");
+      const imported = parseNextExperimentStore(JSON.parse(await file.text()) as unknown);
+      const generation = ++experimentPersistGeneration.current;
+      setExperimentLoadedDigest(null);
+      setExperimentMismatch(null); setExperimentError(null);
+      await enqueueExperimentWrite(() => saveNextExperimentStore(imported));
+      if (generation !== experimentPersistGeneration.current) return;
+      setExperimentStore(imported);
+      setExperimentImportAttempt((attempt) => attempt + 1);
+    }}
     onClearExperiments={async () => {
-      await clearNextExperimentStore();
+      const generation = ++experimentPersistGeneration.current;
+      setExperimentLoadedDigest(null);
+      await enqueueExperimentWrite(() => clearNextExperimentStore());
+      if (generation !== experimentPersistGeneration.current) return;
       setExperimentStore(null); setExperimentMismatch(null); setExperimentError(null);
       setRun(null); setBaselineRun(null); setExactRun(null);
+      setExperimentLoadedDigest(packageValue?.ruleset.digest ?? null);
     }} />;
 
   if (screen === "resume" && (!packageValue || !nextRules)) return <section ref={workspaceHost} onKeyDown={tabKeys} className="next-workspace" data-screen={libraryView === "library" ? "S14" : "S15"}>{library}</section>;
@@ -2042,7 +2108,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                       const route = run.graphicsReplay.scene.routes?.find(route => route.bridgeSite === contact.site);
                       const site = contact.kind === "bridge"
                         ? contact.site === "MID" ? run.graphicsReplay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
-                          : route ? { x: (route.points[0].x + route.points[1].x) / 2, y: (route.points[0].y + route.points[1].y) / 2 } : undefined
+                          : route ? polylineMidpoint(route.points) ?? undefined : undefined
                         : run.graphicsReplay.scene.nodes?.find(node => node.id === contact.site)?.position;
                       if (!site) return null;
                       const point = miniMapPoint(site);

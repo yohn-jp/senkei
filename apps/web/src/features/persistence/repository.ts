@@ -1311,6 +1311,13 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
   }
 }
 
+/** Validates a portable Next experiment JSON value without touching stored data. */
+export function parseNextExperimentStore(value: unknown): LocalNextExperimentStore {
+  const copied = cloneJson(value, "Next experiment import", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
+  assertNextExperimentStore(copied);
+  return copied;
+}
+
 /** Reads the two latest immutable Next Enbu experiments from the local workspace database. */
 export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
   return withTransaction(NEXT_EXPERIMENT_STORE, "readonly", (transaction, setResult) => {
@@ -1321,8 +1328,7 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
         setResult(null);
         return;
       }
-      const copy = cloneJson(record.payload, "Next experiment store", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
-      assertNextExperimentStore(copy);
+      const copy = parseNextExperimentStore(record.payload);
       setResult(copy);
     };
   }, "Could not restore Next experiments");
@@ -1330,8 +1336,7 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
 
 /** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
 export async function saveNextExperimentStore(value: LocalNextExperimentStore): Promise<void> {
-  const copied = cloneJson(value, "Next experiment store", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
-  assertNextExperimentStore(copied);
+  const copied = parseNextExperimentStore(value);
   await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
     transaction.objectStore(NEXT_EXPERIMENT_STORE).put({ id: "latest", payload: copied });
     setResult(undefined);

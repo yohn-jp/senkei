@@ -108,7 +108,7 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await analysis.getByRole("button", { name: "Jinreiを変更" }).click();
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(source).toHaveValue(pendingDraft);
-  await page.getByRole("button", { name: "Library" }).click();
+  await page.getByTestId("workspace-view").getByRole("button", { name: "Library" }).click();
   const experimentLibrary = page.getByTestId("next-library");
   await expect(experimentLibrary.getByRole("heading", { name: "Recent experiments" })).toBeVisible();
   await expect(experimentLibrary.locator(".next-library-experiment-list li")).toHaveCount(2);
@@ -120,5 +120,18 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await expect(page.getByTestId("battle-analysis")).toBeVisible();
   await expect(page.getByTestId("battle-analysis")).toContainText("PREVIOUS");
   await expect(page.getByTestId("battle-analysis")).toContainText("CURRENT");
+  await page.getByTestId("workspace-view").getByRole("button", { name: "Library" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export experiments" }).click();
+  const exported = await downloadPromise;
+  const exportedPath = await exported.path();
+  if (!exportedPath) throw new Error("The experiment export did not produce a file.");
+  await page.getByRole("button", { name: /Clear experiments/ }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirm clear" }).click();
+  await expect(page.getByText("No completed Next Enbu experiments are saved on this device.")).toBeVisible();
+  await page.getByLabel("Import Next experiment file").setInputFiles(exportedPath);
+  await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2);
+  await page.getByRole("button", { name: "Open latest comparison" }).click();
+  await expect(page.getByTestId("battle-analysis")).toContainText("Both completed Runs used the same complete SimulationSnapshot identity.");
   expect(pageErrors).toEqual([]);
 });

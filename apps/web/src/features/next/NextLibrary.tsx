@@ -31,7 +31,7 @@ export function isNextLibraryItemRestorable(
 
 type AsyncAction = () => void | Promise<void>;
 type ClearTarget = "saved" | "recovery";
-type Confirmation = "replace-saved" | "import-saved" | "experiments" | ClearTarget;
+type Confirmation = "replace-saved" | "import-saved" | "experiments" | "import-experiments" | ClearTarget;
 
 export interface NextExperimentSummary {
   readonly id: string;
@@ -77,6 +77,7 @@ export interface NextLibraryProps {
   readonly experimentMismatch: string | null;
   readonly onOpenExperiments: AsyncAction;
   readonly onExportExperiments: AsyncAction;
+  readonly onImportExperiments: (file: File) => void | Promise<void>;
   readonly onClearExperiments: AsyncAction;
 }
 
@@ -111,10 +112,12 @@ function ItemSummary({ item, label, mismatch }: { readonly item: NextLibraryItem
 export function NextLibrary(props: NextLibraryProps): ReactElement {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [pendingImport, setPendingImport] = useState<File | null>(null);
+  const [pendingExperimentImport, setPendingExperimentImport] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const experimentImportRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -142,6 +145,7 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
       setBusy(false);
       setConfirmation(null);
       setPendingImport(null);
+      setPendingExperimentImport(null);
     }
   };
 
@@ -154,6 +158,17 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
     setPendingImport(file);
     if (props.saved || props.savedError || props.savedRaw != null) setConfirmation("import-saved");
     else void perform(() => props.onImport(file), `Imported ${file.name}.`);
+  };
+
+  const selectExperimentImport = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (!file || busy) return;
+    setLocalError(null);
+    setNotice(null);
+    setPendingExperimentImport(file);
+    if (props.experiments.length > 0 || props.experimentMismatch || props.experimentError) setConfirmation("import-experiments");
+    else void perform(() => props.onImportExperiments(file), `Imported ${file.name}.`);
   };
 
   const save = (): void => {
@@ -172,6 +187,9 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
     else if (action === "import-saved" && pendingImport) {
       const file = pendingImport;
       void perform(() => props.onImport(file), `Imported ${file.name}.`);
+    } else if (action === "import-experiments" && pendingExperimentImport) {
+      const file = pendingExperimentImport;
+      void perform(() => props.onImportExperiments(file), `Imported ${file.name}.`);
     } else if (action === "saved") void perform(props.onClearSaved, "Pinned Next setup cleared.");
     else if (action === "recovery") void perform(props.onClearRecovery, "Recovery copy cleared.");
     else if (action === "experiments") void perform(props.onClearExperiments, "Local Next experiments cleared.");
@@ -258,6 +276,8 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
               <button className="is-primary" disabled={busy || props.experiments.length === 0 || Boolean(props.experimentMismatch)} onClick={() => void perform(props.onOpenExperiments, "Restored the latest result and comparison baseline.")} type="button">Open latest comparison</button>
               <button disabled={busy || props.experiments.length === 0} onClick={() => void perform(props.onExportExperiments, "Next experiments exported as JSON.")} type="button">Export experiments</button>
               {props.experiments.length > 0 && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("experiments")} type="button">Clear experiments…</button>}
+              <input accept="application/json,.json" aria-label="Import Next experiment file" className="next-library-file-input" onChange={selectExperimentImport} ref={experimentImportRef} type="file" />
+              <button disabled={busy} onClick={() => experimentImportRef.current?.click()} type="button">Import experiments</button>
             </div>
           </section>
         </div>
@@ -279,8 +299,8 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
       </div>}
 
       {confirmation && <section ref={confirmationRef} className="next-library-confirm" aria-label="Confirm Library change" role="alertdialog" aria-modal="false" aria-labelledby="next-library-confirm-title">
-        <div><span className="next-library-eyebrow">EXPLICIT CONFIRMATION</span><h3 id="next-library-confirm-title">{confirmation === "saved" ? "Clear the pinned setup?" : confirmation === "recovery" ? "Clear the recovery copy?" : confirmation === "experiments" ? "Clear saved experiments?" : confirmation === "import-saved" ? "Replace the pinned setup with this import?" : "Replace the pinned setup with the current draft?"}</h3><p>{confirmation === "saved" ? "The local pinned setup will be removed. Export preserved bytes first if you need a copy." : confirmation === "recovery" ? "The local recovery copy will be removed. The current editing draft remains open." : confirmation === "experiments" ? "The two most recent immutable Enbu records will be removed from this device. The current editable setup remains open." : confirmation === "import-saved" ? "The existing pinned setup remains until the imported JSON passes validation and is accepted by the storage handler." : "The saved data does not match the loaded ruleset or could not be parsed. Export it first if you need to keep the original bytes."}</p></div>
-        <div className="next-library-actions"><button onClick={() => { setConfirmation(null); setPendingImport(null); }} type="button">Keep existing data</button><button className="is-danger" disabled={busy || (confirmation === "import-saved" && !pendingImport)} onClick={confirm} type="button">{confirmation === "saved" || confirmation === "recovery" || confirmation === "experiments" ? "Confirm clear" : confirmation === "import-saved" ? "Validate and replace" : "Confirm replacement"}</button></div>
+        <div><span className="next-library-eyebrow">EXPLICIT CONFIRMATION</span><h3 id="next-library-confirm-title">{confirmation === "saved" ? "Clear the pinned setup?" : confirmation === "recovery" ? "Clear the recovery copy?" : confirmation === "experiments" ? "Clear saved experiments?" : confirmation === "import-experiments" ? "Replace saved experiments with this import?" : confirmation === "import-saved" ? "Replace the pinned setup with this import?" : "Replace the pinned setup with the current draft?"}</h3><p>{confirmation === "saved" ? "The local pinned setup will be removed. Export preserved bytes first if you need a copy." : confirmation === "recovery" ? "The local recovery copy will be removed. The current editing draft remains open." : confirmation === "experiments" ? "The two most recent immutable Enbu records will be removed from this device. The current editable setup remains open." : confirmation === "import-experiments" ? "The import is checked against this Ruleset, paired World identity, compiler versions and replay identity. Existing experiments remain until the file passes local format validation." : confirmation === "import-saved" ? "The existing pinned setup remains until the imported JSON passes validation and is accepted by the storage handler." : "The saved data does not match the loaded ruleset or could not be parsed. Export it first if you need to keep the original bytes."}</p></div>
+        <div className="next-library-actions"><button onClick={() => { setConfirmation(null); setPendingImport(null); setPendingExperimentImport(null); }} type="button">Keep existing data</button><button className="is-danger" disabled={busy || (confirmation === "import-saved" && !pendingImport) || (confirmation === "import-experiments" && !pendingExperimentImport)} onClick={confirm} type="button">{confirmation === "saved" || confirmation === "recovery" || confirmation === "experiments" ? "Confirm clear" : confirmation === "import-saved" ? "Validate and replace" : confirmation === "import-experiments" ? "Validate and import" : "Confirm replacement"}</button></div>
       </section>}
     </section>
   );
