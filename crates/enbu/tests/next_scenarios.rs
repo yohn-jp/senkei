@@ -857,7 +857,7 @@ fn enbu_confirms_base_node_assaults_for_both_sides() {
         let final_state = owner.frames.iter().find(|frame| frame.tick == artifact.result.final_tick)
             .and_then(|frame| frame.visible_state.as_ref())
             .expect("owner replay includes the confirmed terminal frame");
-        let base = final_state.entities.values().find(|entity| {
+        let (base_id, base) = final_state.entities.iter().find(|(_, entity)| {
             entity.entity_type.as_str() == "base"
                 && entity.fields.get(&FieldId::new("catalog_id"))
                     == Some(&DomainValue::String(target_base.to_owned()))
@@ -865,7 +865,7 @@ fn enbu_confirms_base_node_assaults_for_both_sides() {
         assert_eq!(entity_integer(base, "hp"), 0);
         assert!(owner.frames.iter().flat_map(|frame| frame.events.iter())
             .any(|event| event.event.as_str() == "next.objective_destroyed"
-                && event.entity.as_ref() == Some(&EntityId::from(target_base))),
+                && event.entity.as_ref() == Some(base_id)),
             "authorized Enbu replay confirms a base destruction event for {winner:?}");
     }
 }
