@@ -10,13 +10,13 @@ pub fn next_package() -> RulePackage {
         .and_then(|next| next.map.world_identity.clone());
     crate::next_domain::configure(&mut package);
     package.ruleset.version = Version::new(2, 0, 0);
-    package.minimum_engine_version = Version::new(1, 2, 0);
+    package.minimum_engine_version = ENBU_ENGINE_VERSION;
     package.ruleset.digest = crate::canonical_digest(&package).expect("canonical next package");
     package
 }
 pub fn next_engine_compatibility() -> EngineCompatibility {
     let mut engine = crate::initial_engine_compatibility();
-    engine.engine = Version::new(1, 2, 0);
+    engine.engine = ENBU_ENGINE_VERSION;
     engine.available_primitives.extend([
         TransitionPrimitiveKind::BattleNavigation,
         TransitionPrimitiveKind::BattleVision,
@@ -34,6 +34,15 @@ mod tests {
         if let Err(issues) = crate::validate(p, &next_engine_compatibility()) {
             panic!("{issues:#?}");
         }
+    }
+    #[test]
+    fn canonical_world_package_requires_enbu_1_3_without_raising_initial_minimum() {
+        let mut old_engine = next_engine_compatibility();
+        old_engine.engine = Version::new(1, 2, 0);
+        assert!(crate::validate(next_package(), &old_engine).is_err(),
+            "Enbu 1.2 must reject canonical World projection and crossing interval semantics");
+        crate::validate(crate::initial_package(), &old_engine)
+            .expect("the initial RulePackage remains compatible with Enbu 1.2");
     }
     #[test]
     fn next_validation_resolves_the_exact_world_and_projection() {

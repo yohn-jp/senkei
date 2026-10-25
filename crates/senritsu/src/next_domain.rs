@@ -8,7 +8,7 @@ use senkei_model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 const NEXT_VERSION: Version = Version::new(2, 0, 0);
-const NEXT_ENGINE_VERSION: Version = Version::new(1, 2, 0);
+const NEXT_ENGINE_VERSION: Version = ENBU_ENGINE_VERSION;
 const RULESET_ID: &str = "senkei.next";
 const COST_SCHEDULE_ID: &str = "senkei.next.cu";
 const MAX_ENTITIES: u32 = 512;

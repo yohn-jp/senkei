@@ -23,7 +23,7 @@ Conflicts: old map has 17 nodes / 24 edges / 3 camps; navigation spends surplus 
 
 ## Rules and phase decisions
 
-The shipped identity is `senkei.next` **2.0.0**, map `senkei-battlefield-v2`, minimum Enbu **1.2.0**, graphics Replay **0.3**. The package digest covers topology, typed capabilities and every required parameter; missing parameters are rejected even after recomputing the digest.
+The shipped identity is `senkei.next` **2.0.0**, map `senkei-battlefield-v2`, minimum Enbu **1.3.0**, graphics Replay **0.3**. The package digest covers topology, typed capabilities and every required parameter; missing parameters are rejected even after recomputing the digest.
 
 A tick prepares current observations, evaluates both Jinrei programs, validates and arbitrates intents, applies legal Squad changes and goal selections, reserves bridge/Skill actions, freezes attack positions, advances movement, commits simultaneous combat, commits bridge/capture effects, updates Squad lifecycle, and projects replay. Bridge and ford legality use the frozen snapshot. A movement marker uses `tick + 1`. Nodes have no active track, and endpoint arrival discards surplus movement until another tick. Logical progress is integer WU; multiplier products use integer fixed precision and floor the per-tick step. Static edge orientation defines progress normalization and LEFT/RIGHT for both travel directions. During lateral transit the stored `track` retains the origin until completion; positive `cross_remaining` means effective CENTER occupancy for range and presentation. The renderer and minimap apply that crossing state and use static edge orientation for LEFT/RIGHT in both travel directions.
 

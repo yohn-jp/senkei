@@ -392,7 +392,7 @@ without including private source or bytecode in public responses.
   entity to same-tick public `visible_state` and a schema-declared visible
   lane field; otherwise lane is unknown/unattributed. Missing attribution is
   never inferred.
-- For `senkei.next` mechanics 2.0.0 plans requiring Enbu 1.2.0 or later, the
+- For `senkei.next` mechanics 2.0.0 plans requiring Enbu 1.3.0 or later, the
   restricted Enbu diagnostic projection coalesces `CostCharged` records by
   tick, side, and operation. It emits one exact-sum record per operation in
   stable operation-ID order. This projection does not change Jinrei's raw

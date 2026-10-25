@@ -126,9 +126,9 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         "unsupported finite battle mechanics version",
     );
     check(
-        package.minimum_engine_version >= Version::new(1, 2, 0),
+        package.minimum_engine_version >= ENBU_ENGINE_VERSION,
         "minimum_engine_version",
-        "next mechanics require Enbu 1.2.0",
+        "canonical World projection and interval traversal require Enbu 1.3.0",
     );
     check(
         r.heroes.len() == 12,
