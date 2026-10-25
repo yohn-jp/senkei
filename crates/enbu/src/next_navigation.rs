@@ -250,25 +250,43 @@ fn advance_entity(
                 return;
             };
             if edge.region == "lane" && !is_bridge(edge) {
-                let slot = edge_identity(edge, &rules.map);
-                let progress = int(entity, "edge_progress");
+                let Some((slot, progress)) = canonical_edge_progress(
+                    &rules.map,
+                    &node,
+                    &edge_to,
+                    int(entity, "edge_progress"),
+                ) else {
+                    return;
+                };
                 let radius = param(rules, "track_occupancy_radius_wu", 20).max(0);
                 let blocked_by_minion = snapshot.entities.values().any(|other| {
                     other.entity_type.as_str() == "minion"
                         && alive(other)
-                        && string(other, "node") == node
-                        && string(other, "edge_to") == edge_to
-                        && (int(other, "edge_progress") - progress).abs() <= radius
+                        && canonical_edge_progress(
+                            &rules.map,
+                            &string(other, "node"),
+                            &string(other, "edge_to"),
+                            int(other, "edge_progress"),
+                        )
+                        .is_some_and(|(other_edge, other_progress)| {
+                            other_edge == slot && (other_progress - progress).abs() <= radius
+                        })
                 });
                 let group = movement_group(actor_id, entity);
                 let crossing_active = snapshot.entities.iter().any(|(other_id, other)| {
                     other.entity_type.as_str() == "hero"
                         && alive(other)
                         && int(other, "cross_remaining") > 0
-                        && string(other, "node") == node
-                        && string(other, "edge_to") == edge_to
                         && movement_group(other_id, other) != group
-                        && (int(other, "edge_progress") - progress).abs() <= radius
+                        && canonical_edge_progress(
+                            &rules.map,
+                            &string(other, "node"),
+                            &string(other, "edge_to"),
+                            int(other, "edge_progress"),
+                        )
+                        .is_some_and(|(other_edge, other_progress)| {
+                            other_edge == slot && (other_progress - progress).abs() <= radius
+                        })
                 });
                 let crossing_reserved = cross_reservations.iter().any(
                     |(reserved_edge, reserved_progress, reserved_group)| {
@@ -526,6 +544,27 @@ fn edge_identity(edge: &MapEdge, _map: &BattleMap) -> String {
             edge.from.clone().max(edge.to.clone())
         )
     }
+}
+
+/// Return an edge's stable identity and progress measured from MapEdge.from.
+/// Logical entity progress is measured from its current `node`, which can be
+/// either endpoint when two units travel in opposite directions.
+fn canonical_edge_progress(
+    map: &BattleMap,
+    node: &str,
+    edge_to: &str,
+    progress: i64,
+) -> Option<(String, i64)> {
+    let edge = edge_for_nodes(map, node, edge_to)?;
+    let progress = progress.clamp(0, edge.length);
+    let canonical = if node == edge.from {
+        progress
+    } else if node == edge.to {
+        edge.length.saturating_sub(progress)
+    } else {
+        return None;
+    };
+    Some((edge_identity(edge, map), canonical))
 }
 fn bridge_state(world: &WorldState, site: &str) -> String {
     world
@@ -2130,8 +2169,10 @@ mod tests {
         set_int(&mut hero, "edge_progress", 500);
         set_string(&mut hero, "track", "LEFT");
         set_string(&mut hero, "track_goal", "RIGHT");
-        let mut minion = entity("minion", Some(CombatantSide::Attacker), 0, "a", "b");
-        set_string(&mut minion, "edge_to", "b");
+        // The minion travels B→A, so progress 500 is the same physical point
+        // as the Hero's A→B progress 500 after normalizing to MapEdge.from.
+        let mut minion = entity("minion", Some(CombatantSide::Attacker), 0, "b", "");
+        set_string(&mut minion, "edge_to", "a");
         set_int(&mut minion, "edge_progress", 500);
         set_string(&mut minion, "track", "CENTER");
         let mut world = WorldState::default();
@@ -2139,10 +2180,12 @@ mod tests {
         world.entities.insert(id("m"), minion);
         advance(&mut world, &config, 1);
         assert_eq!(int(&world.entities[&id("h")], "cross_remaining"), 0);
+        // A reverse-direction unit far away on the same edge is not a global
+        // crossing blocker: progress 900 from B normalizes to 100 from A.
         set_int(
             world.entities.get_mut(&id("m")).unwrap(),
             "edge_progress",
-            100,
+            900,
         );
         advance(&mut world, &config, 2);
         assert_eq!(int(&world.entities[&id("h")], "cross_remaining"), 2);
@@ -2168,6 +2211,88 @@ mod tests {
             assert_eq!(int(hero, "cross_remaining"), 2);
             assert_eq!(string(hero, "track"), "LEFT");
         }
+    }
+
+    #[test]
+    fn reverse_direction_crossing_heroes_use_canonical_local_progress() {
+        let config = rules(test_map(vec![edge("a", "b", 1_000, "lane", false)]));
+        let mut world = WorldState::default();
+        let mut waiting = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_string(&mut waiting, "squad", "waiting");
+        set_string(&mut waiting, "edge_to", "b");
+        set_int(&mut waiting, "edge_progress", 500);
+        set_string(&mut waiting, "track", "LEFT");
+        set_string(&mut waiting, "track_goal", "RIGHT");
+        let mut crossing = entity("hero", Some(CombatantSide::Attacker), 100, "b", "a");
+        set_string(&mut crossing, "squad", "crossing");
+        set_string(&mut crossing, "edge_to", "a");
+        set_int(&mut crossing, "edge_progress", 500);
+        set_string(&mut crossing, "track", "LEFT");
+        set_int(&mut crossing, "cross_remaining", 2);
+        set_string(&mut crossing, "track_cross_from", "LEFT");
+        set_string(&mut crossing, "track_cross_to", "RIGHT");
+        world.entities.insert(id("a_waiting"), waiting);
+        world.entities.insert(id("b_crossing"), crossing);
+        advance(&mut world, &config, 1);
+        assert_eq!(int(&world.entities[&id("a_waiting")], "cross_remaining"), 0);
+
+        // The reverse Hero is still crossing, but at a distant point on the
+        // same undirected edge (900 from B normalizes to 100 from A).
+        set_int(
+            world.entities.get_mut(&id("b_crossing")).unwrap(),
+            "edge_progress",
+            900,
+        );
+        set_int(
+            world.entities.get_mut(&id("a_waiting")).unwrap(),
+            "track_wait_ticks",
+            0,
+        );
+        advance(&mut world, &config, 2);
+        assert_eq!(int(&world.entities[&id("a_waiting")], "cross_remaining"), 2);
+    }
+
+    #[test]
+    fn opposite_direction_crossing_reservations_are_local_and_canonical() {
+        let config = rules(test_map(vec![edge("a", "b", 1_000, "lane", false)]));
+        let mut world = WorldState::default();
+        let mut forward = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_string(&mut forward, "squad", "forward");
+        set_string(&mut forward, "edge_to", "b");
+        set_int(&mut forward, "edge_progress", 500);
+        set_string(&mut forward, "track", "LEFT");
+        set_string(&mut forward, "track_goal", "RIGHT");
+        let mut reverse = entity("hero", Some(CombatantSide::Attacker), 100, "b", "a");
+        set_string(&mut reverse, "squad", "reverse");
+        set_string(&mut reverse, "edge_to", "a");
+        set_int(&mut reverse, "edge_progress", 500);
+        set_string(&mut reverse, "track", "LEFT");
+        set_string(&mut reverse, "track_goal", "RIGHT");
+        world.entities.insert(id("a_forward"), forward);
+        world.entities.insert(id("b_reverse"), reverse);
+        advance(&mut world, &config, 1);
+        assert_eq!(int(&world.entities[&id("a_forward")], "cross_remaining"), 2);
+        assert_eq!(int(&world.entities[&id("b_reverse")], "cross_remaining"), 0);
+
+        // The reverse traveler is now physically far away, so the same
+        // undirected edge does not hold up the forward crossing.
+        set_int(
+            world.entities.get_mut(&id("a_forward")).unwrap(),
+            "cross_remaining",
+            0,
+        );
+        set_int(
+            world.entities.get_mut(&id("b_reverse")).unwrap(),
+            "edge_progress",
+            900,
+        );
+        set_int(
+            world.entities.get_mut(&id("b_reverse")).unwrap(),
+            "track_wait_ticks",
+            0,
+        );
+        advance(&mut world, &config, 2);
+        assert_eq!(int(&world.entities[&id("b_reverse")], "cross_remaining"), 2);
     }
 
     #[test]
