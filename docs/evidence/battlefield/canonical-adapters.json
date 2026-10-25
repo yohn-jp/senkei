@@ -31,6 +31,45 @@
       },
       "public_replay_sha256": "c87ad77243da3e3351d7c868a84c0363a221945cea27f8f7d11fa8dfdba2bcca",
       "owner_replay_sha256": "50fde44f82f8f931e94e7e6da4e78fd8f30474ba5d0dca8a4297f03712a8ea06"
+    },
+    {
+      "request_id": "next-invalid-engine",
+      "input_sha256": "d6a506acc71e977ecf516de687a79246f9841908d441dd658e011e118c41483a",
+      "native_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
+      "repeated_native_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
+      "wasm_sha256": "7918c5f158a901ca9a9a6f69fc385bf71ea1851c2abed126786b2659632ec4cb",
+      "ok": false
+    },
+    {
+      "request_id": "next-invalid-roster",
+      "input_sha256": "be81b2fea53bce1057655e5d624d3b876304aa1597d0f07534327b483e97d6ca",
+      "native_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
+      "repeated_native_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
+      "wasm_sha256": "58561b0f37d4d26fdd609ec5a83327a351c33a698364345b32a767e6e30d8cf2",
+      "ok": false
+    },
+    {
+      "request_id": "next-invalid-ruleset",
+      "input_sha256": "d9a69d3bb44cdeae33b5170910e7f6f16ad7547cce9fff3f238423e2eb935d2f",
+      "native_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
+      "repeated_native_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
+      "wasm_sha256": "7f9f6c36d9f54900d3ff197d989869a88c0a49f77f4d1f4e84cc7b9db22f0a3b",
+      "ok": false
+    },
+    {
+      "request_id": "next-public-simulation",
+      "input_sha256": "d4d8d35343aa7554e2606b49e115e6d2774382ff3144c088044595cc123e9d1a",
+      "native_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
+      "repeated_native_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
+      "wasm_sha256": "6b1c591c15214c96359ef03f9fe8d66eec72437e31bbb2135976914da10cd598",
+      "ok": true,
+      "final_tick": 120,
+      "final_state_digest": "1694a64f60cee07dfd804812b7f6131726492099180bacf4398c4e63c149aeeb",
+      "cu_spent": {
+        "attacker": 1320,
+        "defender": 1320
+      },
+      "public_replay_sha256": "0cb64ec9360bd41f1c307a4ab62a32faefdf9948c89e15bb3fe64fd08c55d10d"
     }
   ]
 }
