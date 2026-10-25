@@ -577,6 +577,7 @@ export interface HostLimits {
 }
 
 export interface MatchContext {
+  readonly world_identity?: WorldIdentityRef;
   readonly schema_version: import("./core").CoreVersion;
   readonly match_id: MatchId;
   readonly ruleset: import("./core").RulesetRef;
@@ -597,6 +598,7 @@ export interface MatchResult {
 }
 
 export interface PresentationReplay {
+  readonly world_identity?: WorldIdentityRef;
   readonly perspective?: CombatantSide;
   readonly schema_version: import("./core").CoreVersion;
   readonly match_id: MatchId;
