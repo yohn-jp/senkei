@@ -177,7 +177,7 @@ fn advance_entity(
             }
         }
     }
-    let forced_transit = forced_transit(entity, rules);
+    let forced_transit = forced_transit_in(entity, rules, snapshot);
     if forced_transit {
         mark_moved(entity, tick);
     }
@@ -517,6 +517,29 @@ pub(crate) fn forced_transit(entity: &EntityState, rules: &NextRules) -> bool {
         return false;
     };
     edge.ford || (is_bridge(edge) && string(entity, "track") == "CENTER")
+}
+
+/// Snapshot-aware transit check for action selection. A bridge can be
+/// destroyed during resolution after movement has already sampled this
+/// entity; a traveler on any bridge track is committed to the ford from the
+/// next snapshot even before navigation writes `ford_active`.
+pub(crate) fn forced_transit_in(
+    entity: &EntityState,
+    rules: &NextRules,
+    world: &WorldState,
+) -> bool {
+    if forced_transit(entity, rules) {
+        return true;
+    }
+    let from = string(entity, "node");
+    let to = string(entity, "edge_to");
+    if to.is_empty() {
+        return false;
+    }
+    let Some(edge) = edge_for_nodes(&rules.map, &from, &to) else {
+        return false;
+    };
+    is_bridge(edge) && bridge_state(world, &edge.bridge_site) == "destroyed"
 }
 
 fn bridge_track_for(
@@ -2480,5 +2503,40 @@ mod tests {
         set_int(&mut hero, "cross_remaining", 0);
         set_int(&mut hero, "ford_remaining", 1);
         assert!(forced_transit(&hero, &config));
+    }
+
+    #[test]
+    fn forced_transit_in_sees_destroyed_expanded_side_bridge_before_ford_marker() {
+        let mut crossing = edge("a", "b", 100, "lane", false);
+        crossing.bridge_site = "TOP".into();
+        let config = rules(test_map(vec![crossing]));
+        let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_string(&mut hero, "edge_to", "b");
+        set_int(&mut hero, "edge_progress", 50);
+        set_string(&mut hero, "track", "LEFT");
+        assert_eq!(int(&hero, "ford_active"), 0);
+
+        let mut bridge = EntityState {
+            entity_type: "bridge".into(),
+            owner: None,
+            fields: BTreeMap::new(),
+        };
+        set_string(&mut bridge, "site", "TOP");
+        let mut world = WorldState::default();
+        world.entities.insert(id("bridge"), bridge);
+        for state in ["normal", "expanded"] {
+            set_string(
+                world.entities.get_mut(&id("bridge")).unwrap(),
+                "bridge_state",
+                state,
+            );
+            assert!(!forced_transit_in(&hero, &config, &world));
+        }
+        set_string(
+            world.entities.get_mut(&id("bridge")).unwrap(),
+            "bridge_state",
+            "destroyed",
+        );
+        assert!(forced_transit_in(&hero, &config, &world));
     }
 }
