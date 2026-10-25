@@ -24,27 +24,30 @@ interface ShapeSpec {
   accent: number;
   build: number;
   mantle: boolean;
+  stance: Readonly<Record<string, readonly [number, number, number]>>;
 }
 
 const HERO_SHAPES: Record<string, ShapeSpec> = {
-  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true },
-  f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true },
-  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false },
-  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false },
-  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true },
-  f06: { id: "F06", name: "Pathfinder", weapon: "two-hand-maul", headgear: "winged", cloth: 0x485f58, armor: 0x9c9b86, accent: 0xd2b370, build: 1.04, mantle: true },
-  r01: { id: "R01", name: "Tempest", weapon: "staff", headgear: "hood", cloth: 0x445e6d, armor: 0x71858c, accent: 0x94a8a5, build: 0.88, mantle: true },
-  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true },
-  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true },
-  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true },
-  r05: { id: "R05", name: "Conductor", weapon: "siege-launcher", headgear: "engineer", cloth: 0x59645d, armor: 0x848d86, accent: 0xc3a66a, build: 1.02, mantle: false },
-  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true },
+  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
+  f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
+  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12], "leg.left": [-0.14, 0, 0], "leg.right": [0.1, 0, 0] } },
+  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, 0.14], "arm.right": [-0.08, 0, -0.14], "leg.left": [0.12, 0, 0], "leg.right": [-0.08, 0, 0] } },
+  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true, stance: { torso: [0.01, 0.06, 0], "arm.left": [-0.1, 0, 0.12], "arm.right": [-0.08, 0, -0.1], "leg.left": [0.06, 0, 0], "leg.right": [-0.05, 0, 0] } },
+  f06: { id: "F06", name: "Pathfinder", weapon: "two-hand-maul", headgear: "winged", cloth: 0x485f58, armor: 0x9c9b86, accent: 0xd2b370, build: 1.04, mantle: true, stance: { torso: [0.045, 0, 0], "arm.left": [-0.04, 0, 0.08], "arm.right": [-0.12, 0, -0.08], "leg.left": [-0.06, 0, 0], "leg.right": [0.08, 0, 0] } },
+  r01: { id: "R01", name: "Tempest", weapon: "staff", headgear: "hood", cloth: 0x445e6d, armor: 0x71858c, accent: 0x94a8a5, build: 0.88, mantle: true, stance: { torso: [-0.015, 0, 0], "arm.left": [-0.08, 0, 0.07], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.04, 0, 0], "leg.right": [0.04, 0, 0] } },
+  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true, stance: { torso: [-0.04, 0.06, 0], "arm.left": [-0.13, 0, 0.12], "arm.right": [-0.15, 0, -0.09], "leg.left": [0.04, 0, 0], "leg.right": [-0.04, 0, 0] } },
+  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true, stance: { torso: [0.12, -0.04, 0], "arm.left": [-0.12, 0, 0.18], "arm.right": [-0.1, 0, -0.16], "leg.left": [0.14, 0, 0], "leg.right": [-0.12, 0, 0] } },
+  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true, stance: { torso: [-0.025, 0, 0], head: [0, 0.025, 0], "arm.left": [-0.04, 0, 0.06], "arm.right": [-0.06, 0, -0.06], "leg.left": [-0.02, 0, 0], "leg.right": [0.02, 0, 0] } },
+  r05: { id: "R05", name: "Conductor", weapon: "siege-launcher", headgear: "engineer", cloth: 0x59645d, armor: 0x848d86, accent: 0xc3a66a, build: 1.02, mantle: false, stance: { torso: [0.02, 0, 0], "arm.left": [-0.08, 0, 0.08], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.08, 0, 0], "leg.right": [0.08, 0, 0] } },
+  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true, stance: { torso: [-0.045, 0.08, 0], "arm.left": [-0.08, 0, 0.1], "arm.right": [-0.14, 0, -0.12], "leg.left": [0.08, 0, 0], "leg.right": [-0.06, 0, 0] } },
 };
 
 export interface BattlefieldUnitRig {
   joints: Record<string, THREE.Group>;
   weaponPivots: Record<string, THREE.Group>;
   anchors: Record<string, THREE.Object3D>;
+  /** Neutral local Euler rotations. Replay animation channels add offsets to these values. */
+  restPose?: Readonly<Record<string, Readonly<{ x: number; y: number; z: number }>>>;
 }
 
 interface Bucket {
@@ -179,7 +182,15 @@ class UnitBuilder {
       weaponPivots: Object.fromEntries(Object.entries(this.weaponPivots).map(([key, group]) => [key, group.name])),
       anchors: Object.fromEntries(Object.entries(this.anchors).map(([key, group]) => [key, group.name])),
     };
-    return { joints: this.joints, weaponPivots: this.weaponPivots, anchors: this.anchors };
+    return {
+      joints: this.joints,
+      weaponPivots: this.weaponPivots,
+      anchors: this.anchors,
+      restPose: Object.fromEntries([
+        ...Object.entries(this.joints).map(([key, group]) => [key, { x: group.rotation.x, y: group.rotation.y, z: group.rotation.z }] as const),
+        ...Object.entries(this.weaponPivots).map(([key, group]) => [`weapon.${key}`, { x: group.rotation.x, y: group.rotation.y, z: group.rotation.z }] as const),
+      ]),
+    };
   }
 }
 
@@ -712,10 +723,16 @@ function buildBattlefieldHeroLevel(
   addHeadgear(builder, body.head, shape, palette);
   if (detail === "far") addHeroFarLoadout(builder, body, shape, palette);
   else addHeroLoadout(builder, group, body, shape, palette);
+  for (const [jointName, [x, y, z]] of Object.entries(shape.stance)) {
+    const joint = builder.joints[jointName];
+    if (!joint) throw new Error(`Hero ${shape.id} references unknown stance joint: ${jointName}`);
+    joint.rotation.set(x, y, z);
+  }
   if (detail !== "far") {
     group.userData.catalogId = entity.catalogId ?? shape.id;
     group.userData.appearanceKey = appearanceKey;
     group.userData.heroName = shape.name;
+    group.userData.heroSilhouette = shape.id;
   }
   return builder.finish(detail !== "full");
 }
@@ -743,6 +760,7 @@ export function buildBattlefieldHero(
   group.userData.catalogId = entity.catalogId ?? shape.id;
   group.userData.appearanceKey = appearanceKey;
   group.userData.heroName = shape.name;
+  group.userData.heroSilhouette = shape.id;
   group.userData.battlefieldRig = {
     version: 1,
     generator: "senkei.battlefield-unit.v1",
@@ -750,6 +768,7 @@ export function buildBattlefieldHero(
     joints: Object.fromEntries(Object.entries(rig.joints).map(([key, part]) => [key, part.name])),
     weaponPivots: Object.fromEntries(Object.entries(rig.weaponPivots).map(([key, part]) => [key, part.name])),
     anchors: Object.fromEntries(Object.entries(rig.anchors).map(([key, part]) => [key, part.name])),
+    restPose: rig.restPose,
   };
   return rig;
 }

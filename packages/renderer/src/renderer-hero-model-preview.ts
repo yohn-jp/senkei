@@ -36,22 +36,24 @@ function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   } as DisplayEntity;
 }
 
-function setRotation(group: THREE.Group | undefined, x = 0, y = 0, z = 0): void {
-  if (group) group.rotation.set(x, y, z);
+function setRotation(rig: BattlefieldUnitRig, key: string, group: THREE.Group | undefined, x = 0, y = 0, z = 0): void {
+  if (!group) return;
+  const rest = rig.restPose?.[key] ?? { x: 0, y: 0, z: 0 };
+  group.rotation.set(rest.x + x, rest.y + y, rest.z + z);
 }
 
 function applyPose(rig: BattlefieldUnitRig, pose: HeroPreviewPose, elapsedSeconds: number, reducedMotion: boolean, model: THREE.Group): void {
   const { joints, weaponPivots } = rig;
-  for (const group of Object.values(joints)) group.rotation.set(0, 0, 0);
-  for (const group of Object.values(weaponPivots)) group.rotation.set(0, 0, 0);
+  for (const [key, group] of Object.entries(joints)) setRotation(rig, key, group);
+  for (const [key, group] of Object.entries(weaponPivots)) setRotation(rig, `weapon.${key}`, group);
   model.position.y = 0;
 
   if (pose === "idle") {
     if (!reducedMotion) {
       const breath = Math.sin(elapsedSeconds * 1.7);
-      setRotation(joints.torso, breath * 0.025, 0, breath * 0.012);
-      setRotation(joints.head, 0, Math.sin(elapsedSeconds * 0.8) * 0.035, 0);
-      setRotation(joints.cape, breath * 0.035, 0, 0);
+      setRotation(rig, "torso", joints.torso, breath * 0.025, 0, breath * 0.012);
+      setRotation(rig, "head", joints.head, 0, Math.sin(elapsedSeconds * 0.8) * 0.035, 0);
+      setRotation(rig, "cape", joints.cape, breath * 0.035, 0, 0);
     }
     return;
   }
@@ -59,11 +61,11 @@ function applyPose(rig: BattlefieldUnitRig, pose: HeroPreviewPose, elapsedSecond
   if (pose === "move") {
     const phase = reducedMotion ? 0.45 : elapsedSeconds * Math.PI * 3.2;
     const gait = Math.sin(phase) * (reducedMotion ? 0.3 : 0.44);
-    setRotation(joints["leg.left"], gait, 0, 0);
-    setRotation(joints["leg.right"], -gait, 0, 0);
-    setRotation(joints["arm.left"], -gait * 0.62, 0, 0);
-    setRotation(joints["arm.right"], gait * 0.62, 0, 0);
-    setRotation(joints.torso, -0.055 + Math.abs(gait) * 0.035, 0, 0);
+    setRotation(rig, "leg.left", joints["leg.left"], gait, 0, 0);
+    setRotation(rig, "leg.right", joints["leg.right"], -gait, 0, 0);
+    setRotation(rig, "arm.left", joints["arm.left"], -gait * 0.62, 0, 0);
+    setRotation(rig, "arm.right", joints["arm.right"], gait * 0.62, 0, 0);
+    setRotation(rig, "torso", joints.torso, -0.055 + Math.abs(gait) * 0.035, 0, 0);
     if (!reducedMotion) model.position.y = Math.abs(Math.sin(phase * 2)) * 0.035;
     return;
   }
@@ -73,10 +75,10 @@ function applyPose(rig: BattlefieldUnitRig, pose: HeroPreviewPose, elapsedSecond
   const strike = THREE.MathUtils.smoothstep(cycle, 0.29, 0.48);
   const recover = THREE.MathUtils.smoothstep(cycle, 0.48, 0.82);
   const swing = windup * (1 - strike) + strike * (1 - recover);
-  setRotation(joints.torso, 0.02 - swing * 0.2, swing * 0.15, -swing * 0.08);
-  setRotation(joints["arm.right"], -0.08 - windup * 0.28 + strike * 0.1, 0, -swing * 0.24);
-  setRotation(weaponPivots.main, -swing * 0.32, 0, -windup * 0.18 + strike * 0.9);
-  setRotation(joints["arm.left"], 0.08 + swing * 0.12, 0, swing * 0.08);
+  setRotation(rig, "torso", joints.torso, 0.02 - swing * 0.2, swing * 0.15, -swing * 0.08);
+  setRotation(rig, "arm.right", joints["arm.right"], -0.08 - windup * 0.28 + strike * 0.1, 0, -swing * 0.24);
+  setRotation(rig, "weapon.main", weaponPivots.main, -swing * 0.32, 0, -windup * 0.18 + strike * 0.9);
+  setRotation(rig, "arm.left", joints["arm.left"], 0.08 + swing * 0.12, 0, swing * 0.08);
 }
 
 function disposeScene(scene: THREE.Scene): void {

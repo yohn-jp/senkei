@@ -49,6 +49,14 @@ function minimumWorldY(root: THREE.Object3D): number {
   return minimum;
 }
 
+function silhouetteBounds(root: THREE.Object3D): string {
+  root.updateMatrixWorld(true);
+  return meshes(root).map(mesh => {
+    const bounds = new THREE.Box3().setFromObject(mesh);
+    return [...bounds.min.toArray(), ...bounds.max.toArray()].map(value => Math.round(value * 100) / 100).join(",");
+  }).sort().join(";");
+}
+
 describe("Battlefield unit models", () => {
   it("builds twelve Atelier identities with articulated rig anchors and bounded LOD draw calls", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
@@ -71,6 +79,8 @@ describe("Battlefield unit models", () => {
       expect(rig.joints.torso).toBeInstanceOf(THREE.Group);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
       expect(rig.weaponPivots.main).toBeInstanceOf(THREE.Group);
+      expect(rig.restPose?.torso).toEqual(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number), z: expect.any(Number) }));
+      expect(rig.restPose?.["weapon.main"]).toEqual(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number), z: expect.any(Number) }));
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
       expect(group.getObjectByName(rig.joints.torso.name)).toBe(rig.joints.torso);
       const fullArmor = meshes(levels[0]).find(mesh => mesh.userData.unitSurface === "armor");
@@ -86,6 +96,20 @@ describe("Battlefield unit models", () => {
       }
     }
     expect(names).toHaveProperty("size", 12);
+  });
+
+  it("gives each Hero an authored stance and a distinct shape signature independent of palette colors", () => {
+    const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
+    const stances = new Set<string>();
+    const silhouettes = new Set<string>();
+    for (const id of identities) {
+      const group = new THREE.Group();
+      const rig = buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id}`, id.toUpperCase()), 0xffffff, `senkei.next.hero.${id}`);
+      stances.add(JSON.stringify(rig.restPose));
+      silhouettes.add(silhouetteBounds(lodLevels(group)[0]));
+    }
+    expect(stances.size).toBe(12);
+    expect(silhouettes.size).toBe(12);
   });
 
   it("keeps melee, ranged and siege Minions visually distinct with a compact shared-material far LOD", () => {
