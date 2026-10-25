@@ -127,7 +127,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   const outcome = requiredRecord(simulation.outcome, "simulation outcome");
   const result = requiredRecord(outcome.result, "Enbu result");
   const publicReplay = requiredRecord(outcome.presentation_replay, "public presentation replay");
-  const replay = requiredRecord(simulation.owner_replay, "authorized owner replay");
+  if (simulation.authorized_side !== "attacker") throw new Error("The owner response lacks explicit attacker authorization.");
+  const ownerChannels = requiredRecord(simulation.owner_replays, "authorized owner channels");
+  expect(Object.keys(ownerChannels)).toEqual(["attacker"]);
+  const replay = requiredRecord(ownerChannels.attacker, "authorized owner replay");
   if (replay.perspective !== "attacker") throw new Error("The canonical owner replay is not the authorized attacker perspective.");
   const snapshotContext = requiredRecord(snapshot.context, "snapshot context");
   const snapshotMatchId = requiredString(snapshotContext.match_id, "snapshot match ID");

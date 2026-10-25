@@ -597,7 +597,10 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   const outcome = requiredRecord(simulation.outcome, "simulation outcome");
   const result = requiredRecord(outcome.result, "Enbu result");
   const publicReplay = requiredRecord(outcome.presentation_replay, "public presentation replay");
-  const ownerReplay = requiredRecord(simulation.owner_replay, "authorized owner replay");
+  if (simulation.authorized_side !== "attacker") throw new Error("The owner response lacks explicit attacker authorization.");
+  const ownerChannels = requiredRecord(simulation.owner_replays, "authorized owner channels");
+  expect(Object.keys(ownerChannels)).toEqual(["attacker"]);
+  const ownerReplay = requiredRecord(ownerChannels.attacker, "authorized owner replay");
   if (ownerReplay.perspective !== "attacker") throw new Error("The real Worker response lacks the authorized attacker replay.");
   if (!Array.isArray(ownerReplay.frames) || ownerReplay.frames.length !== result.final_tick + 1) {
     throw new Error("The authorized owner replay does not contain every Enbu tick frame.");
@@ -1014,7 +1017,7 @@ async function saveCapture(
       matchId: typeof result?.match_id === "string" ? result.match_id : null,
       finalStateDigest: typeof result?.final_state_digest === "string" ? result.final_state_digest : null,
       publicReplayDigest: typeof outcome?.presentation_replay?.result_digest === "string" ? outcome.presentation_replay.result_digest : null,
-      ownerReplayDigest: typeof simulation?.owner_replay?.result_digest === "string" ? simulation.owner_replay.result_digest : null,
+      ownerReplayDigest: typeof simulation?.owner_replays?.attacker?.result_digest === "string" ? simulation.owner_replays.attacker.result_digest : null,
     };
   });
   expect(replay.matchId, "each screenshot is bound to the real Worker match").toBeTruthy();

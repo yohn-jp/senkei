@@ -1003,7 +1003,10 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const outcome = simulation.outcome as JsonRecord;
   const result = outcome.result as JsonRecord;
   const publicReplay = outcome.presentation_replay as JsonRecord;
-  const sourceReplay = (simulation.owner_replay as JsonRecord | undefined) ?? publicReplay;
+  expect(simulation.authorized_side).toBe("attacker");
+  expect(Object.keys(simulation.owner_replays)).toEqual(["attacker"]);
+  const sourceReplay = simulation.owner_replays.attacker as JsonRecord;
+  expect(sourceReplay.perspective).toBe("attacker");
   const requestSnapshot = captured.request!.payload.snapshot as JsonRecord;
   expect(captured.rulesetResponse, "the real WASM worker must return the static ruleset used by this battle").not.toBeNull();
   expect(captured.rulesetResponse!.operation).toBe("next_ruleset");
@@ -1026,10 +1029,10 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   expect(sourceReplay.frames.length).toBeGreaterThan(0);
   expect(sourceReplay.perspective ?? "public").toMatch(/^(attacker|defender|public)$/);
   if (controlledScenario && expectedScenarioResult) {
-    expect(requestSnapshot.context.ruleset.digest).toBe("19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75");
+    expect(requestSnapshot.context.ruleset).toEqual(expectedScenarioResult.replay.ruleset);
     expect(result.final_tick).toBe(expectedScenarioResult.result.final_tick);
     expect(result.final_state_digest).toBe(expectedScenarioResult.result.final_state_digest);
-    expect(sourceReplay.result_digest).toBe(expectedScenarioResult.owner_replay.result_digest);
+    expect(sourceReplay.result_digest).toBe(expectedScenarioResult.owner_replays.attacker.result_digest);
     expect(publicReplay.result_digest).toBe(expectedScenarioResult.replay.result_digest);
   }
 
@@ -1040,9 +1043,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const towerDestroyTick = firstDestroyTick(events, "tower");
   const baseDestroyTick = firstDestroyTick(events, "base");
   const heroDeathTick = firstDestroyTick(events, "hero");
-  const heroRespawnProof = simulation.owner_replay
-    ? firstOwnerHeroRespawn(simulation.owner_replay as JsonRecord)
-    : null;
+  const heroRespawnProof = firstOwnerHeroRespawn(sourceReplay);
   const respawnTick = typeof heroRespawnProof?.tick === "number" ? heroRespawnProof.tick : null;
   const neutralRespawnTick = firstTypedTick(events, /respawn/i, "monster");
   const finalTick = result.final_tick as number;
@@ -1554,7 +1555,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
         matchId: expectedScenarioResult?.result.match_id,
         finalTick: expectedScenarioResult?.result.final_tick,
         finalStateDigest: expectedScenarioResult?.result.final_state_digest,
-        ownerPresentationDigest: expectedScenarioResult?.owner_replay.result_digest,
+        ownerPresentationDigest: expectedScenarioResult?.owner_replays.attacker.result_digest,
         publicPresentationDigest: expectedScenarioResult?.replay.result_digest,
       },
       policy: "snapshot-injected-into-real-worker; result-produced-by-real-WASM; renderer-receives-presentation-replay-only",

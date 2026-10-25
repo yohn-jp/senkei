@@ -103,6 +103,7 @@ fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
     };
     let plan = RulePlan {
         next: None,
+        catalog_semantics_digest: None,
         minimum_engine_version: version(), model_version: version(),
         primitive_set_id: PrimitiveSetId::new("test-primitives"), primitive_set_version: version(),
         jinrei_language_version: jinrei::LANGUAGE_VERSION,
