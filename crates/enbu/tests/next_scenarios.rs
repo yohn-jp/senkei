@@ -21,7 +21,7 @@ fn fragile_rules() -> VerifiedRulePlan {
     let fragile = next.heroes.iter_mut().find(|hero| hero.id == "F01")
         .expect("the test fixture selects the first frontline catalog entry");
     fragile.stats.hp = 1;
-    package.ruleset.version = Version::new(1, 0, 1);
+    package.ruleset.version = Version::new(2, 0, 1);
     package.ruleset.digest = senritsu::canonical_digest(&package)
         .expect("fragile test package has canonical content");
     senritsu::validate(package, &senritsu::next_engine_compatibility())
@@ -41,7 +41,7 @@ fn reveal_rules() -> VerifiedRulePlan {
     next.heroes.iter_mut().find(|hero| hero.id == "R03")
         .expect("the published catalog contains R03")
         .growth.vision = 0;
-    package.ruleset.version = Version::new(1, 0, 1);
+    package.ruleset.version = Version::new(2, 0, 1);
     package.ruleset.digest = senritsu::canonical_digest(&package)
         .expect("reveal test package has canonical content");
     senritsu::validate(package, &senritsu::next_engine_compatibility())
@@ -1051,7 +1051,7 @@ fn run_movement_factor_grid(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> 
     let next = rules.plan().next.as_ref().unwrap();
     let mut report = Vec::new();
     let axes = [
-        ("lane", "A.TOP.T1", "A.TOP.T2", 1_000_i64),
+        ("lane", "A.TOP.T2", "A.TOP.J", 1_000_i64),
         ("jungle", "A.TOP.J", "N.A.UJ", 800_i64),
     ];
     for (terrain, start, destination, terrain_factor) in axes {
@@ -1458,7 +1458,7 @@ fn canonical_battlefield_topology_conforms() {
         assert!(map.nodes.contains_key(&edge.from) && map.nodes.contains_key(&edge.to), "edge {} has both endpoints", edge.id);
         assert!(edge.length > 0);
         assert!(!edge.region.eq_ignore_ascii_case("jungle") || edge.bridge_site.is_empty(), "jungle routes cannot be bridge sites");
-        assert!(!edge.ford || edge.region.eq_ignore_ascii_case("jungle"), "only jungle river crossings are fords");
+        assert!(!edge.ford || edge.region == "river_ford", "only fixed river-ford edges are marked fords");
         (normalized_edge(&edge.from, &edge.to), (edge.length, edge.ford, edge.bridge_site.clone()))
     }).collect::<BTreeMap<_, _>>();
     assert_eq!(map.edges.len(), 42, "all explicit lane, bridge, jungle, camp and ford edges exist");
