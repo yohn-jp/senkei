@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { polylinePointAtFraction } from "./battlefield-polyline.js";
 import type { Replay, WorldPoint } from "@senkei/replay-contract";
 import { scenicRiverCourse } from "./battlefield-geography";
 
@@ -84,10 +85,8 @@ function fordCrossings(replay: Replay, river: readonly WorldPoint[]): FordCrossi
 
 function bridgeCrossingCenters(replay: Replay): WorldPoint[] {
   return (replay.scene.routes ?? []).filter((route) => route.bridgeSite && route.bridgeSite !== "MID")
-    .map((route) => ({
-      x: (route.points[0].x + route.points[1].x) / 2,
-      y: (route.points[0].y + route.points[1].y) / 2,
-    }));
+    .map((route) => polylinePointAtFraction(route.points, 0.5))
+    .filter((point): point is WorldPoint => point !== undefined);
 }
 
 function isNear(point: WorldPoint, centers: readonly WorldPoint[], radius: number): boolean {

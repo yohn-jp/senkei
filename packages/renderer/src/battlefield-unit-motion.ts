@@ -4,6 +4,7 @@ import type {
   Replay,
   WorldPoint,
 } from "@senkei/replay-contract";
+import { polylineEndpointsMatch, polylineTangentAtClosestPoint } from "./battlefield-polyline.js";
 
 export interface BattlefieldUnitMotion {
   readonly dx: number;
@@ -19,21 +20,20 @@ export function effectiveTrackPoint(entity: DisplayEntity, replay: Replay): Worl
 
   const from = replay.scene.nodes?.find((node) => node.id === logical.node)?.position;
   const to = replay.scene.nodes?.find((node) => node.id === logical.edgeTo)?.position;
-  const edge = (replay.scene.routes ?? []).find((route) =>
-    ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
-     (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
-  );
+  const edge = from && to ? (replay.scene.routes ?? []).find((route) => polylineEndpointsMatch(route.points, from, to)) : undefined;
   if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge")
     return entity.position;
 
-  const dx = edge.points[1].x - edge.points[0].x;
-  const dy = edge.points[1].y - edge.points[0].y;
-  const length = Math.hypot(dx, dy) || 1;
+  let tangent = polylineTangentAtClosestPoint(edge.points, entity.position);
+  if (!tangent) return entity.position;
+  const first = edge.points[0]!, last = edge.points.at(-1)!;
+  if (Math.hypot(first.x - to.x, first.y - to.y) < Math.hypot(last.x - to.x, last.y - to.y))
+    tangent = { x: -tangent.x, y: -tangent.y };
   const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
   const offset = (replay.scene.trackOffset ?? 0.8) * direction;
   return {
-    x: entity.position.x + dy / length * offset,
-    y: entity.position.y - dx / length * offset,
+    x: entity.position.x + tangent.y * offset,
+    y: entity.position.y - tangent.x * offset,
   };
 }
 

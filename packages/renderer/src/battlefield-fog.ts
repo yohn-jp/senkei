@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DisplayState, Replay, WorldPoint } from "@senkei/replay-contract";
+import { polylineLength, polylinePointAtFraction, polylineTangentAtClosestPoint } from "./battlefield-polyline.js";
 
 /** Graph visibility only. Off-graph terrain never gains invented sight rules. */
 export class BattlefieldFog {
@@ -34,15 +35,17 @@ export class BattlefieldFog {
       mesh.geometry.dispose();
     }
     for (const edge of replay.scene.routes ?? []) {
-      const from = edge.points[0], to = edge.points[edge.points.length - 1];
-      const dx = to.x - from.x, dy = to.y - from.y;
-      const length = Math.hypot(dx, dy);
+      const length = polylineLength(edge.points);
       for (let sample = 0; sample < 9; sample++) {
-        const start = Math.max(0, (sample - 0.5) / 8), end = Math.min(1, (sample + 0.5) / 8);
+        const center = polylinePointAtFraction(edge.points, sample / 8);
+        const tangent = center && polylineTangentAtClosestPoint(edge.points, center);
+        if (!center || !tangent) continue;
+        const span = length / 8;
+        const segmentLength = sample === 0 || sample === 8 ? span / 2 : span;
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.materials.unexplored);
-        mesh.rotation.set(-Math.PI / 2, 0, -Math.atan2(dx, dy));
-        mesh.position.set(from.x + dx * (start + end) / 2, 0.18, from.y + dy * (start + end) / 2);
-        mesh.scale.set(edge.region === "lane" ? 2.5 : 1.6, length * (end - start), 1);
+        mesh.rotation.set(-Math.PI / 2, 0, -Math.atan2(tangent.x, tangent.y));
+        mesh.position.set(center.x, 0.18, center.y);
+        mesh.scale.set(edge.region === "lane" ? 2.5 : 1.6, segmentLength, 1);
         mesh.updateMatrix();
         this.masks.push({ matrix: mesh.matrix.clone(), edge: edge.id, sample });
         mesh.geometry.dispose();
@@ -85,7 +88,7 @@ export class BattlefieldFog {
       const route = this.replay.scene.routes?.find(route => route.bridgeSite === contact.site);
       const point: WorldPoint | undefined = contact.kind === "bridge"
         ? contact.site === "MID" ? this.replay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
-          : route ? { x: (route.points[0].x + route.points[1].x) / 2, y: (route.points[0].y + route.points[1].y) / 2 } : undefined
+          : route ? polylinePointAtFraction(route.points, 0.5) : undefined
         : this.replay.scene.nodes?.find(node => node.id === contact.site)?.position;
       if (!point) continue;
       const vertices = Array.from({ length: 33 }, (_, i) => {
