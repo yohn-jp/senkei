@@ -880,8 +880,9 @@ export class Battlefield {
        (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
     );
     if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return entity.position;
-    const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
-    const direction = logical.track === "LEFT" ? -1 : 1;
+    // Tracks share the static edge's orientation for travelers in both directions.
+    const dx = edge.points[1].x - edge.points[0].x, dy = edge.points[1].y - edge.points[0].y, length = Math.hypot(dx, dy) || 1;
+    const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
     const offset = (this.replay.scene.trackOffset ?? 0.8) * direction;
     return { x: entity.position.x + dy / length * offset, y: entity.position.y - dx / length * offset };
   }

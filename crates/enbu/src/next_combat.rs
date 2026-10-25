@@ -1424,6 +1424,13 @@ mod tests {
         assert!(!support::in_combat_range(&source, &target, 25, &rules));
         support::set_string(&mut target, "track", "CENTER");
         assert!(support::in_combat_range(&source, &target, 25, &rules));
+        // A committed lateral crossing occupies CENTER, not its stored origin side.
+        support::set_string(&mut target, "track", "LEFT");
+        support::set_int(&mut target, "cross_remaining", 2);
+        assert!(!support::in_combat_range(&source, &target, 15, &rules));
+        assert!(support::in_combat_range(&source, &target, 25, &rules));
+        support::set_int(&mut target, "cross_remaining", 0);
+        assert!(support::in_combat_range(&source, &target, 15, &rules));
 
         // Node Combat Domains suppress range; distinct nodes and edges do not.
         let mut node_source = source.clone();

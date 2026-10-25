@@ -97,7 +97,7 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     let dx = i128::from(a_canonical) - i128::from(b_canonical);
     let mut distance2 = dx * dx;
     if edge.region == "lane" && edge.bridge_site.is_empty() && !edge.ford {
-        let offset = |entity: &EntityState| match string(entity, "track").as_str() {
+        let offset = |entity: &EntityState| match if int(entity, "cross_remaining") > 0 { "CENTER".into() } else { string(entity, "track") }.as_str() {
             "LEFT" => -param(rules, "lane_track_offset_wu", 20),
             "RIGHT" => param(rules, "lane_track_offset_wu", 20),
             _ => 0,
