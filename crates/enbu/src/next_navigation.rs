@@ -347,7 +347,10 @@ fn advance_entity(
         set_int(entity, "ford_remaining", ford_remaining - 1);
         return;
     }
-    if !edge_to.is_empty() && int(entity, "edge_progress") == 0 {
+    if int(entity, "ford_active") == 0
+        && !edge_to.is_empty()
+        && int(entity, "edge_progress") == 0
+    {
         if let Some(edge) = edge_for_nodes(&rules.map, &node, &edge_to) {
             if edge.ford
                 || (is_bridge(edge) && bridge_state(snapshot, &edge.bridge_site) == "destroyed")
@@ -2424,6 +2427,66 @@ mod tests {
         advance(&mut world, &config, 2);
         assert_eq!(int(&world.entities[&id("h")], "edge_progress"), 0);
         assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 22);
+
+        // Rebuilding during the paid ford time does not cancel or restart
+        // that timer. Once the single timer expires, movement resumes.
+        for tick in 3..=10 {
+            advance(&mut world, &config, tick);
+        }
+        set_string(
+            world.entities.get_mut(&id("bridge.top")).unwrap(),
+            "bridge_state",
+            "normal",
+        );
+        for tick in 11..=24 {
+            advance(&mut world, &config, tick);
+        }
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 0);
+        assert_eq!(int(&world.entities[&id("h")], "ford_active"), 1);
+        advance(&mut world, &config, 25);
+        assert_eq!(string(&world.entities[&id("h")], "node"), "b");
+        assert_eq!(string(&world.entities[&id("h")], "edge_to"), "");
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 0);
+        assert_eq!(int(&world.entities[&id("h")], "ford_active"), 0);
+    }
+
+    #[test]
+    fn jungle_ford_extra_time_runs_once_then_progresses_to_the_other_bank() {
+        let mut crossing = edge("a", "b", 100, "river_ford", false);
+        crossing.ford = true;
+        crossing.id = "ford.upper_jungle".into();
+        let config = rules(test_map(vec![crossing]));
+        let mut world = WorldState::default();
+        world.entities.insert(
+            id("h"),
+            entity("hero", Some(CombatantSide::Attacker), 100, "a", "b"),
+        );
+
+        advance(&mut world, &config, 1);
+        assert_eq!(string(&world.entities[&id("h")], "edge_to"), "b");
+        assert_eq!(int(&world.entities[&id("h")], "edge_progress"), 0);
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 23);
+        for tick in 2..=24 {
+            advance(&mut world, &config, tick);
+        }
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 0);
+        assert_eq!(int(&world.entities[&id("h")], "ford_active"), 1);
+
+        advance(&mut world, &config, 25);
+        let crossing = &world.entities[&id("h")];
+        assert!(
+            int(crossing, "edge_progress") > 0 || string(crossing, "node") == "b",
+            "the Jungle ford advances after its one persistent extra-time interval");
+        assert_eq!(
+            int(crossing, "ford_remaining"),
+            0,
+            "an active ford with an expired timer does not re-arm the extra delay");
+        for tick in 26..=28 {
+            advance(&mut world, &config, tick);
+        }
+        assert_eq!(string(&world.entities[&id("h")], "node"), "b");
+        assert_eq!(string(&world.entities[&id("h")], "edge_to"), "");
+        assert_eq!(int(&world.entities[&id("h")], "ford_active"), 0);
     }
 
     #[test]

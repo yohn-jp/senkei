@@ -1756,6 +1756,32 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         }))
     }).expect("the Jungle river traversal spends replay-visible ticks in the ford state");
     assert!(ford_frame.tick > 0);
+    let ford_entry_tick = (1..=artifact.result.final_tick)
+        .find(|tick| {
+            let hero = owner_hero_at(&artifact, *tick, "slot-3");
+            entity_string(hero, "node") == "N.A.UJ"
+                && entity_string(hero, "edge_to") == "N.B.UJ"
+                && entity_integer(hero, "ford_remaining") > 0
+        })
+        .expect("real Jinrei F02 enters the canonical Jungle ford");
+    let ford_entry = owner_hero_at(&artifact, ford_entry_tick, "slot-3");
+    assert_eq!(entity_integer(ford_entry, "edge_progress"), 0);
+    let ford_progress_tick = (ford_entry_tick..=artifact.result.final_tick)
+        .find(|tick| {
+            let hero = owner_hero_at(&artifact, *tick, "slot-3");
+            entity_string(hero, "node") == "N.A.UJ"
+                && entity_string(hero, "edge_to") == "N.B.UJ"
+                && entity_integer(hero, "edge_progress") > 0
+                && entity_integer(hero, "ford_remaining") == 0
+        })
+        .expect("F02 advances along the same Jungle ford after its one extra-time interval");
+    let ford_arrival_tick = (ford_progress_tick..=artifact.result.final_tick)
+        .find(|tick| {
+            let hero = owner_hero_at(&artifact, *tick, "slot-3");
+            entity_string(hero, "node") == "N.B.UJ" && entity_string(hero, "edge_to").is_empty()
+        })
+        .expect("F02 completes the actual Jungle ford crossing and arrives at N.B.UJ");
+    assert!(ford_arrival_tick > ford_progress_tick);
 
     let mid_state = owner_state_at(&artifact, 1);
     assert_eq!(entity_string(owner_hero_by_slot(mid_state, "slot-4"), "node"), "N.MID.OBS",
