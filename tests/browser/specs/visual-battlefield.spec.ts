@@ -702,6 +702,27 @@ function normalBridgeCrossingSnapshots(replay: JsonRecord, edges: readonly { sit
   return snapshots;
 }
 
+function fordTransitMidpoint(replay: JsonRecord, catalogId: string): JsonRecord | undefined {
+  const samplesByEdge = new Map<string, JsonRecord[]>();
+  for (const frame of replay.frames as JsonRecord[]) {
+    const entry = catalogEntityEntryAt(replay, frame.tick, "hero", catalogId);
+    const hero = entry?.[1];
+    const node = field(hero, "node");
+    const edgeTo = field(hero, "edge_to");
+    const edgeProgress = integerField(hero, "edge_progress");
+    if (integerField(hero, "ford_active") !== 1 || integerField(hero, "ford_remaining") !== 0 ||
+      edgeProgress === null || edgeProgress <= 0 || typeof node !== "string" || typeof edgeTo !== "string" || edgeTo.length === 0) continue;
+    const edgeKey = `${node}\u0000${edgeTo}`;
+    const samples = samplesByEdge.get(edgeKey) ?? [];
+    samples.push({ tick: frame.tick, node, edgeTo, edgeProgress });
+    samplesByEdge.set(edgeKey, samples);
+  }
+  const edgeSamples = [...samplesByEdge.values()].sort((left, right) =>
+    right.length - left.length || left[0].tick - right[0].tick,
+  )[0];
+  return edgeSamples?.[Math.floor((edgeSamples.length - 1) / 2)];
+}
+
 async function assertBridgeRoute(page: Page, tick: number, site: string, state: string): Promise<void> {
   await seekToTick(page, tick);
   const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
@@ -751,6 +772,31 @@ async function saveCapture(
   const screenshotPath = join(outputDirectory, scenario, viewport.name, filename);
   mkdirSync(dirname(screenshotPath), { recursive: true });
   await page.screenshot({ path: screenshotPath, animations: "disabled" });
+  const visibleLabelBounds = await page.locator(".next-renderer-host").evaluate((host) => {
+    const hostRect = host.getBoundingClientRect();
+    return [...host.querySelectorAll<HTMLElement>(".entity-world-label")]
+      .filter((label) => !label.hidden && getComputedStyle(label).display !== "none" && getComputedStyle(label).visibility !== "hidden")
+      .map((label) => {
+        const rect = label.getBoundingClientRect();
+        return {
+          text: label.textContent ?? "",
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          hostLeft: hostRect.left,
+          hostTop: hostRect.top,
+          hostRight: hostRect.right,
+          hostBottom: hostRect.bottom,
+        };
+      });
+  });
+  for (const label of visibleLabelBounds) {
+    expect(label.left, `visible world label ${label.text} stays inside renderer host on the left`).toBeGreaterThanOrEqual(label.hostLeft - 0.5);
+    expect(label.top, `visible world label ${label.text} stays inside renderer host at the top`).toBeGreaterThanOrEqual(label.hostTop - 0.5);
+    expect(label.right, `visible world label ${label.text} stays inside renderer host on the right`).toBeLessThanOrEqual(label.hostRight + 0.5);
+    expect(label.bottom, `visible world label ${label.text} stays inside renderer host at the bottom`).toBeLessThanOrEqual(label.hostBottom + 0.5);
+  }
   const pixelToggle = page.getByRole("button", { name: "Toggle Pixel 3D" });
   const pressed = await pixelToggle.getAttribute("aria-pressed");
   captures.push({
@@ -773,7 +819,7 @@ async function saveCapture(
       rendered: await canvas.getAttribute("data-rendered"),
     },
     replay,
-    facts,
+    facts: { ...facts, visibleWorldLabelCount: visibleLabelBounds.length, visibleWorldLabelsWithinHost: true },
     image: {
       path: relative(repoRoot, screenshotPath).replaceAll("\\", "/"),
       sha256: sha256(readFileSync(screenshotPath)),
@@ -871,11 +917,16 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       crossRemaining: lateralCrossRemaining,
     }, captures);
 
-    const fordHero = heroAt(canonical.ownerReplay, 24, "F02");
+    const fordTransit = fordTransitMidpoint(canonical.ownerReplay, "F02");
+    expect(fordTransit, "F02 progresses through the real bridge-free ford with active transit after the entry timer").toBeTruthy();
+    const fordTransitTick = fordTransit!.tick as number;
+    const fordHero = heroAt(canonical.ownerReplay, fordTransitTick, "F02");
     const fordRemaining = integerField(fordHero, "ford_remaining");
-    expect(fordRemaining, "F02 occupies the actual bridge-free Jungle ford at T24").toBeGreaterThan(0);
-    const fordTarget = await followHero(page, viewport, canonical.ownerReplay, 24, "F02", "Azure");
-    await saveCapture(page, "canonical-real-battle", "ford-transit-follow", 24, viewport, "Follow", {
+    expect(integerField(fordHero, "ford_active"), "the observed edge movement is an active ford crossing").toBe(1);
+    expect(fordRemaining, "F02 has completed the ford-entry timer before advancing on the edge").toBe(0);
+    expect(integerField(fordHero, "edge_progress"), "F02 has entered the river crossing edge").toBeGreaterThan(0);
+    const fordTarget = await followHero(page, viewport, canonical.ownerReplay, fordTransitTick, "F02", "Azure");
+    await saveCapture(page, "canonical-real-battle", "ford-transit-follow", fordTransitTick, viewport, "Follow", {
       catalogId: fordTarget.catalogId,
       side: fordTarget.side,
       rendererEntityId: fordTarget.id,
@@ -884,6 +935,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       edgeProgress: integerField(fordHero, "edge_progress"),
       track: field(fordHero, "track"),
       fordRemaining,
+      fordActive: integerField(fordHero, "ford_active"),
       bridgeFree: true,
     }, captures);
 
