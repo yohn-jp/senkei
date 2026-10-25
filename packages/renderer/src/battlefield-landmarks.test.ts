@@ -29,26 +29,44 @@ describe("canonical Battlefield landmarks", () => {
     const landmarks = new BattlefieldLandmarks(scene, replay);
     const bridge = scene.getObjectByName("fixed-bridge-TOP-edge-a-top") as THREE.Group;
     const objective = scene.getObjectByName("mid-observation-objective") as THREE.Group;
-    const deckBoards = bridge.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh && child.geometry instanceof THREE.BoxGeometry && child.geometry.parameters.height === 0.1);
+    const water = scene.getObjectByName("canonical-river-from-fixed-crossings") as THREE.Mesh;
+    const centerDeck = bridge.getObjectByName(`${bridge.name}-center-deck`)!;
+    const sideDeck = bridge.getObjectByName(`${bridge.name}-expanded-side-decks`)!;
+    const brokenGap = bridge.getObjectByName(`${bridge.name}-broken-water-gap`)!;
     expect(scene.getObjectByName("canonical-river-from-fixed-crossings")).toBeDefined();
     expect(scene.getObjectByName("combat-domain-N.MID.OBS")).toBeDefined();
     expect(bridge.userData.state).toBe("unknown");
-    expect(deckBoards.filter(board => board.visible)).toHaveLength(0);
+    expect(centerDeck.visible).toBe(false);
+    expect(sideDeck.visible).toBe(false);
+    expect(brokenGap.visible).toBe(false);
     expect(objective.userData.state).toBe("unknown");
+    const geometry = water.geometry as THREE.BufferGeometry;
+    const positions = geometry.getAttribute("position");
+    const indices = geometry.getIndex();
+    const vertexAt = (index: number) => new THREE.Vector3().fromBufferAttribute(positions, indices?.getX(index) ?? index);
+    const triangleCount = indices ? indices.count / 3 : positions.count / 3;
+    for (let triangle = 0; triangle < triangleCount; triangle++) {
+      const center = vertexAt(triangle * 3).add(vertexAt(triangle * 3 + 1)).add(vertexAt(triangle * 3 + 2)).multiplyScalar(1 / 3);
+      expect(Math.hypot(center.x - 1, center.z - 1)).toBeGreaterThanOrEqual(1.9);
+    }
     landmarks.update(stateAt(replay, 0));
     expect(bridge.userData.state).toBe("normal");
-    expect(deckBoards.filter(board => board.visible)).toHaveLength(5);
+    expect(centerDeck.visible).toBe(true);
+    expect(sideDeck.visible).toBe(false);
+    expect(brokenGap.visible).toBe(false);
     expect(objective.userData.state).toBe("visible");
     landmarks.update(stateAt(replay, 1));
     expect(bridge.userData.state).toBe("destroyed");
-    expect(deckBoards.filter(board => board.visible)).toHaveLength(3);
+    expect(centerDeck.visible).toBe(false);
+    expect(sideDeck.visible).toBe(false);
+    expect(brokenGap.visible).toBe(true);
     landmarks.update({ tick: 1, entities: {}, cues: [], result: null });
     expect(bridge.userData.state).toBe("unknown");
     expect(objective.userData.state).toBe("unknown");
     landmarks.dispose();
   });
 
-  it("draws the three separate lane combat tracks at versioned lateral spacing", () => {
+  it("leaves lane geometry to the terrain surface instead of drawing guide ribbons", () => {
     const source = structuredClone(basic) as unknown as PresentationReplay;
     source.schemaVersion = "0.3";
     source.scene.nodes = [{ id: "A.BASE", allegiance: "A", position: { x: 0, y: 0 } }];
@@ -57,8 +75,10 @@ describe("canonical Battlefield landmarks", () => {
     source.scene.trackOffset = 0.8;
     const replay = decodeReplay(source), scene = new THREE.Scene();
     const landmarks = new BattlefieldLandmarks(scene, replay);
-    for (const track of ["left", "center", "right"])
-      expect(scene.getObjectByName(`lane-${replay.scene.lanes[0].id}-track-${track}`)).toBeDefined();
+    expect(scene.getObjectByName(`lane-${replay.scene.lanes[0].id}-track-left`)).toBeUndefined();
+    expect(scene.getObjectByName(`lane-${replay.scene.lanes[0].id}-track-center`)).toBeUndefined();
+    expect(scene.getObjectByName(`lane-${replay.scene.lanes[0].id}-track-right`)).toBeUndefined();
+    expect(scene.getObjectByName("combat-domain-A.BASE")).toBeDefined();
     landmarks.dispose();
   });
 });
