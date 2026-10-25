@@ -14,6 +14,9 @@
 | --- | --- |
 | [PRODUCT.md](PRODUCT.md) | ユーザー、体験、非目標、学習の導線 |
 | [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) | **G01–Q03の合意事項と保留の台帳** |
+| [EQUIPMENT.md](EQUIPMENT.md) | **装備資産・性能ランク・戦力と戦略の追加合意** |
+| [HERO-RELATIONSHIPS.md](HERO-RELATIONSHIPS.md) | **非対称な信頼・関係グラフ・会話とSquad連携の追加合意** |
+| [REWARDS-AND-LIBRA.md](REWARDS-AND-LIBRA.md) | **装備報酬・市場・Libraの決定事項と保留境界** |
 | [FOG-OF-WAR.md](FOG-OF-WAR.md) | **視界・探索済み地形・最終観測鮮度** |
 | [TACTICAL-LOOP.md](TACTICAL-LOOP.md) | **Replay→分析→Jinrei修正→比較のUX** |
 | [ART-DIRECTION.md](ART-DIRECTION.md) | **Faceted Low-Poly・表示モード・LOD** |
@@ -58,6 +61,8 @@
 4. 例示した兵科、数値、名前、アルゴリズム。
 
 数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本、表示契約は [REPLAY.md](REPLAY.md) を設計正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と既存Senritsuのゲーム数値はルールパッケージで具体化します。最新のMOBA型Hero/Squad/Minion/ジャングル設計は [WORLD.md](WORLD.md)／[BATTLEFIELD.md](BATTLEFIELD.md)／[UNITS.md](UNITS.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) に区分して記録する。Worldの宣言的定義・Compilerは [WORLD-DEFINITION.md](WORLD-DEFINITION.md)、既定行動とJinrei上書きは [BEHAVIOR.md](BEHAVIOR.md)、型付き語彙は [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)、編集・Coverageの体験は [JINREI-EDITOR.md](JINREI-EDITOR.md) を専用正本とする。これらの新規契約を**現行senkei.initial、G1 Fixture、または未マージの実装に既に存在する機能とみなさない**。
+
+装備とHero関係性の追加合意は [EQUIPMENT.md](EQUIPMENT.md)／[HERO-RELATIONSHIPS.md](HERO-RELATIONSHIPS.md)、装備報酬とLibraの合意境界は [REWARDS-AND-LIBRA.md](REWARDS-AND-LIBRA.md) を参照する。これらの設計採用は、既存G2の受入条件への自動追加やオンライン基盤の採用を意味しない。
 
 ## 変更の作法
 
