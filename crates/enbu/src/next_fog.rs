@@ -70,6 +70,36 @@ pub struct FogReplayState {
     pub facilities: Vec<LastKnownFacility>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct ProbePosition {
+    node: String,
+    edge: Option<(String, i64)>,
+}
+
+impl ProbePosition {
+    fn node(node: &str) -> Self {
+        Self {
+            node: node.into(),
+            edge: None,
+        }
+    }
+
+    fn edge(from: &str, to: &str, progress: i64, length: i64) -> Self {
+        // For a valid positive-length edge, its endpoint probe has the same
+        // graph-geodesic position as the corresponding node probe.
+        if length > 0 && progress == 0 {
+            return Self::node(from);
+        }
+        if length > 0 && progress == length {
+            return Self::node(to);
+        }
+        Self {
+            node: from.into(),
+            edge: Some((to.into(), progress)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct FogHistory {
     explored_nodes: BTreeSet<String>,
@@ -100,10 +130,19 @@ impl FogHistory {
         tick: u32,
     ) -> FogReplayState {
         let vision_sources = next_vision::vision_sources(world, rules, side);
+        // Route endpoint samples coincide with node probes. Reuse only the
+        // boolean probe result; history remains tracked independently for each
+        // node and edge sample below.
+        let mut probe_visibility = BTreeMap::new();
         let mut nodes = BTreeMap::new();
         for (node_id, node) in &rules.map.nodes {
             let probe = node_probe(node_id, node.x, node.y);
-            let state = if next_vision::visible_from_sources(&vision_sources, rules, side, &probe) {
+            let visible = *probe_visibility
+                .entry(ProbePosition::node(node_id))
+                .or_insert_with(|| {
+                    next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
+                });
+            let state = if visible {
                 self.explored_nodes.insert(node_id.clone());
                 FogVisibility::Visible
             } else if self.explored_nodes.contains(node_id) {
@@ -126,9 +165,18 @@ impl FogHistory {
                 let progress =
                     edge.length.saturating_mul(sample as i64) / (EDGE_SAMPLE_COUNT as i64 - 1);
                 let probe = edge_probe(&edge.from, &edge.to, progress);
-                let state = if edge.length >= 0
-                    && next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
-                {
+                let visible = edge.length >= 0
+                    && *probe_visibility
+                        .entry(ProbePosition::edge(
+                            &edge.from,
+                            &edge.to,
+                            progress,
+                            edge.length,
+                        ))
+                        .or_insert_with(|| {
+                            next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
+                        });
+                let state = if visible {
                     self.explored_edges.insert((edge_id.clone(), sample));
                     FogVisibility::Visible
                 } else if self.explored_edges.contains(&(edge_id.clone(), sample)) {
@@ -691,6 +739,19 @@ mod tests {
                     next_vision::visible_from_sources(&sources, &rules, side, probe),
                     "batched and authoritative visibility differ for {side:?} at {probe:?}",
                 );
+            }
+            for edge in rules.map.edges.iter().filter(|edge| edge.length > 0) {
+                for (node, progress) in [(&edge.from, 0), (&edge.to, edge.length)] {
+                    let (node_id, node) = rules.map.nodes.get_key_value(node).unwrap();
+                    let node_probe = node_probe(node_id, node.x, node.y);
+                    let endpoint_probe = edge_probe(&edge.from, &edge.to, progress);
+                    assert_eq!(
+                        next_vision::visible(&world, &rules, side, &node_probe),
+                        next_vision::visible(&world, &rules, side, &endpoint_probe),
+                        "edge endpoint cache key must preserve authoritative visibility for {side:?} on {}",
+                        edge.id,
+                    );
+                }
             }
         }
     }
