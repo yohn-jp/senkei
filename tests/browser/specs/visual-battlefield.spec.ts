@@ -626,13 +626,59 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
 
 async function seekToTick(page: Page, tick: number): Promise<void> {
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
-  await slider.evaluate((element, targetTick) => {
-    const input = element as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, String(targetTick));
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, tick);
+  await expect(slider).toBeEnabled();
+  const min = Number(await slider.getAttribute("min"));
+  const max = Number(await slider.getAttribute("max"));
+  expect(Number.isSafeInteger(tick) && tick >= min && tick <= max,
+    `requested replay tick ${tick} is inside the native range ${min}..${max}`).toBe(true);
+  await slider.focus();
+  await expect(slider).toBeFocused();
+
+  let value = Number(await slider.inputValue());
+  let keyPresses = 0;
+  const pressAndRead = async (key: string): Promise<number> => {
+    const previous = value;
+    await slider.press(key);
+    await expect.poll(async () => Number(await slider.inputValue()), { timeout: 2_000 })
+      .not.toBe(previous);
+    value = Number(await slider.inputValue());
+    keyPresses += 1;
+    return value;
+  };
+
+  if (tick === min && value !== min) value = await pressAndRead("Home");
+  else if (tick === max && value !== max) value = await pressAndRead("End");
+  else if (value !== tick) {
+    if (Math.abs(tick - value) > 12) {
+      const useHome = tick - min <= max - tick;
+      if (useHome && value !== min) value = await pressAndRead("Home");
+      else if (!useHome && value !== max) value = await pressAndRead("End");
+    }
+
+    let pageSteps = 0;
+    const pageDirection = tick > value ? 1 : -1;
+    while (value !== tick && (tick - value) * pageDirection > 3 && pageSteps < 10) {
+      const previous = value;
+      value = await pressAndRead(pageDirection > 0 ? "PageUp" : "PageDown");
+      expect((value - previous) * pageDirection, `${pageDirection > 0 ? "PageUp" : "PageDown"} advances the native replay slider`).toBeGreaterThan(0);
+      pageSteps += 1;
+      if ((tick - value) * pageDirection <= 0) break;
+    }
+
+    let arrowSteps = 0;
+    while (value !== tick && arrowSteps <= max - min) {
+      const movingUp = tick > value;
+      const previous = value;
+      value = await pressAndRead(movingUp ? "ArrowRight" : "ArrowLeft");
+      expect((value - previous) * (movingUp ? 1 : -1), "arrow key advances the native replay slider one step toward the target").toBeGreaterThan(0);
+      arrowSteps += 1;
+    }
+    expect(value, "keyboard navigation reaches the requested replay tick").toBe(tick);
+    expect(keyPresses, "range navigation uses native Home/End, PageUp/PageDown and arrow interactions").toBeLessThanOrEqual(20);
+  }
+
   await expect(slider).toHaveValue(String(tick));
+  await expect(page.locator(".next-tick-readout strong")).toHaveText(String(tick));
   await expect(page.locator(".next-renderer-host canvas")).toHaveAttribute("data-tick", String(tick));
 }
 
