@@ -78,14 +78,30 @@ describe("Battlefield architectural models", () => {
 
   it("builds a high silhouette tower and fortress distinct from unit-scale geometry", () => {
     const scene = new THREE.Scene();
-    const tower = buildBattlefieldTower(scene, entity({ id: "tower-a", side: "azure", kind: "tower", archetype: "tower" }));
+    const tower = buildBattlefieldTower(scene, entity({ id: "tower-a", side: "azure", kind: "tower", archetype: "tower", hp: 500, maxHp: 500 }));
     const fortress = buildBattlefieldBase(scene, entity({ id: "base-a", side: "azure", kind: "base", archetype: "base" }));
     expect(tower.getObjectByName("azure-battlefield-tower-tower-a-bastion-shaft")).toBeDefined();
     expect(tower.getObjectByName("azure-battlefield-tower-tower-a-standard-cloth")).toBeDefined();
+    expect(tower.getObjectByName("azure-battlefield-tower-tower-a-buttress-0")).toBeDefined();
+    expect(tower.userData.damageStage).toBe("intact");
     expect(fortress.getObjectByName("azure-battlefield-fortress-base-a-keep-hall")).toBeDefined();
     expect(fortress.getObjectByName("azure-battlefield-fortress-base-a-walltower--3.18--3.17")).toBeDefined();
     expect(fortress.position.toArray()).toEqual([8, 0, 12]);
     expect(tower.position.toArray()).toEqual([0, 0, 0]);
+
+    const worn = buildBattlefieldTower(scene, entity({ id: "tower-worn", kind: "tower", archetype: "tower", hp: 300, maxHp: 500 }));
+    expect(worn.userData.damageStage).toBe("damaged");
+    expect(worn.getObjectByName("neutral-battlefield-tower-tower-worn-impact-scar")).toBeDefined();
+    expect(worn.getObjectByName("neutral-battlefield-tower-tower-worn-collapse-rubble-0")).toBeUndefined();
+
+    const critical = buildBattlefieldTower(scene, entity({ id: "tower-critical", kind: "tower", archetype: "tower", hp: 100, maxHp: 500 }));
+    expect(critical.userData.damageStage).toBe("critical");
+    expect(critical.getObjectByName("neutral-battlefield-tower-tower-critical-impact-scar")).toBeDefined();
+    expect(critical.getObjectByName("neutral-battlefield-tower-tower-critical-collapse-rubble-0")).toBeDefined();
+    expect(critical.getObjectByName("neutral-battlefield-tower-tower-critical-standard-cloth")).toBeUndefined();
+
+    const noVitals = buildBattlefieldTower(scene, entity({ id: "tower-no-vitals", kind: "tower", archetype: "tower", hp: 0, maxHp: 0 }));
+    expect(noVitals.userData.damageStage).toBe("intact");
   });
 
   it("reads MID owner and capture progress from the currently visible Replay entity", () => {
@@ -106,6 +122,16 @@ describe("Battlefield architectural models", () => {
     expect(progressRing.visible).toBe(false);
     expect(contestedRing.visible).toBe(false);
     expect((beacon.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(0.04);
+
+    mid.update(entity({
+      id: "obs-owner-unknown",
+      kind: "observation",
+      archetype: "observation",
+      battlefield: { captureProgress: 0 },
+    }));
+    expect(mid.group.userData.state).toBe("visible");
+    expect(mid.group.userData.owner).toBeUndefined();
+    expect(ownerBanner.visible).toBe(false);
 
     mid.update(entity({
       id: "obs",

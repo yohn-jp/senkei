@@ -231,6 +231,9 @@ export function buildBattlefieldTower(parent: THREE.Object3D, entity: DisplayEnt
   group.userData.entityId = entity.id;
   group.userData.destroyed = entity.destroyed;
   parent.add(group);
+  const healthRatio = entity.maxHp > 0 ? THREE.MathUtils.clamp(entity.hp / entity.maxHp, 0, 1) : 1;
+  const damageStage = entity.destroyed ? "destroyed" : healthRatio <= 0.35 ? "critical" : healthRatio <= 0.7 ? "damaged" : "intact";
+  group.userData.damageStage = damageStage;
   if (entity.destroyed) {
     for (let index = 0; index < 8; index++) {
       const angle = index * 0.83;
@@ -241,19 +244,85 @@ export function buildBattlefieldTower(parent: THREE.Object3D, entity: DisplayEnt
   }
   mesh(group, new THREE.CylinderGeometry(1.35, 1.58, 0.42, 8), palette.shadowStone, `${group.name}-bastion-foot`, [0, 0.21, 0]);
   mesh(group, new THREE.CylinderGeometry(0.92, 1.22, 2.0, 8), palette.sandstone, `${group.name}-bastion-shaft`, [0, 1.4, 0]);
+  // Projecting stone supports make the upper defense read as a fortified
+  // structure at battlefield scale, while leaving the actual node clear.
+  for (let index = 0; index < 4; index++) {
+    const angle = index * Math.PI / 2 + Math.PI / 4;
+    const buttress = mesh(
+      group,
+      new THREE.CylinderGeometry(0.16, 0.38, 1.18, 5),
+      palette.slateLight,
+      `${group.name}-buttress-${index}`,
+      [Math.cos(angle) * 0.92, 0.76, Math.sin(angle) * 0.92],
+    );
+    buttress.rotation.set(Math.cos(angle) * 0.16, 0, -Math.sin(angle) * 0.16);
+  }
   mesh(group, new THREE.CylinderGeometry(1.24, 1.24, 0.27, 8), palette.sandstoneLight, `${group.name}-parapet-walk`, [0, 2.53, 0]);
   for (let index = 0; index < 8; index++) {
     const angle = index * Math.PI / 4;
-    box(group, `${group.name}-merlon-${index}`, [0.35, 0.48, 0.34], [Math.cos(angle) * 1.05, 2.88, Math.sin(angle) * 1.05], palette.sandstoneLight, -angle);
+    const merlon = box(group, `${group.name}-merlon-${index}`, [0.35, 0.48, 0.34], [Math.cos(angle) * 1.05, 2.88, Math.sin(angle) * 1.05], palette.sandstoneLight, -angle);
+    // At critical health a parapet block has fallen away; loose masonry at
+    // the foot records confirmed structure damage without inventing fire.
+    if (damageStage === "critical" && index === 1) merlon.visible = false;
   }
-  mesh(group, new THREE.CylinderGeometry(0.56, 0.76, 0.62, 6), palette.slate, `${group.name}-watch-roof`, [0, 3.34, 0]);
-  cone(group, `${group.name}-roof-spire`, 0.7, 1.05, [0, 4.08, 0], palette.slate, 6);
+  const roof = new THREE.Group();
+  roof.name = `${group.name}-upperworks`;
+  roof.position.y = 2.85;
+  group.add(roof);
+  const roofScale = damageStage === "critical" ? 0.78 : 1;
+  mesh(roof, new THREE.CylinderGeometry(0.56 * roofScale, 0.76 * roofScale, 0.62 * roofScale, 6), palette.slate, `${group.name}-watch-roof`, [0, 0.49, 0]);
+  cone(roof, `${group.name}-roof-spire`, 0.7 * roofScale, 1.05 * roofScale, [0, 1.23 * roofScale, 0], palette.slate, 6);
+  if (damageStage === "critical") {
+    roof.rotation.z = -0.13;
+    for (let index = 0; index < 5; index++) {
+      const angle = index * 2.399963229728653;
+      const debris = box(
+        group,
+        `${group.name}-collapse-rubble-${index}`,
+        [0.44 + (index % 2) * 0.2, 0.14 + (index % 3) * 0.06, 0.34 + (index % 2) * 0.12],
+        [Math.cos(angle) * (1.15 + index % 2 * 0.18), 0.18 + index % 2 * 0.06, Math.sin(angle) * (1.15 + index % 2 * 0.18)],
+        index % 2 ? palette.sandstoneLight : palette.slateLight,
+        angle,
+      );
+      debris.rotation.z = (index % 3 - 1) * 0.16;
+    }
+  }
+
+  // A chipped masonry scar appears only after authorized HP loss. The shape
+  // is flush with the front face and follows the tower's own facing.
+  if (damageStage === "damaged" || damageStage === "critical") {
+    const scarShape = new THREE.Shape();
+    scarShape.moveTo(-0.2, 0);
+    scarShape.lineTo(-0.04, 0.18);
+    scarShape.lineTo(-0.13, 0.39);
+    scarShape.lineTo(0.11, 0.53);
+    scarShape.lineTo(0.06, 0.71);
+    scarShape.lineTo(0.22, 0.88);
+    scarShape.lineTo(-0.07, 0.78);
+    scarShape.lineTo(-0.18, 0.56);
+    scarShape.lineTo(-0.09, 0.36);
+    scarShape.lineTo(-0.24, 0.22);
+    scarShape.closePath();
+    const scar = mesh(
+      group,
+      new THREE.ShapeGeometry(scarShape),
+      palette.shadowStone,
+      `${group.name}-impact-scar`,
+      [0.08, 0.9, 1.075],
+      { side: THREE.DoubleSide, roughness: 1 },
+    );
+    scar.rotation.y = 0.04;
+  }
+  if (damageStage === "critical") {
+    const brokenFace = box(group, `${group.name}-broken-parapet-face`, [0.17, 0.78, 0.045], [-0.47, 1.67, 0.99], palette.shadowStone, 0.16);
+    brokenFace.rotation.z = -0.19;
+  }
   for (let index = 0; index < 4; index++) {
     const angle = index * Math.PI / 2;
     const slit = box(group, `${group.name}-arrow-slit-${index}`, [0.12, 0.52, 0.06], [Math.cos(angle) * 0.98, 1.58, Math.sin(angle) * 0.98], palette.shadowStone, -angle);
     slit.material.color.set(palette.shadowStone);
   }
-  addBanner(group, entity.side, `${group.name}-standard`, [0.22, 3.45, 0.15], 0.8);
+  if (damageStage !== "critical") addBanner(group, entity.side, `${group.name}-standard`, [0.22, 3.45, 0.15], 0.8);
   return group;
 }
 
@@ -534,17 +603,17 @@ export function buildMidObservatory(
     const isVisible = entity !== undefined;
     if (entity) group.userData.entityId = entity.id;
     else delete group.userData.entityId;
-    const owner = entity?.battlefield?.facilityOwner ?? "neutral";
-    const captureSide = entity?.battlefield?.captureSide ?? "neutral";
+    const owner = entity?.battlefield?.facilityOwner;
+    const captureSide = entity?.battlefield?.captureSide;
     const capture = Math.max(0, entity?.battlefield?.captureProgress ?? 0);
     const progress = isVisible && capture > 0 ? Math.min(1, capture / Math.max(1, captureTicks)) : 0;
-    const captureColor = factionColor(capture > 0 ? captureSide : owner);
-    const visibleOwnerColor = contested ? palette.captureAmber : factionColor(owner);
+    const captureColor = factionColor(capture > 0 ? captureSide ?? "neutral" : owner ?? "neutral");
+    const visibleOwnerColor = contested ? palette.captureAmber : factionColor(owner ?? "neutral");
     beacon.material.color.set(isVisible ? visibleOwnerColor : palette.neutral);
-    beacon.material.emissive.set(!isVisible ? palette.shadowStone : contested ? palette.captureAmber : capture > 0 ? captureColor : factionColor(owner));
+    beacon.material.emissive.set(!isVisible ? palette.shadowStone : contested ? palette.captureAmber : capture > 0 ? captureColor : factionColor(owner ?? "neutral"));
     beacon.material.emissiveIntensity = !isVisible ? 0.04 : contested ? 0.8 : capture > 0 ? 0.5 : 0.3;
-    ownerBanner.group.visible = isVisible && owner !== "neutral" && !contested;
-    ownerBanner.flag.material.color.set(factionColor(owner));
+    ownerBanner.group.visible = isVisible && owner !== undefined && owner !== "neutral" && !contested;
+    ownerBanner.flag.material.color.set(factionColor(owner ?? "neutral"));
     contestedAzureStandard.group.visible = isVisible && contested;
     contestedVermilionStandard.group.visible = isVisible && contested;
     contestedRing.visible = isVisible && contested;
@@ -561,11 +630,16 @@ export function buildMidObservatory(
     group.userData.state = isVisible ? contested ? "contested" : capture > 0 ? "capturing" : "visible" : "unknown";
     if (isVisible) group.userData.contested = contested;
     else delete group.userData.contested;
-    if (isVisible) {
+    if (isVisible && owner !== undefined) {
       group.userData.owner = owner;
+    } else {
+      delete group.userData.owner;
+    }
+    if (isVisible) {
       if (capture > 0) {
         group.userData.captureProgress = capture;
-        group.userData.captureSide = captureSide;
+        if (captureSide !== undefined) group.userData.captureSide = captureSide;
+        else delete group.userData.captureSide;
       } else {
         delete group.userData.captureProgress;
         delete group.userData.captureSide;
