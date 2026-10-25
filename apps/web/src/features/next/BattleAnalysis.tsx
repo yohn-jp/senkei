@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { Replay, Event as GraphicsEvent } from "@senkei/replay-contract";
-import { NEXT_WORLD_UNITS_PER_RENDER_UNIT } from "@senkei/replay-contract";
+import { matchesPresentedEntity, type PresentedEntityIdentity } from "./battle-entity-identity";
 import type {
   SimulationResponse,
   SimulationSnapshot,
@@ -89,36 +89,32 @@ function runHeroes(run: BattleAnalysisRun): RunHero[] {
   });
 }
 
-function numberValue(value: DomainValue | undefined): number | null {
-  if (!value) return null;
-  if (value.kind === "integer") return value.value;
-  if (value.kind === "fixed") return value.value.coefficient / (10 ** value.value.scale);
-  return null;
-}
-
 /**
  * Link Graphics IDs to the run's own Hero slots only where the real owner view,
- * catalog, squad, position and entity side form a unique match. Public enemy
+ * catalog, squad, graph position and entity side form a unique match. Public enemy
  * observations can never grant private owner attribution.
  */
 function attributeOwnHeroes(run: BattleAnalysisRun): Map<string, EntityAttribution> {
   const roster = new Map(runHeroes(run).map((hero) => [hero.slot, hero]));
   const attributed = new Map<string, EntityAttribution>();
-  const graphicsEntities = new Map<string, { catalogId: string | null; side: string; archetype: string; x: number; y: number }>();
+  const graphicsEntities = new Map<string, PresentedEntityIdentity>();
   for (const entity of run.graphicsReplay.initialView) {
-    graphicsEntities.set(entity.id, { catalogId: entity.catalogId ?? null, side: entity.side, archetype: entity.archetype, x: entity.position.x, y: entity.position.y });
+    graphicsEntities.set(entity.id, entity);
   }
   let eventIndex = 0;
   for (const frame of run.sourceReplay.frames) {
     while (eventIndex < run.graphicsReplay.timeline.length && run.graphicsReplay.timeline[eventIndex].tick <= frame.tick) {
       const event = run.graphicsReplay.timeline[eventIndex++];
       if (event.type === "spawn") {
-        graphicsEntities.set(event.entity.id, { catalogId: event.entity.catalogId ?? null, side: event.entity.side, archetype: event.entity.archetype, x: event.entity.position.x, y: event.entity.position.y });
+        graphicsEntities.set(event.entity.id, event.entity);
       } else if (event.type === "disappear" || event.type === "destroy") {
         graphicsEntities.delete(event.entityId);
       } else if (event.type === "move") {
         const prior = graphicsEntities.get(event.entityId);
-        if (prior) graphicsEntities.set(event.entityId, { ...prior, x: event.position.x, y: event.position.y });
+        if (prior) graphicsEntities.set(event.entityId, {
+          ...prior,
+          ...(event.logicalPosition ? { battlefield: event.logicalPosition } : {}),
+        });
       }
     }
     for (const entity of Object.values(frame.visible_state?.entities ?? {})) {
@@ -126,15 +122,12 @@ function attributeOwnHeroes(run: BattleAnalysisRun): Map<string, EntityAttributi
       const slotId = scalar(entity.fields.slot_id);
       const squad = scalar(entity.fields.squad);
       const catalogId = scalar(entity.fields.catalog_id);
-      const x = numberValue(entity.fields.x);
-      const y = numberValue(entity.fields.y);
-      if (!slotId || !squad || !catalogId || x === null || y === null) continue;
+      if (!slotId || !squad || !catalogId) continue;
       const configured = roster.get(slotId);
       if (!configured || configured.catalogId !== catalogId || configured.squad !== squad) continue;
       const matches = [...graphicsEntities.entries()].filter(([, candidate]) =>
         candidate.side === "azure" && candidate.archetype === "hero" && candidate.catalogId === catalogId
-        && Math.abs(candidate.x - x / NEXT_WORLD_UNITS_PER_RENDER_UNIT) < 0.0001
-        && Math.abs(candidate.y - y / NEXT_WORLD_UNITS_PER_RENDER_UNIT) < 0.0001);
+        && matchesPresentedEntity(entity, candidate));
       // Multiple identical Heroes at one position cannot be assigned safely.
       if (matches.length !== 1) continue;
       attributed.set(matches[0][0], { slot: configured, tick: frame.tick });
