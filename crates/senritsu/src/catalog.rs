@@ -1186,6 +1186,26 @@ fn validate_behavior_profiles(
             "Senritsu default must be the least-specific inheritance layer".into()
         );
     }
+    // Layer order is semantic: lower-priority defaults must never overwrite
+    // the Squad/Army selection or a legal Jinrei conditional override.
+    let canonical_rank = |layer: ProfileLayer| match layer {
+        ProfileLayer::SenritsuDefault => 0,
+        ProfileLayer::HeroCatalogDefault => 1,
+        ProfileLayer::ArmyPreference => 2,
+        ProfileLayer::SquadAggregate => 3,
+        ProfileLayer::JinreiConditionalPreference => 4,
+    };
+    if metadata
+        .inheritance_order
+        .windows(2)
+        .any(|pair| canonical_rank(pair[0]) >= canonical_rank(pair[1]))
+    {
+        issue!(
+            "invalid_inheritance_order",
+            "extension.behaviorProfiles.inheritanceOrder".into(),
+            "inheritance layers must increase in authority: Senritsu, Hero, Army, Squad, Jinrei".into()
+        );
+    }
     if metadata
         .senritsu_default
         .keys()
@@ -2253,6 +2273,23 @@ mod tests {
         assert!(codes.contains("invalid_inheritance_root"));
         assert!(codes.contains("duplicate_inheritance_layer"));
         assert!(codes.contains("missing_inheritance_layer"));
+    }
+
+    #[test]
+    fn behavior_profiles_reject_reversed_priority_layers() {
+        let plan = verified_next();
+        let mut invalid = test_extension(&plan, "steady");
+        invalid.behavior_profiles.inheritance_order.swap(1, 3);
+        let error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid).unwrap_err();
+        assert!(
+            error.issues.iter().any(|issue| issue.code == "invalid_inheritance_order"),
+            "reversing Hero and Squad priority must not silently override a Jinrei decision"
+        );
+
+        let mut invalid = test_extension(&plan, "steady");
+        invalid.behavior_profiles.inheritance_order.swap(3, 4);
+        let error = DomainCatalog::from_verified_plan_with_extension(&plan, invalid).unwrap_err();
+        assert!(error.issues.iter().any(|issue| issue.code == "invalid_inheritance_order"));
     }
 
     #[test]
