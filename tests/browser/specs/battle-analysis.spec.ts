@@ -116,6 +116,7 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await page.getByTestId("journey-home").getByRole("button", { name: "続きから" }).click();
   await expect(page.getByTestId("next-library")).toBeVisible();
   await expect(page.getByTestId("next-library").locator(".next-library-experiment-list li")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 60_000 });
   await page.getByRole("button", { name: "Open latest comparison" }).click();
   await expect(page.getByTestId("battle-analysis")).toBeVisible();
   await expect(page.getByTestId("battle-analysis")).toContainText("PREVIOUS");
@@ -130,7 +131,10 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await page.getByRole("alertdialog").getByRole("button", { name: "Confirm clear" }).click();
   await expect(page.getByText("No completed Next Enbu experiments are saved on this device.")).toBeVisible();
   await page.getByLabel("Import Next experiment file").setInputFiles(exportedPath);
-  await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2);
+  // Two full 600-tick records include millions of authorized JSON values.
+  // IndexedDB cloning and identity reconstruction outlast the 5s DOM default.
+  await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 60_000 });
   await page.getByRole("button", { name: "Open latest comparison" }).click();
   await expect(page.getByTestId("battle-analysis").locator(".battle-analysis-change-list")).toContainText("自軍のJinrei Program");
   expect(pageErrors).toEqual([]);
