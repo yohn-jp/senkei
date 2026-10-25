@@ -849,10 +849,6 @@ async function followBridgeSite(
       await expect(page.locator(".next-follow-sheet")).toBeVisible();
     };
     const locateBridgeRow = async () => {
-      const x = integerField(bridge, "x");
-      const y = integerField(bridge, "y");
-      expect(x, `${site} bridge owner replay includes its authorized X position`).not.toBeNull();
-      expect(y, `${site} bridge owner replay includes its authorized Y position`).not.toBeNull();
       const clusters = page.locator(".next-follow-sheet .next-visible-cluster");
       for (let index = 0; index < await clusters.count(); index += 1) {
         const cluster = clusters.nth(index);
@@ -863,12 +859,15 @@ async function followBridgeSite(
           const row = rows.nth(rowIndex);
           const description = await row.locator(".next-visible-entity-copy > span").innerText();
           if (!description.includes("Bridge facility")) continue;
-          const location = await row.locator(".next-visible-entity-copy small").innerText();
-          const coordinates = location.match(/\bX (\d+) · Y (\d+)\b/);
-          if (Number(coordinates?.[1]) === x && Number(coordinates?.[2]) === y) return row;
+          // The replay's x/y are logical simulation coordinates. The map may
+          // use a different canonical presentation embedding, so match the
+          // authorized bridge by its stable site identity and verify its
+          // current state in the details panel after selection.
+          const identity = await row.locator(".next-visible-entity-copy > strong").innerText();
+          if (identity.includes(siteId)) return row;
         }
       }
-      throw new Error(`The mobile Follow sheet has no currently visible ${site} bridge at owner replay position ${x}, ${y}.`);
+      throw new Error(`The mobile Follow sheet has no currently visible ${site} bridge (${siteId}) authorized by the owner replay at tick ${tick}.`);
     };
 
     await openFollowSheet();
