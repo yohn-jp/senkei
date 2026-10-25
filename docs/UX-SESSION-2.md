@@ -38,6 +38,9 @@ listed, not an assertion that missing domain producers now exist.
 - The shared parent owns slots, selected Hero, Draft, current compilation and screen
   state. Editing components stay mounted through normal screen/Library transitions.
   Desktop and Mobile use the same data, with task-specific mobile controls.
+- Unchanged No-code/Text round trips retain the original authored Text bytes;
+  actual AST edits use the existing Core formatter. This also preserves Text
+  formatting when reopening a recovered Draft.
 - Catalog-bound compile results are accepted only for their original current Draft,
   slots and Catalog stamp. Restoring/importing expires the old compile/readiness.
 - Exact rematch re-preflights the completed Run's actual Snapshot and submits it via

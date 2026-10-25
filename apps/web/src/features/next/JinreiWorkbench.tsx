@@ -92,6 +92,7 @@ export function JinreiWorkbench({
   const draftRef = useRef(draft);
   const draftKeyRef = useRef(draftKey);
   const activeHero = slots[activeSlot] ?? null;
+  const parsedText = useRef<{ source: string; ast: string; rulesetDigest: string } | null>(null);
 
   const coverageActor = useMemo(() => actorForScope(coverageScope, activeHero), [coverageScope, activeHero]);
   const coverage = useMemo(() => catalog
@@ -138,10 +139,18 @@ export function JinreiWorkbench({
         programInput = { kind: "structured_ast", ast: await core.parseText(current.program_input.source, current.ruleset) };
       } else {
         if (current.program_input.kind !== "structured_ast") throw new Error("The current Draft is already in Text form.");
-        programInput = { kind: "text", source: await core.formatAst(current.program_input.ast, current.ruleset) };
+        const preserved = parsedText.current;
+        const source = preserved?.rulesetDigest === current.ruleset.digest
+          && preserved.ast === JSON.stringify(current.program_input.ast)
+          ? preserved.source
+          : await core.formatAst(current.program_input.ast, current.ruleset);
+        programInput = { kind: "text", source };
       }
       if (draftRef.current !== startingDraft || draftKeyRef.current !== startingKey) {
         throw new Error("Jinrei changed during conversion. The original Draft is preserved; select the representation again.");
+      }
+      if (current.program_input.kind === "text" && programInput.kind === "structured_ast") {
+        parsedText.current = { source: current.program_input.source, ast: JSON.stringify(programInput.ast), rulesetDigest: current.ruleset.digest };
       }
       onDraftChange({ ...startingDraft, program_input: programInput });
       setWorkbenchView(nextMode);

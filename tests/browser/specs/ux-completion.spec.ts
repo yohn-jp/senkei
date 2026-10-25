@@ -231,3 +231,21 @@ test("S00 WASM load failure opens recovery and retries without reloading the pag
   await expect(page.getByRole("button", { name: "すぐ戦う", exact: true })).toBeEnabled({ timeout: 30_000 });
   await context.close();
 });
+
+test("No-code preserves authored Text on an unchanged round trip and formats actual edits", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("nav-next").click();
+  await page.locator("#next-tab-jinrei").click();
+  const source = await textMode(page);
+  const authored = (await source.inputValue()) + "\n\n";
+  await source.fill(authored);
+  await page.getByRole("tab", { name: "No-code", exact: true }).click();
+  await expect(page.locator(".editor-ast")).toBeVisible();
+  await textMode(page);
+  await expect(source).toHaveValue(authored);
+  await page.getByRole("tab", { name: "No-code", exact: true }).click();
+  await page.getByRole("textbox", { name: "Program name", exact: true }).fill("edited_roundtrip");
+  await textMode(page);
+  await expect(source).toHaveValue(/senkei edited_roundtrip/);
+  expect(await source.inputValue()).not.toBe(authored);
+});
