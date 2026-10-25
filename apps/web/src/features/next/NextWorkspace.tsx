@@ -1582,7 +1582,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       <JourneyScreens screen={screen} setScreen={setScreen} entryMode={entryMode} setEntryMode={setEntryMode}
         slots={slots} rivalSlots={rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={draft}
         ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
-        compiled={Boolean(activeCompilation)} stale={Boolean(compilation && !activeCompilation)}
+        compiled={Boolean(activeCompilation)} compilationCU={activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
         coreReady={Boolean(core && editorCatalogMatchesRuleset(editorCatalog, packageValue))}
         includeDiagnostics={includeDiagnostics} setIncludeDiagnostics={setIncludeDiagnostics}
         check={() => void checkReadiness()} launch={() => void launchBattle()}
