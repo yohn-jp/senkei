@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { behaviorCoveragePresentation } from "@senkei/jinrei-editor";
-import type { ActorSelection, ComparisonSurface, DomainCatalogDocument } from "@senkei/jinrei-editor";
+import { behaviorCoveragePresentation, completeCatalog } from "@senkei/jinrei-editor";
+import type { ActorSelection, CatalogCapability, ComparisonSurface, CompletionItem, DomainCatalogDocument } from "@senkei/jinrei-editor";
 import type { CompileOutcome, CoreClient, RulePackage, SenkeiDraft, TacticalInput } from "../../contracts";
 import { EditorFeature } from "../editor";
-import { JinreiDomainPanel } from "./JinreiDomainPanel";
+import { JinreiDomainPanel, actorSelection, capabilityMatchesScope } from "./JinreiDomainPanel";
 import "./jinrei-workbench.css";
 import { compilerTextOffset } from "./compiler-location";
 
@@ -93,6 +93,30 @@ export function JinreiWorkbench({
   const draftKeyRef = useRef(draftKey);
   const activeHero = slots[activeSlot] ?? null;
   const parsedText = useRef<{ source: string; ast: string; rulesetDigest: string } | null>(null);
+  const editorHost = useRef<HTMLDivElement>(null);
+  const [completions, setCompletions] = useState<CompletionItem[]>([]);
+  const completionActor = catalog ? actorSelection(coverageScope, activeHero ? {
+    slotId: activeHero.slot_id, squadId: activeHero.squad, heroCatalogId: activeHero.catalog_id,
+  } : null, catalog) : null;
+  const updateCompletions = (event: import("react").SyntheticEvent): void => {
+    const input = event.target;
+    if (!(input instanceof HTMLTextAreaElement) || input.getAttribute("aria-label") !== "Jinrei source" || !catalog || !completionActor) return;
+    const prefix = input.value.slice(0, input.selectionStart).match(/[A-Za-z0-9_.]+$/)?.[0];
+    setCompletions(prefix ? completeCatalog(catalog, completionActor, prefix).filter(item => item.entry.kind !== "capability"
+      || capabilityMatchesScope(item.entry.definition as CatalogCapability, completionActor)).slice(0, 8) : []);
+  };
+  const applyCompletion = (item: CompletionItem): void => {
+    const input = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
+    if (!input) return;
+    const prefix = input.value.slice(0, input.selectionStart).match(/[A-Za-z0-9_.]*$/)?.[0] ?? "";
+    const from = input.selectionStart - prefix.length;
+    const source = input.value.slice(0, from) + item.insertText + input.value.slice(input.selectionEnd);
+    const cursor = from + item.insertText.length;
+    onSourceChange(source); setCompletions([]);
+    requestAnimationFrame(() => { input.focus(); input.setSelectionRange(cursor, cursor); });
+  };
+  useEffect(() => setCompletions([]), [coverageScope, activeSlot, screen, workbenchView, active, catalog]);
+
 
   const coverageActor = useMemo(() => actorForScope(coverageScope, activeHero), [coverageScope, activeHero]);
   const coverage = useMemo(() => catalog
@@ -232,6 +256,9 @@ export function JinreiWorkbench({
       <label className="next-jinrei-hero-context"><span>Editing Hero</span><select value={activeSlot} onChange={event => onActiveSlotChange(Number(event.currentTarget.value))}>
         {slots.map((slot, index) => <option key={slot.slot_id} value={index}>{index + 1} · {slot.catalog_id} · {slot.squad}</option>)}
       </select></label>
+      <label hidden={screen !== "workbench"} className="next-jinrei-hero-context"><span>Catalog scope</span><select value={coverageScope} onChange={event => setCoverageScope(event.currentTarget.value as BehaviorScope)}>
+        <option value="hero">Hero</option><option value="squad">Squad</option><option value="army">Army</option>
+      </select></label>
 
       <section className="next-jinrei-screen" hidden={screen !== "workbench"} aria-label="Jinrei editor and Domain Catalog">
         <nav className="next-jinrei-view-nav" aria-label="Workbench view" role="tablist">
@@ -240,7 +267,7 @@ export function JinreiWorkbench({
           <button aria-selected={workbenchView === "catalog"} disabled={modeBusy !== null} onClick={() => setWorkbenchView("catalog")} role="tab" type="button">Domain Catalog</button>
         </nav>
 
-        <div className="next-jinrei-editor-pane" hidden={workbenchView === "catalog"} aria-busy={modeBusy !== null}>
+        <div className="next-jinrei-editor-pane" ref={editorHost} onInput={updateCompletions} onKeyUp={updateCompletions} onClick={updateCompletions} hidden={workbenchView === "catalog"} aria-busy={modeBusy !== null}>
           {modeBusy && <p className="next-jinrei-conversion-state" role="status">{modeBusy === "no-code" ? "Parsing the existing source with the Jinrei core…" : "Formatting this AST with the Jinrei core…"}</p>}
           {modeError && <section className="next-jinrei-diagnostic-alert" role="alert"><div><strong>{workbenchView === "text" ? "Text Draft preserved" : "Representation conversion failed"}</strong><p>{modeError}</p></div>{draft?.program_input.kind === "text" && <button onClick={() => void selectEditorMode("no-code")} type="button">Retry No-code ↻</button>}</section>}
           {!draft && <div className="next-jinrei-state" role="status"><strong>Jinrei Draft is being prepared.</strong><p>Catalog and compiler feedback will appear when the shared formation draft is ready.</p></div>}
@@ -258,6 +285,10 @@ export function JinreiWorkbench({
               : Promise.reject(new Error("The local Rust core is still loading."))}
             onCompile={async (input) => { await compile(input); }}
           />
+          </div>}
+          {workbenchView === "text" && completions.length > 0 && <div className="next-jinrei-completions" role="listbox" aria-label="Text Catalog completions">
+            <strong>Catalog completions · {coverageScope}</strong>
+            {completions.map(item => <button key={`${item.kind}:${item.insertText}`} type="button" role="option" onMouseDown={event => event.preventDefault()} onClick={() => applyCompletion(item)}><code>{item.insertText}</code><span>{item.kind} · {item.detail}</span></button>)}
           </div>}
           {compileError && <section className="next-jinrei-diagnostic-alert" role="alert"><div><strong>Compile needs attention</strong><p>{compileError}</p></div><button onClick={() => void openDiagnostic(diagnosticPath(compileError))} type="button">Open Jinrei editor ↗</button></section>}
           {diagnosticRows.length > 0 && <section className="next-jinrei-diagnostic-card" aria-label="Jinrei compiler diagnostics">
@@ -278,6 +309,7 @@ export function JinreiWorkbench({
           {catalog && core && <JinreiDomainPanel
             catalog={catalog}
             core={core}
+            decisionScope={coverageScope} onDecisionScopeChange={setCoverageScope}
             draftKey={draftKey ?? "unkeyed-draft"}
             onCompiled={(result, key) => {
               onCompiled(result, key);

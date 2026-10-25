@@ -28,9 +28,11 @@ interface JinreiDomainPanelProps {
   readonly slot: { readonly slotId: string; readonly squadId: string; readonly heroCatalogId: string } | null;
   readonly onSourceChange: (source: string) => void;
   readonly onCompiled: (result: CompileOutcome, draftKey: string) => void;
+  readonly decisionScope?: DecisionScope;
+  readonly onDecisionScopeChange?: (scope: DecisionScope) => void;
 }
 
-function actorSelection(
+export function actorSelection(
   scope: DecisionScope,
   slot: JinreiDomainPanelProps["slot"],
   catalog: DomainCatalogDocument,
@@ -52,7 +54,7 @@ function actorSelection(
   };
 }
 
-function capabilityMatchesScope(capability: CatalogCapability, actor: ActorSelection): boolean {
+export function capabilityMatchesScope(capability: CatalogCapability, actor: ActorSelection): boolean {
   if (capability.actorScope.kind === actor.scope) return true;
   return actor.scope === "hero"
     && capability.actorScope.kind === "package_entity"
@@ -78,8 +80,11 @@ export function JinreiDomainPanel({
   slot,
   onSourceChange,
   onCompiled,
+  decisionScope,
+  onDecisionScopeChange,
 }: JinreiDomainPanelProps): ReactElement {
-  const [scope, setScope] = useState<DecisionScope>("hero");
+  const [localScope, setLocalScope] = useState<DecisionScope>("hero");
+  const scope = decisionScope ?? localScope;
   const [completionItems, setCompletionItems] = useState<CompletionItem[]>([]);
   const hostRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef<ReturnType<typeof mountJinreiEditor> | null>(null);
@@ -210,7 +215,10 @@ export function JinreiDomainPanel({
         </div>
         <label className="next-domain-scope-control">
           <span>Decision scope</span>
-          <select aria-label="Decision scope" value={scope} onChange={(event) => setScope(event.currentTarget.value as DecisionScope)}>
+          <select aria-label="Decision scope" value={scope} onChange={(event) => {
+            const next = event.currentTarget.value as DecisionScope;
+            setLocalScope(next); onDecisionScopeChange?.(next);
+          }}>
             <option value="hero">Hero</option>
             <option value="squad">Squad</option>
             <option value="army">Army</option>

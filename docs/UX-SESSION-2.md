@@ -83,6 +83,8 @@ external producer blocker, rather than a passing proof/Observed acceptance claim
 - Hero Atelier: all five widths passed with live WebGL preview, membership/node
   changes, keyboard and mobile staged controls.
 - Custom/Coverage/Library/restore/reload/Legacy/G1: all five widths passed.
+- Catalog search and real Text completion insertion: all five widths passed; Desktop keyboard activation and Mobile touch taps insert into the same Draft and respect scope.
+- Existing workbench real-battle/replay/rematch/mobile/offline restore regression: passed after preserving authored Text on unchanged No-code round trips.
 - Corrupt/incompatible import, quota/export/retry, Worker failure/retry and blocked
   Service Worker + actual failed WASM loading/retry: passed.
 - Real analysis/revised match/exact match: passed; exact Snapshot identity, result

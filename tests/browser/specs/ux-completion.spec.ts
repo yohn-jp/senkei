@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
-test.use({ actionTimeout: 20_000 });
+test.use({ actionTimeout: 20_000, hasTouch: true });
 
 const evidence = resolve(process.env.SENKEI_UX_EVIDENCE_DIR ?? "test-results/ux-session-2");
 const viewports = [
@@ -201,6 +201,7 @@ test("Core retry replaces a failed Worker without dropping the current edit", as
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.locator(".next-jinrei-diagnostic-alert")).toContainText(/Worker failed|disposed|worker/i);
   await expect(source).toHaveValue(edited);
+  await capture(page, 1280, "S15-worker-failure");
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
   await library.getByRole("tab", { name: "S15 · Recovery", exact: true }).click();
@@ -222,6 +223,7 @@ test("S00 WASM load failure opens recovery and retries without reloading the pag
   await page.route("**/wasm/*.wasm*", route => route.abort());
   await page.goto("/");
   await expect(page.getByText("Next ruleset unavailable", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await capture(page, 1280, "S00-wasm-failure");
   await page.getByRole("button", { name: "保存・復旧へ", exact: true }).click();
   const library = page.getByTestId("next-library");
   await expect(library).toBeVisible();
@@ -248,4 +250,39 @@ test("No-code preserves authored Text on an unchanged round trip and formats act
   await textMode(page);
   await expect(source).toHaveValue(/senkei edited_roundtrip/);
   expect(await source.inputValue()).not.toBe(authored);
+});
+
+test("Catalog search and scope-bound completion edit the actual shared Text draft", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("nav-next").click();
+  await page.locator("#next-tab-jinrei").click();
+  const source = await textMode(page);
+  const original = await source.inputValue();
+  await page.getByRole("button", { name: "Compile tactics" }).click();
+  await expect(page.locator(".next-compile-state")).toHaveText("COMPILED");
+  await page.getByRole("combobox", { name: "Catalog scope", exact: true }).selectOption("army");
+  const offset = original.indexOf("match.tick");
+  expect(offset).toBeGreaterThanOrEqual(0);
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await source.fill(original.replace("match.tick", "match.t"));
+    await expect(page.locator(".next-compile-state")).toHaveText("COMPILE REQUIRED");
+    await source.evaluate((element, cursor) => {
+      const input = element as HTMLTextAreaElement;
+      input.setSelectionRange(cursor, cursor);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, offset + "match.t".length);
+    const completions = page.getByRole("listbox", { name: "Text Catalog completions" });
+    await expect(completions).toBeVisible();
+    await capture(page, viewport.width, "S08-completion");
+    const option = completions.getByRole("option").filter({ hasText: "match.tick" });
+    if (viewport.width < 761) await option.tap();
+    else { await option.focus(); await option.press("Enter"); }
+    await expect(source).toHaveValue(original);
+  }
+  await page.getByRole("tab", { name: "Domain Catalog", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Decision scope", exact: true })).toHaveValue("army");
+  await page.getByRole("textbox", { name: "Search Catalog", exact: true }).fill("match.tick");
+  await page.locator("[data-entry='match.tick']").click();
+  await expect(page.getByLabel("Catalog definition")).toContainText("match.tick");
 });
