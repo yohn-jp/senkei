@@ -46,6 +46,7 @@
 
 .next-jinrei-compile-badge span { font-size: 1rem; }
 .next-jinrei-compile-badge.is-current { color: #a9d7ba; border-color: #47785a; }
+.next-jinrei-compile-badge .next-compile-state { border: 0; padding: 0; color: inherit; font: inherit; letter-spacing: .02em; white-space: normal; }
 
 .next-coverage-proof-state {
   grid-template-columns: 1fr;
@@ -98,6 +99,8 @@
   outline-offset: 2px;
 }
 
+.next-jinrei-view-nav button:disabled { cursor: progress; opacity: .62; }
+
 .next-jinrei-screen[hidden],
 .next-jinrei-editor-pane[hidden],
 .next-jinrei-catalog-pane[hidden],
@@ -106,6 +109,12 @@
 .next-jinrei-editor-pane,
 .next-jinrei-catalog-pane,
 .next-coverage-screen { min-width: 0; }
+
+.next-jinrei-editor-pane .editor-mode-switch { display: none; }
+.next-jinrei-editor-mount { min-width: 0; }
+.next-jinrei-editor-mount[hidden] { display: none; }
+.next-jinrei-conversion-state { margin: 0 0 .75rem; color: #f1cd85; }
+.next-jinrei-catalog-pane .next-jinrei-domain-panel [role="tablist"] { display: none; }
 
 .next-jinrei-state {
   border: 1px solid var(--next-border, #414957);

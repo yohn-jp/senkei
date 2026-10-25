@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { behaviorCoveragePresentation } from "@senkei/jinrei-editor";
 import type { ActorSelection, ComparisonSurface, DomainCatalogDocument } from "@senkei/jinrei-editor";
@@ -16,10 +16,12 @@ export interface JinreiWorkbenchSlot {
 }
 
 export type JinreiWorkbenchScreen = "workbench" | "coverage";
-type WorkbenchView = "editor" | "catalog";
+type WorkbenchView = "no-code" | "text" | "catalog";
 type BehaviorScope = "hero" | "squad" | "army";
 
 export interface JinreiWorkbenchProps {
+  /** True only while S08 is the visible workspace screen. */
+  readonly active?: boolean;
   readonly core: CoreClient | null;
   readonly ruleset: RulePackage | null;
   readonly catalog: DomainCatalogDocument | null;
@@ -57,6 +59,7 @@ function diagnosticPath(message: string): string | null {
 }
 
 export function JinreiWorkbench({
+  active = false,
   core,
   ruleset,
   catalog,
@@ -76,12 +79,17 @@ export function JinreiWorkbench({
   onFormation,
   onScreenChange,
 }: JinreiWorkbenchProps): ReactElement {
-  const [workbenchView, setWorkbenchView] = useState<WorkbenchView>("editor");
+  const [workbenchView, setWorkbenchView] = useState<WorkbenchView>("no-code");
   const [coverageScope, setCoverageScope] = useState<BehaviorScope>("hero");
   const [surface, setSurface] = useState<ComparisonSurface>("effective");
   const [filter, setFilter] = useState("");
   const [compileError, setCompileError] = useState<string | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
+  const [modeBusy, setModeBusy] = useState<"no-code" | "text" | null>(null);
   const [lastCompiledDraftKey, setLastCompiledDraftKey] = useState<string | null>(null);
+  const firstVisitStarted = useRef(false);
+  const draftRef = useRef(draft);
+  const draftKeyRef = useRef(draftKey);
   const activeHero = slots[activeSlot] ?? null;
 
   const coverageActor = useMemo(() => actorForScope(coverageScope, activeHero), [coverageScope, activeHero]);
@@ -99,8 +107,71 @@ export function JinreiWorkbench({
     : "The current Draft needs a Jinrei compile.";
 
   useEffect(() => {
+    draftRef.current = draft;
+    draftKeyRef.current = draftKey;
+  }, [draft, draftKey]);
+
+  const selectEditorMode = async (nextMode: "no-code" | "text"): Promise<void> => {
+    const current = draftRef.current;
+    if (!current || !ruleset || !core) {
+      setModeError("The current RulePackage and local Rust core are required to change Jinrei representation.");
+      return;
+    }
+    setModeError(null);
+    if (nextMode === "no-code" && current.program_input.kind === "structured_ast") {
+      setWorkbenchView("no-code");
+      return;
+    }
+    if (nextMode === "text" && current.program_input.kind === "text") {
+      setWorkbenchView("text");
+      return;
+    }
+
+    const startingDraft = current;
+    const startingKey = draftKeyRef.current;
+    setModeBusy(nextMode);
+    try {
+      let programInput: SenkeiDraft["program_input"];
+      if (nextMode === "no-code") {
+        if (current.program_input.kind !== "text") throw new Error("The current Draft is already in No-code form.");
+        programInput = { kind: "structured_ast", ast: await core.parseText(current.program_input.source, current.ruleset) };
+      } else {
+        if (current.program_input.kind !== "structured_ast") throw new Error("The current Draft is already in Text form.");
+        programInput = { kind: "text", source: await core.formatAst(current.program_input.ast, current.ruleset) };
+      }
+      if (draftRef.current !== startingDraft || draftKeyRef.current !== startingKey) {
+        throw new Error("Jinrei changed during conversion. The original Draft is preserved; select the representation again.");
+      }
+      onDraftChange({ ...startingDraft, program_input: programInput });
+      setWorkbenchView(nextMode);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : `Jinrei could not be converted to ${nextMode}.`;
+      setModeError(nextMode === "no-code"
+        ? `No-code could not parse this Jinrei source. The original Text Draft was preserved. ${message}`
+        : message);
+      if (nextMode === "no-code") setWorkbenchView("text");
+    } finally {
+      setModeBusy(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!active || !ruleset || !core || !draft || firstVisitStarted.current) return;
+    firstVisitStarted.current = true;
+    if (draft.program_input.kind === "structured_ast") {
+      setWorkbenchView("no-code");
+      return;
+    }
+    void selectEditorMode("no-code");
+  }, [active, ruleset, core, draft]);
+
+  useEffect(() => {
     if (compilation && draftKey) setLastCompiledDraftKey(draftKey);
   }, [compilation, draftKey]);
+
+  useEffect(() => {
+    setCompileError(null);
+  }, [draftKey]);
 
   const compile = async (input: TacticalInput): Promise<CompileOutcome> => {
     setCompileError(null);
@@ -117,13 +188,11 @@ export function JinreiWorkbench({
 
   const openDiagnostic = async (path: string | null): Promise<void> => {
     onScreenChange("workbench");
-    setWorkbenchView("editor");
+    setWorkbenchView("text");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     let editor = document.querySelector<HTMLTextAreaElement>(".next-jinrei-workbench textarea[aria-label='Jinrei source']");
     if (!editor) {
-      const modeButton = [...document.querySelectorAll<HTMLButtonElement>(".next-jinrei-workbench button")]
-        .find((button) => button.textContent?.trim() === "Jinrei text");
-      modeButton?.click();
+      await selectEditorMode("text");
       for (let attempt = 0; attempt < 20 && !editor; attempt++) {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         editor = document.querySelector<HTMLTextAreaElement>(".next-jinrei-workbench textarea[aria-label='Jinrei source']");
@@ -140,7 +209,7 @@ export function JinreiWorkbench({
     <section className="next-jinrei-workbench" aria-label="Jinrei Workbench and Behavior Coverage">
       <header className="next-jinrei-workbench-heading">
         <div><span className="next-eyebrow">JINREI · DOMAIN CATALOG · COVERAGE</span><h3>Shape your <em>orders</em></h3><p>One Draft and one Jinrei compiler connect every scope and view.</p></div>
-        <div className={`next-jinrei-compile-badge next-compile-state${compilation ? " is-ready is-current" : ""}`} aria-live="polite"><span>{compilation ? "✓" : "◌"}</span><strong>{compileState}</strong><small>{compileStateDetail}</small></div>
+        <div className={`next-jinrei-compile-badge${compilation ? " is-current" : ""}`} aria-live="polite"><span>{compilation ? "✓" : "◌"}</span><strong className={`next-compile-state${compilation ? " is-ready" : ""}`}>{compileState}</strong><small>{compileStateDetail}</small></div>
       </header>
 
       <nav className="next-jinrei-screen-nav" aria-label="Jinrei screens" role="tablist">
@@ -150,13 +219,17 @@ export function JinreiWorkbench({
 
       <section className="next-jinrei-screen" hidden={screen !== "workbench"} aria-label="Jinrei editor and Domain Catalog">
         <nav className="next-jinrei-view-nav" aria-label="Workbench view" role="tablist">
-          <button aria-selected={workbenchView === "editor"} onClick={() => setWorkbenchView("editor")} role="tab" type="button">No-code / Text Editor</button>
-          <button aria-selected={workbenchView === "catalog"} onClick={() => setWorkbenchView("catalog")} role="tab" type="button">Domain Catalog</button>
+          <button aria-selected={workbenchView === "no-code"} disabled={modeBusy !== null} onClick={() => void selectEditorMode("no-code")} role="tab" type="button">No-code</button>
+          <button aria-selected={workbenchView === "text"} disabled={modeBusy !== null} onClick={() => void selectEditorMode("text")} role="tab" type="button">Jinrei Text</button>
+          <button aria-selected={workbenchView === "catalog"} disabled={modeBusy !== null} onClick={() => setWorkbenchView("catalog")} role="tab" type="button">Domain Catalog</button>
         </nav>
 
-        <div className="next-jinrei-editor-pane" hidden={workbenchView !== "editor"}>
+        <div className="next-jinrei-editor-pane" hidden={workbenchView === "catalog"} aria-busy={modeBusy !== null}>
+          {modeBusy && <p className="next-jinrei-conversion-state" role="status">{modeBusy === "no-code" ? "Parsing the existing source with the Jinrei core…" : "Formatting this AST with the Jinrei core…"}</p>}
+          {modeError && <section className="next-jinrei-diagnostic-alert" role="alert"><div><strong>{workbenchView === "text" ? "Text Draft preserved" : "Representation conversion failed"}</strong><p>{modeError}</p></div>{draft?.program_input.kind === "text" && <button onClick={() => void selectEditorMode("no-code")} type="button">Retry No-code ↻</button>}</section>}
           {!draft && <div className="next-jinrei-state" role="status"><strong>Jinrei Draft is being prepared.</strong><p>Catalog and compiler feedback will appear when the shared formation draft is ready.</p></div>}
-          {draft && <EditorFeature
+          {draft && <div className="next-jinrei-editor-mount" hidden={modeBusy !== null}>
+          <EditorFeature
             ruleset={ruleset}
             draft={draft}
             compilation={compilation}
@@ -168,7 +241,8 @@ export function JinreiWorkbench({
               ? core.formatAst(ast, rulesetRef)
               : Promise.reject(new Error("The local Rust core is still loading."))}
             onCompile={async (input) => { await compile(input); }}
-          />}
+          />
+          </div>}
           {compileError && <section className="next-jinrei-diagnostic-alert" role="alert"><div><strong>Compile needs attention</strong><p>{compileError}</p></div><button onClick={() => void openDiagnostic(diagnosticPath(compileError))} type="button">Open Jinrei editor ↗</button></section>}
           {diagnosticRows.length > 0 && <section className="next-jinrei-diagnostic-card" aria-label="Jinrei compiler diagnostics">
             <header><div><span className="next-eyebrow">CURRENT COMPILE</span><strong>{compilation?.estimated_cu.toLocaleString()} CU · {diagnosticRows.length} diagnostic{diagnosticRows.length === 1 ? "" : "s"}</strong></div></header>
@@ -180,7 +254,7 @@ export function JinreiWorkbench({
           <div className="next-jinrei-context-actions">
             <p>Editing Hero {activeHero?.catalog_id ?? "—"} · {activeHero?.squad ?? "no Squad"} · initial Node {activeHero?.node ?? "—"}. These selections are shared with Hero Atelier.</p>
             <button onClick={onFormation} type="button">Edit Hero / Squad</button>
-            <button onClick={onReady} type="button">Ready / Preflight →</button>
+            <button onClick={onReady} type="button">準備確認へ</button>
           </div>
         </div>
 
@@ -202,7 +276,7 @@ export function JinreiWorkbench({
             <p>{catalogError ?? "The workspace is loading the RulePackage-bound Senritsu Catalog and Rust compiler."}</p>
             <small>The draft stays available. Catalog completion and battle readiness require the matching current Catalog.</small>
           </div>}
-          <div className="next-jinrei-context-actions"><button onClick={onReady} type="button">Ready / Preflight →</button></div>
+          <div className="next-jinrei-context-actions"><button onClick={onReady} type="button">準備確認へ</button></div>
         </div>
       </section>
 
@@ -236,7 +310,7 @@ export function JinreiWorkbench({
           <div className="next-coverage-limits" role="status"><strong>Coverage remains Not Proven.</strong><span>No producer currently supplies Behavior Profile composition, per-Hero Explicit binding, state-class static proof, or an identity-matched authorized Observed envelope to S09. No Unknown value is substituted with zero or false.</span></div>
         </> : <div className="next-jinrei-state" role={catalogError ? "alert" : "status"}><strong>{catalogError ? "Coverage cannot be verified" : "Loading current Catalog"}</strong><p>{catalogError ?? "Coverage requires the identity-matched RulePackage Catalog."}</p><small>Unavailable data remains unreported as a behavior result.</small></div>}
 
-        <footer className="next-jinrei-context-actions"><p>Coverage is informational. It does not replace Jinrei compilation or Ready / Preflight validation.</p><button onClick={() => { onScreenChange("workbench"); setWorkbenchView("editor"); }} type="button">Edit Jinrei →</button><button onClick={onReady} type="button">Ready / Preflight →</button></footer>
+        <footer className="next-jinrei-context-actions"><p>Coverage is informational. It does not replace Jinrei compilation or Ready / Preflight validation.</p><button onClick={() => { onScreenChange("workbench"); }} type="button">Edit Jinrei →</button><button onClick={onReady} type="button">準備確認へ</button></footer>
       </section>
     </section>
   );

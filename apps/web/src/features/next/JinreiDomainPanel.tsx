@@ -127,6 +127,9 @@ export function JinreiDomainPanel({
     mountedRef.current = mounted;
     if (sourceRef.current !== "") mounted.session.setDraft(sourceRef.current);
     mounted.refresh();
+    // This panel is the Workbench's dedicated Catalog route. The primary
+    // No-code/Text editor and Behavior Coverage have their own full screens.
+    host.querySelector<HTMLButtonElement>('[data-tab="catalog"]')?.click();
 
     const syncDraftAndCompletions = (event: Event): void => {
       const target = event.target;
