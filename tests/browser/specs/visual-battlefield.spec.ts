@@ -135,6 +135,21 @@ function heroAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord
   );
 }
 
+function heroMovementFactsAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord | null {
+  const hero = heroAt(replay, tick, catalogId);
+  if (!hero) return null;
+  return {
+    catalogId,
+    node: field(hero, "node") ?? null,
+    edgeTo: field(hero, "edge_to") ?? null,
+    edgeProgress: integerField(hero, "edge_progress"),
+    track: field(hero, "track") ?? null,
+    crossRemaining: integerField(hero, "cross_remaining"),
+    fordRemaining: integerField(hero, "ford_remaining"),
+    hp: integerField(hero, "hp"),
+  };
+}
+
 function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: string): { catalogId: string; entityType: string; side: string } {
   const heroes = entitiesAt(replay, tick)
     .filter(([, entity]) => entity.entity_type === "hero"
@@ -788,42 +803,56 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
 
   const defaultPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   let defaultRun: ReplayRun;
+  let defaultFirstHeroAttackFrame: JsonRecord | undefined;
+  let matchedBaselineMovement: JsonRecord = {};
   try {
     defaultRun = await launchBattle(defaultPage, baseURL);
-    expect(defaultRun.buildRevision, "the default-victory app preview is built from the capture HEAD").toBe(appRevision);
-    expect(defaultRun.result.final_tick).toBe(420);
-    expect(defaultRun.result.outcome).toBe("attacker_victory");
-    expect(defaultRun.result.termination_reason).toBe("base_destroyed");
-    const clashTick = defaultRun.publicReplay.frames.find((frame: JsonRecord) =>
-      frameHasHeroAttack(frame),
-    )?.tick as number | undefined;
+    expect(defaultRun.buildRevision, "the default Enbu app preview is built from the capture HEAD").toBe(appRevision);
+    const matchedBaselineTick = 16;
+    expect(defaultRun.result.final_tick, "the default match reaches the preserved T16 comparison point").toBeGreaterThanOrEqual(matchedBaselineTick);
+    defaultFirstHeroAttackFrame = defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame));
+    const clashTick = defaultFirstHeroAttackFrame?.tick as number | undefined;
     expect(clashTick, "the real default match presents a confirmed Hero attack tick").toBeDefined();
-    expect(clashTick, "the visual baseline uses the same initial Hero clash tick").toBe(16);
+    matchedBaselineMovement = {
+      F03: heroMovementFactsAt(defaultRun.ownerReplay, matchedBaselineTick, "F03"),
+      R05: heroMovementFactsAt(defaultRun.ownerReplay, matchedBaselineTick, "R05"),
+    };
+    expect(Object.values(matchedBaselineMovement).some((facts) => facts !== null),
+      "the T16 baseline records currently authorized Hero movement facts").toBe(true);
     for (const viewport of viewports) {
       await ensureViewport(defaultPage, viewport);
-      await seekToTick(defaultPage, clashTick!);
       await setView(defaultPage, viewport, "Tactical");
       if (viewport.name === "1440x900" || viewport.name === "390x844") {
-        await saveCapture(defaultPage, "default-enbu-victory", "first-node-clash", clashTick!, viewport, "Tactical", {
+        await seekToTick(defaultPage, matchedBaselineTick);
+        await saveCapture(defaultPage, "default-enbu-battle", "matched-baseline", matchedBaselineTick, viewport, "Tactical", {
+          comparisonTick: matchedBaselineTick,
+          firstHeroAttackTick: clashTick,
+          heroAttackAtComparisonTick: frameHasHeroAttack(frameAt(defaultRun.publicReplay, matchedBaselineTick)),
+          eventKindsAtComparisonTick: frameAt(defaultRun.publicReplay, matchedBaselineTick).events.map((event: JsonRecord) => event.event),
+          authorizedHeroMovementAtComparisonTick: matchedBaselineMovement,
+        }, captures);
+        await seekToTick(defaultPage, clashTick!);
+        await saveCapture(defaultPage, "default-enbu-battle", "first-hero-clash", clashTick!, viewport, "Tactical", {
           outcome: defaultRun.result.outcome,
+          firstHeroAttackTick: clashTick,
           eventKinds: frameAt(defaultRun.publicReplay, clashTick!).events.map((event: JsonRecord) => event.event),
         }, captures);
       }
       await seekToTick(defaultPage, defaultRun.result.final_tick);
       await setView(defaultPage, viewport, "Tactical");
-      await saveCapture(defaultPage, "default-enbu-victory", "base-destruction-end", defaultRun.result.final_tick, viewport, "Tactical", {
+      await saveCapture(defaultPage, "default-enbu-battle", "default-match-end", defaultRun.result.final_tick, viewport, "Tactical", {
         outcome: defaultRun.result.outcome,
         terminationReason: defaultRun.result.termination_reason,
         finalStateDigest: defaultRun.result.final_state_digest,
       }, captures);
       await setView(defaultPage, viewport, "Overview");
-      await saveCapture(defaultPage, "default-enbu-victory", "base-destruction-overview", defaultRun.result.final_tick, viewport, "Overview", {
+      await saveCapture(defaultPage, "default-enbu-battle", "default-match-overview", defaultRun.result.final_tick, viewport, "Overview", {
         outcome: defaultRun.result.outcome,
         terminationReason: defaultRun.result.termination_reason,
       }, captures);
       await seekToTick(defaultPage, defaultRun.result.final_tick);
       const target = await followHero(defaultPage, viewport, defaultRun.ownerReplay, defaultRun.result.final_tick);
-      await saveCapture(defaultPage, "default-enbu-victory", "base-destruction-follow", defaultRun.result.final_tick, viewport, "Follow", {
+      await saveCapture(defaultPage, "default-enbu-battle", "default-match-follow", defaultRun.result.final_tick, viewport, "Follow", {
         catalogId: target.catalogId,
         side: target.side,
         entityType: target.entityType,
@@ -843,9 +872,9 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     canonicalOwnerReplay: saveGzip("canonical-real-battle-owner-replay.json.gz", canonical.ownerReplay),
     captureInput: saveGzip("real-mid-capture-input.json.gz", captureRun.request.payload.snapshot),
     captureOwnerReplay: saveGzip("real-mid-capture-owner-replay.json.gz", captureRun.ownerReplay),
-    defaultInput: saveGzip("default-enbu-victory-input.json.gz", defaultRun.request.payload.snapshot),
-    defaultPublicReplay: saveGzip("default-enbu-victory-public-replay.json.gz", defaultRun.publicReplay),
-    defaultOwnerReplay: saveGzip("default-enbu-victory-owner-replay.json.gz", defaultRun.ownerReplay),
+    defaultInput: saveGzip("default-enbu-battle-input.json.gz", defaultRun.request.payload.snapshot),
+    defaultPublicReplay: saveGzip("default-enbu-battle-public-replay.json.gz", defaultRun.publicReplay),
+    defaultOwnerReplay: saveGzip("default-enbu-battle-owner-replay.json.gz", defaultRun.ownerReplay),
   };
   const metadata = {
     schema: "senkei-battlefield-visual-acceptance/v1",
@@ -861,7 +890,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       desktop: beforeImages.desktop,
       mobile: beforeImages.mobile,
       afterDesktop: "canonical-real-battle/1440x900/destroyed-bridge-overview-t023-overview.png",
-      afterMobile: `default-enbu-victory/390x844/first-node-clash-t${String(defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame))?.tick ?? 0).padStart(3, "0")}-tactical.png`,
+      afterMobile: "default-enbu-battle/390x844/matched-baseline-t016-tactical.png",
+      actualFirstHeroAttackTick: defaultFirstHeroAttackFrame?.tick ?? null,
     },
     viewports,
     viewportChecks,
@@ -902,14 +932,17 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         workerRequestId: captureRun.request.request_id,
         wasmResponses: captureRun.wasmResponses,
       },
-      defaultVictory: {
+      defaultBattle: {
         provenance: "unmodified five-Hero default Jinrei draft executed by the real browser Worker, local WASM and Enbu",
         matchId: defaultRun.result.match_id,
         outcome: defaultRun.result.outcome,
         terminationReason: defaultRun.result.termination_reason,
         finalTick: defaultRun.result.final_tick,
         finalStateDigest: defaultRun.result.final_state_digest,
-        firstHeroAttackTick: defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame))?.tick,
+        matchedBaselineTick: 16,
+        matchedBaselineMovement,
+        matchedBaselineEvents: frameAt(defaultRun.publicReplay, 16).events.map((event: JsonRecord) => event.event),
+        firstHeroAttackTick: defaultFirstHeroAttackFrame?.tick ?? null,
         publicReplayDigest: defaultRun.publicReplay.result_digest,
         ownerReplayDigest: defaultRun.ownerReplay.result_digest,
         workerRequestId: defaultRun.request.request_id,
@@ -942,11 +975,12 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     "| Scene | Before | After | Evidence |",
     "| --- | --- | --- | --- |",
     `| Desktop battlefield and destroyed crossing | [6fa8296 baseline](${beforeImages.desktop}) | [real destroyed crossing](canonical-real-battle/1440x900/destroyed-bridge-overview-t023-overview.png) | 1440×900, T23, Overview |`,
-    `| Mobile battlefield and first Hero clash | [6fa8296 baseline](${beforeImages.mobile}) | [real Hero clash](default-enbu-victory/390x844/first-node-clash-t016-tactical.png) | 390×844, T16, Tactical |`,
+    `| Mobile battlefield and matched T16 state | [6fa8296 baseline](${beforeImages.mobile}) | [actual T16 state](default-enbu-battle/390x844/matched-baseline-t016-tactical.png) | 390×844, T16, Tactical; movement facts in metadata |`,
+    `| First confirmed Hero attack | — | [actual first attack](default-enbu-battle/390x844/first-hero-clash-t${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")}-tactical.png) | replay tick T${String(defaultFirstHeroAttackFrame?.tick ?? 0).padStart(3, "0")} |`,
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
     `| Close-focus facility Follow | — | [TOP normal](canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png), [MID destroyed](canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png), [TOP expanded](canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png), [TOP destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png), [TOP rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png) | camera follows an authorized visible bridge entity |`,
-    `| MID capture and victory | — | [capture progress](real-mid-capture/1440x900/capture-progress-t007-tactical.png), [T420 victory](default-enbu-victory/1440x900/base-destruction-end-t420-tactical.png) | actual simulation state |`,
+    `| MID capture and default battle result | — | [capture progress](real-mid-capture/1440x900/capture-progress-t007-tactical.png), [match end](default-enbu-battle/1440x900/default-match-end-t${String(defaultRun.result.final_tick).padStart(3, "0")}-tactical.png) | ${defaultRun.result.outcome} at T${defaultRun.result.final_tick} · ${defaultRun.result.termination_reason} |`,
     "",
     "Each screenshot's SHA-256, tick, viewport, requested camera mode, renderer camera pose/target, replay identity and scene facts are listed in `metadata.json`.",
     "",

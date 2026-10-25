@@ -67,7 +67,68 @@ for (const viewport of viewports) {
       await expect(button).toHaveAttribute("aria-selected", "true");
       await expect(page.getByRole("heading", { name: heading })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
-      if (label === "Hero Detail") await expect(page.getByRole("heading", { name: "Stoneheart" })).toBeVisible();
+      if (label === "Hero Detail") {
+        await expect(page.getByRole("heading", { name: "Stoneheart" })).toBeVisible();
+        await expect(page.locator(".next-renderer-host canvas"), "catalog preview must not launch or reuse an Enbu battle renderer").toHaveCount(0);
+        const preview = page.getByRole("region", { name: "Stoneheart 3D model" });
+        const modelCanvas = preview.locator("canvas");
+        await preview.scrollIntoViewIfNeeded();
+        await expect(modelCanvas).toHaveAttribute("data-preview-mode", "catalog");
+        await expect(modelCanvas).toHaveAttribute("data-preview-ready", "true", { timeout: 30_000 });
+        await expect(modelCanvas).toHaveAttribute("aria-busy", "false");
+        await expect(modelCanvas).toHaveAttribute("data-catalog-id", "F02");
+        await expect(modelCanvas).toHaveAttribute("data-name", "Stoneheart");
+        await expect(modelCanvas).toHaveAttribute("data-generator", "senkei.battlefield-unit.v1");
+        const appearanceLabel = await page.locator(".next-hero-dossier-head .next-eyebrow").innerText();
+        const appearanceKey = appearanceLabel.split(" · SLOT ")[0];
+        expect(appearanceKey).not.toBe("");
+        await expect(modelCanvas).toHaveAttribute("data-appearance-key", appearanceKey);
+        expect(await modelCanvas.evaluate((element) => {
+          const canvas = element as HTMLCanvasElement;
+          return Boolean(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+        }), "the catalog preview must own a live WebGL context").toBe(true);
+
+        const cameraSample = await modelCanvas.getAttribute("data-camera");
+        const cameraValues = (cameraSample ?? "").split(",").map(Number);
+        expect(cameraValues, "camera sample contains camera position and orbit target").toHaveLength(6);
+        expect(cameraValues.every(Number.isFinite)).toBe(true);
+        const idlePoseSample = await modelCanvas.getAttribute("data-pose-sample");
+        expect((idlePoseSample ?? "").split(":")).toHaveLength(3);
+        expect(idlePoseSample).not.toContain("none");
+        await expect(modelCanvas).toHaveAttribute("data-pose", "idle");
+        await expect(preview.getByRole("button", { name: "Preview idle animation" })).toHaveAttribute("aria-pressed", "true");
+        await page.screenshot({ path: `../../docs/evidence/next/atelier/${viewport.name}-detail-preview-idle.png` });
+
+        const movePose = preview.getByRole("button", { name: "Preview move animation" });
+        await movePose.click();
+        await expect(movePose).toHaveAttribute("aria-pressed", "true");
+        await expect(modelCanvas).toHaveAttribute("data-pose", "move");
+        const movePoseSample = await modelCanvas.getAttribute("data-pose-sample");
+        expect(movePoseSample).not.toBe(idlePoseSample);
+
+        const attackPose = preview.getByRole("button", { name: "Preview attack animation" });
+        await attackPose.click();
+        await expect(attackPose).toHaveAttribute("aria-pressed", "true");
+        await expect(modelCanvas).toHaveAttribute("data-pose", "attack");
+        const attackPoseSample = await modelCanvas.getAttribute("data-pose-sample");
+        expect(attackPoseSample).not.toBe(movePoseSample);
+        await page.screenshot({ path: `../../docs/evidence/next/atelier/${viewport.name}-detail-preview-attack.png` });
+
+        if (!viewport.mobile && viewport.name === "1440x900") {
+          const bounds = await modelCanvas.boundingBox();
+          expect(bounds, "the visible preview canvas can receive real pointer input").toBeTruthy();
+          await page.mouse.move(bounds!.x + bounds!.width * 0.5, bounds!.y + bounds!.height * 0.5);
+          await page.mouse.down();
+          await page.mouse.move(bounds!.x + bounds!.width * 0.68, bounds!.y + bounds!.height * 0.56, { steps: 6 });
+          await page.mouse.up();
+          await expect.poll(() => modelCanvas.getAttribute("data-camera")).not.toBe(cameraSample);
+          const rotatedCameraSample = await modelCanvas.getAttribute("data-camera");
+          await page.screenshot({ path: `../../docs/evidence/next/atelier/${viewport.name}-detail-preview-rotated.png` });
+          await preview.getByRole("button", { name: "Reset view" }).click();
+          await expect.poll(() => modelCanvas.getAttribute("data-camera")).toBe(cameraSample);
+          expect(rotatedCameraSample).not.toBe(cameraSample);
+        }
+      }
       if (label === "Skill Tree") {
         const pathB = page.getByRole("button", { name: "Choose Path B for slot-02" });
         await pathB.click();
