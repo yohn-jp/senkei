@@ -24,7 +24,7 @@ pub use catalog::{
 pub use validate::{canonical_digest, validate};
 
 mod next_content;
-mod next_world;
+pub mod next_world;
 mod next_domain;
 mod next_package;
 pub use next_package::{next_package,next_engine_compatibility};

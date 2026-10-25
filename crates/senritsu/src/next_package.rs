@@ -36,6 +36,41 @@ mod tests {
         }
     }
     #[test]
+    fn package_rejects_missing_or_mismatched_paired_world_identity() {
+        let mut missing = next_package();
+        missing.next.as_mut().unwrap().world_identity = None;
+        missing.ruleset.digest = crate::canonical_digest(&missing).unwrap();
+        let issues = crate::validate(missing, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "invalid_next_rules" && issue.path == "next.world_identity"));
+
+        let mut mismatch = next_package();
+        mismatch.next.as_mut().unwrap().map.world_identity.as_mut().unwrap().world_id = "other-world".into();
+        mismatch.ruleset.digest = crate::canonical_digest(&mismatch).unwrap();
+        let issues = crate::validate(mismatch, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "invalid_next_rules" && issue.path == "next.map.world_identity"));
+    }
+    #[test]
+    fn presentation_only_map_changes_do_not_change_rule_package_digest() {
+        let mut package = next_package();
+        let original = crate::canonical_digest(&package).unwrap();
+        {
+            let next = package.next.as_mut().unwrap();
+            next.map.nodes.values_mut().next().unwrap().x += 123;
+            next.map.world_identity.as_mut().unwrap().presentation_digest =
+                senkei_model::ContentDigest::new("a".repeat(64));
+            next.world_identity.as_mut().unwrap().presentation_digest =
+                senkei_model::ContentDigest::new("a".repeat(64));
+        }
+        assert_eq!(crate::canonical_digest(&package).unwrap(), original);
+
+        let next = package.next.as_mut().unwrap();
+        next.world_identity.as_mut().unwrap().logic_digest =
+            senkei_model::ContentDigest::new("b".repeat(64));
+        next.map.world_identity.as_mut().unwrap().logic_digest =
+            senkei_model::ContentDigest::new("b".repeat(64));
+        assert_ne!(crate::canonical_digest(&package).unwrap(), original);
+    }
+    #[test]
     fn versioned_parameter_tuning_can_advance_the_ruleset_patch() {
         let mut package = next_package();
         package.next.as_mut().unwrap().parameters.insert("ford_extra_ticks".into(), 25);

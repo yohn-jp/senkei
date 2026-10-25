@@ -8,6 +8,7 @@ mod compile;
 mod definition;
 mod digest;
 mod validation;
+mod resolver;
 
 pub use compile::{
     canonical_artifact_bytes, canonical_presentation_bytes, canonical_simulation_bytes, compile,
@@ -16,6 +17,7 @@ pub use compile::{
 pub use definition::*;
 pub use digest::{WorldIdentity, WorldLogicDigest, WorldPresentationDigest};
 pub use validation::WorldIssue;
+pub use resolver::{WorldResolver, WorldResolveError};
 
 /// The compiler version implemented by this crate.
 pub const COMPILER_VERSION: Version = Version::new(1, 0, 0);

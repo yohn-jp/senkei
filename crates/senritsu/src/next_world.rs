@@ -16,6 +16,8 @@ use senkei_world::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const BATTLEFIELD_MAP_ID: &str = "senkei-battlefield-v2";
+pub const RUNTIME_BATTLE_MAP_PROJECTION_SCHEMA: senkei_model::Version =
+    senkei_model::Version::new(1, 0, 0);
 
 /// The immutable authored World used by the v2 Battlefield package.
 pub fn compiled_authored_world() -> VerifiedWorld {
@@ -29,7 +31,7 @@ pub fn compiled_authored_world() -> VerifiedWorld {
 /// A caller must provide these values explicitly from an owned source when
 /// projecting a compiled World into the older `BattleMap` shape.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ExplicitBattleMapMetadata {
+pub struct ExplicitBattleMapMetadata {
     pub attacker_base: String,
     pub defender_base: String,
     pub lanes: BTreeMap<String, Vec<String>>,
@@ -39,7 +41,7 @@ pub(crate) struct ExplicitBattleMapMetadata {
 impl ExplicitBattleMapMetadata {
     /// Explicitly copy the runtime-only layout fields from an existing map.
     /// This does not infer routes or sites from the compiled World.
-    pub(crate) fn from_runtime_map(map: &BattleMap) -> Self {
+    pub fn from_runtime_map(map: &BattleMap) -> Self {
         Self {
             attacker_base: map.attacker_base.clone(),
             defender_base: map.defender_base.clone(),
@@ -50,7 +52,7 @@ impl ExplicitBattleMapMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct WorldMapAdapterError {
+pub struct WorldMapAdapterError {
     pub code: &'static str,
     pub detail: String,
 }
@@ -69,29 +71,40 @@ impl std::error::Error for WorldMapAdapterError {}
 /// the projected map is only exposed when an explicit compatibility check
 /// against the target runtime succeeds.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct WorldMapAdapter {
+pub struct RuntimeBattleMapProjection {
+    projection_schema_version: senkei_model::Version,
     identity: WorldIdentity,
     simulation: CanonicalSimulationWorld,
     presentation: CanonicalPresentationWorld,
     candidate_map: BattleMap,
 }
 
-impl WorldMapAdapter {
-    pub(crate) fn identity(&self) -> &WorldIdentity {
+impl RuntimeBattleMapProjection {
+    pub fn projection_schema_version(&self) -> senkei_model::Version {
+        self.projection_schema_version
+    }
+
+    pub fn identity(&self) -> &WorldIdentity {
         &self.identity
     }
 
-    pub(crate) fn simulation_world(&self) -> &CanonicalSimulationWorld {
+    pub fn simulation_world(&self) -> &CanonicalSimulationWorld {
         &self.simulation
     }
 
-    pub(crate) fn presentation_world(&self) -> &CanonicalPresentationWorld {
+    pub fn presentation_world(&self) -> &CanonicalPresentationWorld {
         &self.presentation
+    }
+
+    /// Legacy-shaped runtime projection. Keep this value paired with this
+    /// wrapper, which retains the complete canonical World and identity.
+    pub fn runtime_map(&self) -> &BattleMap {
+        &self.candidate_map
     }
 
     /// The candidate cannot enter the current runtime until every representable
     /// field, stable identity, and runtime-only metadata item matches.
-    pub(crate) fn battle_map_if_compatible(
+    pub fn battle_map_if_compatible(
         &self,
         runtime_map: &BattleMap,
     ) -> Result<&BattleMap, WorldMapCompatibilityReport> {
@@ -103,7 +116,7 @@ impl WorldMapAdapter {
         }
     }
 
-    pub(crate) fn compatibility_report(
+    pub fn compatibility_report(
         &self,
         runtime_map: &BattleMap,
     ) -> WorldMapCompatibilityReport {
@@ -114,14 +127,14 @@ impl WorldMapAdapter {
 /// Classification separates graph/distance agreement from full runtime
 /// compatibility, which also requires stable IDs and representable details.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum WorldMapCompatibilityClass {
+pub enum WorldMapCompatibilityClass {
     Exact,
     GraphAndLengthsMatch,
     Incompatible,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct WorldMapCompatibilityReport {
+pub struct WorldMapCompatibilityReport {
     pub class: WorldMapCompatibilityClass,
     pub world_id_matches: bool,
     pub node_ids_match: bool,
@@ -150,7 +163,7 @@ pub(crate) struct WorldMapCompatibilityReport {
 }
 
 impl WorldMapCompatibilityReport {
-    pub(crate) fn is_compatible(&self) -> bool {
+    pub fn is_compatible(&self) -> bool {
         self.class == WorldMapCompatibilityClass::Exact
     }
 }
@@ -161,10 +174,10 @@ impl WorldMapCompatibilityReport {
 /// legacy adapter has finite node/edge and terrain conventions. Route and tower
 /// declarations must be provided explicitly; no path is derived from the
 /// presentation graph or synthesized from missing nodes.
-pub(crate) fn adapt_verified_world(
+pub fn project_verified_world(
     world: &VerifiedWorld,
     metadata: Option<&ExplicitBattleMapMetadata>,
-) -> Result<WorldMapAdapter, WorldMapAdapterError> {
+) -> Result<RuntimeBattleMapProjection, WorldMapAdapterError> {
     let identity = world.identity();
     let profile = identity.validation_profile.as_ref().ok_or_else(|| {
         adapter_error(
@@ -294,7 +307,8 @@ pub(crate) fn adapt_verified_world(
         });
     }
 
-    Ok(WorldMapAdapter {
+    Ok(RuntimeBattleMapProjection {
+        projection_schema_version: RUNTIME_BATTLE_MAP_PROJECTION_SCHEMA,
         identity: identity.clone(),
         simulation: simulation.clone(),
         presentation: presentation.clone(),
@@ -536,7 +550,7 @@ fn battle_map_track_semantics(
 }
 
 fn compare_world_map(
-    adapter: &WorldMapAdapter,
+    adapter: &RuntimeBattleMapProjection,
     runtime_map: &BattleMap,
 ) -> WorldMapCompatibilityReport {
     let source = &adapter.candidate_map;
@@ -1156,12 +1170,12 @@ mod tests {
             7_020
         );
 
-        let missing_metadata = adapt_verified_world(&world, None)
+        let missing_metadata = project_verified_world(&world, None)
             .expect_err("World has no authored lane-route or tower-placement fields");
         assert_eq!(missing_metadata.code, "missing_explicit_battle_map_metadata");
 
         let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
-        let adapted = adapt_verified_world(&world, Some(&metadata))
+        let adapted = project_verified_world(&world, Some(&metadata))
             .expect("typed, explicit runtime metadata permits a candidate projection");
         assert_eq!(adapted.identity().world_id, "senkei-battlefield");
         assert_ne!(adapted.identity().world_id, BATTLEFIELD_MAP_ID);
@@ -1248,8 +1262,8 @@ mod tests {
 
         let runtime = battle_map();
         let metadata = ExplicitBattleMapMetadata::from_runtime_map(&runtime);
-        let first_adapter = adapt_verified_world(&first, Some(&metadata)).unwrap();
-        let changed_adapter = adapt_verified_world(&changed, Some(&metadata)).unwrap();
+        let first_adapter = project_verified_world(&first, Some(&metadata)).unwrap();
+        let changed_adapter = project_verified_world(&changed, Some(&metadata)).unwrap();
         assert_ne!(
             first_adapter.presentation_world().materials["mat.node"].color,
             changed_adapter.presentation_world().materials["mat.node"].color

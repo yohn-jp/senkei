@@ -2,13 +2,35 @@ use senkei_model::*;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Hashes the package's deterministic JSON representation with the digest
-/// member removed. `serde_json::Map` is key ordered in this workspace, and all
-/// model maps are `BTreeMap`, so the result is stable across native and WASM.
+/// Hashes deterministic rule content with its self-reference and presentation
+/// projection fields removed. `serde_json::Map` is key ordered in this
+/// workspace, and all model maps are `BTreeMap`, so native/WASM agree.
 pub fn canonical_digest(package: &RulePackage) -> Result<ContentDigest, serde_json::Error> {
     let mut value = serde_json::to_value(package)?;
     if let Some(ruleset) = value.get_mut("ruleset").and_then(serde_json::Value::as_object_mut) {
         ruleset.remove("digest");
+    }
+    // The paired World reference travels with match/replay identity, but its
+    // presentation half is deliberately outside simulation/package identity.
+    // BattleMap node coordinates are renderer inputs and are checked against
+    // the resolved World artifact by the projection consumer.
+    if let Some(next) = value.get_mut("next").and_then(serde_json::Value::as_object_mut) {
+        if let Some(identity) = next.get_mut("world_identity").and_then(serde_json::Value::as_object_mut) {
+            identity.remove("presentation_digest");
+        }
+        if let Some(map) = next.get_mut("map").and_then(serde_json::Value::as_object_mut) {
+            if let Some(identity) = map.get_mut("world_identity").and_then(serde_json::Value::as_object_mut) {
+                identity.remove("presentation_digest");
+            }
+            if let Some(nodes) = map.get_mut("nodes").and_then(serde_json::Value::as_object_mut) {
+                for node in nodes.values_mut() {
+                    if let Some(node) = node.as_object_mut() {
+                        node.remove("x");
+                        node.remove("y");
+                    }
+                }
+            }
+        }
     }
     let bytes = serde_json::to_vec(&value)?;
     let digest = Sha256::digest(bytes);
