@@ -120,6 +120,8 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(ownerHeroAt(1, "F03")?.fields?.edge_to?.value).toBe("A.MID.J");
   expect(ownerHeroAt(2, "F01")?.fields?.track?.value).toBe("LEFT");
   expect(ownerHeroAt(2, "F01")?.fields?.edge_to?.value).toBe("A.TOP.T2");
+  expect(ownerHeroAt(3, "F01")?.fields?.cross_remaining?.value).toBeGreaterThan(0);
+  expect(ownerHeroAt(5, "F01")?.fields?.track?.value).toBe("RIGHT");
   expect(ownerHeroAt(2, "R02")?.fields?.node?.value).toBe("A.MID.BANK");
   expect(ownerHeroAt(2, "R02")?.fields?.edge_to?.value ?? "").toBe("");
   expect(ownerHeroAt(50, "R01")?.fields?.node?.value).toBe("A.TOP.BANK");
@@ -133,7 +135,8 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(JSON.stringify(publicReplay)).not.toContain("slot_id");
   expect(JSON.stringify(publicReplay)).not.toContain("goal");
 
-  await page.getByRole("button", { name: "Toggle battlefield map context" }).click();
+  const mapToggle = page.getByRole("button", { name: "Toggle battlefield map context" });
+  if (await mapToggle.getAttribute("aria-expanded") !== "true") await mapToggle.click();
   const nodeRows = page.getByTestId("battle-map-node");
   const nodeIds = await nodeRows.evaluateAll((nodes) => nodes.map((node) => (node as SVGElement).dataset.nodeId ?? ""));
   expect(nodeIds).toHaveLength(35);
@@ -162,6 +165,12 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     await expect(canvas).toHaveAttribute("data-tick", String(tick));
     return await page.locator(`[data-testid="battle-map-route"][data-bridge-site="${site}"]`).first().getAttribute("data-bridge-state") ?? "";
   };
+  expect(await routeStateAt(3)).toBe("normal");
+  if (width > 700) {
+    await page.screenshot({ path: join(evidenceDirectory, "desktop-track-crossing.png"), animations: "disabled" });
+  } else {
+    await page.screenshot({ path: join(evidenceDirectory, "mobile-track-crossing.png"), animations: "disabled" });
+  }
   expect(await routeStateAt(0, "MID")).toBe("normal");
   expect(await routeStateAt(11, "MID")).toBe("destroyed");
   expect(await routeStateAt(0)).toBe("normal");

@@ -185,6 +185,12 @@ for (let index = 0; index < requests.length; index += 1) {
         field(hero(2, "F01"), "edge_to") !== "A.TOP.T2") {
       fail("authorized attacker replay does not expose selected LEFT track movement on the canonical TOP edge");
     }
+    if (!Number.isSafeInteger(integer(hero(3, "F01"), "cross_remaining")) || integer(hero(3, "F01"), "cross_remaining") <= 0) {
+      fail("authorized attacker replay does not expose active CENTER occupancy during the real lateral track crossing");
+    }
+    if (field(hero(5, "F01"), "track") !== "RIGHT") {
+      fail("authorized attacker replay does not expose completion of the three-tick LEFT-to-RIGHT lane crossing");
+    }
     if (!Number.isSafeInteger(integer(hero(24, "F02"), "ford_remaining")) || integer(hero(24, "F02"), "ford_remaining") <= 0) {
       fail("authorized attacker replay contains no Hero in the actual Jungle ford transit state");
     }

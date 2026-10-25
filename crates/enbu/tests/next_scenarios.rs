@@ -1478,12 +1478,13 @@ fn battlefield_interaction_tactics() -> (String, String) {
             action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
             action node_retreat {{ when match.tick == 2, do retreat({}), }},
             action pursue_mid {{ when match.tick == 1, do pursue({}, argmin hero in filter hero in enemies.visible_heroes {{ hero.node == "N.MID.OBS", }} by hero.hp then hero.id), }},
-            action cross_rebuilt_bridge {{ when match.tick == 50, do move({}, "B.TOP.BANK"), }}
+            action cross_rebuilt_bridge {{ when match.tick == 50, do move({}, "B.TOP.BANK"), }},
+            action choose_right_in_lane {{ when match.tick == 3, do select_track({}, RIGHT), }}
         }}"#,
         hero_selector("slot-1"), hero_selector("slot-1"),
         hero_selector("slot-2"), hero_selector("slot-2"), hero_selector("slot-4"), hero_selector("slot-2"),
         hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"), hero_selector("slot-5"),
-        hero_selector("slot-2"),
+        hero_selector("slot-2"), hero_selector("slot-1"),
     );
     let defender = format!(
         r#"senkei battlefield_mid_defense {{
@@ -1547,7 +1548,11 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         assert!(!accepted_actors(&artifact, CombatantSide::Attacker, capability).is_empty(),
             "real Jinrei submits an accepted {capability} action to Enbu");
     }
-    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "select_track").len(), 1);
+    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "select_track").len(), 2);
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 3
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "select_track")
+    }), "a Hero already on a lane edge can issue a real lateral track-switch intent");
     assert!(artifact.diagnostics.events.iter().any(|event| {
         event.side == CombatantSide::Attacker && event.tick == 1
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
@@ -1583,6 +1588,12 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(lane_mover, "edge_to"), "A.TOP.T2");
     assert_eq!(entity_string(lane_mover, "track"), "LEFT");
     assert!(entity_integer(lane_mover, "edge_progress") > 0);
+    let lane_crossing = owner_hero_at(&artifact, 3, "slot-1");
+    assert_eq!(entity_string(lane_crossing, "edge_to"), "A.TOP.T2");
+    assert!(entity_integer(lane_crossing, "cross_remaining") > 0,
+        "the in-progress lateral switch occupies the CENTER track during the versioned three-tick crossing");
+    assert_eq!(entity_string(owner_hero_at(&artifact, 5, "slot-1"), "track"), "RIGHT",
+        "the Hero completes the three-tick lane crossing and resumes on RIGHT");
     let pursuer = owner_hero_at(&artifact, 1, "slot-5");
     assert_eq!(entity_string(pursuer, "node"), "A.MID.T2");
     assert_eq!(entity_string(pursuer, "edge_to"), "A.MID.J", "the actual pursuit begins along the next connected edge to the observed target node");
