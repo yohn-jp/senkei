@@ -70,3 +70,7 @@ Senkei（戦型）は、**自分が書いた戦略が自分の代わりに戦う
 MOBA型3レーン＋複数の中立モンスター地点、5体固定のHeroをSquadへ分割してJinreiで自動運用し、Minion視界から情報と移動効率を得るゲームデザインを合意した。Heroは成長し、編成時のSkill Treeに従ってスキルを取得する。Squadは人数により機動力と連携の価値が異なり、死亡時の自動離脱・拠点Solo復活、Jinreiによる再合流が戦術の中心となる。
 
 具体的なドメイン・戦闘・数値は [WORLD.md](WORLD.md)、[UNITS.md](UNITS.md)、[COMBAT.md](COMBAT.md)、[BALANCE.md](BALANCE.md) を参照。これらは次期Senritsuの設計であり、現在のローカルPvE初期ルールに実装済みだとは限らない。
+
+## 9. 追加G2方針
+
+[DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) にG01–Q03の合意を記録する。[TACTICAL-LOOP.md](TACTICAL-LOOP.md) のReplay→分析→Jinrei修正→再戦と、戦術課題型PvE＋難易度進行を方向とする。G03のテンポは保留（現行600 Tickは意図的な目標値ではない）。Fogは[FOG-OF-WAR.md](FOG-OF-WAR.md)。

@@ -125,4 +125,4 @@ Worldは進路候補とコストを提供するが**戦術の選好**までは�
 
 ## 9. 残る実装時選択
 
-表層フォーマット、ファイル名、Compilerの具体的言語／crate、地形幾何の生成アルゴリズム、描画座標の補間器は実装の選択。World artifactをRulePackageへ格納するか内容アドレス参照にするかは `DEC-WORLD-BINDING-001`、canonical WorldからBattleMapへの損失なし変換の形は `DEC-WORLD-MAP-CONVERSION-001` として未決定。**Schema・一方向の責務・Digest分離・規範不変条件**は上位の合意事項として固定する。
+表層フォーマット、Compilerの具体的言語／crate、地形幾何・表示座標の補間は実装選択。World artifactは**不変content-addressed参照**（DEC-WORLD-BINDING-001）、Canonical WorldからRuntime BattleMapへは**損失のない版付きprojection拡張**（DEC-WORLD-MAP-CONVERSION-001）を方向性として採用。Resolver、Offline可用性、projection Schema、lane／tower等のmetadata、移行・互換テストは詳細未決。[RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断契約。Schema・一方向の責務・Digest分離・不変条件を維持する。

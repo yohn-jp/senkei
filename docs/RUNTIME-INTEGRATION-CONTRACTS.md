@@ -54,7 +54,7 @@ Canonical Worldからruntime `BattleMap`へ変換するときは、source IDと�
 
 基準branchの現行形状はlosslessに互換ではない。35 node／42 edgeのendpointとlengthは一致するが、edge IDは42本中0本が一致し、World／site IDも異なる。runtime mapのbridge／fordはedge全体のflagであり、World側のriver-crossing progress rangeを表さない。またWorld側にはruntimeのlane-route listと12個のtower placementがない。これらを互換と扱うには推測ではなく検証済みmappingが必要である。
 
-**必須不変条件はidentityとdigestの束縛**である。RulePackageにCanonical World投影を埋め込むか、別途保存するcontent-addressed artifactを参照するかは **DECISION_REQUIRED** (`DEC-WORLD-BINDING-001`)。損失のないCanonical World → runtime BattleMap mappingと、追加のlane／tower意味をどう表すかは **DECISION_REQUIRED** (`DEC-WORLD-MAP-CONVERSION-001`)。どちらを選んでもsource IDを保ち、完全identityで照合し、非対応・lossy変換を拒否し、再現に必要なartifactを残す。
+**必須不変条件はidentityとdigestの束縛**である。**方向性採用**：Worldは不変content-addressed artifactを参照（DEC-WORLD-BINDING-001）。Canonical World→Runtime BattleMapはsource ID、crossing区間、橋、lane／tower等を失わないversioned projection Schema拡張（DEC-WORLD-MAP-CONVERSION-001）。Resolver、Schema、移行・検証はまだ必要。lossy変換は拒否する。
 
 ### 2.3 Match、Replay、互換性
 
@@ -75,7 +75,7 @@ Canonical Worldからruntime `BattleMap`へ変換するときは、source IDと�
 | 試合に影響するCatalog extension | Extension digest、それを使うcompile／runtime／reproduction reference | 同じpackage IDの別digest extensionへの置換なし |
 | Replay schema／presentation adapter契約 | Reader／writer互換性、Replay表示cache | 記録済みの権威ある結果とCU |
 
-試合に影響するBehavior内容は不変で版管理され、match reproduction identityに含まれる。RulePackage digestへ含めるか、別のpinned extension digestで束縛するかは **DECISION_REQUIRED** (`DEC-BEHAVIOR-BINDING-001`)。別digestを使う場合はcompile、match validation、execution、trace、reproductionの全境界で束縛し、UI-only metadataとして扱わない。
+試合に影響するBehavior内容は不変で版管理され、match reproduction identityに含まれる。**方向性採用**：意味を持つBehavior Profile／Default／aggregationはRulePackage digestへ含める（DEC-BEHAVIOR-BINDING-001）。UI説明等の非意味的metadataは分離可能だが試合結果に作用しないこと。Producer／Enbuまでの実装・検証は未完了と区別する。
 
 ## 3. Behaviorの主体、Intent、Default、全順序
 
@@ -120,15 +120,15 @@ Unknown／Not Proven／Not Checked／Restrictedをfalse、empty、敵不在、�
 
 Decision Traceは通常Observationとpublic Replayから分離された `RestrictedDiagnostics`。Enbuが記録できるのは認可済みObservation context、candidate source、適用条件、legality、競合／tie結果、実効選択、確定結果へのlinkのみ。追跡対象の陣営が知らなかったfactや、相手のprivate Jinrei／configuration／memory／rejected candidateを漏らさない。取得時にrequest principalとpurposeを認可し、期限切れ／無認可のdiagnosticをpublic replayから再構成しない。診断が存在すること自体は閲覧権限を与えない。
 
-## 6. DECISION_REQUIRED register
+## 6. 方向性採用とDECISION_REQUIREDの台帳
 
-以下は未決定事項である。選択肢は影響を示すもので、ゲーム規則を決定しない。各判断が責務所有者の仕様と版付きRulePackage／World profile／Observation contractに反映されるまで、実装は選択肢を推測しない。
+方向性採用は具体的Schemaや実装・テスト完了を意味しない。未決事項を推測で埋めず、責務所有者の正本へ反映する。[DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) は横断の合意状態を示す。
 
-| ID／owner | 未決定の契約 | 選択肢と影響 |
+| ID／owner | 方向性または未決事項 | 選択結果と残る詳細 |
 | --- | --- | --- |
-| **DEC-WORLD-BINDING-001** · World／Senritsu | World logic artifactをRulePackage／RulePlanでどう保持するか。 | **A. Canonical projectionを埋込む：** 検証と保管が自己完結するが、packageが大きくなりWorld/compiler schema変更でpackage bytesも変わる。**B. content-addressed reference：** 再利用できpackageは小さいが、不変Artifactの可用性、resolver規則、参照先不在時の明示的失敗が必要。いずれも完全World identityとdigestを束縛し、map IDだけの参照は禁止。 |
-| **DEC-WORLD-MAP-CONVERSION-001** · World／Senritsu／Enbu | Canonical topology／metric／crossingからruntime BattleMapへの損失なし変換と追加lane／tower意味をどう宣言するか。 | **A. BattleMap projection schemaを拡張／versioning：** 完結したmap artifactと明示的なprogress range／identityを持てるが、consumerとcompatibilityを変更する。**B. supplemental conversion manifestを束縛：** map payloadを小さく保てるが、追加の版付きmapping artifactとvalidationが必要。既存のID不一致、edge全体のflag、lane list、towerはどちらでも明示的に扱い、非対応変換を拒否する。 |
-| **DEC-BEHAVIOR-BINDING-001** · Senritsu／Behavior | matchに影響するProfile／Default／aggregationをどこに置き、どのdigestで束縛するか。 | **A. RulePackageに含める：** package digest一つで管理でき、Program／match identityが単純になるが、metadata変更もpackage version／digestに反映する。**B. Catalog extensionを分離：** UI metadataを別利用しやすいが、意味を持つextensionのdigestをcompile、match、trace、reproductionまで運ぶ必要がある。非意味的extensionはmatch挙動を変えない。 |
+| **DEC-WORLD-BINDING-001** · World／Senritsu | **方向性採用：B content-addressed World参照** | World identity/digest完全照合必須。Resolver、配布／Offline、参照先欠落時の失敗、Schemaは未決 |
+| **DEC-WORLD-MAP-CONVERSION-001** · World／Senritsu／Enbu | **方向性採用：A Runtime BattleMap projectionのVersioned Schema拡張** | source ID、crossing subrange、lane／towerのlossless移行・Schemaと互換テストが必要 |
+| **DEC-BEHAVIOR-BINDING-001** · Senritsu／Behavior | **方向性採用：A 意味的BehaviorをRulePackage digestに含める** | 非意味的UI metadataと区別。canonical encodingとCompile／Run／Replay接続が必要 |
 | **DEC-TERRAIN-OCCLUSION-001** · World／Senritsu | 論理的なterrain occlusionの概念は合意済み。authoring shape、query geometry、視界半径／高台効果との組み合わせは未決定。Renderer geometry／Raycastは権威を持たない。 | **A. graph edgeまたはnamed regionに対する有限なvisibility blocker／relation：** 単純で検証しやすいが、境界表現が粗い。**B. 有限な論理空間mask／regionと決定論的query：** より細かく表現できるが、World schema、authoring、compatibilityの範囲が広がる。どちらも境界挙動を定め、描画形状から独立し、未合意の視界／attack規則を追加しない。 |
 | **DEC-ATTACK-TIMING-001** · Combat／Senritsu／Enbu | 合意済みのwindup → impact → recoveryについて、離散Tick境界、target／range／livenessの再検証、同時impact順、cancel／interruptを決める。 | **A. impact時にattack legalityを再検証：** impact条件を満たさなくなったtargetへ予定effectを与えない。cancelと時間意味論を明示する必要がある。**B. windup時に成立条件をcommit：** preparation開始時にtargetを選び、後のimpactを明示的lock／snapshot規則で解決する。target移動による結果が異なり、commit済effectの意味が必要。いずれもduration／phase移行／同Tick処理を版付きRulePlanに定め、animation frameから導出しない。 |
 | **DEC-MID-DIRECTION-001** · World／Senritsu／Observation | MID施設が敵の実際の移動方向を報告するための観測証拠、時間条件、direction語彙／粒度、reset／expiry規則。目的地や将来intentは公開しない。 | **A. 順序付けられたTickで同一stable entityを複数回観測：** 保守的で監査可能だが、必要な観測が揃うまでUnknown。**B. 隣接named graph location間の確定遷移：** 離散的で再現可能だがedge内の移動方向は表せない。**C. 連続して観測したpositionの有限量子化vector：** 空間の詳細を持つが、versioned quantization／boundary規則が必要で、より細かい位置情報を公開し得る。採択と認可の前に推定方向を公開せず、証拠不足はUnknownにする。 |
