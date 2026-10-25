@@ -642,7 +642,7 @@ export class Battlefield {
       );
     }
     if (purpose === "overview" && !this.mobile)
-      return new THREE.Vector3(42, 68, 42);
+      return new THREE.Vector3(12, 68, 48);
     if (this.mobile)
       return purpose === "follow"
         ? new THREE.Vector3(22, 28, 0)
@@ -2275,6 +2275,16 @@ export class Battlefield {
   }
   private render = () => {
     if (this.destroyed) return;
+    // A retained replay can be hidden by Ready, Enbu execution, or Analysis.
+    // Keep its camera/selection but release GPU work while it has no viewport.
+    if (!this.host.getClientRects().length || !this.host.clientWidth || !this.host.clientHeight) {
+      this.canvas.dataset.suspended = "true";
+      this.performanceWindowStart = 0;
+      this.performanceFrameCount = 0;
+      this.frame = requestAnimationFrame(this.render);
+      return;
+    }
+    this.canvas.dataset.suspended = "false";
     try {
       const frameStarted = performance.now();
       this.gl.info.reset();

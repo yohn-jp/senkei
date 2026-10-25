@@ -39,6 +39,7 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await analysisTab.click();
   const analysis = page.getByTestId("battle-analysis");
   await expect(analysis).toBeVisible();
+  await expect(page.locator(".next-renderer-host canvas")).toHaveAttribute("data-suspended", "true");
   await expect(analysis.getByRole("region", { name: "確定した試合結果" })).toContainText(/勝利|敗北|引き分け/);
   await expect(analysis.locator(".battle-analysis-hero-card")).toHaveCount(5);
   await expect(analysis.getByText("ATTACKER ONLY")).toBeVisible();
@@ -50,6 +51,7 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   const eventTick = Number((await firstEvent.locator(".battle-analysis-tick").innerText()).replace(/\D/g, ""));
   await firstEvent.click();
   await expect(analysisTab).toHaveAttribute("aria-selected", "false");
+  await expect(page.locator(".next-renderer-host canvas")).toHaveAttribute("data-suspended", "false");
   await expect.poll(() => page.locator(".next-tick-readout").innerText()).toContain(`TICK ${eventTick} /`);
   await expect.poll(() => page.locator(".next-renderer-host canvas").getAttribute("data-tick")).toBe(String(eventTick));
 
