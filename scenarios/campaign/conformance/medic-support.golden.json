@@ -1,16 +1,15 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-medic-support",
-  "request_sha256": "01edd08fe66aa24b28a3f282e31d0c4f95664e7c5d3359f0f3988e6b09b32699",
-  "response_sha256": "7a4f5ec49945c8c683069e057b8f27a8220085d1b5f889193b1d62c5a1ac28f1",
+  "request_sha256": "cb35bb530b90bcbb5d8d4ffca82361116b2ebf98293719c4b3ed026378c08cf9",
+  "response_sha256": "d22a8d2f36340ab72364d91e2bd3b9b91551ef9b88e2fd15040f88276baa31df",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 72,
     "final_state_digest": "f65be46387f33d18a17b85b65a41d57fdc9610c3a6504c6f32071154aa2c7e90",
     "cu_by_side": {
-      "attacker": 1224,
-      "defender": 4464
+      "attacker": 1224
     },
     "replay_frames": 73,
     "event_count": 126,
@@ -21,18 +20,15 @@
     "core_damage_by_owner": {
       "attacker": 300
     },
-    "diagnostic_event_count": 5760,
+    "diagnostic_event_count": 1224,
     "diagnostics_by_kind": {
-      "cost_charged": 5256,
-      "intent_proposed": 216,
-      "state_evaluated": 72,
-      "intent_rejected": 90,
-      "intent_accepted": 126
+      "cost_charged": 1080,
+      "intent_proposed": 72,
+      "intent_accepted": 48,
+      "intent_rejected": 24
     },
     "accepted_by_side_capability": {
-      "attacker:move_forward": 48,
-      "defender:move_forward": 48,
-      "defender:attack_core": 30
+      "attacker:move_forward": 48
     }
   }
 }

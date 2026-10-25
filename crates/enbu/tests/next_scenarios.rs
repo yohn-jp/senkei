@@ -1659,10 +1659,10 @@ fn canonical_battlefield_topology_conforms() {
             }
         }
         match lane {
-            "TOP" | "BOT" => add(&format!("A.{lane}.BANK"), &format!("B.{lane}.BANK"), 100, false, lane),
+            "TOP" | "BOT" => add(&format!("A.{lane}.BANK"), &format!("B.{lane}.BANK"), 100, false, &format!("bridge.{}", lane.to_ascii_lowercase())),
             "MID" => {
-                add("A.MID.BANK", "N.MID.OBS", 50, false, lane);
-                add("N.MID.OBS", "B.MID.BANK", 50, false, lane);
+                add("A.MID.BANK", "N.MID.OBS", 50, false, "bridge.mid");
+                add("N.MID.OBS", "B.MID.BANK", 50, false, "bridge.mid");
             }
             _ => unreachable!(),
         }

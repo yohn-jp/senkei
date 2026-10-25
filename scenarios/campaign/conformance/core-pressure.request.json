@@ -5310,7 +5310,7 @@
         },
         "engine": {
           "major": 1,
-          "minor": 2,
+          "minor": 3,
           "patch": 0
         },
         "jinrei_language": {
@@ -5345,6 +5345,7 @@
         }
       }
     },
-    "include_diagnostics": true
+    "include_diagnostics": true,
+    "diagnostics_side": "attacker"
   }
 }

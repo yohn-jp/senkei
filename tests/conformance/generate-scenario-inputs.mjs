@@ -488,8 +488,31 @@ try {
   );
   const goldenCaseIds = new Set(scenarios.map((scenario) => scenario.id));
 
+  for (const entry of caseInputs) entry.request.payload.diagnostics_side = "attacker";
   const simulationResponses = await runNative(caseInputs.map((entry) => entry.request));
   const responseById = new Map(caseInputs.map((entry, index) => [entry.id, assertOk(simulationResponses[index], `simulate ${entry.id}`)]));
+  // Regression and symmetry evidence need both perspectives. Request each owner explicitly;
+  // never rely on one owner channel exposing the opposing side's diagnostics.
+  const diagnosticCases = caseInputs;
+  const defenderResponses = await runNative(diagnosticCases.map((entry) => ({
+    ...entry.request, request_id: `${entry.request.request_id}-defender-diagnostics`,
+    payload: { ...entry.request.payload, diagnostics_side: "defender" },
+  })));
+  const completeDiagnosticsById = new Map(diagnosticCases.map((entry, index) => {
+    const attacker = responseById.get(entry.id);
+    const defender = assertOk(defenderResponses[index], `defender diagnostics ${entry.id}`);
+    if (attacker.authorized_side !== "attacker" || defender.authorized_side !== "defender" ||
+        !sameJson(attacker.result, defender.result) || !sameJson(attacker.replay, defender.replay) ||
+        attacker.diagnostics.events.some((event) => event.side !== "attacker") ||
+        defender.diagnostics.events.some((event) => event.side !== "defender")) {
+      throw new Error(`side-specific diagnostics changed the match or leaked a channel for ${entry.id}`);
+    }
+    return [entry.id, {
+      events: [...attacker.diagnostics.events, ...defender.diagnostics.events],
+      cu_by_side: { ...attacker.diagnostics.cu_by_side, ...defender.diagnostics.cu_by_side },
+      final_memory_by_side: { ...attacker.diagnostics.final_memory_by_side, ...defender.diagnostics.final_memory_by_side },
+    }];
+  }));
   if (!sameJson(responseById.get("starter-equivalence-ast"), responseById.get("starter-equivalence-text"))) {
     throw new Error("equivalent structured and text tactics produced different simulation responses");
   }
@@ -510,7 +533,7 @@ try {
     "symmetry-three-unit-identical-core-pressure",
   ];
   for (const id of symmetryIds) {
-    const result = responseById.get(id);
+    const result = { ...responseById.get(id), diagnostics: completeDiagnosticsById.get(id) };
     const events = result.replay.frames.flatMap((frame) => frame.events);
     const counts = Object.fromEntries([...new Set(events.map((event) => event.event))].map((event) => [event, events.filter((item) => item.event === event).length]));
     const finalEntities = result.replay.frames.at(-1)?.visible_state?.entities ?? {};
@@ -609,15 +632,15 @@ try {
     ["symmetry-three-unit-first-march-attacks-first", "symmetry-three-unit-core-pressure-attacks-first"],
     ["symmetry-three-unit-core-pressure-attacks-first", "symmetry-three-unit-first-march-attacks-first"],
   ]) {
-    const first = responseById.get(attackFirst);
-    const second = responseById.get(attackSecond);
+    const first = { ...responseById.get(attackFirst), diagnostics: completeDiagnosticsById.get(attackFirst) };
+    const second = { ...responseById.get(attackSecond), diagnostics: completeDiagnosticsById.get(attackSecond) };
     if (!sameJson(acceptedUnitActorHistory(first, "attacker"), acceptedUnitActorHistory(second, "defender")) ||
         !sameJson(acceptedUnitActorHistory(first, "defender"), acceptedUnitActorHistory(second, "attacker"))) {
       throw new Error(`mirrored three-unit actor selection differs between ${attackFirst} and ${attackSecond}`);
     }
   }
   for (const id of ["symmetry-three-unit-identical-first-march", "symmetry-three-unit-identical-core-pressure"]) {
-    const response = responseById.get(id);
+    const response = { ...responseById.get(id), diagnostics: completeDiagnosticsById.get(id) };
     const finalEntities = response.replay.frames.at(-1)?.visible_state?.entities ?? {};
     const coreHp = Object.values(finalEntities)
       .filter((entity) => entity.entity_type === "core")
@@ -656,7 +679,7 @@ try {
       const deployedEvents = response.replay.frames.flatMap((frame) => frame.events)
         .filter((event) => event.event === "unit_deployed");
       if (deployedEvents.length !== 2) throw new Error(`deploy-reserve produced ${deployedEvents.length} deployments, expected 2`);
-      const diagnostics = response.diagnostics?.events ?? [];
+      const diagnostics = completeDiagnosticsById.get(entry.id)?.events ?? [];
       const acceptedDeploys = diagnostics.filter((event) => event.record.kind === "intent_accepted" && event.record.value.intent.capability === "deploy");
       if (acceptedDeploys.length !== 2) throw new Error(`deploy-reserve accepted ${acceptedDeploys.length} deploy intents, expected 2`);
       const deploymentTicks = deployedEvents.map((event) => response.replay.frames.find((frame) => frame.events.includes(event))?.tick);

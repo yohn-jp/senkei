@@ -1,16 +1,15 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-tower-pressure",
-  "request_sha256": "c457282359f1ac692c582b7a8a523d442058bf70624bd032db26f4645ac3c2d5",
-  "response_sha256": "64b3d47d1a94a75eec670b9354e9147b3ab8e4b7e1552d8545706ce8feed12ee",
+  "request_sha256": "3501cf218b59c90c09dbdc3669e66831dd01c40f7cd8d840b870ae8cb8aeacbf",
+  "response_sha256": "f890906584b304d41d7b9d9cd16f129d401cbdd922581aa9a628670551c9deec",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 82,
     "final_state_digest": "92a64846637d713aa6acf12cf4f28d4f325a9ab486ab8e8ac981efcdcba297a8",
     "cu_by_side": {
-      "attacker": 1394,
-      "defender": 10808
+      "attacker": 1394
     },
     "replay_frames": 83,
     "event_count": 136,
@@ -22,20 +21,15 @@
     "core_damage_by_owner": {
       "attacker": 300
     },
-    "diagnostic_event_count": 12351,
+    "diagnostic_event_count": 1394,
     "diagnostics_by_kind": {
-      "cost_charged": 11710,
-      "intent_proposed": 246,
-      "state_evaluated": 82,
-      "runtime_notice": 67,
-      "intent_rejected": 110,
-      "intent_accepted": 136
+      "cost_charged": 1230,
+      "intent_proposed": 82,
+      "intent_accepted": 48,
+      "intent_rejected": 34
     },
     "accepted_by_side_capability": {
-      "attacker:move_forward": 48,
-      "defender:move_forward": 45,
-      "defender:attack_tower": 15,
-      "defender:attack_core": 28
+      "attacker:move_forward": 48
     }
   }
 }
