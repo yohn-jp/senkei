@@ -294,8 +294,26 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
   const positions: number[] = [], indices: number[] = [];
   if (points.length < 2) return new THREE.BufferGeometry();
   const half = width / 2;
-  for (let index = 0; index < points.length; index++) {
-    const previous = points[Math.max(index - 1, 0)], current = points[index], next = points[Math.min(index + 1, points.length - 1)];
+  const pathSamples: WorldPoint[] = [points[0]];
+  for (let segment = 1; segment < points.length; segment++) {
+    const start = points[segment - 1], end = points[segment];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (length <= 1e-6) continue;
+    const steps = Math.max(1, Math.ceil(length / 0.75));
+    for (let step = 1; step <= steps; step++) {
+      const t = step / steps;
+      pathSamples.push({ x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t });
+    }
+  }
+
+  // A two-edge ribbon floats across raised shoulders: the triangles interpolate
+  // the hilltop heights over the lane center and bury its paving. Sample the
+  // actual heightfield in both axes so every layer follows the road cut.
+  let acrossSegments = Math.max(2, Math.ceil(width / 0.4));
+  if (acrossSegments % 2 !== 0) acrossSegments++;
+  const rowSize = acrossSegments + 1;
+  for (let index = 0; index < pathSamples.length; index++) {
+    const previous = pathSamples[Math.max(index - 1, 0)], current = pathSamples[index], next = pathSamples[Math.min(index + 1, pathSamples.length - 1)];
     const dx0 = current.x - previous.x, dz0 = current.y - previous.y;
     const dx1 = next.x - current.x, dz1 = next.y - current.y;
     const len0 = Math.hypot(dx0, dz0) || 1, len1 = Math.hypot(dx1, dz1) || 1;
@@ -305,12 +323,15 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
     nx /= nLength; nz /= nLength;
     const denominator = Math.max(0.66, Math.abs(nx * n1.x + nz * n1.z));
     const miter = Math.min(half / denominator, half * 1.5);
-    const lx = current.x + nx * miter, lz = current.y + nz * miter;
-    const rx = current.x - nx * miter, rz = current.y - nz * miter;
-    positions.push(lx, heightAt(lx, lz) + yOffset, lz, rx, heightAt(rx, rz) + yOffset, rz);
-    if (index < points.length - 1) {
-      const at = index * 2;
-      indices.push(at, at + 2, at + 3, at, at + 3, at + 1);
+    for (let across = 0; across <= acrossSegments; across++) {
+      const offset = THREE.MathUtils.lerp(-miter, miter, across / acrossSegments);
+      const x = current.x + nx * offset, z = current.y + nz * offset;
+      positions.push(x, heightAt(x, z) + yOffset, z);
+      if (index < pathSamples.length - 1 && across < acrossSegments) {
+        const at = index * rowSize + across;
+        const nextRow = at + rowSize;
+        indices.push(at, nextRow, at + 1, nextRow, nextRow + 1, at + 1);
+      }
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -388,16 +409,15 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
   const shoulder = laneEdges.map(points => ({ points, width: 5.6, yOffset: 0.034 }));
   const roadway = lanePaths.map(points => ({ points, width: 4.3, yOffset: 0.047 }));
   const trackOffset = replay.scene.trackOffset ?? 0.8;
-  const tracks = lanePaths.flatMap(points => [
-    { points: offsetPath(points, trackOffset), width: 0.76, yOffset: TRACK_LEVEL }, // LEFT
-    { points, width: 0.82, yOffset: TRACK_LEVEL + 0.008 }, // CENTER
-    { points: offsetPath(points, -trackOffset), width: 0.76, yOffset: TRACK_LEVEL }, // RIGHT
+  const flankTracks = lanePaths.flatMap(points => [
+    { points: offsetPath(points, trackOffset), width: 0.62, yOffset: TRACK_LEVEL + 0.012 }, // LEFT
+    { points: offsetPath(points, -trackOffset), width: 0.62, yOffset: TRACK_LEVEL + 0.012 }, // RIGHT
   ]);
+  const centerTracks = lanePaths.map(points => ({ points, width: 0.68, yOffset: TRACK_LEVEL + 0.026 }));
   const roadLayers = [
     { name: "lane-clearing-earth", lines: clearing, color: 0x73785d, roughness: 1 },
     { name: "lane-packed-earth-shoulders", lines: shoulder, color: 0x806f52, roughness: 0.98 },
     { name: "lane-compacted-roadbed", lines: roadway, color: 0x89795b, roughness: 0.94 },
-    { name: "lane-three-track-paving", lines: tracks, color: 0x9b8b66, roughness: 0.92 },
   ];
   for (const layer of roadLayers) {
     const mesh = new THREE.Mesh(mergeRibbons(layer.lines, heightAt), new THREE.MeshStandardMaterial({
@@ -411,6 +431,30 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
+
+  // These are physical road surfaces at the Replay's actual display offsets,
+  // not screen-space guide lines. The CENTER supply bed uses a compacted stone
+  // finish; LEFT/RIGHT remain rougher shoulder passages with narrow gaps so
+  // the three routes remain legible at overview scale.
+  const trackGroup = new THREE.Group();
+  trackGroup.name = "lane-three-track-paving";
+  const trackSurfaces = [
+    { name: "lane-flank-passage-tracks", lines: flankTracks, color: 0x766b53, roughness: 1 },
+    { name: "lane-center-supply-track", lines: centerTracks, color: 0xb0a17b, roughness: 0.84 },
+  ];
+  for (const surface of trackSurfaces) {
+    const mesh = new THREE.Mesh(mergeRibbons(surface.lines, heightAt), new THREE.MeshStandardMaterial({
+      color: surface.color,
+      roughness: surface.roughness,
+      metalness: 0,
+      flatShading: true,
+      side: THREE.DoubleSide,
+    }));
+    mesh.name = surface.name;
+    mesh.receiveShadow = true;
+    trackGroup.add(mesh);
+  }
+  scene.add(trackGroup);
 
   const routes = replay.scene.routes ?? [];
   const jungle = routes.filter(route => route.region === "jungle").map(route => route.points);

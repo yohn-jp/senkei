@@ -41,6 +41,8 @@ function topologyReplay(): Replay {
   replay.scene.trackOffset = 0.8;
   replay.scene.routes = [
     { id: "lane.TOP.A", region: "lane", points: [{ x: 3, y: 61 }, { x: 10.4, y: 20.8 }] },
+    { id: "lane.TOP.t1-t2", region: "lane", points: [{ x: 8.8, y: 48 }, { x: 8.8, y: 34 }] },
+    { id: "lane.TOP.t2-j", region: "lane", points: [{ x: 8.8, y: 34 }, { x: 10.4, y: 20.8 }] },
     { id: "bridge.TOP", region: "bridge", points: [{ x: 14, y: 17.2 }, { x: 17.2, y: 14 }], bridgeSite: "TOP" },
     { id: "jungle.upper", region: "jungle", points: [{ x: 10.4, y: 20.8 }, { x: 18, y: 28 }] },
     { id: "jungle_camp.upper", region: "jungle_camp", points: [{ x: 18, y: 28 }, { x: 14, y: 31.2 }] },
@@ -63,6 +65,14 @@ function nearestTerrainVertex(mesh: THREE.Mesh, x: number, z: number): THREE.Vec
     if (candidate < distance) { nearest = vertex; distance = candidate; }
   }
   return nearest;
+}
+
+function rayHeight(scene: THREE.Scene, mesh: THREE.Object3D, x: number, z: number): number {
+  scene.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(x, 20, z), new THREE.Vector3(0, -1, 0), 0, 30);
+  const hit = ray.intersectObject(mesh, true)[0];
+  if (!hit) throw new Error(`No terrain ribbon intersection at ${x},${z} on ${mesh.name}`);
+  return hit.point.y;
 }
 
 function distanceToRiver(point: THREE.Vector3): number {
@@ -97,18 +107,51 @@ describe("canonical Battlefield terrain presentation", () => {
   it("builds three separated lane surfaces and keeps their dry paving off water", () => {
     const scene = new THREE.Scene();
     buildBattlefieldTerrain(scene, topologyReplay());
-    const tracks = scene.getObjectByName("lane-three-track-paving") as THREE.Mesh;
+    const tracks = scene.getObjectByName("lane-three-track-paving") as THREE.Group;
     const clearing = scene.getObjectByName("lane-clearing-earth") as THREE.Mesh;
     expect(tracks).toBeDefined();
     expect(clearing).toBeDefined();
-    const trackVertices = vertexPositions(tracks);
+    const trackMeshes = tracks.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh);
+    const trackVertices = trackMeshes.flatMap(vertexPositions);
+    const centerTrack = scene.getObjectByName("lane-center-supply-track") as THREE.Mesh;
+    const flankTracks = scene.getObjectByName("lane-flank-passage-tracks") as THREE.Mesh;
+    const centerMaterial = centerTrack.material as THREE.MeshStandardMaterial;
+    const flankMaterial = flankTracks.material as THREE.MeshStandardMaterial;
     expect(trackVertices.length).toBeGreaterThan(100);
+    expect(centerMaterial.color.r).toBeGreaterThan(flankMaterial.color.r + 0.08);
     expect(trackVertices.every(point =>
       Math.hypot(point.x - 32, point.z - 32) < 3.5 || distanceToRiver(point) > 1.95,
     )).toBe(true);
 
     const trackBands = [...new Set(trackVertices.filter(point => Math.abs(point.x - 6) < 4).map(point => Math.round(point.z * 4) / 4))];
     expect(trackBands.length).toBeGreaterThan(4);
+
+    const leftHeight = rayHeight(scene, tracks, 8.0, 40);
+    const centerHeight = rayHeight(scene, tracks, 8.8, 40);
+    const rightHeight = rayHeight(scene, tracks, 9.6, 40);
+    expect(centerHeight).toBeGreaterThan(leftHeight + 0.01);
+    expect(centerHeight).toBeGreaterThan(rightHeight + 0.01);
+  });
+
+  it("samples wide road ribbons across sloped shoulders so track paving stays above the road cut", () => {
+    const scene = new THREE.Scene();
+    buildBattlefieldTerrain(scene, topologyReplay());
+    const ground = scene.getObjectByName("battlefield-sculpted-landform") as THREE.Mesh;
+    const clearing = scene.getObjectByName("lane-clearing-earth") as THREE.Mesh;
+    const roadbed = scene.getObjectByName("lane-compacted-roadbed") as THREE.Mesh;
+    const tracks = scene.getObjectByName("lane-three-track-paving") as THREE.Group;
+
+    const x = 8.8, z = 40;
+    const groundAtLane = rayHeight(scene, ground, x, z);
+    const clearingAtLane = rayHeight(scene, clearing, x, z);
+    const clearingAtShoulder = rayHeight(scene, clearing, x + 4, z);
+    const roadbedAtLane = rayHeight(scene, roadbed, x, z);
+    const trackAtLane = rayHeight(scene, tracks, x, z);
+
+    expect(clearingAtShoulder).toBeGreaterThan(clearingAtLane + 0.1);
+    expect(clearingAtLane).toBeGreaterThan(groundAtLane);
+    expect(roadbedAtLane).toBeGreaterThan(clearingAtLane);
+    expect(trackAtLane).toBeGreaterThan(roadbedAtLane);
   });
 
   it("leaves authored ford gaps, reaches camp clearings, and anchors layered forest volumes to the hills", () => {
