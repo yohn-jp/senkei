@@ -117,8 +117,12 @@ export class BattlefieldUnitMotionIndex {
 export interface BattlefieldUnitPose {
   readonly walk: number;
   readonly strike: number;
+  /** Confirmed skill cue. Kept separate from a basic attack swing. */
+  readonly skill: number;
   readonly hit: number;
   readonly attackLean: number;
+  /** Confirmed destroy event. Disappear never produces this signal. */
+  readonly death: number;
 }
 
 /**
@@ -136,20 +140,27 @@ export function battlefieldUnitPose(
 ): BattlefieldUnitPose {
   let attack = false;
   let basicAttack = false;
+  let skill = false;
   let hit = false;
+  let destroyed = false;
   for (const cue of cues) {
     if (!("entityId" in cue) || cue.tick !== tick || cue.entityId !== entityId) continue;
-    if (cue.type === "attack" || cue.type === "skill") attack = true;
+    if (cue.type === "attack") attack = true;
     if (cue.type === "attack") basicAttack = true;
+    if (cue.type === "skill") skill = true;
     if (cue.type === "damage") hit = true;
+    if (cue.type === "destroy") destroyed = true;
   }
-  const actionPhase = animate ? phase : (moving || attack || hit ? 0.5 : 0);
+  const actionPhase = animate ? phase : (moving || attack || skill || hit || destroyed ? 0.5 : 0);
   const walkPhase = animate ? tick + phase : tick + 0.5;
   const sample = Math.sin(actionPhase * Math.PI);
   return {
-    walk: moving && !attack ? Math.sin(walkPhase * Math.PI) * 0.34 : 0,
+    walk: moving && !attack && !skill ? Math.sin(walkPhase * Math.PI) * 0.34 : 0,
     strike: attack ? sample : 0,
+    skill: skill ? sample : 0,
     hit: hit ? sample : 0,
     attackLean: basicAttack ? sample * 0.16 : 0,
+    // Death settles into a held pose; disappear (fog/visibility loss) is not death.
+    death: destroyed ? (animate ? Math.max(0, Math.min(1, phase)) : 1) : 0,
   };
 }

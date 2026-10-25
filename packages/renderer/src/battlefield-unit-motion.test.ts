@@ -114,8 +114,8 @@ describe("deterministic fixed-tick unit poses", () => {
     const attacker = battlefieldUnitPose(4, cues, "hero", false, false, 1);
     const defender = battlefieldUnitPose(4, cues, "enemy", false, false, 1);
 
-    expect(attacker).toEqual({ walk: 0, strike: 1, hit: 0, attackLean: 0.16 });
-    expect(defender).toEqual({ walk: 0, strike: 0, hit: 1, attackLean: 0 });
+    expect(attacker).toEqual({ walk: 0, strike: 1, skill: 0, hit: 0, attackLean: 0.16, death: 0 });
+    expect(defender).toEqual({ walk: 0, strike: 0, skill: 0, hit: 1, attackLean: 0, death: 0 });
   });
 
   it("holds a deterministic mid-step for a confirmed move and leaves idle units at rest", () => {
@@ -125,12 +125,30 @@ describe("deterministic fixed-tick unit poses", () => {
 
     expect(moving.walk).toBeCloseTo(0.34, 10);
     expect(battlefieldUnitPose(4, [], "hero", true, false, 0.95)).toEqual(moving);
-    expect(idle).toEqual({ walk: 0, strike: 0, hit: 0, attackLean: 0 });
+    expect(idle).toEqual({ walk: 0, strike: 0, skill: 0, hit: 0, attackLean: 0, death: 0 });
     expect(priorTickAction).toEqual(idle);
   });
 
   it("keeps playback phase animation available when playback is active", () => {
     expect(battlefieldUnitPose(4, cues, "hero", false, true, 0.25).strike)
       .toBeCloseTo(Math.sin(Math.PI * 0.25), 10);
+  });
+
+  it("keeps skill cues distinct from basic attacks and prevents a same-tick walk swing", () => {
+    const skillCue: Event = {
+      type: "skill", tick: 4, order: 1, entityId: "hero", targetId: "enemy", skillKey: "f01.burst",
+    };
+    const pose = battlefieldUnitPose(4, [skillCue], "hero", true, false, 0.1);
+
+    expect(pose).toEqual({ walk: 0, strike: 0, skill: 1, hit: 0, attackLean: 0, death: 0 });
+  });
+
+  it("animates explicit destruction as death and leaves visibility loss unclassified", () => {
+    const destroy: Event = { type: "destroy", tick: 4, order: 2, entityId: "hero" };
+    const disappear: Event = { type: "disappear", tick: 4, order: 2, entityId: "hero" };
+
+    expect(battlefieldUnitPose(4, [destroy], "hero", false, false, 0.2).death).toBe(1);
+    expect(battlefieldUnitPose(4, [disappear], "hero", false, false, 0.2).death).toBe(0);
+    expect(battlefieldUnitPose(4, [destroy], "hero", false, true, 0.3).death).toBe(0.3);
   });
 });
