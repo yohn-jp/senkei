@@ -199,14 +199,20 @@ export function createHeroModelPreview(
   let disposed = false;
   let observer: ResizeObserver | undefined;
 
+  const recordFrame = () => {
+    renderer.domElement.dataset.camera = [...camera.position.toArray(), ...controls.target.toArray()].map(value => value.toFixed(4)).join(",");
+    renderer.domElement.dataset.poseSample = [rig.joints["leg.left"], rig.joints["arm.right"], rig.weaponPivots.main]
+      .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
+  };
   const render = () => {
-    if (!disposed) renderer.render(scene, camera);
+    if (!disposed) { renderer.render(scene, camera); recordFrame(); }
   };
   const animate = (time: number) => {
     if (disposed) return;
     applyPose(rig, pose, Math.max(0, (time - poseStarted) / 1000), false, model);
     controls.update();
     renderer.render(scene, camera);
+    recordFrame();
   };
   const resize = () => {
     if (disposed) return;
@@ -256,11 +262,15 @@ export function createHeroModelPreview(
       }
     },
     resetView() {
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.update();
       camera.position.copy(initialCamera);
       camera.up.set(0, 1, 0);
       controls.target.copy(initialTarget);
       camera.updateProjectionMatrix();
       controls.update();
+      controls.enableDamping = damping;
       render();
     },
     dispose() {

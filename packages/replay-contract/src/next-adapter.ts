@@ -179,7 +179,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   }
   emit({ type:"match-end", tick:result.tick, order:order++, result });
   return decodeReplay({ schemaVersion:"0.3", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},view:source.perspective ?? "public" },
-    presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-next-1",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
+    presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-battlefield-2",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
     scene:{ bounds:{min:{x:Math.min(...extent.map(point=>point.x))-3,y:Math.min(...extent.map(point=>point.y))-3},max:{x:Math.max(...extent.map(point=>point.x))+3,y:Math.max(...extent.map(point=>point.y))+3}},
       lanes:Object.entries(next.map.lanes).map(([id,path])=>({id,label:id.toUpperCase(),elevation:0.1,points:path.map(nodePoint)})),
       trackOffset:(next.parameters.lane_track_offset_wu ?? 20) / scale,

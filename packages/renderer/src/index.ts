@@ -1,4 +1,5 @@
 import * as THREE from "three";
+export { createHeroModelPreview } from "./renderer-hero-model-preview";
 import { KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
@@ -934,6 +935,7 @@ export class Battlefield {
       return;
     }
     this.trackedIds = visible;
+    this.userCameraChanged = false;
     this.cameraMode = "tactical";
     this.frameTracked(visible);
   }
@@ -951,6 +953,7 @@ export class Battlefield {
       return;
     }
     this.trackedIds = [id];
+    this.userCameraChanged = false;
     this.cameraMode = "tactical";
     this.frameTracked([id]);
   }
@@ -963,6 +966,7 @@ export class Battlefield {
       (sum, entity) => {
         const point = this.renderPoint(entity);
         sum.x += point.x;
+        sum.y += this.height(point);
         sum.z += point.y;
         return sum;
       },
@@ -1443,6 +1447,7 @@ export class Battlefield {
       if (entity.battlefield?.crossing === "ford") return -0.18;
       if (entity.battlefield?.crossing === "bridge") return 0.39;
       if (entity.battlefield?.node === "N.MID.OBS") return 0.43;
+      if (entity.battlefield?.node?.endsWith(".BASE")) return 0.33;
     }
     return this.height(point);
   }
@@ -1878,7 +1883,7 @@ export class Battlefield {
     const priorState = this.state;
     this.state = state;
     this.modelOffsets = this.unitLayout.update(state, this.replay);
-    if (this.trackedIds.length) {
+    if (this.trackedIds.length && !this.userCameraChanged) {
       this.frameTracked(this.trackedIds);
     } else if (
       this.replay.scene.routes?.length &&
@@ -2299,7 +2304,7 @@ export class Battlefield {
           },
           new THREE.Vector3(),
         ).multiplyScalar(1 / tracked.length);
-        const delta = destination.sub(this.controls.target).multiplyScalar(0.12);
+        const delta = destination.sub(this.controls.target).multiplyScalar(this.playing && !this.reducedMotion ? 0.12 : 1);
         this.controls.target.add(delta);
         this.camera.position.add(delta);
         this.controls.update();

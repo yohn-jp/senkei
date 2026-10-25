@@ -1,3 +1,4 @@
+import { HeroModelPreview } from "./HeroModelPreview";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
@@ -700,6 +701,11 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         : null;
       const identity = hero
         ? `${hero.id} · ${hero.name}`
+        : entity.kind === "bridge"
+          ? `${entity.battlefield?.bridgeSite ?? "Bridge"} bridge · ${formatId(entity.battlefield?.bridgeState ?? "unknown")}`
+        : entity.kind === "observation" ? "MID Observatory"
+        : entity.kind === "tower" && entity.battlefield?.node ? `${entity.battlefield.node} tower`
+        : entity.kind === "base" ? `${formatId(entity.side)} fortress`
         : entity.catalogId ? formatId(entity.catalogId) : entity.id;
       const role = hero
         ? `${formatId(hero.placement)} · ${formatId(hero.role)}`
@@ -1487,11 +1493,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             {atelierScreen === "detail" && <div className="next-atelier-detail">
               <div className="next-atelier-roster" aria-label="Choose a Hero for detail" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} aria-label={`Slot ${index + 1}: ${hero?.name ?? "Choose a hero"}, ${hero?.id ?? slot.slot_id}`} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
               {currentHero && activeSlotValue ? <article className="next-hero-dossier">
-                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. No approved character model is bundled for this Hero.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. Shared 3D appearance for Hero Detail and the battlefield.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+                {tab === "formation" && <HeroModelPreview catalogId={currentHero.id} appearanceKey={currentHero.appearance_key} name={currentHero.name} />}
                 <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div><div className="next-stat-matrix"><span>STAT</span><span>BASE</span><span>PER LEVEL</span>{(["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const).map((stat) => <Fragment key={stat}><strong>{formatId(stat)}</strong><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></Fragment>)}</div></section>
                 <aside className="next-capability-map"><strong>Jinrei capability mapping</strong>{packageValue.domain.capabilities.activate ? <p>Active skills are issued through <code>activate</code> with the ruleset’s typed arguments: {packageValue.domain.capabilities.activate.arguments.map((argument) => `${formatId(argument.id)} (${argument.value_type.kind})`).join(" · ")}. Passive skills are granted automatically at their unlock level.</p> : <p role="alert">This ruleset has no <code>activate</code> capability, so its active skills cannot be ordered from Jinrei.</p>}</aside>
                 <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Granted automatically when its level requirement is met." : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks · Jinrei activate capability`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
-                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. Appearance identity is recorded; its 3D character asset is not available.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
+                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. The 3D preview shares its appearance with the battlefield.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
               </article> : <div className="next-catalog-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
             </div>}
 

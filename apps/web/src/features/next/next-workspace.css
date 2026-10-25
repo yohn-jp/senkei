@@ -797,3 +797,19 @@
   .is-battle-workspace .next-battle-header h3 { font-size: 15px; }
   .is-battle-workspace .next-battle-actions .next-launch-button { font-size: 10px; padding-inline: 8px; }
 }
+
+.next-hero-model-preview { background: #18272b; border: 1px solid rgba(214,225,218,.14); border-radius: 7px; min-width: 0; overflow: hidden; position: relative; }
+.next-hero-model-canvas { height: 360px; min-width: 0; touch-action: none; width: 100%; }
+.next-hero-model-canvas canvas { display: block; max-width: 100%; }
+.next-hero-model-controls { align-items: center; background: rgba(8,17,22,.82); display: flex; flex-wrap: wrap; gap: 6px; padding: 9px; }
+.next-hero-model-controls > span { color: #bdcabb; font-size: 12px; margin-right: auto; }
+.next-hero-model-controls button, .next-hero-model-status button { background: #26363b; border: 1px solid #5c7168; border-radius: 4px; color: #d6e0d1; cursor: pointer; font-size: 12px; min-height: 44px; padding: 0 12px; }
+.next-hero-model-controls button[aria-pressed="true"] { background: #405642; border-color: #a5c58d; }
+.next-hero-model-controls button:disabled { cursor: default; opacity: .45; }
+.next-hero-model-hint { color: #a5b4a7; font-size: 12px; line-height: 1.5; margin: 0; padding: 9px 12px; }
+.next-hero-model-status { background: #142228e8; color: #d3ded1; inset: 0 0 auto; margin: 0; padding: 18px; position: absolute; }
+@media (max-width: 760px) {
+  .next-hero-model-canvas { height: 320px; }
+  .next-hero-model-controls > span { flex-basis: 100%; }
+  .next-hero-model-controls button { flex: 1 1 auto; }
+}
