@@ -101,14 +101,27 @@ for (const request of requests) {
 
 let native;
 let repeatedNative;
+async function timedNative(label) {
+  console.error(`${label}: starting ${requests.length} requests with ${process.env.SENKEI_NATIVE_DISPATCHER ?? "cargo run --release"}`);
+  const started = performance.now();
+  const responses = await runNative(requests);
+  console.error(`${label}: completed in ${((performance.now() - started) / 1000).toFixed(1)}s`);
+  return responses;
+}
 try {
-  native = await runNative(requests);
-  repeatedNative = await runNative(requests);
+  native = await timedNative("Native comparison");
+  repeatedNative = await timedNative("Native determinism repeat");
 } catch (error) {
   fail(`native dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 const wasmDispatch = await makeWasmDispatcher();
-const wasm = requests.map(wasmDispatch);
+const wasm = requests.map((request) => {
+  console.error(`WASM ${request.request_id}: starting`);
+  const started = performance.now();
+  const response = wasmDispatch(request);
+  console.error(`WASM ${request.request_id}: completed in ${((performance.now() - started) / 1000).toFixed(1)}s`);
+  return response;
+});
 
 const evidence = [];
 const digest = (value) => createHash("sha256").update(canonicalJson(value)).digest("hex");

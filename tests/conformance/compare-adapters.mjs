@@ -108,7 +108,7 @@ function runNative(requests) {
     const dispatcher = process.env.SENKEI_NATIVE_DISPATCHER;
     const child = spawn(
       dispatcher ?? "cargo",
-      dispatcher ? [] : ["run", "--quiet", "--locked", "-p", "senkei-wasm", "--bin", "senkei-wasm-dispatch"],
+      dispatcher ? [] : ["run", "--quiet", "--locked", "--release", "-p", "senkei-wasm", "--bin", "senkei-wasm-dispatch"],
       { cwd: repositoryRoot, stdio: ["pipe", "pipe", "inherit"] },
     );
     let stdout = "";
