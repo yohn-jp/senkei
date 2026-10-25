@@ -1,10 +1,10 @@
 {
   "evidenceKind": "compiled real Jinrei executed by desktop and mobile browser WASM",
-  "sourceRevision": "fab212560daeaa2e05894c7aa6aaf1db44e6ee0c",
-  "buildRevision": "fab212560daeaa2e05894c7aa6aaf1db44e6ee0c",
-  "inputSha256": "4fb41f41b32b336a6903d837b1d928a9bf8536119a2b01ce6ec1bfa8fcbddc50",
+  "sourceRevision": "df4e50df212d8866f57bdef26b12b161193f64ac",
+  "buildRevision": "df4e50df212d8866f57bdef26b12b161193f64ac",
+  "inputSha256": "c787ace2581a6b689d55f7791f4b8945457fc49f1d4567f8ff33cafe3200374e",
   "ruleset": {
-    "digest": "375b515f423e52ec9c0e1a8a7fdc0f60620417da9a121bab092c77cd1a87cc4f",
+    "digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
     "id": "senkei.next",
     "version": {
       "major": 2,
@@ -22,15 +22,15 @@
       "attacker": 2038,
       "defender": 164
     },
-    "final_state_digest": "0d3d24a2c1dbf6266127236b7dc1d1d722d422fd4c01d33392b0173e125901ce",
+    "final_state_digest": "e51f5cc63f6aab79927bbf62af04fe7fbc003c473a931c19154687f5a8534e0f",
     "final_tick": 70,
     "match_id": "battlefield-canonical-interactions",
     "outcome": "draw",
     "statistics": {},
     "termination_reason": "time_limit"
   },
-  "publicReplaySha256": "c87ad77243da3e3351d7c868a84c0363a221945cea27f8f7d11fa8dfdba2bcca",
-  "ownerReplaySha256": "50fde44f82f8f931e94e7e6da4e78fd8f30474ba5d0dca8a4297f03712a8ea06",
+  "publicReplaySha256": "e241f0058b6873cb8b813c7009468427a21f29627ca7aff046ebd3539b6d1381",
+  "ownerReplaySha256": "e469cf9d40646f3f914c42a966fb12ff18a47cecd8ec16c7e1abaaf3ef968ea3",
   "fullDesktopMobileReplayEquality": true,
   "viewports": [
     {
@@ -55,7 +55,7 @@
     "topDestroyed": 23,
     "ford": 24,
     "topRebuilt": 49,
-    "bridgeTransit": 50
+    "bridgeTransit": 61
   },
   "renderer": "Chromium with SwiftShader; hardware GPU and physical touch not checked"
 }
