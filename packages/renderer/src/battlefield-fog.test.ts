@@ -13,7 +13,7 @@ describe("battlefield fog presentation", () => {
         { id: "known", allegiance: "A", position: { x: 0, y: 0 } },
         { id: "unknown", allegiance: "B", position: { x: 2, y: 4 } },
       ],
-      routes: [{ id: "r", region: "lane", bridgeSite: "world.bridge.top", bridgeKind: "lane", points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }],
+      routes: [{ id: "r", region: "lane", bridgeSite: "world.bridge.top", bridgeKind: "lane", bridgePosition: { x: 1, y: 3 }, points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] }],
     });
     const replay = decodeReplay(input);
     const fog = new BattlefieldFog(new THREE.Scene(), replay);
@@ -40,7 +40,7 @@ describe("battlefield fog presentation", () => {
     expect(ring).toBeInstanceOf(THREE.Line);
     const box = new THREE.Box3().setFromObject(ring);
     expect(box.getCenter(new THREE.Vector3()).x).toBeCloseTo(1);
-    expect(box.getCenter(new THREE.Vector3()).z).toBeCloseTo(2);
+    expect(box.getCenter(new THREE.Vector3()).z).toBeCloseTo(3);
     fog.update({ ...state, fog: { ...state.fog!, state: { ...state.fog!.state, facilities: [] } } });
     expect(fog.group.getObjectByName(ring.name)).toBeUndefined();
     fog.dispose();

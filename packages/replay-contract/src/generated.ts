@@ -213,6 +213,7 @@ export interface Route {
   bridgeSite?: string;
   bridgeKind?: "lane" | "facility";
   ford?: boolean;
+  bridgePosition?: WorldPoint;
 }
 export interface MapNode {
   id: string;

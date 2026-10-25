@@ -775,8 +775,11 @@ export class Battlefield {
     const focus = entities.find((entity) => entity.side !== "neutral") ?? entities[0];
     if (!focus) return null;
     if (focus.kind === "bridge" || focus.kind === "observation") {
-      const site = focus.kind === "observation" ? "MID" : focus.battlefield?.bridgeSite;
-      const route = this.replay.scene.routes?.find(candidate => candidate.bridgeSite === site);
+      const site = focus.battlefield?.bridgeSite;
+      const route = this.replay.scene.routes?.find(candidate => focus.kind === "observation"
+        ? candidate.bridgeKind === "facility" && candidate.points.some(point =>
+            Math.hypot(point.x - focus.position.x, point.y - focus.position.y) < 1e-5)
+        : candidate.bridgeSite === site);
       if (route) {
         const first = route.points[0]!, last = route.points[route.points.length - 1]!;
         const direction = new THREE.Vector2(last.x - first.x, last.y - first.y);

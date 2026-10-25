@@ -489,6 +489,9 @@
             "facility"
           ]
         },
+        "bridgePosition": {
+          "$ref": "#/$defs/WorldPoint"
+        },
         "ford": {
           "type": "boolean"
         }

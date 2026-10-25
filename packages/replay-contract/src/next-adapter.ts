@@ -248,7 +248,7 @@ export function presentationToGraphics(
           else if (crossing.kind === "fixed_facility_bridge") bridgeKind = "facility";
           else throw new ReplayError(`Unsupported paired World bridge crossing kind: ${id}`);
         }
-        return [{id,region:edge.region,points,...(edge.bridge_site?{bridgeSite:edge.bridge_site,bridgeKind}:{}),...(edge.ford?{ford:true}:{})}];
+        return [{id,region:edge.region,points,...(edge.bridge_site?{bridgeSite:edge.bridge_site,bridgeKind,bridgePosition:bridgeSitePresentationPosition(edge.bridge_site,next.map.edges,projection,worldPresentation,nodePoint)}:{}),...(edge.ford?{ford:true}:{})}];
       }) },initialView,timeline,result });
 }
 
@@ -263,21 +263,7 @@ function presentationPosition(
 ): { x: number; y: number } {
   const site = maybeString(entity, "site");
   if (kind === "bridge" && site) {
-    const centers = (projection.bridge_sites[site] ?? []).map(edgeId => {
-      const edge = edges.find(candidate => (candidate.id || `${candidate.from}-${candidate.to}`) === edgeId);
-      const crossing = projection.edge_facts[edgeId]?.river_crossing;
-      if (!edge || !crossing || crossing.bridge_site_id !== site || edge.length <= 0)
-        throw new ReplayError(`Invalid paired World bridge site geometry: ${site}`);
-      const points = presentation.edge_paths[edgeId]?.points;
-      if (!points || points.length < 2) throw new ReplayError(`Missing canonical bridge route presentation: ${edgeId}`);
-      const from = nodePoint(edge.from);
-      const isForward = points[0]!.x === from.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT && points[0]!.y === from.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT;
-      const oriented = isForward ? points : [...points].reverse();
-      const amount = ((crossing.start_progress_wu + crossing.end_progress_wu) / 2) / edge.length;
-      return polylinePosition(oriented, amount);
-    });
-    if (centers.length === 0) throw new ReplayError(`Missing paired World bridge site geometry: ${site}`);
-    return { x: centers.reduce((sum, point) => sum + point.x, 0) / centers.length, y: centers.reduce((sum, point) => sum + point.y, 0) / centers.length };
+    return bridgeSitePresentationPosition(site, edges, projection, presentation, nodePoint);
   }
   const fromId = maybeString(entity, "node");
   const toId = maybeString(entity, "edge_to");
@@ -299,6 +285,31 @@ function presentationPosition(
     return polylinePosition(oriented, amount);
   }
   return nodePoint(fromId);
+}
+
+/** Static geometry only: every consumer uses the same paired World crossing centers. */
+function bridgeSitePresentationPosition(
+  site: string,
+  edges: readonly StaticEdge[],
+  projection: MapWorldProjection,
+  presentation: CanonicalPresentationContent,
+  nodePoint: (id: string) => { x: number; y: number },
+): { x: number; y: number } {
+  const centers = (projection.bridge_sites[site] ?? []).map(edgeId => {
+    const edge = edges.find(candidate => (candidate.id || `${candidate.from}-${candidate.to}`) === edgeId);
+    const crossing = projection.edge_facts[edgeId]?.river_crossing;
+    if (!edge || !crossing || crossing.bridge_site_id !== site || edge.length <= 0)
+      throw new ReplayError(`Invalid paired World bridge site geometry: ${site}`);
+    const points = presentation.edge_paths[edgeId]?.points;
+    if (!points || points.length < 2) throw new ReplayError(`Missing canonical bridge route presentation: ${edgeId}`);
+    const from = nodePoint(edge.from);
+    const isForward = points[0]!.x === from.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT && points[0]!.y === from.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT;
+    const oriented = isForward ? points : [...points].reverse();
+    const amount = ((crossing.start_progress_wu + crossing.end_progress_wu) / 2) / edge.length;
+    return polylinePosition(oriented, amount);
+  });
+  if (centers.length === 0) throw new ReplayError(`Missing paired World bridge site geometry: ${site}`);
+  return { x: centers.reduce((sum, point) => sum + point.x, 0) / centers.length, y: centers.reduce((sum, point) => sum + point.y, 0) / centers.length };
 }
 
 function stableIdentity(value: WorldIdentityRef): string {

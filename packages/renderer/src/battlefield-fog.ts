@@ -87,8 +87,7 @@ export class BattlefieldFog {
     for (const contact of fog.facilities) {
       const route = this.replay.scene.routes?.find(route => route.bridgeSite === contact.site);
       const point: WorldPoint | undefined = contact.kind === "bridge"
-        ? contact.site === "MID" ? this.replay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
-          : route ? polylinePointAtFraction(route.points, 0.5) : undefined
+        ? route?.bridgePosition
         : this.replay.scene.nodes?.find(node => node.id === contact.site)?.position;
       if (!point) continue;
       const vertices = Array.from({ length: 33 }, (_, i) => {

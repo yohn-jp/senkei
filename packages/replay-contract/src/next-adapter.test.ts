@@ -33,7 +33,7 @@ const TEST_PRESENTATION_WORLD: TestPresentationWorld = { river: { anchors: [
 const value = (kind: "integer" | "string", value: number | string): DomainValue => ({ kind, value } as DomainValue);
 const viewEntity = (entity_type: string, fields: Record<string, DomainValue>) => ({ entity_type, owner: "attacker", fields });
 
-function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; bridge_kind?:string; ford?:boolean }[] = [
+function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; bridge_kind?:string; crossing_start?:number; crossing_end?:number; ford?:boolean }[] = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
   { from: "camp", to: "defender", length: 250, region: "jungle", blocked: true },
 ], frames: CoreReplay["frames"] = [], nodes: Record<string, { x: number; y: number; region: string }> = {
@@ -46,7 +46,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
       { x: presentationNodes[edge.to]?.x ?? nodes[edge.to]?.x ?? 0, y: presentationNodes[edge.to]?.y ?? nodes[edge.to]?.y ?? 0 }],
   }]));
   const edgeFacts = Object.fromEntries(edges.map(edge => [edge.id || `${edge.from}-${edge.to}`, { river_crossing:
-    edge.bridge_site ? { kind: edge.bridge_kind ?? "fixed_facility_bridge", bridge_site_id: edge.bridge_site, start_progress_wu: 0, end_progress_wu: edge.length }
+    edge.bridge_site ? { kind: edge.bridge_kind ?? "fixed_facility_bridge", bridge_site_id: edge.bridge_site, start_progress_wu: edge.crossing_start ?? 0, end_progress_wu: edge.crossing_end ?? edge.length }
       : edge.ford ? { kind: "foot_ford", bridge_site_id: null, start_progress_wu: 0, end_progress_wu: edge.length }
         : null,
   }]));
@@ -502,4 +502,29 @@ describe("known base geography", () => {
     duplicate.scene.baseSites![1]!.id = duplicate.scene.baseSites![0]!.id;
     expect(() => decodeReplay(duplicate)).toThrow(/Duplicate base site/);
   });
+});
+
+
+it("shares the exact paired crossing-site center with visible and remembered facility consumers", () => {
+  const replay = project([
+    { id: "left", from: "attacker", to: "camp", length: 250, region: "river", blocked: false,
+      bridge_site: "world.bridge.center", crossing_start: 0, crossing_end: 50 },
+    { id: "right", from: "camp", to: "defender", length: 250, region: "river", blocked: false,
+      bridge_site: "world.bridge.center", crossing_start: 150, crossing_end: 200 },
+  ], [{ tick: 0, events: [], visible_state: { global_fields: {}, entities: {
+    bridge: { entity_type: "bridge", owner: null, fields: {
+      site: value("string", "world.bridge.center"), bridge_state: value("string", "normal"),
+      x: value("integer", 100), y: value("integer", 200),
+    } },
+  } } }], undefined, undefined, undefined, WORLD, WORLD, WORLD, RULESET,
+  { attacker: { x: 0, y: 0 }, camp: { x: 250, y: 0 }, defender: { x: 500, y: 0 } });
+  // Crossing centers are 25 and 425 WU; the site center is their mean / 25.
+  expect(replay.scene.routes?.map(route => route.bridgePosition)).toEqual([{ x: 9, y: 0 }, { x: 9, y: 0 }]);
+  expect(replay.initialView.find(entity => entity.kind === "bridge")?.position).toEqual({ x: 9, y: 0 });
+  const missing = structuredClone(replay) as PresentationReplay;
+  delete missing.scene.routes![0]!.bridgePosition;
+  expect(() => decodeReplay(missing)).toThrow(/paired World bridge positions/);
+  const outside = structuredClone(replay) as PresentationReplay;
+  outside.scene.routes![0]!.bridgePosition = { x: 100, y: 0 };
+  expect(() => decodeReplay(outside)).toThrow(/Position outside scene/);
 });

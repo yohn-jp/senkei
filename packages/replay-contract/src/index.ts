@@ -90,6 +90,12 @@ export function decodeReplay(input: unknown): Replay {
     if (routeIds.has(route.id)) fail(`Duplicate route ID: ${route.id}`);
     routeIds.add(route.id);
     route.points.forEach(point);
+    if (route.bridgePosition) {
+      if (!route.bridgeSite) fail("Bridge position requires a site identity");
+      point(route.bridgePosition);
+    }
+    if (r.schemaVersion === "0.3" && r.header.origin !== "sample" && route.bridgeSite && !route.bridgePosition)
+      fail("Replay 0.3 requires paired World bridge positions");
   }
   const nodeIds = new Set<string>();
   for (const node of r.scene.nodes ?? []) {
