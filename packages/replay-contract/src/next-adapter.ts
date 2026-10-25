@@ -7,11 +7,15 @@ type StaticEdge = NonNullable<RulePackage["next"]>["map"]["edges"][number];
 type StaticMap = NonNullable<RulePackage["next"]>["map"];
 
 export type PresentationRiverAnchor =
-  | { readonly kind: "bridge-site"; readonly site: "TOP" | "MID" | "BOT" }
-  | { readonly kind: "edge-midpoint"; readonly edgeId: string }
-  | { readonly kind: "node"; readonly nodeId: string };
+  | { readonly kind: "bridge-midpoint"; readonly edgeId: string; readonly site: "TOP" | "BOT" }
+  | { readonly kind: "ford-midpoint"; readonly edgeId: string }
+  | { readonly kind: "node"; readonly nodeId: string; readonly region: "observation" };
 
-/** Ordered, presentation-only river centerline anchors for a World. */
+/**
+ * Adapter-local mapping from current RulePackage.next.map IDs to river
+ * presentation anchors. It is not a CanonicalPresentationWorld and carries no
+ * WorldIdentity or presentation digest.
+ */
 export interface NextPresentationWorldDefinition {
   readonly river: {
     readonly anchors: readonly PresentationRiverAnchor[];
@@ -27,11 +31,11 @@ export interface NextPresentationWorldDefinition {
 export const NEXT_BATTLEFIELD_PRESENTATION_WORLD: NextPresentationWorldDefinition = {
   river: {
     anchors: [
-      { kind: "bridge-site", site: "TOP" },
-      { kind: "edge-midpoint", edgeId: "ford.jungle.upper" },
-      { kind: "bridge-site", site: "MID" },
-      { kind: "edge-midpoint", edgeId: "ford.jungle.lower" },
-      { kind: "bridge-site", site: "BOT" },
+      { kind: "bridge-midpoint", edgeId: "bridge.TOP", site: "TOP" },
+      { kind: "ford-midpoint", edgeId: "ford.jungle.upper" },
+      { kind: "node", nodeId: "N.MID.OBS", region: "observation" },
+      { kind: "ford-midpoint", edgeId: "ford.jungle.lower" },
+      { kind: "bridge-midpoint", edgeId: "bridge.BOT", site: "BOT" },
     ],
     terminalExtension: 8,
   },
@@ -231,30 +235,17 @@ function presentationRiver(
     switch (anchor.kind) {
       case "node": {
         const node = map.nodes[anchor.nodeId];
-        return node ? { x: node.x / scale, y: node.y / scale } : undefined;
+        return node?.region === anchor.region ? { x: node.x / scale, y: node.y / scale } : undefined;
       }
-      case "edge-midpoint": {
+      case "bridge-midpoint":
+      case "ford-midpoint": {
         const edge = map.edges.find(item => item.id === anchor.edgeId);
-        if (!edge) return undefined;
+        if (!edge ||
+          (anchor.kind === "bridge-midpoint" && edge.bridge_site !== anchor.site) ||
+          (anchor.kind === "ford-midpoint" && !edge.ford)) return undefined;
         const from = map.nodes[edge.from], to = map.nodes[edge.to];
         if (!from || !to) return undefined;
         return { x: (from.x + to.x) / (2 * scale), y: (from.y + to.y) / (2 * scale) };
-      }
-      case "bridge-site": {
-        const edges = map.edges.filter(edge => edge.bridge_site === anchor.site);
-        if (!edges.length) return undefined;
-        const observation = anchor.site === "MID"
-          ? Object.values(map.nodes).find(node => node.region === "observation")
-          : undefined;
-        if (observation) return { x: observation.x / scale, y: observation.y / scale };
-        const endpoints = [...new Set(edges.flatMap(edge => [edge.from, edge.to]))]
-          .map(id => map.nodes[id])
-          .filter((node): node is NonNullable<typeof node> => node !== undefined);
-        if (!endpoints.length) return undefined;
-        return {
-          x: endpoints.reduce((sum, node) => sum + node.x, 0) / (endpoints.length * scale),
-          y: endpoints.reduce((sum, node) => sum + node.y, 0) / (endpoints.length * scale),
-        };
       }
     }
   });
