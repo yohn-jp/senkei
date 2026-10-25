@@ -38,13 +38,11 @@ function minimumWorldY(root: THREE.Object3D): number {
   root.updateMatrixWorld(true);
   let minimum = Infinity;
   for (const mesh of meshes(root)) {
-    mesh.geometry.computeBoundingBox();
-    const bounds = mesh.geometry.boundingBox;
-    if (!bounds) continue;
-    for (const x of [bounds.min.x, bounds.max.x])
-      for (const y of [bounds.min.y, bounds.max.y])
-        for (const z of [bounds.min.z, bounds.max.z])
-          minimum = Math.min(minimum, mesh.localToWorld(new THREE.Vector3(x, y, z)).y);
+    const positions = mesh.geometry.getAttribute("position");
+    for (let index = 0; index < positions.count; index++) {
+      const y = mesh.localToWorld(new THREE.Vector3().fromBufferAttribute(positions, index)).y;
+      minimum = Math.min(minimum, y);
+    }
   }
   return minimum;
 }
@@ -75,7 +73,7 @@ describe("Battlefield unit models", () => {
       expect(meshes(levels[0]).length).toBeLessThanOrEqual(60);
       expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
       expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
-      expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
+      expect(minimumWorldY(levels[0]), `${id} neutral pose stays above the ground`).toBeGreaterThanOrEqual(-0.025);
       expect(rig.joints.torso).toBeInstanceOf(THREE.Group);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
       expect(rig.weaponPivots.main).toBeInstanceOf(THREE.Group);
@@ -102,30 +100,50 @@ describe("Battlefield unit models", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
     const stances = new Set<string>();
     const silhouettes = new Set<string>();
+    const bodyProfiles = new Set<string>();
+    const bodyContours = new Set<string>();
     for (const id of identities) {
       const group = new THREE.Group();
       const rig = buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id}`, id.toUpperCase()), 0xffffff, `senkei.next.hero.${id}`);
       stances.add(JSON.stringify(rig.restPose));
       silhouettes.add(silhouetteBounds(lodLevels(group)[0]));
+      bodyProfiles.add(String(group.userData.heroBodyProfile));
+      bodyContours.add(silhouetteBounds(rig.joints.torso));
     }
     expect(stances.size).toBe(12);
     expect(silhouettes.size).toBe(12);
+    expect(bodyProfiles.size).toBe(12);
+    expect(bodyContours.size).toBe(12);
+  });
+
+  it("preserves R04's halo as weapon geometry through its full model", () => {
+    const weaponGeometry = (id: string) => {
+      const group = new THREE.Group();
+      const rig = buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id.toLowerCase()}`, id), 0x347e83, `senkei.next.hero.${id.toLowerCase()}`);
+      const pivot = rig.weaponPivots.main;
+      return meshes(pivot).reduce((sum, mesh) => sum + mesh.geometry.getAttribute("position").count, 0);
+    };
+    expect(weaponGeometry("R04")).toBeGreaterThan(weaponGeometry("R01"));
   });
 
   it("keeps melee, ranged and siege Minions visually distinct with a compact shared-material far LOD", () => {
     const kinds = ["melee", "ranged", "siege"];
+    const signaturesByLevel = [new Set<string>(), new Set<string>(), new Set<string>()];
     const groups = kinds.map(kind => {
       const group = new THREE.Group();
       const rig = buildBattlefieldMinion(group, entity(kind, `minion-${kind}`, `minion-${kind}`), 0x347e83, `minion-${kind}`);
       const levels = lodLevels(group);
       expect(levels).toHaveLength(3);
-      expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
-      expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
+      levels.forEach((level, index) => {
+        signaturesByLevel[index].add(silhouetteBounds(level));
+        if (index > 0) expect(meshes(level).length).toBeLessThanOrEqual(5);
+      });
       expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
       expect(rig.weaponPivots.main).toBeInstanceOf(THREE.Group);
       return { group, levels };
     });
+    expect(signaturesByLevel.map(signatures => signatures.size)).toEqual([3, 3, 3]);
     expect(new Set(groups.map(({ group }) => group.userData.unitClass)).size).toBe(3);
     const silhouetteComplexity = groups.map(({ levels }) => meshes(levels[0]).reduce((sum, mesh) => sum + mesh.geometry.getAttribute("position").count, 0));
     expect(new Set(silhouetteComplexity).size).toBe(3);
@@ -133,10 +151,12 @@ describe("Battlefield unit models", () => {
   });
 
   it("keeps three neutral monster silhouettes on separate LOD models", () => {
+    const signaturesByLevel = [new Set<string>(), new Set<string>(), new Set<string>()];
     for (const species of ["grove-brute", "iron-warden", "storm-stalker"]) {
       const group = new THREE.Group();
       const rig = buildBattlefieldMonster(group, entity(species, species, `monster-${species}`), species);
       const levels = lodLevels(group);
+      levels.forEach((level, index) => signaturesByLevel[index].add(silhouetteBounds(level)));
       expect(group.userData.species).toBe(species);
       expect(levels).toHaveLength(3);
       expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
@@ -145,5 +165,6 @@ describe("Battlefield unit models", () => {
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
     }
+    expect(signaturesByLevel.map(signatures => signatures.size)).toEqual([3, 3, 3]);
   });
 });

@@ -123,6 +123,7 @@ export function createHeroModelPreview(
   renderer.domElement.dataset.previewReady = "false";
   renderer.domElement.dataset.catalogId = options.catalogId;
   renderer.domElement.dataset.appearanceKey = options.appearanceKey;
+  renderer.domElement.dataset.silhouetteId = options.catalogId;
   renderer.domElement.dataset.name = options.name;
   renderer.domElement.dataset.generator = GENERATOR;
   renderer.domElement.dataset.pose = "idle";
@@ -192,6 +193,9 @@ export function createHeroModelPreview(
     throw error;
   }
   renderer.domElement.dataset.generator = String(model.userData.battlefieldRig?.generator ?? GENERATOR);
+  renderer.domElement.dataset.silhouetteId = String(model.userData.heroSilhouette ?? options.catalogId);
+  renderer.domElement.dataset.bodyProfile = String(model.userData.heroBodyProfile ?? "unknown");
+  renderer.domElement.dataset.weapon = String(model.userData.heroWeapon ?? "unknown");
   renderer.domElement.dataset.previewReady = "true";
   renderer.domElement.setAttribute("aria-busy", "false");
 

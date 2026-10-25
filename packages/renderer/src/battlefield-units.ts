@@ -13,6 +13,16 @@ const SURFACES: readonly UnitSurface[] = ["armor", "cloth", "leather", "skin", "
 const HERO_SCALE = 0.89;
 const MINION_SCALE = 0.72;
 type DetailLevel = "full" | "medium" | "far";
+type HeroBodyProfile = "command" | "bastion" | "breacher" | "duelist" | "controller" | "pathfinder" | "channeler" | "marksman" | "stalker" | "oracle" | "engineer" | "ranger";
+
+interface HeroBodyProportions {
+  torso: readonly [number, number, number];
+  pelvis: readonly [number, number, number];
+  limbs: readonly [number, number, number];
+  legHeight: number;
+  head: number;
+  legSpread: number;
+}
 
 interface ShapeSpec {
   id: string;
@@ -24,22 +34,38 @@ interface ShapeSpec {
   accent: number;
   build: number;
   mantle: boolean;
+  bodyProfile: HeroBodyProfile;
   stance: Readonly<Record<string, readonly [number, number, number]>>;
 }
 
+const HERO_BODY_PROPORTIONS: Record<HeroBodyProfile, HeroBodyProportions> = {
+  command: { torso: [1.07, 1.02, 1.03], pelvis: [1.04, 1, 1], limbs: [1, 1, 1], legHeight: 0.98, head: 0.96, legSpread: 0.19 },
+  bastion: { torso: [1.2, 0.98, 1.12], pelvis: [1.16, 1.02, 1.1], limbs: [1.12, 0.96, 1.08], legHeight: 0.93, head: 0.9, legSpread: 0.23 },
+  breacher: { torso: [1.04, 1.01, 1.04], pelvis: [0.96, 0.98, 1], limbs: [1.04, 1.04, 1.02], legHeight: 0.97, head: 0.96, legSpread: 0.21 },
+  duelist: { torso: [0.88, 1.08, 0.92], pelvis: [0.9, 1.02, 0.95], limbs: [0.91, 1.06, 0.92], legHeight: 0.95, head: 0.98, legSpread: 0.185 },
+  controller: { torso: [0.96, 1.02, 0.98], pelvis: [0.96, 1, 0.98], limbs: [0.95, 1.01, 0.96], legHeight: 0.96, head: 1.02, legSpread: 0.19 },
+  pathfinder: { torso: [1.08, 1.04, 1.04], pelvis: [1.06, 1, 1.04], limbs: [1.03, 1.02, 1.02], legHeight: 0.98, head: 0.94, legSpread: 0.205 },
+  channeler: { torso: [0.93, 1.08, 0.94], pelvis: [0.92, 0.99, 0.95], limbs: [0.91, 1.08, 0.93], legHeight: 0.94, head: 1.03, legSpread: 0.18 },
+  marksman: { torso: [0.92, 1.05, 0.94], pelvis: [0.93, 1, 0.95], limbs: [0.91, 1.04, 0.92], legHeight: 0.95, head: 0.96, legSpread: 0.19 },
+  stalker: { torso: [0.9, 0.98, 0.92], pelvis: [0.9, 0.98, 0.92], limbs: [0.89, 0.97, 0.9], legHeight: 0.91, head: 0.94, legSpread: 0.205 },
+  oracle: { torso: [0.95, 1.1, 0.96], pelvis: [0.94, 1, 0.96], limbs: [0.93, 1.07, 0.95], legHeight: 0.94, head: 1.08, legSpread: 0.18 },
+  engineer: { torso: [1.1, 1, 1.1], pelvis: [1.08, 1, 1.06], limbs: [1.08, 1, 1.06], legHeight: 0.98, head: 0.95, legSpread: 0.21 },
+  ranger: { torso: [0.91, 1.1, 0.92], pelvis: [0.9, 1.01, 0.93], limbs: [0.9, 1.1, 0.91], legHeight: 0.95, head: 0.96, legSpread: 0.19 },
+};
+
 const HERO_SHAPES: Record<string, ShapeSpec> = {
-  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
-  f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
-  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12], "leg.left": [-0.14, 0, 0], "leg.right": [0.1, 0, 0] } },
-  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, 0.14], "arm.right": [-0.08, 0, -0.14], "leg.left": [0.12, 0, 0], "leg.right": [-0.08, 0, 0] } },
-  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true, stance: { torso: [0.01, 0.06, 0], "arm.left": [-0.1, 0, 0.12], "arm.right": [-0.08, 0, -0.1], "leg.left": [0.06, 0, 0], "leg.right": [-0.05, 0, 0] } },
-  f06: { id: "F06", name: "Pathfinder", weapon: "two-hand-maul", headgear: "winged", cloth: 0x485f58, armor: 0x9c9b86, accent: 0xd2b370, build: 1.04, mantle: true, stance: { torso: [0.045, 0, 0], "arm.left": [-0.04, 0, 0.08], "arm.right": [-0.12, 0, -0.08], "leg.left": [-0.06, 0, 0], "leg.right": [0.08, 0, 0] } },
-  r01: { id: "R01", name: "Tempest", weapon: "staff", headgear: "hood", cloth: 0x445e6d, armor: 0x71858c, accent: 0x94a8a5, build: 0.88, mantle: true, stance: { torso: [-0.015, 0, 0], "arm.left": [-0.08, 0, 0.07], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.04, 0, 0], "leg.right": [0.04, 0, 0] } },
-  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true, stance: { torso: [-0.04, 0.06, 0], "arm.left": [-0.13, 0, 0.12], "arm.right": [-0.15, 0, -0.09], "leg.left": [0.04, 0, 0], "leg.right": [-0.04, 0, 0] } },
-  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true, stance: { torso: [0.12, -0.04, 0], "arm.left": [-0.12, 0, 0.18], "arm.right": [-0.1, 0, -0.16], "leg.left": [0.14, 0, 0], "leg.right": [-0.12, 0, 0] } },
-  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true, stance: { torso: [-0.025, 0, 0], head: [0, 0.025, 0], "arm.left": [-0.04, 0, 0.06], "arm.right": [-0.06, 0, -0.06], "leg.left": [-0.02, 0, 0], "leg.right": [0.02, 0, 0] } },
-  r05: { id: "R05", name: "Conductor", weapon: "siege-launcher", headgear: "engineer", cloth: 0x59645d, armor: 0x848d86, accent: 0xc3a66a, build: 1.02, mantle: false, stance: { torso: [0.02, 0, 0], "arm.left": [-0.08, 0, 0.08], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.08, 0, 0], "leg.right": [0.08, 0, 0] } },
-  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true, stance: { torso: [-0.045, 0.08, 0], "arm.left": [-0.08, 0, 0.1], "arm.right": [-0.14, 0, -0.12], "leg.left": [0.08, 0, 0], "leg.right": [-0.06, 0, 0] } },
+  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
+  f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, bodyProfile: "bastion", stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
+  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, bodyProfile: "breacher", stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12] } },
+  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, bodyProfile: "duelist", stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, 0.14], "arm.right": [-0.08, 0, -0.14], "leg.left": [0.03, 0, 0], "leg.right": [-0.03, 0, 0] } },
+  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true, bodyProfile: "controller", stance: { torso: [0.01, 0.06, 0], "arm.left": [-0.1, 0, 0.12], "arm.right": [-0.08, 0, -0.1], "leg.left": [0.06, 0, 0], "leg.right": [-0.05, 0, 0] } },
+  f06: { id: "F06", name: "Pathfinder", weapon: "two-hand-maul", headgear: "winged", cloth: 0x485f58, armor: 0x9c9b86, accent: 0xd2b370, build: 1.04, mantle: true, bodyProfile: "pathfinder", stance: { torso: [0.045, 0, 0], "arm.left": [-0.04, 0, 0.08], "arm.right": [-0.12, 0, -0.08], "leg.left": [-0.06, 0, 0], "leg.right": [0.08, 0, 0] } },
+  r01: { id: "R01", name: "Tempest", weapon: "staff", headgear: "hood", cloth: 0x445e6d, armor: 0x71858c, accent: 0x94a8a5, build: 0.88, mantle: true, bodyProfile: "channeler", stance: { torso: [-0.015, 0, 0], "arm.left": [-0.08, 0, 0.07], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.04, 0, 0], "leg.right": [0.04, 0, 0] } },
+  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true, bodyProfile: "marksman", stance: { torso: [-0.04, 0.06, 0], "arm.left": [-0.13, 0, 0.12], "arm.right": [-0.15, 0, -0.09], "leg.left": [0.04, 0, 0], "leg.right": [-0.04, 0, 0] } },
+  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true, bodyProfile: "stalker", stance: { torso: [0.12, -0.04, 0], "arm.left": [-0.12, 0, 0.18], "arm.right": [-0.1, 0, -0.16], "leg.left": [0.14, 0, 0], "leg.right": [-0.12, 0, 0] } },
+  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true, bodyProfile: "oracle", stance: { torso: [-0.025, 0, 0], head: [0, 0.025, 0], "arm.left": [-0.04, 0, 0.06], "arm.right": [-0.06, 0, -0.06], "leg.left": [-0.02, 0, 0], "leg.right": [0.02, 0, 0] } },
+  r05: { id: "R05", name: "Conductor", weapon: "siege-launcher", headgear: "engineer", cloth: 0x59645d, armor: 0x848d86, accent: 0xc3a66a, build: 1.02, mantle: false, bodyProfile: "engineer", stance: { torso: [0.02, 0, 0], "arm.left": [-0.08, 0, 0.08], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.08, 0, 0], "leg.right": [0.08, 0, 0] } },
+  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true, bodyProfile: "ranger", stance: { torso: [-0.045, 0.08, 0], "arm.left": [-0.08, 0, 0.1], "arm.right": [-0.14, 0, -0.12], "leg.left": [0.08, 0, 0], "leg.right": [-0.06, 0, 0] } },
 };
 
 export interface BattlefieldUnitRig {
@@ -673,7 +699,8 @@ function addHeroFarLoadout(builder: UnitBuilder, body: { mainPivot: THREE.Group;
       addRod(builder, body.mainPivot, "leather", 0x77593b, 1.25, 0.05, -0.16);
       builder.panel(body.mainPivot, "armor", [[-0.22, 0.15], [-0.16, 0.29], [0.16, 0.29], [0.22, 0.15], [0.15, -0.08], [-0.15, -0.08]], palette.armor, [0, 1.05, 0.02], 0.08, 0.03);
       break;
-    case "staff": case "halo-staff": addStaff(builder, body.mainPivot, palette.accent, 0x8ea69a); break;
+    case "staff": addStaff(builder, body.mainPivot, palette.accent, 0x8ea69a); break;
+    case "halo-staff": addStaff(builder, body.mainPivot, palette.accent, 0xb2ae91, true); break;
     case "crossbow": addCrossbow(builder, body.mainPivot, palette); break;
     case "dual-daggers":
       addDagger(builder, body.mainPivot, palette);
@@ -684,6 +711,27 @@ function addHeroFarLoadout(builder: UnitBuilder, body: { mainPivot: THREE.Group;
   }
   if (shape.id === "F01" || shape.id === "F06") {
     builder.panel(builder.root, "cloth", [[0, 2.02], [0.22, 1.98], [0.22, 1.72], [0.12, 1.65], [0, 1.7]], palette.team, [shape.id === "F01" ? -0.4 : 0.42, 0, -0.3], 0.03, 0.012);
+  }
+}
+
+function applyHeroBodyProportions(builder: UnitBuilder, shape: ShapeSpec): void {
+  const proportions = HERO_BODY_PROPORTIONS[shape.bodyProfile];
+  const torso = builder.joints.torso;
+  const pelvis = builder.joints.pelvis;
+  const head = builder.joints.head;
+  if (!torso || !pelvis || !head) throw new Error(`Hero ${shape.id} does not contain a complete humanoid body rig`);
+  torso.scale.set(...proportions.torso);
+  pelvis.scale.set(...proportions.pelvis);
+  head.scale.setScalar(proportions.head);
+
+  for (const side of [-1, 1] as const) {
+    const label = side < 0 ? "left" : "right";
+    const arm = builder.joints[`arm.${label}`];
+    const leg = builder.joints[`leg.${label}`];
+    if (!arm || !leg) throw new Error(`Hero ${shape.id} is missing the ${label} limb rig`);
+    arm.scale.set(...proportions.limbs);
+    leg.scale.set(proportions.limbs[0], proportions.legHeight, proportions.limbs[2]);
+    leg.position.x = side * proportions.legSpread;
   }
 }
 
@@ -723,6 +771,7 @@ function buildBattlefieldHeroLevel(
   addHeadgear(builder, body.head, shape, palette);
   if (detail === "far") addHeroFarLoadout(builder, body, shape, palette);
   else addHeroLoadout(builder, group, body, shape, palette);
+  applyHeroBodyProportions(builder, shape);
   for (const [jointName, [x, y, z]] of Object.entries(shape.stance)) {
     const joint = builder.joints[jointName];
     if (!joint) throw new Error(`Hero ${shape.id} references unknown stance joint: ${jointName}`);
@@ -733,6 +782,7 @@ function buildBattlefieldHeroLevel(
     group.userData.appearanceKey = appearanceKey;
     group.userData.heroName = shape.name;
     group.userData.heroSilhouette = shape.id;
+    group.userData.heroBodyProfile = shape.bodyProfile;
   }
   return builder.finish(detail !== "full");
 }
@@ -761,6 +811,8 @@ export function buildBattlefieldHero(
   group.userData.appearanceKey = appearanceKey;
   group.userData.heroName = shape.name;
   group.userData.heroSilhouette = shape.id;
+  group.userData.heroBodyProfile = shape.bodyProfile;
+  group.userData.heroWeapon = shape.weapon;
   group.userData.battlefieldRig = {
     version: 1,
     generator: "senkei.battlefield-unit.v1",
