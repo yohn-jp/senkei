@@ -98,6 +98,20 @@ function integerField(entity: JsonRecord | undefined, key: string): number | nul
   return value?.kind === "integer" && Number.isSafeInteger(value.value) ? value.value : null;
 }
 
+function requiredRecord(value: unknown, label: string): JsonRecord {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`The visual capture ${label} is missing or is not an object.`);
+  }
+  return value as JsonRecord;
+}
+
+function requiredString(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`The visual capture ${label} is missing or is not a nonempty string.`);
+  }
+  return value;
+}
+
 function entitiesAt(replay: JsonRecord, tick: number): [string, JsonRecord][] {
   return Object.entries(frameAt(replay, tick).visible_state?.entities ?? {}) as [string, JsonRecord][];
 }
@@ -347,22 +361,37 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
     const current = window as typeof window & { __visualRequest?: JsonRecord; __visualResponse?: JsonRecord };
     return { request: current.__visualRequest ?? null, response: current.__visualResponse ?? null };
   });
-  expect(captured.request?.operation, "the local UI issued a real Enbu simulation").toBe("simulate");
-  expect(captured.response?.ok, "the real Worker/WASM response succeeded").toBe(true);
-  expect(captured.response?.request_id).toBe(captured.request?.request_id);
+  const capturedRequest = requiredRecord(captured.request, "Worker request");
+  const capturedResponse = requiredRecord(captured.response, "Worker response");
+  if (capturedRequest.operation !== "simulate") throw new Error("The local UI did not issue a real Enbu simulation.");
+  if (capturedResponse.ok !== true) throw new Error("The real Worker/WASM simulation did not succeed.");
+  const requestId = requiredString(capturedRequest.request_id, "Worker request ID");
+  const responseRequestId = requiredString(capturedResponse.request_id, "Worker response request ID");
+  if (responseRequestId !== requestId) throw new Error("The Worker response does not match the captured Enbu simulation request.");
   expect(wasmResponses.some((response) => response.status === 200), "the browser loaded the actual WASM binary").toBe(true);
-  const simulation = captured.response.result as JsonRecord;
-  const result = simulation.outcome.result as JsonRecord;
-  const publicReplay = simulation.outcome.presentation_replay as JsonRecord;
-  const ownerReplay = simulation.owner_replay as JsonRecord | undefined;
-  expect(ownerReplay?.perspective).toBe("attacker");
-  expect(ownerReplay?.frames.length).toBe(result.final_tick + 1);
-  expect(publicReplay.frames.length).toBe(result.final_tick + 1);
-  expect(result.match_id).toBe(captured.request.payload.snapshot.context.match_id);
-  expect(result.final_state_digest).toBeTruthy();
+  const requestPayload = requiredRecord(capturedRequest.payload, "Worker request payload");
+  const requestSnapshot = requiredRecord(requestPayload.snapshot, "Worker snapshot");
+  const requestContext = requiredRecord(requestSnapshot.context, "Worker snapshot context");
+  const requestedMatchId = requiredString(requestContext.match_id, "Worker snapshot match ID");
+  const simulation = requiredRecord(capturedResponse.result, "Worker simulation result");
+  const outcome = requiredRecord(simulation.outcome, "simulation outcome");
+  const result = requiredRecord(outcome.result, "Enbu result");
+  const publicReplay = requiredRecord(outcome.presentation_replay, "public presentation replay");
+  const ownerReplay = requiredRecord(simulation.owner_replay, "authorized owner replay");
+  if (ownerReplay.perspective !== "attacker") throw new Error("The real Worker response lacks the authorized attacker replay.");
+  if (!Array.isArray(ownerReplay.frames) || ownerReplay.frames.length !== result.final_tick + 1) {
+    throw new Error("The authorized owner replay does not contain every Enbu tick frame.");
+  }
+  if (!Array.isArray(publicReplay.frames) || publicReplay.frames.length !== result.final_tick + 1) {
+    throw new Error("The public presentation replay does not contain every Enbu tick frame.");
+  }
+  const resultMatchId = requiredString(result.match_id, "Enbu result match ID");
+  if (resultMatchId !== requestedMatchId) throw new Error(`The Enbu result match ID does not match request ${requestedMatchId}.`);
+  requiredString(result.final_state_digest, "final state digest");
+  requiredString(publicReplay.result_digest, "public replay digest");
   expect(pageErrors).toEqual([]);
   return {
-    request: captured.request,
+    request: capturedRequest,
     response: simulation,
     result,
     publicReplay,

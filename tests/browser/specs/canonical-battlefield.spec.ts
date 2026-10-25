@@ -18,6 +18,20 @@ const expectedNodes = [
   "N.A.UJ", "N.B.UJ", "N.A.LJ", "N.B.LJ", "N.A.UC", "N.B.UC", "N.A.LC", "N.B.LC",
 ];
 
+function requiredRecord(value: unknown, label: string): JsonRecord {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`The canonical browser ${label} is missing or is not an object.`);
+  }
+  return value as JsonRecord;
+}
+
+function requiredString(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`The canonical browser ${label} is missing or is not a nonempty string.`);
+  }
+  return value;
+}
+
 async function compileScenarioInput(): Promise<void> {
   mkdirSync(dirname(snapshotPath), { recursive: true });
   execFileSync("cargo", [
@@ -45,11 +59,14 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
         let outgoing = message;
         if (request?.operation === "simulate") {
           const target = window as typeof window & { __canonicalRequest?: { request_id?: unknown }; __canonicalResponse?: unknown };
-          const modified = structuredClone(message) as { payload?: Record<string, unknown> };
+          const modified = structuredClone(request) as { operation?: unknown; request_id?: unknown; payload?: Record<string, unknown> };
           if (!modified.payload) throw new Error("canonical browser simulation has no payload");
           modified.payload.snapshot = structuredClone(controlledSnapshot);
           outgoing = modified;
-          target.__canonicalRequest = structuredClone(outgoing);
+          if (typeof modified.request_id !== "string" || modified.request_id.length === 0) {
+            throw new Error("canonical browser simulation has no request ID");
+          }
+          target.__canonicalRequest = { request_id: modified.request_id };
         }
         if (transfer === undefined) super.postMessage(outgoing);
         else super.postMessage(outgoing, transfer as Transferable[]);
@@ -91,20 +108,32 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   await expect(canvas).toHaveAttribute("data-rendered", "true", { timeout: 30_000 });
   await expect(canvas).toHaveAttribute("data-tick", "0");
   await expect.poll(() => page.evaluate(() => Boolean((window as typeof window & { __canonicalResponse?: unknown }).__canonicalResponse))).toBe(true);
-  const response = await page.evaluate(() => (window as typeof window & { __canonicalResponse?: JsonRecord }).__canonicalResponse ?? null);
-  expect(response?.ok).toBe(true);
-  expect(response?.request_id).toBeTruthy();
+  const captured = await page.evaluate(() => {
+    const current = window as typeof window & { __canonicalRequest?: unknown; __canonicalResponse?: unknown };
+    return { request: current.__canonicalRequest, response: current.__canonicalResponse };
+  });
+  const request = requiredRecord(captured.request, "Worker request identity");
+  const requestId = requiredString(request.request_id, "Worker request ID");
+  const response = requiredRecord(captured.response, "Worker response");
+  if (response.ok !== true) throw new Error("The canonical browser Worker response did not succeed.");
+  const responseRequestId = requiredString(response.request_id, "Worker response request ID");
+  if (responseRequestId !== requestId) throw new Error("The canonical Worker response does not match its Enbu simulation request.");
   expect(wasmResponses).toContain(200);
 
-  const simulation = response.result as JsonRecord;
-  const result = simulation.outcome.result as JsonRecord;
-  const publicReplay = simulation.outcome.presentation_replay as JsonRecord;
-  const replay = simulation.owner_replay as JsonRecord | undefined;
-  expect(replay?.perspective, "the local WASM result includes the authorized attacker replay").toBe("attacker");
-  expect(result.match_id).toBe(snapshot.context.match_id);
+  const simulation = requiredRecord(response.result, "Worker simulation result");
+  const outcome = requiredRecord(simulation.outcome, "simulation outcome");
+  const result = requiredRecord(outcome.result, "Enbu result");
+  const publicReplay = requiredRecord(outcome.presentation_replay, "public presentation replay");
+  const replay = requiredRecord(simulation.owner_replay, "authorized owner replay");
+  if (replay.perspective !== "attacker") throw new Error("The canonical owner replay is not the authorized attacker perspective.");
+  const snapshotContext = requiredRecord(snapshot.context, "snapshot context");
+  const snapshotMatchId = requiredString(snapshotContext.match_id, "snapshot match ID");
+  if (result.match_id !== snapshotMatchId) throw new Error(`The canonical Enbu result match ID does not match snapshot ${snapshotMatchId}.`);
   expect(result.final_tick).toBeGreaterThanOrEqual(50);
-  expect(result.final_state_digest).toBeTruthy();
-  expect(publicReplay.result_digest).toBeTruthy();
+  requiredString(result.final_state_digest, "final state digest");
+  requiredString(publicReplay.result_digest, "public replay digest");
+  if (replay.frames?.length !== result.final_tick + 1) throw new Error("The canonical owner replay is missing one or more tick frames.");
+  if (publicReplay.frames?.length !== result.final_tick + 1) throw new Error("The canonical public replay is missing one or more tick frames.");
   const ownerEntitiesAt = (tick: number): JsonRecord[] => {
     const frame = replay!.frames.find((candidate: JsonRecord) => candidate.tick === tick);
     return Object.values(frame?.visible_state?.entities ?? {}) as JsonRecord[];
