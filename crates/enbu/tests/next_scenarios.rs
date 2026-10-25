@@ -1548,7 +1548,12 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         assert!(!accepted_actors(&artifact, CombatantSide::Attacker, capability).is_empty(),
             "real Jinrei submits an accepted {capability} action to Enbu");
     }
-    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "select_track").len(), 2);
+    assert_eq!(accepted_actors(&artifact, CombatantSide::Attacker, "select_track").len(), 1,
+        "the same Hero submits both track choices");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 1
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "select_track")
+    }), "the Hero selects LEFT before leaving the node");
     assert!(artifact.diagnostics.events.iter().any(|event| {
         event.side == CombatantSide::Attacker && event.tick == 3
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "select_track")
