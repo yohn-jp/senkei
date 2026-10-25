@@ -34,7 +34,7 @@ function integerField(value: DomainValue | undefined): number | null {
 export function matchesPresentedEntity(
   raw: EntityStateView,
   presented: PresentedEntityIdentity,
-  mapEdges: readonly MapEdgeIdentity[],
+  mapEdges?: readonly MapEdgeIdentity[],
 ): boolean {
   const battlefield = presented.battlefield;
   const owner: CombatantSide | null = presented.side === "azure" ? "attacker" : presented.side === "vermilion" ? "defender" : null;
@@ -46,14 +46,16 @@ export function matchesPresentedEntity(
   const progress = integerField(raw.fields.edge_progress) ?? 0;
   const rawTrack = stringField(raw.fields.track);
   const track = rawTrack === "LEFT" || rawTrack === "CENTER" || rawTrack === "RIGHT" ? rawTrack : undefined;
-  const edge = node && edgeTo
+  const edge = node && edgeTo && mapEdges
     ? mapEdges.find((candidate) => (candidate.from === node && candidate.to === edgeTo) || (candidate.to === node && candidate.from === edgeTo))
     : undefined;
-  const crossing = (integerField(raw.fields.ford_active) ?? 0) > 0 || (integerField(raw.fields.ford_remaining) ?? 0) > 0
-    ? "ford"
-    : (integerField(raw.fields.cross_remaining) ?? 0) > 0
-      ? "track"
-      : edge?.bridge_site ? "bridge" : "none";
+  const crossingMatches = mapEdges === undefined || (
+    (integerField(raw.fields.ford_active) ?? 0) > 0 || (integerField(raw.fields.ford_remaining) ?? 0) > 0
+      ? battlefield.crossing === "ford"
+      : (integerField(raw.fields.cross_remaining) ?? 0) > 0
+        ? battlefield.crossing === "track"
+        : (edge?.bridge_site ? "bridge" : "none") === battlefield.crossing
+  );
   return node === battlefield.node && edgeTo === (battlefield.edgeTo ?? "") &&
-    progress === (battlefield.progress ?? 0) && track === battlefield.track && crossing === battlefield.crossing;
+    progress === (battlefield.progress ?? 0) && track === battlefield.track && crossingMatches;
 }

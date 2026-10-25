@@ -31,6 +31,7 @@ const presented = {
 describe("replay entity logical identity", () => {
   it("matches authorized same-tick graph state despite projected position differences", () => {
     expect(matchesPresentedEntity(record, presented, [{ from: "A.MID", to: "A.TOP" }])).toBe(true);
+    expect(matchesPresentedEntity(record, presented)).toBe(true);
   });
 
   it("keeps exact-one candidate filters on owner, catalog, edge, progress, track and crossing", () => {
@@ -40,5 +41,6 @@ describe("replay entity logical identity", () => {
     expect(matchesPresentedEntity({ ...record, owner: "defender" }, presented, edge)).toBe(false);
     expect(matchesPresentedEntity(record, { ...presented, catalogId: "F03" }, edge)).toBe(false);
     expect(matchesPresentedEntity(record, { ...presented, battlefield: { ...presented.battlefield, progress: 43 } }, edge)).toBe(false);
+    expect(matchesPresentedEntity(record, { ...presented, battlefield: { ...presented.battlefield, edgeTo: "A.BOT" } }, edge)).toBe(false);
   });
 });
