@@ -1671,7 +1671,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
             {runResult && run ? <>
               <div className="next-battle-stage">
                 <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />
-                {displayState?.fog && <span className="next-fog-legend" role="note">Fog: dark unexplored · muted explored · clear visible · dashed last known</span>}
+                {displayState?.fog && <span className="next-fog-legend" role="note">Fog: dark unexplored · muted explored · clear visible · dashed site last observed</span>}
                 <button aria-label="Toggle Pixel 3D" aria-pressed={pixel} className="next-mobile-render-mode" onClick={() => setPixel(value => !value)} type="button">{pixel ? "Pixel 3D" : "Smooth 3D"}</button>
                 <aside className={`next-battle-minimap${battleMapContextOpen ? " is-open" : ""}`} aria-label="Current battlefield map context">
                   <button aria-expanded={battleMapContextOpen} aria-label="Toggle battlefield map context" className="next-minimap-toggle" onClick={() => setBattleMapContextOpen((open) => !open)} type="button"><span>MAP · T{displayState?.tick ?? 0}</span><small>{battleMapContextOpen ? "HIDE" : "OPEN"}</small></button>
@@ -1690,9 +1690,15 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                     })}
                     {(run.graphicsReplay.scene.nodes ?? []).map((node) => { const point = miniMapPoint(node.position); return <circle data-testid="battle-map-node" data-node-id={node.id} data-allegiance={node.allegiance} cx={point.x} cy={point.y} key={node.id} r={node.id === "N.MID.OBS" ? 1.45 : 0.65} />; })}
                     {(run.graphicsReplay.scene.camps ?? []).map((camp) => { const point = miniMapPoint(camp.position); return <path className="next-minimap-camp" d={`M ${point.x} ${point.y - 1.9} l 1.9 1.9 -1.9 1.9 -1.9 -1.9 z`} key={camp.id} />; })}
-                    {displayState?.fog?.state.contacts.map((contact) => {
-                      const point = miniMapPoint({ x: contact.x / displayState.fog!.worldUnitsPerRenderUnit, y: contact.y / displayState.fog!.worldUnitsPerRenderUnit });
-                      return <circle key={contact.id} data-testid="battle-map-last-known" cx={point.x} cy={point.y} r="2" fill="none" stroke="#d5bc88" strokeDasharray="1 0.7"><title>Last known {contact.kind} · Tick {contact.last_seen_tick}</title></circle>;
+                    {displayState?.fog?.state.facilities.map((contact) => {
+                      const route = run.graphicsReplay.scene.routes?.find(route => route.bridgeSite === contact.site);
+                      const site = contact.kind === "bridge"
+                        ? contact.site === "MID" ? run.graphicsReplay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
+                          : route ? { x: (route.points[0].x + route.points[1].x) / 2, y: (route.points[0].y + route.points[1].y) / 2 } : undefined
+                        : run.graphicsReplay.scene.nodes?.find(node => node.id === contact.site)?.position;
+                      if (!site) return null;
+                      const point = miniMapPoint(site);
+                      return <circle key={contact.id} data-testid="battle-map-last-known" cx={point.x} cy={point.y} r="2" fill="none" stroke="#d5bc88" strokeDasharray="1 0.7"><title>Last observed {contact.kind} {contact.facility_state?.bridge_state ?? ""} · Tick {contact.last_seen_tick} · Current state unknown</title></circle>;
                     })}
                     {miniMapBases.map(({ id, label, node }) => {
                       if (!node) return null;
@@ -1734,6 +1740,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                       return value ? <div data-testid="logical-detail-field" data-field={field} key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
                     })}</div> : <p className="next-empty-detail">{selectedDisplayEntity ? "This visible unit has no unambiguous state record in the replay at this tick." : "Tap a visible unit to inspect only the HP, XP, level and skill state present in this replay."}</p>}
                     {selectedEntity && fieldInteger(selectedEntity.fields.xp) !== null && <div className="next-xp-bar"><span>XP <b>{formatExperience(fieldInteger(selectedEntity.fields.xp) ?? 0, nextRules)}</b></span><span>Level <b>{fieldInteger(selectedEntity.fields.level) ?? 1}</b></span></div>}
+                    {Boolean(displayState?.fog?.state.facilities.length) && <details className="next-facility-history" data-testid="battle-facility-history"><summary>Last observations · current state unknown</summary><ul>{displayState!.fog!.state.facilities.map(facility => <li key={facility.id}><strong>{facility.kind} · {facility.site}</strong><span>Observed Tick {facility.last_seen_tick} · Current unknown</span>{Object.entries(facility.facility_state ?? {}).map(([field, value]) => <small key={field}>{formatId(field)}: {value} (last observed)</small>)}</li>)}</ul></details>}
                   </section>
                   <section className="next-detail-card next-event-card"><div className="next-card-heading"><div><span className="next-eyebrow">BATTLE EVENTS</span><h4>Current tick</h4></div><button onClick={() => setTab("analysis")} type="button">Full analysis ↗</button></div>
                     {frameEvents.length ? <ul className="next-event-list">{frameEvents.slice(-6).map((event, index) => <li key={`${event.event}-${event.entity}-${index}`}><span>T{selectedFrame?.tick}</span><div><strong>{eventTitle(event)}</strong><small>{eventDetails(event) || event.entity || "Battle system"}</small></div></li>)}</ul> : <p className="next-empty-detail">No visible event is recorded at this tick.</p>}

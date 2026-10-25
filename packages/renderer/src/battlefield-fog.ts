@@ -14,7 +14,7 @@ export class BattlefieldFog {
   };
   private contactMaterial = new THREE.LineDashedMaterial({ color: 0xd5bc88, dashSize: 0.22, gapSize: 0.15, transparent: true, opacity: 0.7, depthWrite: false });
 
-  constructor(scene: THREE.Scene, replay: Replay) {
+  constructor(scene: THREE.Scene, private replay: Replay) {
     this.group.name = "authorized-graph-fog";
     this.group.visible = false;
     for (const node of replay.scene.nodes ?? []) {
@@ -51,7 +51,7 @@ export class BattlefieldFog {
       this.batches.push({ nodes, edges, state });
       this.group.add(nodes, edges);
     }
-    this.contacts.name = "historical-contacts-not-current-units";
+    this.contacts.name = "historical-facility-observations";
     this.group.add(this.contacts);
     scene.add(this.group);
   }
@@ -72,8 +72,13 @@ export class BattlefieldFog {
     }
     for (const child of this.contacts.children) (child as THREE.Line).geometry.dispose();
     this.contacts.clear();
-    for (const contact of fog.contacts) {
-      const point: WorldPoint = { x: contact.x / state.fog.worldUnitsPerRenderUnit, y: contact.y / state.fog.worldUnitsPerRenderUnit };
+    for (const contact of fog.facilities) {
+      const route = this.replay.scene.routes?.find(route => route.bridgeSite === contact.site);
+      const point: WorldPoint | undefined = contact.kind === "bridge"
+        ? contact.site === "MID" ? this.replay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
+          : route ? { x: (route.points[0].x + route.points[1].x) / 2, y: (route.points[0].y + route.points[1].y) / 2 } : undefined
+        : this.replay.scene.nodes?.find(node => node.id === contact.site)?.position;
+      if (!point) continue;
       const vertices = Array.from({ length: 33 }, (_, i) => {
         const a = i / 32 * Math.PI * 2;
         return new THREE.Vector3(point.x + Math.cos(a) * 0.65, 0.25, point.y + Math.sin(a) * 0.65);

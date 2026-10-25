@@ -1426,6 +1426,7 @@ export class Battlefield {
         (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
     });
     group.userData.focusMaterials = [...materials];
+    group.userData.modelHeight = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3()).y;
   }
   private entityHeight(entity: DisplayEntity, point: WorldPoint): number {
     if (entity.kind === "unit") {
@@ -2323,8 +2324,14 @@ export class Battlefield {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
           const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
           if (lod) {
-            lod.autoUpdate = !focused;
-            if (focused) lod.levels.forEach((level, index) => { level.object.visible = index === 0; });
+            // Orthographic zoom changes screen occupancy without changing
+            // camera distance. Choose the shared identity's detail by its
+            // projected height; selection and Follow keep the authored rig.
+            const pixels = (g.userData.modelHeight ?? 2.5) * this.host.clientHeight * this.camera.zoom / (this.camera.top - this.camera.bottom);
+            const levelIndex = focused || pixels >= 48 ? 0 : pixels >= 18 ? 1 : 2;
+            lod.autoUpdate = false;
+            lod.levels.forEach((level, index) => { level.object.visible = index === Math.min(levelIndex, lod.levels.length - 1); });
+            g.userData.lodLevel = levelIndex;
           }
           const subject = this.trackedIds.length === 1 ? this.state?.entities[this.trackedIds[0]!] : undefined;
           const entity = this.state?.entities[g.userData.entityId];
@@ -2795,7 +2802,7 @@ export class Battlefield {
       this.canvas.dataset.cameraMode = this.cameraMode;
       this.canvas.dataset.fog = this.state?.fog ? "authorized-graph-samples" : "unavailable";
       this.canvas.dataset.fogTick = this.state?.fog ? String(this.state.fog.state.tick) : "";
-      this.canvas.dataset.lastKnownContacts = String(this.state?.fog?.state.contacts.length ?? 0);
+      this.canvas.dataset.lastKnownFacilities = String(this.state?.fog?.state.facilities.length ?? 0);
       this.canvas.dataset.fogNodes = this.state?.fog ? JSON.stringify(this.state.fog.state.nodes) : "";
       this.canvas.dataset.tracking = this.trackedIds.join(",");
       const poseEntityId = this.selected && this.units.has(this.selected)

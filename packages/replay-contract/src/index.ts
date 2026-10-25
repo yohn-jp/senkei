@@ -89,12 +89,14 @@ export function decodeReplay(input: unknown): Replay {
       priorFogTick = frame.tick;
       for (const id of Object.keys(frame.nodes)) if (!nodeIds.has(id)) fail("Unknown fog node");
       for (const id of Object.keys(frame.edges)) if (!routeIds.has(id)) fail("Unknown fog route");
-      const contacts = new Set<string>();
-      for (const contact of frame.contacts) {
-        if (contacts.has(contact.id) || contact.last_seen_tick > frame.tick || contact.side === frame.side)
-          fail("Invalid last-known contact");
-        contacts.add(contact.id);
-        point({ x: contact.x / r.fog.worldUnitsPerRenderUnit, y: contact.y / r.fog.worldUnitsPerRenderUnit });
+      const facilities = new Set<string>();
+      for (const facility of frame.facilities) {
+        if (facilities.has(facility.id) || facility.last_seen_tick >= frame.tick)
+          fail("Invalid last-known facility");
+        facilities.add(facility.id);
+        if (facility.kind === "bridge") {
+          if (!r.scene.routes?.some(route => route.bridgeSite === facility.site)) fail("Unknown remembered bridge site");
+        } else if (!nodeIds.has(facility.site)) fail("Unknown remembered facility site");
       }
     }
     if (r.fog.frames[0].tick !== 0) fail("Fog requires an initial observation");

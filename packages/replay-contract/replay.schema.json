@@ -931,7 +931,7 @@
             "maxItems": 9
           }
         },
-        "contacts": {
+        "facilities": {
           "type": "array",
           "items": {
             "type": "object",
@@ -939,33 +939,63 @@
             "properties": {
               "id": {
                 "type": "string",
-                "pattern": "^contact-[1-9][0-9]*$"
+                "pattern": "^facility-[1-9][0-9]*$"
               },
               "state": {
                 "const": "last_known"
               },
               "kind": {
                 "enum": [
-                  "hero",
-                  "minion",
-                  "monster"
+                  "tower",
+                  "base",
+                  "bridge",
+                  "observation"
                 ]
               },
               "side": {
                 "enum": [
                   "attacker",
-                  "defender"
+                  "defender",
+                  "neutral"
                 ]
-              },
-              "x": {
-                "type": "integer"
-              },
-              "y": {
-                "type": "integer"
               },
               "last_seen_tick": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "site": {
+                "type": "string",
+                "minLength": 1
+              },
+              "facility_state": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hp": {
+                    "type": "integer"
+                  },
+                  "max_hp": {
+                    "type": "integer"
+                  },
+                  "build_remaining": {
+                    "type": "integer"
+                  },
+                  "capture_progress": {
+                    "type": "integer"
+                  },
+                  "bridge_state": {
+                    "type": "string"
+                  },
+                  "build_kind": {
+                    "type": "string"
+                  },
+                  "capture_owner": {
+                    "type": "string"
+                  },
+                  "capture_progress_side": {
+                    "type": "string"
+                  }
+                }
               }
             },
             "required": [
@@ -973,8 +1003,7 @@
               "state",
               "kind",
               "side",
-              "x",
-              "y",
+              "site",
               "last_seen_tick"
             ]
           }
@@ -986,7 +1015,7 @@
         "side",
         "nodes",
         "edges",
-        "contacts"
+        "facilities"
       ]
     }
   }

@@ -251,13 +251,22 @@ export interface FogFrame {
       "unexplored" | "explored" | "visible"
     ];
   };
-  contacts: {
+  facilities: {
     id: string;
     state: "last_known";
-    kind: "hero" | "minion" | "monster";
-    side: "attacker" | "defender";
-    x: number;
-    y: number;
+    kind: "tower" | "base" | "bridge" | "observation";
+    side: "attacker" | "defender" | "neutral";
     last_seen_tick: number;
+    site: string;
+    facility_state?: {
+      hp?: number;
+      max_hp?: number;
+      build_remaining?: number;
+      capture_progress?: number;
+      bridge_state?: string;
+      build_kind?: string;
+      capture_owner?: string;
+      capture_progress_side?: string;
+    };
   }[];
 }
