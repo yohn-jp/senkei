@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
 
 test.use({ video: "on" });
 
@@ -62,6 +63,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const launch = page.getByRole("button", { name: /Launch local battle|New local battle/i });
   await expect(launch).toBeEnabled();
   await launch.click();
+  await completePreflight(page);
   const confirmedResult = page.getByText(/Confirmed result/i);
   await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
   await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
@@ -192,10 +194,15 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const pathA = page.getByRole("button", {name:"Choose Path A for slot-01"});
   await pathA.click();
   await expect(pathA).toHaveAttribute("aria-pressed","true");
-  await page.locator("#next-tab-battle").click();
-  const revisedRun = page.getByRole("button", { name: "Run revised battle" });
-  await expect(revisedRun).toBeEnabled();
-  await revisedRun.click();
+  await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("button", { name: "Compile tactics" }).click();
+  await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+  await expect(page.locator(".next-compile-state")).toHaveText("COMPILED");
+  await page.getByRole("button", { name: "準備確認へ" }).click();
+  await expect(page.getByTestId("journey-ready")).toBeVisible();
+  await page.getByRole("button", { name: "検証・コンパイル" }).click();
+  await expect(page.getByTestId("preflight-status")).toHaveText("開始可能", { timeout: 60_000 });
+  await page.getByRole("button", { name: "戦闘開始" }).click();
   await expect(launch).toBeEnabled({timeout:180_000});
   await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
   await page.locator("#next-tab-formation").click();
@@ -273,6 +280,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
     await page.locator("#next-tab-battle").click();
     await page.getByRole("button", {name:/Launch local battle|New local battle/i}).click();
+    await completePreflight(page);
     await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, {timeout:180_000});
     await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   } finally {

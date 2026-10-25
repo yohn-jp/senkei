@@ -35,6 +35,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
+  await page.getByTestId("nav-editor").click();
   await expect(page.getByRole("heading", { name: "Build a formation and its tactics" })).toBeVisible();
   await expect(page.getByRole("button", { name: "No-code" })).toHaveAttribute("aria-pressed", "true");
 
@@ -76,6 +77,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await browserContext.setOffline(true);
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
+  await navigation.getByTestId("nav-editor").click();
   await navigation.getByRole("button", { name: /Library/ }).click();
   await page.getByRole("button", { name: "Open Offline campaign journey" }).click();
   await expect(page.getByRole("heading", { name: "Offline campaign journey" })).toBeVisible();
@@ -117,6 +119,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   // rematch result, and running again must produce a fresh result as well.
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("navigation", { name: "Workspace" }).getByTestId("nav-editor").click();
   await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Library/ }).click();
   await page.getByRole("button", { name: "Open Offline campaign journey" }).click();
   await expect(page.getByRole("heading", { name: "Offline campaign journey" })).toBeVisible();

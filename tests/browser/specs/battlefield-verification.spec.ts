@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
 
 test.use({ video: "on" });
 
@@ -951,6 +952,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   // The new console decorates the accessible name with the play glyph, so
   // match the stable action wording without anchoring the complete name.
   await page.getByRole("button", { name: /Launch local battle|New local battle/i }).click();
+  await completePreflight(page);
   await expect(page.getByText(/AUTHORITATIVE ENBU RESULT|Confirmed result/i).first()).toBeVisible({ timeout: 120_000 });
   const uiSignature = await page.getByRole("heading", { name: /Battlefield console|Observe the battlefield/ }).innerText();
   if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true") {

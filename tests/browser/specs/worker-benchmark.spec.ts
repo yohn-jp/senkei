@@ -18,6 +18,7 @@ test("production Worker runs the seven local NPC regression cases through real W
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
+  await page.getByTestId("nav-editor").click();
   await expect(page.getByRole("heading", { name: "Build a formation and its tactics" })).toBeVisible();
   await expect(page.getByRole("button", { name: "No-code" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Compile tactics" }).click();
