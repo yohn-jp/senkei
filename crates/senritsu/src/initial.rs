@@ -86,6 +86,7 @@ fn build_package() -> RulePackage {
             version: VERSION,
             digest: ContentDigest::new("0".repeat(64)),
         },
+        catalog_semantics_digest: None,
         minimum_engine_version: VERSION,
         model_version: VERSION,
         primitive_set_id: id(PRIMITIVE_SET_ID),

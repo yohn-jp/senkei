@@ -11,6 +11,11 @@ pub struct RulePackage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<crate::NextRules>,
     pub ruleset: RulesetRef,
+    /// Digest of match-affecting catalog/Behavior extension semantics. The
+    /// extension carries the final package identity separately, so this value
+    /// is computed without that back-reference and avoids a digest cycle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_semantics_digest: Option<crate::ContentDigest>,
     pub minimum_engine_version: Version,
     pub model_version: Version,
     pub primitive_set_id: crate::PrimitiveSetId,
@@ -63,6 +68,12 @@ impl VerifiedRulePlan {
         &self.package_digest
     }
 
+    /// Identity of the match-affecting catalog/Behavior semantics bound into
+    /// the RulePackage digest, if the package declares an authored extension.
+    pub fn catalog_semantics_digest(&self) -> Option<&crate::ContentDigest> {
+        self.plan.catalog_semantics_digest.as_ref()
+    }
+
     pub fn plan(&self) -> &RulePlan {
         &self.plan
     }
@@ -95,6 +106,8 @@ impl VerifiedRulePlan {
 /// The validated, normalized plan that Enbu executes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulePlan {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_semantics_digest: Option<crate::ContentDigest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<crate::NextRules>,
     pub minimum_engine_version: Version,
@@ -496,6 +509,7 @@ impl From<&RulePackage> for RulePlan {
     fn from(package: &RulePackage) -> Self {
         Self {
             next: package.next.clone(),
+            catalog_semantics_digest: package.catalog_semantics_digest.clone(),
             minimum_engine_version: package.minimum_engine_version,
             model_version: package.model_version,
             primitive_set_id: package.primitive_set_id.clone(),

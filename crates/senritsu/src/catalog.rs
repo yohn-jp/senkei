@@ -1,9 +1,9 @@
 //! Public, self-describing view of a validated RulePackage.
 //!
 //! The catalog contains schema and policy metadata only. It never contains
-//! observations or other per-match values. Behavior metadata is an optional,
-//! separately authored extension because the current RulePackage model has no
-//! Behavior Profile section.
+//! observations or other per-match values. Behavior metadata is a separately
+//! authored extension whose match-affecting semantics are committed by the
+//! RulePackage through a content digest.
 
 use senkei_model::*;
 use serde::{Deserialize, Serialize};
@@ -836,6 +836,13 @@ impl DomainCatalog {
                         &rules.transitions,
                         rules.next.as_ref(),
                     )?;
+                    let semantics_digest = catalog_semantics_digest(&extension)?;
+                    if plan.catalog_semantics_digest() != Some(&semantics_digest) {
+                        return Err(DomainCatalogError::single(
+                            "catalog_semantics_digest_mismatch",
+                            "match-affecting catalog/Behavior metadata is missing from or differs from the RulePackage identity",
+                        ));
+                    }
                     let digest = extension_digest(&extension)?;
                     (
                         Some(digest.clone()),
@@ -852,6 +859,12 @@ impl DomainCatalog {
                             metadata: extension.behavior_profiles,
                         },
                     )
+                }
+                None if plan.catalog_semantics_digest().is_some() => {
+                    return Err(DomainCatalogError::single(
+                        "missing_catalog_semantics_extension",
+                        "RulePackage declares match-affecting catalog/Behavior metadata but no matching extension was supplied",
+                    ));
                 }
                 None => (
                     None,
@@ -1002,6 +1015,69 @@ fn extension_digest(
         DomainCatalogError::single(
             "canonical_serialization_failed",
             format!("behavior extension serialization failed: {error}"),
+        )
+    })?;
+    Ok(sha256(&bytes))
+}
+
+/// Computes the package-bound digest for match-affecting metadata. The
+/// extension's `rulesetDigest` is intentionally removed: it is a back-reference
+/// to the RulePackage digest, which itself commits this semantic digest.
+/// Presentation descriptions, preset labels and display units remain in the
+/// independent full metadata extension digest.
+pub fn catalog_semantics_digest(
+    extension: &CatalogMetadataExtension,
+) -> Result<ContentDigest, DomainCatalogError> {
+    let mut material = serde_json::to_value(extension).map_err(|error| {
+        DomainCatalogError::single(
+            "canonical_serialization_failed",
+            format!("catalog semantics serialization failed: {error}"),
+        )
+    })?;
+    if let Some(root) = material.as_object_mut() {
+        root.remove("rulesetDigest");
+        if let Some(capabilities) = root
+            .get_mut("capabilities")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            for value in capabilities.values_mut() {
+                if let Some(value) = value.as_object_mut() {
+                    value.remove("description");
+                }
+            }
+        }
+        if let Some(profiles) = root
+            .get_mut("behaviorProfiles")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            if let Some(fields) = profiles
+                .get_mut("fields")
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                for value in fields.values_mut() {
+                    if let Some(value) = value.as_object_mut() {
+                        value.remove("description");
+                        value.remove("unit");
+                    }
+                }
+            }
+            if let Some(presets) = profiles
+                .get_mut("presets")
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                for value in presets.values_mut() {
+                    if let Some(value) = value.as_object_mut() {
+                        value.remove("name");
+                        value.remove("description");
+                    }
+                }
+            }
+        }
+    }
+    let bytes = serde_json::to_vec(&material).map_err(|error| {
+        DomainCatalogError::single(
+            "canonical_serialization_failed",
+            format!("catalog semantics canonicalization failed: {error}"),
         )
     })?;
     Ok(sha256(&bytes))
@@ -2023,6 +2099,16 @@ mod tests {
         validate(next_package(), &next_engine_compatibility()).expect("next package validates")
     }
 
+    fn verified_next_with_behavior(mode: &str) -> VerifiedRulePlan {
+        let mut package = next_package();
+        let provisional = validate(package.clone(), &next_engine_compatibility())
+            .expect("provisional next package validates");
+        let extension = test_extension(&provisional, mode);
+        package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+        package.ruleset.digest = crate::canonical_digest(&package).unwrap();
+        validate(package, &next_engine_compatibility()).expect("bound next package validates")
+    }
+
     fn test_extension(plan: &VerifiedRulePlan, mode: &str) -> CatalogMetadataExtension {
         let hero_id = plan.plan().next.as_ref().unwrap().heroes[0].id.clone();
         let persistent_capability = CapabilityId::new("retreat");
@@ -2231,7 +2317,7 @@ mod tests {
             capability.get("behaviorOverrideArguments").is_none()
         }));
 
-        let next_plan = verified_next();
+        let next_plan = verified_next_with_behavior("steady");
         let extension = test_extension(&next_plan, "steady");
         let extension_wire = serde_json::to_value(&extension).unwrap();
         assert!(extension_wire["capabilities"]["move"]
@@ -2308,7 +2394,7 @@ mod tests {
 
     #[test]
     fn authored_behavior_metadata_is_typed_and_changes_catalog_identity() {
-        let plan = verified_next();
+        let plan = verified_next_with_behavior("steady");
         let first = DomainCatalog::from_verified_plan_with_extension(
             &plan,
             test_extension(&plan, "steady"),
@@ -2319,9 +2405,10 @@ mod tests {
             test_extension(&plan, "steady"),
         )
         .unwrap();
+        let changed_plan = verified_next_with_behavior("cautious");
         let second = DomainCatalog::from_verified_plan_with_extension(
-            &plan,
-            test_extension(&plan, "cautious"),
+            &changed_plan,
+            test_extension(&changed_plan, "cautious"),
         )
         .unwrap();
         assert_eq!(first.catalog_digest(), same.catalog_digest());
@@ -2329,6 +2416,39 @@ mod tests {
             first.metadata_extension_digest(),
             same.metadata_extension_digest()
         );
+
+        let mut presentation_edit = test_extension(&plan, "steady");
+        presentation_edit
+            .behavior_profiles
+            .fields
+            .get_mut("navigation.mode")
+            .unwrap()
+            .description = "Changed help text".into();
+        presentation_edit
+            .behavior_profiles
+            .presets
+            .get_mut("fixture.safe")
+            .unwrap()
+            .name = "Safer display label".into();
+        let presentation_catalog =
+            DomainCatalog::from_verified_plan_with_extension(&plan, presentation_edit).unwrap();
+        assert_eq!(presentation_catalog.identity(), first.identity());
+        assert_ne!(presentation_catalog.metadata_extension_digest(), first.metadata_extension_digest());
+
+        let mismatched = DomainCatalog::from_verified_plan_with_extension(
+            &plan,
+            test_extension(&plan, "cautious"),
+        )
+        .unwrap_err();
+        assert!(mismatched
+            .issues
+            .iter()
+            .any(|issue| issue.code == "catalog_semantics_digest_mismatch"));
+        let missing = DomainCatalog::from_verified_plan(&plan).unwrap_err();
+        assert!(missing
+            .issues
+            .iter()
+            .any(|issue| issue.code == "missing_catalog_semantics_extension"));
 
         let (first_extension_digest, profile) = match first.behavior_profiles() {
             MetadataStatus::AuthoredExtension { digest, metadata } => (digest, metadata),
@@ -2347,11 +2467,12 @@ mod tests {
             second.metadata_extension_digest()
         );
         assert!(!first.is_compatible_with(&second.compatibility_key()));
-        assert_eq!(
+        assert_ne!(
             first.identity(),
             second.identity(),
-            "RulePackage digest is not rewritten by an extension"
+            "match-affecting Behavior metadata is part of RulePackage identity"
         );
+        assert_ne!(first.identity().ruleset_digest, second.identity().ruleset_digest);
         assert_eq!(
             first
                 .capabilities()

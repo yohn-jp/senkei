@@ -61,16 +61,33 @@ struct Fixture {
 }
 
 fn fixture() -> Fixture {
-    let package = senritsu::next_package();
-    let plan = senritsu::validate(package, &senritsu::next_engine_compatibility())
+    let mut package = senritsu::next_package();
+    let provisional = senritsu::validate(package.clone(), &senritsu::next_engine_compatibility())
         .unwrap_or_else(|issues| panic!("fixture RulePackage must validate: {issues:#?}"));
-    let heroes = &plan.plan().next.as_ref().unwrap().heroes;
+    let heroes = &provisional.plan().next.as_ref().unwrap().heroes;
     let hero_ids = [heroes[0].id.clone(), heroes[1].id.clone()];
+    let extension = test_extension(&provisional, &hero_ids);
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    let plan = senritsu::validate(package, &senritsu::next_engine_compatibility())
+        .unwrap_or_else(|issues| panic!("bound fixture RulePackage must validate: {issues:#?}"));
     let extension = test_extension(&plan, &hero_ids);
     let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension)
         .unwrap_or_else(|error| panic!("fixture Catalog must validate: {error:#?}"));
     let resolver = BehaviorResolver::new(&catalog, &catalog.compatibility_key()).unwrap();
     Fixture { plan, catalog, resolver, hero_ids }
+}
+
+fn bind_extension(mut extension: CatalogMetadataExtension) -> (VerifiedRulePlan, CatalogMetadataExtension) {
+    let mut package = senritsu::next_package();
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    let plan = senritsu::validate(package, &senritsu::next_engine_compatibility())
+        .expect("extension-bound RulePackage validates");
+    extension.ruleset_id = plan.ruleset().id.clone();
+    extension.ruleset_version = plan.ruleset().version;
+    extension.ruleset_digest = plan.package_digest().clone();
+    (plan, extension)
 }
 
 fn test_extension(
@@ -338,7 +355,8 @@ fn squad_aggregation_rejects_conflicting_hero_defaults_when_agreement_is_require
         .get_mut("engagement.mode")
         .expect("fixture engagement field")
         .aggregation = Some(AggregationPolicy::RequireAgreement);
-    let catalog = DomainCatalog::from_verified_plan_with_extension(&fixture.plan, extension)
+    let (plan, extension) = bind_extension(extension);
+    let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension)
         .expect("explicit RequireAgreement policy is valid");
     let resolver = BehaviorResolver::new(&catalog, &catalog.compatibility_key()).unwrap();
     let squad = ProfileActor {
@@ -657,18 +675,10 @@ fn producer_contract_keeps_six_domain_schemas_typed_and_values_unresolved() {
         .iter()
         .all(|(id, decision)| id.starts_with("DEC-BEHAVIOR-") && !decision.trim().is_empty()));
 
-    // The current next RulePackage has no authored Behavior section. The
-    // resolver refuses to fabricate one, leaving Enbu/runtime integration
-    // deferred until the producer supplies the decided data.
-    let bare_catalog = DomainCatalog::from_verified_plan(&fixture.plan).unwrap();
-    assert!(matches!(
-        bare_catalog.behavior_profiles(),
-        MetadataStatus::NotDeclaredByRulePackage
-    ));
-    assert_eq!(
-        BehaviorResolver::new(&bare_catalog, &bare_catalog.compatibility_key()).err(),
-        Some(BehaviorError::ProfilesNotDeclared)
-    );
+    // The package digest declares the extension as required. Dropping it is
+    // rejected instead of silently producing a catalog with weaker semantics.
+    assert!(DomainCatalog::from_verified_plan(&fixture.plan).is_err(),
+        "a package that commits Behavior semantics must reject a missing extension");
 
     // Both metadata and catalog digest materials must reproduce exactly for
     // identical producer input, including their complete compatibility key.
