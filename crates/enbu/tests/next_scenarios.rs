@@ -854,6 +854,17 @@ fn controlled_base_node_assault(
     }
     let mut context = new_match_context(rules, MatchId::new(match_id));
     context.max_ticks = rules.plan().termination.max_ticks;
+    if winner == CombatantSide::Attacker {
+        if let Some(path) = std::env::var_os("BATTLEFIELD_BASE_ASSAULT_SCENARIO_SNAPSHOT_PATH") {
+            let path = PathBuf::from(path);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).expect("base-assault browser snapshot directory exists");
+            }
+            let snapshot = serde_json::json!({ "attacker": attacker, "defender": defender, "context": context });
+            let bytes = serde_json::to_vec_pretty(&snapshot).expect("base-assault browser input serializes");
+            fs::write(path, bytes).expect("write the existing controlled attacker-victory input for the browser");
+        }
+    }
     let mut vm = Vm::new(rules);
     simulate(&attacker, &defender, rules, &context, &mut vm)
         .unwrap_or_else(|error| panic!("{winner:?} base-node assault runs through real Enbu: {error:?}"))

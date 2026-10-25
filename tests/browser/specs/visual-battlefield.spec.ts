@@ -48,6 +48,7 @@ type CaptureEntry = {
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const canonicalSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-canonical-snapshot.json");
 const captureSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-capture-snapshot.json");
+const baseAssaultSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-base-assault-snapshot.json");
 const viewports: readonly Viewport[] = [
   { name: "1440x900", width: 1440, height: 900 },
   { name: "1920x1080", width: 1920, height: 1080 },
@@ -112,6 +113,31 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
+function domainString(value: unknown, label: string): string {
+  const domainValue = requiredRecord(value, label);
+  if (domainValue.kind !== "string") throw new Error(`The visual capture ${label} is not a typed string value.`);
+  return requiredString(domainValue.value, label);
+}
+
+function configuredHeroesAt(snapshot: JsonRecord, side: "attacker" | "defender"): JsonRecord[] {
+  const sideSnapshot = requiredRecord(snapshot[side], `${side} Senkei snapshot`);
+  const configuration = requiredRecord(sideSnapshot.configuration, `${side} configuration`);
+  const heroesValue = requiredRecord(configuration.heroes, `${side} configured Heroes`);
+  if (heroesValue.kind !== "list" || !Array.isArray(heroesValue.value)) {
+    throw new Error(`The visual capture ${side} Heroes are not a typed list.`);
+  }
+  return heroesValue.value.map((rawHero: unknown, index: number) => {
+    const heroValue = requiredRecord(rawHero, `${side} Hero ${index + 1} configuration`);
+    if (heroValue.kind !== "record") throw new Error(`The visual capture ${side} Hero ${index + 1} is not a typed record.`);
+    const hero = requiredRecord(heroValue.value, `${side} Hero ${index + 1} fields`);
+    return {
+      catalogId: domainString(hero.catalog_id, `${side} Hero ${index + 1} catalog ID`),
+      squad: domainString(hero.squad, `${side} Hero ${index + 1} squad`),
+      node: domainString(hero.node, `${side} Hero ${index + 1} start node`),
+    };
+  });
+}
+
 function entitiesAt(replay: JsonRecord, tick: number): [string, JsonRecord][] {
   return Object.entries(frameAt(replay, tick).visible_state?.entities ?? {}) as [string, JsonRecord][];
 }
@@ -123,6 +149,12 @@ function bridgeAt(replay: JsonRecord, tick: number, site: string): JsonRecord | 
 function bridgeEntryAt(replay: JsonRecord, tick: number, site: string): [string, JsonRecord] | undefined {
   return entitiesAt(replay, tick).find(([, entity]) =>
     entity.entity_type === "bridge" && field(entity, "site") === site,
+  );
+}
+
+function catalogEntityEntryAt(replay: JsonRecord, tick: number, entityType: string, catalogId: string): [string, JsonRecord] | undefined {
+  return entitiesAt(replay, tick).find(([, entity]) =>
+    entity.entity_type === entityType && field(entity, "catalog_id") === catalogId,
   );
 }
 
@@ -169,6 +201,17 @@ function heroAttackSourcesAt(frame: JsonRecord): { entityId: string; entity: Jso
     if (event.event !== "next.attack") return [];
     const source = event.payload?.source;
     const sourceId = source?.kind === "entity" ? source.value : event.entity;
+    const entity = typeof sourceId === "string" ? entities[sourceId] : undefined;
+    return entity?.entity_type === "hero" ? [{ entityId: sourceId as string, entity, event }] : [];
+  });
+}
+
+function heroAttacksTargeting(replay: JsonRecord, tick: number, targetEntityId: string): { entityId: string; entity: JsonRecord; event: JsonRecord }[] {
+  const frame = frameAt(replay, tick);
+  const entities = frame.visible_state?.entities ?? {};
+  return (frame.events ?? []).flatMap((event: JsonRecord) => {
+    if (event.event !== "next.attack" || event.payload?.target?.kind !== "entity" || event.payload.target.value !== targetEntityId) return [];
+    const sourceId = event.payload?.source?.kind === "entity" ? event.payload.source.value : undefined;
     const entity = typeof sourceId === "string" ? entities[sourceId] : undefined;
     return entity?.entity_type === "hero" ? [{ entityId: sourceId as string, entity, event }] : [];
   });
@@ -284,6 +327,14 @@ async function createScenarioSnapshots(): Promise<void> {
   ], {
     cwd: repoRoot,
     env: { ...process.env, BATTLEFIELD_CAPTURE_SCENARIO_SNAPSHOT_PATH: captureSnapshotPath },
+    stdio: "inherit",
+  });
+  execFileSync("cargo", [
+    "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",
+    "enbu_confirms_base_node_assaults_for_both_sides", "--", "--exact",
+  ], {
+    cwd: repoRoot,
+    env: { ...process.env, BATTLEFIELD_BASE_ASSAULT_SCENARIO_SNAPSHOT_PATH: baseAssaultSnapshotPath },
     stdio: "inherit",
   });
 }
@@ -747,6 +798,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   await createScenarioSnapshots();
   const canonicalSnapshot = JSON.parse(readFileSync(canonicalSnapshotPath, "utf8")) as JsonRecord;
   const captureSnapshot = JSON.parse(readFileSync(captureSnapshotPath, "utf8")) as JsonRecord;
+  const baseAssaultSnapshot = JSON.parse(readFileSync(baseAssaultSnapshotPath, "utf8")) as JsonRecord;
   const captures: CaptureEntry[] = [];
   const viewportChecks: JsonRecord = {};
 
@@ -1097,6 +1149,143 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     await defaultPage.close();
   }
 
+  const attackerBaseAssault = configuredHeroesAt(baseAssaultSnapshot, "attacker");
+  const defenderBaseAssault = configuredHeroesAt(baseAssaultSnapshot, "defender");
+  const expectedAssaultRoster = ["F01", "R01", "F02", "R02", "F03"];
+  expect(attackerBaseAssault.map((hero) => hero.catalogId)).toEqual(expectedAssaultRoster);
+  expect(defenderBaseAssault.map((hero) => hero.catalogId)).toEqual(expectedAssaultRoster);
+  expect(attackerBaseAssault.map((hero) => hero.node)).toEqual(Array(5).fill("B.BASE"));
+  expect(defenderBaseAssault.map((hero) => hero.node)).toEqual(Array(5).fill("N.B.UC"));
+  expect(new Set(attackerBaseAssault.map((hero) => hero.squad)).size).toBe(5);
+  expect(new Set(defenderBaseAssault.map((hero) => hero.squad)).size).toBe(5);
+
+  const baseAssaultPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  let baseAssaultRun: ReplayRun;
+  let baseAssaultFacts: JsonRecord;
+  try {
+    baseAssaultRun = await launchBattle(baseAssaultPage, baseURL, baseAssaultSnapshot);
+    expect(baseAssaultRun.buildRevision, "the controlled real Enbu base assault uses the capture build").toBe(appRevision);
+    expect(baseAssaultRun.result.outcome, "the actual controlled Enbu assault wins as the attacker").toBe("attacker_victory");
+    expect(baseAssaultRun.result.termination_reason, "attacker victory comes from destroying the enemy base").toBe("base_destroyed");
+    const baseCatalogId = "base.defender";
+    const initialBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, 0, "base", baseCatalogId);
+    expect(initialBaseEntry, "the authorized attacker replay shows the real enemy base before damage").toBeTruthy();
+    const [baseEntityId, initialBase] = initialBaseEntry!;
+    const initialBaseHp = integerField(initialBase, "hp");
+    expect(initialBaseHp, "the base starts with confirmed positive Enbu health").toBeGreaterThan(0);
+
+    const firstDamageFrame = (baseAssaultRun.ownerReplay.frames as JsonRecord[]).find((frame) => {
+      if (frame.tick <= 0) return false;
+      const entry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, frame.tick, "base", baseCatalogId);
+      const hp = integerField(entry?.[1], "hp");
+      return hp !== null && hp > 0 && hp < initialBaseHp!;
+    });
+    expect(firstDamageFrame, "the real owner replay contains an intermediate damaged base state").toBeTruthy();
+    const firstDamageTick = firstDamageFrame!.tick as number;
+    const damagedBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, firstDamageTick, "base", baseCatalogId);
+    const damagedBaseHp = integerField(damagedBaseEntry?.[1], "hp");
+    expect(damagedBaseHp).toBeGreaterThan(0);
+    expect(damagedBaseHp).toBeLessThan(initialBaseHp!);
+    const firstDamageAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, firstDamageTick, baseEntityId)[0];
+    expect(firstDamageAttack, "the first base HP decrease is backed by an actual Hero attack event").toBeTruthy();
+    const damageHeroCatalogId = requiredString(field(firstDamageAttack?.entity, "catalog_id"), "base damage source Hero catalog ID");
+    const damageHeroSide = firstDamageAttack?.entity.owner === "attacker" ? "Azure" : undefined;
+    expect(damageHeroSide, "the first base damage source is an attacker-owned Hero").toBe("Azure");
+
+    const finalTick = baseAssaultRun.result.final_tick as number;
+    const terminalFrame = frameAt(baseAssaultRun.ownerReplay, finalTick);
+    const destroyedBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, finalTick, "base", baseCatalogId);
+    expect(destroyedBaseEntry, "the terminal owner replay retains the destroyed enemy base").toBeTruthy();
+    expect(integerField(destroyedBaseEntry?.[1], "hp"), "the actual terminal base state has zero HP").toBe(0);
+    const objectiveDestroyedEvent = (terminalFrame.events as JsonRecord[]).find((event) =>
+      event.event === "next.objective_destroyed" && event.entity === baseEntityId && event.payload?.kind?.value === "base",
+    );
+    expect(objectiveDestroyedEvent, "the terminal replay confirms next.objective_destroyed for the actual base").toBeTruthy();
+    const terminalAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, finalTick, baseEntityId)[0];
+    expect(terminalAttack, "the terminal base destruction tick contains the Hero attack that dealt the final damage").toBeTruthy();
+    const terminalHeroCatalogId = requiredString(field(terminalAttack?.entity, "catalog_id"), "terminal base damage source Hero catalog ID");
+    const terminalHeroSide = terminalAttack?.entity.owner === "attacker" ? "Azure" : undefined;
+    expect(terminalHeroSide, "the final base damage source is an attacker-owned Hero").toBe("Azure");
+    baseAssaultFacts = {
+      initialConditions: {
+        scenario: "existing controlled_base_node_assault attacker-winner case",
+        classification: "controlled initial-node assault, not a full-map march",
+        attackerStart: {
+          heroCount: attackerBaseAssault.length,
+          node: "B.BASE",
+          catalogIds: attackerBaseAssault.map((hero) => hero.catalogId),
+        },
+        defenderStart: { heroCount: defenderBaseAssault.length, node: "N.B.UC" },
+        squadPartition: "five Solo Heroes per side",
+      },
+      base: { catalogId: baseCatalogId, coreEntityId: baseEntityId, initialHp: initialBaseHp },
+      firstDamage: {
+        tick: firstDamageTick,
+        remainingHp: damagedBaseHp,
+        attackEvent: firstDamageAttack!.event.event,
+        sourceCoreEntityId: firstDamageAttack!.entityId,
+        sourceCatalogId: damageHeroCatalogId,
+        sourceSide: damageHeroSide,
+      },
+      terminal: {
+        tick: finalTick,
+        outcome: baseAssaultRun.result.outcome,
+        terminationReason: baseAssaultRun.result.termination_reason,
+        baseHp: integerField(destroyedBaseEntry?.[1], "hp"),
+        objectiveDestroyedEvent: objectiveDestroyedEvent!.event,
+        attackEvent: terminalAttack!.event.event,
+        sourceCoreEntityId: terminalAttack!.entityId,
+        sourceCatalogId: terminalHeroCatalogId,
+        sourceSide: terminalHeroSide,
+      },
+    };
+
+    const detailedViewports = new Set(["1440x900", "390x844", "320x740"]);
+    for (const viewport of viewports) {
+      await ensureViewport(baseAssaultPage, viewport);
+      await setView(baseAssaultPage, viewport, "Tactical");
+      if (detailedViewports.has(viewport.name)) {
+        const beforeTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, 0, damageHeroCatalogId, damageHeroSide);
+        await saveCapture(baseAssaultPage, "real-base-assault", "base-before-damage-follow", 0, viewport, "Follow", {
+          ...baseAssaultFacts.initialConditions,
+          baseCatalogId,
+          baseCoreEntityId: baseEntityId,
+          baseHp: initialBaseHp,
+          targetHero: damageHeroCatalogId,
+          sourceCoreEntityId: firstDamageAttack!.entityId,
+          rendererEntityId: beforeTarget.id,
+          nextConfirmedBaseDamageTick: firstDamageTick,
+        }, captures);
+        const damageTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, firstDamageTick, damageHeroCatalogId, damageHeroSide);
+        await saveCapture(baseAssaultPage, "real-base-assault", "base-damaged-follow", firstDamageTick, viewport, "Follow", {
+          baseCatalogId,
+          baseCoreEntityId: baseEntityId,
+          initialHp: initialBaseHp,
+          currentHp: damagedBaseHp,
+          sourceCoreEntityId: firstDamageAttack!.entityId,
+          sourceCatalogId: damageHeroCatalogId,
+          rendererEntityId: damageTarget.id,
+          attackEvent: firstDamageAttack!.event.event,
+        }, captures);
+      }
+      const terminalTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, finalTick, terminalHeroCatalogId, terminalHeroSide);
+      await saveCapture(baseAssaultPage, "real-base-assault", "enemy-base-destroyed-follow", finalTick, viewport, "Follow", {
+        baseCatalogId,
+        baseCoreEntityId: baseEntityId,
+        baseHp: 0,
+        outcome: baseAssaultRun.result.outcome,
+        terminationReason: baseAssaultRun.result.termination_reason,
+        objectiveDestroyedEvent: objectiveDestroyedEvent!.event,
+        attackEvent: terminalAttack!.event.event,
+        sourceCoreEntityId: terminalAttack!.entityId,
+        sourceCatalogId: terminalHeroCatalogId,
+        rendererEntityId: terminalTarget.id,
+      }, captures);
+    }
+  } finally {
+    await baseAssaultPage.close();
+  }
+
   const wasmPath = join(repoRoot, "apps/web/public/wasm/senkei_wasm.wasm");
   const screenshotPaths = captures.map((capture) => join(repoRoot, capture.image.path));
   const imageHashes = Object.fromEntries(captures.map((capture) => [capture.image.path, capture.image.sha256]));
@@ -1109,6 +1298,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     defaultInput: saveGzip("default-enbu-battle-input.json.gz", defaultRun.request.payload.snapshot),
     defaultPublicReplay: saveGzip("default-enbu-battle-public-replay.json.gz", defaultRun.publicReplay),
     defaultOwnerReplay: saveGzip("default-enbu-battle-owner-replay.json.gz", defaultRun.ownerReplay),
+    baseAssaultPublicReplay: saveGzip("real-base-assault-public-replay.json.gz", baseAssaultRun.publicReplay),
+    baseAssaultOwnerReplay: saveGzip("real-base-assault-owner-replay.json.gz", baseAssaultRun.ownerReplay),
   };
   const metadata = {
     schema: "senkei-battlefield-visual-acceptance/v1",
@@ -1195,6 +1386,26 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         workerRequestId: defaultRun.request.request_id,
         wasmResponses: defaultRun.wasmResponses,
       },
+      controlledBaseAssault: {
+        provenance: "existing real controlled_base_node_assault attacker-winner Enbu input, exported by the Rust integration test and executed by the browser Worker + local WASM",
+        scope: "controlled initial-node assault; this is separate evidence from the unmodified full-map default battle",
+        matchId: baseAssaultRun.result.match_id,
+        outcome: baseAssaultRun.result.outcome,
+        terminationReason: baseAssaultRun.result.termination_reason,
+        finalTick: baseAssaultRun.result.final_tick,
+        finalStateDigest: baseAssaultRun.result.final_state_digest,
+        publicReplayDigest: baseAssaultRun.publicReplay.result_digest,
+        ownerReplayDigest: baseAssaultRun.ownerReplay.result_digest,
+        workerRequestId: baseAssaultRun.request.request_id,
+        wasmResponses: baseAssaultRun.wasmResponses,
+        inputSha256: sha256(JSON.stringify(baseAssaultRun.request.payload.snapshot)),
+        facts: baseAssaultFacts,
+        capturesByViewport: Object.fromEntries(viewports.map((viewport) => [viewport.name,
+          captures.filter((capture) => capture.scenario === "real-base-assault" &&
+            capture.viewport.width === viewport.width && capture.viewport.height === viewport.height)
+            .map((capture) => ({ state: capture.state, tick: capture.tick, path: capture.image.path })),
+        ])),
+      },
     },
     interactionChecks: {
       replaySeek: true,
@@ -1203,10 +1414,11 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       desktopTacticalOverviewFollow: true,
       followAuthorizedBridgeFacility: true,
       followActualHeroMovementAndAttack: true,
+      actualEnbuBaseDamageAndDestruction: true,
       mobileBattleOverviewFollowTimelineDetails: true,
       mapRoutesAndRiver: true,
       mapRouteBridgeState: true,
-      pageErrors: [...canonical.pageErrors, ...captureRun.pageErrors, ...defaultRun.pageErrors],
+      pageErrors: [...canonical.pageErrors, ...captureRun.pageErrors, ...defaultRun.pageErrors, ...baseAssaultRun.pageErrors],
     },
     artifacts,
     captures,
@@ -1229,6 +1441,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
     `| Close-focus facility Follow | — | [TOP normal](canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png), [MID destroyed](canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png), [TOP expanded](canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png), [TOP destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png), [TOP rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png) | camera follows an authorized visible bridge entity |`,
+    `| Real base assault and destruction | — | [initial base](real-base-assault/1440x900/base-before-damage-follow-t000-follow.png), [damaged base](real-base-assault/1440x900/base-damaged-follow-t${String(baseAssaultFacts.firstDamage.tick).padStart(3, "0")}-follow.png), [destroyed base](real-base-assault/1440x900/enemy-base-destroyed-follow-t${String(baseAssaultFacts.terminal.tick).padStart(3, "0")}-follow.png) | controlled existing Enbu scenario: attacker Heroes start at B.BASE; defenders at N.B.UC; terminal event and HP 0 are replay-confirmed |`,
     `| MID capture and default battle result | — | [capture progress](real-mid-capture/1440x900/capture-progress-t007-tactical.png), [match end](default-enbu-battle/1440x900/default-match-end-t${String(defaultRun.result.final_tick).padStart(3, "0")}-tactical.png) | ${defaultRun.result.outcome} at T${defaultRun.result.final_tick} · ${defaultRun.result.termination_reason} |`,
     "",
     "Each screenshot's SHA-256, tick, viewport, requested camera mode, renderer camera pose/target, replay identity and scene facts are listed in `metadata.json`.",
