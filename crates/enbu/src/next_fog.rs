@@ -3,8 +3,8 @@
 //! Version 1 is stored at `ReplayFrame.visible_state.global_fields.fog` as a
 //! `DomainValue::Record`. Node and edge masks are computed from Enbu's existing
 //! logical visibility check. They describe graph samples only; visual terrain
-//! does not add sight blockers. Contacts contain only last-seen public identity
-//! class and position, never current hidden entity state or internal IDs.
+//! does not add sight blockers. Hidden units disappear. Only previously observed
+//! facilities may retain a timestamped allowlist of their last observed state.
 
 use crate::next_vision;
 use senkei_model::{CombatantSide, DomainValue, EntityId, EntityState, FieldId, NextRules, TypeId, WorldState};
@@ -26,21 +26,38 @@ pub enum FogVisibility {
     Visible,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LastKnownContact {
-    /// Replay-local pseudonym, independent from Enbu's private EntityId.
-    pub id: String,
-    /// Always `last_known`; the position is historical, never extrapolated.
-    pub state: String,
-    pub kind: String,
-    pub side: CombatantSide,
-    /// Logical World Units, not renderer coordinates.
-    pub x: i64,
-    pub y: i64,
-    pub last_seen_tick: u32,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FacilitySide {
+    Attacker,
+    Defender,
+    Neutral,
 }
 
-/// A single tick's side-specific visibility mask and remembered contacts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FacilityStateValue {
+    Integer(i64),
+    String(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastKnownFacility {
+    /// Replay-local pseudonym, independent from Enbu's private EntityId.
+    pub id: String,
+    /// Always `last_known`; this is an observation timestamp, not current state.
+    pub state: String,
+    pub kind: String,
+    pub side: FacilitySide,
+    /// Public static site key used to locate the remembered facility marker.
+    pub site: String,
+    pub last_seen_tick: u32,
+    /// Only approved observed state fields are kept; no value is refreshed while hidden.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub facility_state: BTreeMap<String, FacilityStateValue>,
+}
+
+/// A single tick's side-specific visibility mask and remembered facilities.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FogReplayState {
     pub schema_version: u32,
@@ -49,27 +66,27 @@ pub struct FogReplayState {
     pub nodes: BTreeMap<String, FogVisibility>,
     /// Nine samples in `MapEdge.from` → `MapEdge.to` logical progress order.
     pub edges: BTreeMap<String, Vec<FogVisibility>>,
-    /// Enemies which were seen before and are not currently visible.
-    pub contacts: Vec<LastKnownContact>,
+    /// Facilities seen before but not currently visible. Units are never retained.
+    pub facilities: Vec<LastKnownFacility>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct FogHistory {
     explored_nodes: BTreeSet<String>,
     explored_edges: BTreeSet<(String, usize)>,
-    /// Private keys remain inside Enbu. Only the generated contact serial exits.
-    contacts: BTreeMap<EntityId, RememberedContact>,
-    next_contact: u64,
+    /// Private keys remain inside Enbu. Only the generated facility serial exits.
+    facilities: BTreeMap<EntityId, RememberedFacility>,
+    next_facility: u64,
 }
 
 #[derive(Clone, Debug)]
-struct RememberedContact {
+struct RememberedFacility {
     id: String,
     kind: String,
-    side: CombatantSide,
-    x: i64,
-    y: i64,
+    side: FacilitySide,
+    site: String,
     last_seen_tick: u32,
+    facility_state: BTreeMap<String, FacilityStateValue>,
 }
 
 impl FogHistory {
@@ -123,52 +140,43 @@ impl FogHistory {
             edges.insert(edge_id, samples);
         }
 
-        let mut currently_visible_enemies = BTreeSet::new();
+        let mut currently_visible_facilities = BTreeSet::new();
         for (entity_id, entity) in &world.entities {
-            if entity.owner.is_none()
-                || entity.owner == Some(side)
-                || !is_unit(&entity.entity_type)
-            {
+            if !is_facility(&entity.entity_type) {
                 continue;
             }
             if !next_vision::visible(world, rules, side, entity) {
                 continue;
             }
-            currently_visible_enemies.insert(entity_id.clone());
-            if value_int(entity, "hp").unwrap_or(1) <= 0 {
-                self.contacts.remove(entity_id);
+            let Some(site) = facility_site(entity) else {
                 continue;
-            }
-
-            let id = self.contact_id(entity_id);
-            let position = (
-                value_int(entity, "x").unwrap_or(0),
-                value_int(entity, "y").unwrap_or(0),
-            );
+            };
+            currently_visible_facilities.insert(entity_id.clone());
+            let id = self.facility_id(entity_id);
             let remembered = self
-                .contacts
+                .facilities
                 .get_mut(entity_id)
-                .expect("contact_id inserts contact");
+                .expect("facility_id inserts facility");
             remembered.id = id;
             remembered.kind = entity.entity_type.to_string();
-            remembered.side = entity.owner.expect("filtered above");
-            remembered.x = position.0;
-            remembered.y = position.1;
+            remembered.side = facility_side(entity.owner);
+            remembered.site = site;
             remembered.last_seen_tick = tick;
+            remembered.facility_state = observed_facility_state(entity);
         }
 
-        let contacts = self
-            .contacts
+        let facilities = self
+            .facilities
             .iter()
-            .filter(|(entity_id, _)| !currently_visible_enemies.contains(*entity_id))
-            .map(|(_, contact)| LastKnownContact {
-                id: contact.id.clone(),
+            .filter(|(entity_id, _)| !currently_visible_facilities.contains(*entity_id))
+            .map(|(_, facility)| LastKnownFacility {
+                id: facility.id.clone(),
                 state: "last_known".into(),
-                kind: contact.kind.clone(),
-                side: contact.side,
-                x: contact.x,
-                y: contact.y,
-                last_seen_tick: contact.last_seen_tick,
+                kind: facility.kind.clone(),
+                side: facility.side,
+                site: facility.site.clone(),
+                last_seen_tick: facility.last_seen_tick,
+                facility_state: facility.facility_state.clone(),
             })
             .collect();
 
@@ -178,25 +186,25 @@ impl FogHistory {
             side,
             nodes,
             edges,
-            contacts,
+            facilities,
         }
     }
 
-    fn contact_id(&mut self, entity_id: &EntityId) -> String {
-        if let Some(known) = self.contacts.get(entity_id) {
+    fn facility_id(&mut self, entity_id: &EntityId) -> String {
+        if let Some(known) = self.facilities.get(entity_id) {
             return known.id.clone();
         }
-        self.next_contact += 1;
-        let id = format!("contact-{}", self.next_contact);
-        self.contacts.insert(
+        self.next_facility += 1;
+        let id = format!("facility-{}", self.next_facility);
+        self.facilities.insert(
             entity_id.clone(),
-            RememberedContact {
+            RememberedFacility {
                 id: id.clone(),
                 kind: String::new(),
-                side: CombatantSide::Attacker,
-                x: 0,
-                y: 0,
+                side: FacilitySide::Neutral,
+                site: String::new(),
                 last_seen_tick: 0,
+                facility_state: BTreeMap::new(),
             },
         );
         id
@@ -232,25 +240,39 @@ impl FogReplayState {
                 )
             })
             .collect();
-        let contacts = self
-            .contacts
+        let facilities = self
+            .facilities
             .iter()
-            .map(|contact| {
-                DomainValue::Record(BTreeMap::from([
-                    ("id".into(), DomainValue::String(contact.id.clone())),
-                    ("state".into(), DomainValue::String(contact.state.clone())),
-                    ("kind".into(), DomainValue::String(contact.kind.clone())),
+            .map(|facility| {
+                let facility_state: BTreeMap<FieldId, DomainValue> = facility
+                    .facility_state
+                    .iter()
+                    .map(|(key, value)| {
+                        let value = match value {
+                            FacilityStateValue::Integer(value) => DomainValue::Integer(*value),
+                            FacilityStateValue::String(value) => DomainValue::String(value.clone()),
+                        };
+                        (FieldId::from(key.as_str()), value)
+                    })
+                    .collect();
+                let mut fields = BTreeMap::from([
+                    ("id".into(), DomainValue::String(facility.id.clone())),
+                    ("state".into(), DomainValue::String(facility.state.clone())),
+                    ("kind".into(), DomainValue::String(facility.kind.clone())),
                     (
                         "side".into(),
-                        DomainValue::String(side_name(contact.side).into()),
+                        DomainValue::String(facility_side_name(facility.side).into()),
                     ),
-                    ("x".into(), DomainValue::Integer(contact.x)),
-                    ("y".into(), DomainValue::Integer(contact.y)),
+                    ("site".into(), DomainValue::String(facility.site.clone())),
                     (
                         "last_seen_tick".into(),
-                        DomainValue::Integer(i64::from(contact.last_seen_tick)),
+                        DomainValue::Integer(i64::from(facility.last_seen_tick)),
                     ),
-                ]))
+                ]);
+                if !facility_state.is_empty() {
+                    fields.insert("facility_state".into(), DomainValue::Record(facility_state));
+                }
+                DomainValue::Record(fields)
             })
             .collect();
         DomainValue::Record(BTreeMap::from([
@@ -259,7 +281,7 @@ impl FogReplayState {
             ("side".into(), DomainValue::String(side_name(self.side).into())),
             ("nodes".into(), DomainValue::Record(nodes)),
             ("edges".into(), DomainValue::Record(edges)),
-            ("contacts".into(), DomainValue::List(contacts)),
+            ("facilities".into(), DomainValue::List(facilities)),
         ]))
     }
 }
@@ -288,21 +310,68 @@ fn edge_probe(from: &str, to: &str, progress: i64) -> EntityState {
     }
 }
 
-fn value_int(entity: &EntityState, key: &str) -> Option<i64> {
-    match entity.fields.get(&FieldId::from(key)) {
-        Some(DomainValue::Integer(value)) => Some(*value),
-        _ => None,
+fn is_facility(entity_type: &TypeId) -> bool {
+    matches!(entity_type.as_str(), "tower" | "base" | "bridge" | "observation")
+}
+
+fn facility_site(entity: &EntityState) -> Option<String> {
+    let field = if entity.entity_type == TypeId::from("bridge") { "site" } else { "node" };
+    let site = match entity.fields.get(&FieldId::from(field)) {
+        Some(DomainValue::String(value)) => value.clone(),
+        Some(DomainValue::Enum(value)) => value.to_string(),
+        _ => return None,
+    };
+    (!site.is_empty()).then_some(site)
+}
+
+fn facility_side(side: Option<CombatantSide>) -> FacilitySide {
+    match side {
+        Some(CombatantSide::Attacker) => FacilitySide::Attacker,
+        Some(CombatantSide::Defender) => FacilitySide::Defender,
+        None => FacilitySide::Neutral,
     }
 }
 
-fn is_unit(entity_type: &TypeId) -> bool {
-    matches!(entity_type.as_str(), "hero" | "minion" | "monster")
+fn observed_facility_state(entity: &EntityState) -> BTreeMap<String, FacilityStateValue> {
+    const INTEGER_FIELDS: &[&str] = &["hp", "max_hp", "build_remaining", "capture_progress"];
+    const STRING_FIELDS: &[&str] = &[
+        "bridge_state",
+        "build_kind",
+        "capture_owner",
+        "capture_progress_side",
+    ];
+
+    let mut state = BTreeMap::new();
+    for name in INTEGER_FIELDS {
+        if let Some(DomainValue::Integer(value)) = entity.fields.get(&FieldId::from(*name)) {
+            state.insert((*name).into(), FacilityStateValue::Integer(*value));
+        }
+    }
+    for name in STRING_FIELDS {
+        let value = match entity.fields.get(&FieldId::from(*name)) {
+            Some(DomainValue::String(value)) => Some(value.clone()),
+            Some(DomainValue::Enum(value)) => Some(value.to_string()),
+            _ => None,
+        };
+        if let Some(value) = value {
+            state.insert((*name).into(), FacilityStateValue::String(value));
+        }
+    }
+    state
 }
 
 fn side_name(side: CombatantSide) -> &'static str {
     match side {
         CombatantSide::Attacker => "attacker",
         CombatantSide::Defender => "defender",
+    }
+}
+
+fn facility_side_name(side: FacilitySide) -> &'static str {
+    match side {
+        FacilitySide::Attacker => "attacker",
+        FacilitySide::Defender => "defender",
+        FacilitySide::Neutral => "neutral",
     }
 }
 
@@ -375,6 +444,20 @@ mod tests {
         }
     }
 
+    fn bridge(node: &str, site: &str, state: &str, hp: i64) -> EntityState {
+        EntityState {
+            entity_type: TypeId::from("bridge"),
+            owner: None,
+            fields: BTreeMap::from([
+                ("site".into(), DomainValue::String(site.into())),
+                ("node".into(), DomainValue::String(node.into())),
+                ("bridge_state".into(), DomainValue::String(state.into())),
+                ("hp".into(), DomainValue::Integer(hp)),
+                ("max_hp".into(), DomainValue::Integer(100)),
+            ]),
+        }
+    }
+
     fn move_to(entity: &mut EntityState, node: &str, x: i64, y: i64) {
         entity.fields.insert("node".into(), DomainValue::String(node.into()));
         entity.fields.insert("x".into(), DomainValue::Integer(x));
@@ -416,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn hidden_enemy_contact_stays_at_last_observed_position_and_has_no_private_key() {
+    fn hidden_enemy_units_disappear_while_facilities_keep_only_timed_observations() {
         let rules = rules();
         let mut world = WorldState::default();
         world.entities.insert(
@@ -427,12 +510,16 @@ mod tests {
             "defender-roster-secret".into(),
             unit(CombatantSide::Defender, "a", 3, 4, 20),
         );
+        world.entities.insert(
+            "private-bridge-key".into(),
+            bridge("a", "TOP", "normal", 100),
+        );
         let mut history = FogHistory::default();
 
         let current = history.observe(&world, &rules, CombatantSide::Attacker, 7);
         assert!(
-            current.contacts.is_empty(),
-            "currently visible enemy belongs in visible_state.entities"
+            current.facilities.is_empty(),
+            "currently visible bridge remains in visible_state.entities"
         );
         move_to(
             world
@@ -444,11 +531,27 @@ mod tests {
             0,
         );
         let lost = history.observe(&world, &rules, CombatantSide::Attacker, 8);
-        assert_eq!(lost.contacts.len(), 1);
-        assert_eq!(lost.contacts[0].state, "last_known");
-        assert_eq!((lost.contacts[0].x, lost.contacts[0].y), (3, 4));
-        assert_eq!(lost.contacts[0].last_seen_tick, 7);
-        assert_eq!(lost.contacts[0].id, "contact-1");
+        assert_eq!(lost.facilities.len(), 1);
+        assert_eq!(lost.facilities[0].state, "last_known");
+        assert_eq!(lost.facilities[0].kind, "bridge");
+        assert_eq!(lost.facilities[0].side, FacilitySide::Neutral);
+        assert_eq!(lost.facilities[0].site, "TOP");
+        assert_eq!(lost.facilities[0].last_seen_tick, 7);
+        assert_eq!(lost.facilities[0].id, "facility-1");
+        assert_eq!(
+            lost.facilities[0].facility_state["bridge_state"],
+            FacilityStateValue::String("normal".into())
+        );
+        assert_eq!(lost.facilities[0].facility_state["hp"], FacilityStateValue::Integer(100));
+
+        let lost_view = next_vision::team_view_with_fog(
+            &world,
+            &rules,
+            CombatantSide::Attacker,
+            8,
+            &mut history,
+        );
+        assert!(!lost_view.entities.contains_key(&EntityId::from("defender-roster-secret")));
 
         move_to(
             world
@@ -459,9 +562,14 @@ mod tests {
             8000,
             9000,
         );
+        world.entities.insert(
+            "private-bridge-key".into(),
+            bridge("a", "TOP", "destroyed", 0),
+        );
         let later = history.observe(&world, &rules, CombatantSide::Attacker, 9);
-        assert_eq!((later.contacts[0].x, later.contacts[0].y), (3, 4));
-        assert_eq!(later.contacts[0].last_seen_tick, 7);
+        assert_eq!(later.facilities[0].facility_state["bridge_state"], FacilityStateValue::String("normal".into()));
+        assert_eq!(later.facilities[0].facility_state["hp"], FacilityStateValue::Integer(100));
+        assert_eq!(later.facilities[0].last_seen_tick, 7);
         let wire = serde_json::to_string(&later.as_domain_value()).unwrap();
         assert!(!wire.contains("defender-roster-secret"));
         assert!(!wire.contains("attacker-roster-secret"));
@@ -486,8 +594,9 @@ mod tests {
             0,
         );
         let rediscovered = history.observe(&world, &rules, CombatantSide::Attacker, 10);
-        assert!(rediscovered.contacts.is_empty());
+        assert!(rediscovered.facilities.is_empty());
         let view = next_vision::team_view(&world, &rules, CombatantSide::Attacker);
+        assert!(view.entities.contains_key(&EntityId::from("private-bridge-key")));
         assert!(view.entities.contains_key(&EntityId::from("defender-roster-secret")));
     }
 
@@ -536,6 +645,6 @@ mod tests {
         assert_eq!(value[&FieldId::from("side")], DomainValue::String("attacker".into()));
         assert!(value.contains_key(&FieldId::from("nodes")));
         assert!(value.contains_key(&FieldId::from("edges")));
-        assert!(value.contains_key(&FieldId::from("contacts")));
+        assert!(value.contains_key(&FieldId::from("facilities")));
     }
 }
