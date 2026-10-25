@@ -121,7 +121,7 @@ describe("canonical Battlefield terrain presentation", () => {
     const upperCanopy = scene.getObjectByName("battlefield-canopy-upper") as THREE.InstancedMesh;
     expect(ford).toBeDefined();
     expect(campTrail).toBeDefined();
-    expect(trunks.count).toBeGreaterThan(20);
+    expect(trunks.count).toBeGreaterThan(140);
     expect(canopy.count).toBe(trunks.count);
     expect(upperCanopy.count).toBe(trunks.count);
 
@@ -134,7 +134,7 @@ describe("canonical Battlefield terrain presentation", () => {
     for (let index = 0; index < trunks.count; index++) {
       trunks.getMatrixAt(index, matrix);
       position.setFromMatrixPosition(matrix);
-      expect(distanceToRiver(position)).toBeGreaterThan(4.8);
+      expect(distanceToRiver(position)).toBeGreaterThan(4.3);
     }
   });
 });

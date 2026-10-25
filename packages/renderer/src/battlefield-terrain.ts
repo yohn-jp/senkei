@@ -146,10 +146,10 @@ function forestAt(
   for (const region of regions) {
     if (!pointInPolygon(point, region.polygon)) continue;
     const edgeClearance = distanceToLines(point, region.boundaries);
-    const forest = smoothstep(3.5, 7.2, edgeClearance)
-      * smoothstep(1.75, 3.6, routeDistance)
-      * smoothstep(3.2, 5.5, campDistance)
-      * smoothstep(4.7, 7.2, riverDistance);
+    const forest = smoothstep(2.8, 5.1, edgeClearance)
+      * smoothstep(1.35, 3.0, routeDistance)
+      * smoothstep(3.5, 5.0, campDistance)
+      * smoothstep(4.0, 6.2, riverDistance);
     mask = Math.max(mask, forest);
   }
   return clamp01(mask);
@@ -193,9 +193,9 @@ function createTerrainData(replay: Replay): TerrainData {
 
     const rolling = (broad - 0.5) * 0.9 + (mid - 0.5) * 0.34 + (detail - 0.5) * 0.12;
     const land = THREE.MathUtils.clamp(
-      0.14 + rolling + woods * (0.55 + broad * 1.6 + ridge * 1.25 + mid * 0.42),
+      0.1 + rolling + woods * (0.85 + broad * 1.8 + ridge * 1.55 + mid * 0.5),
       -0.34,
-      3.8,
+      4.25,
     );
     const roadMix = 1 - smoothstep(2.35, 5.7, roadDistance);
     const campMix = 1 - smoothstep(3.1, 5.2, campDistance);
@@ -381,8 +381,12 @@ function splitAtWater(points: Polyline, replay: Replay, exclusion: number): Worl
 
 function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"]): void {
   const lanePaths = replay.scene.lanes.flatMap(lane => splitAtWater(lane.points, replay, RIVER_WATER_HALF_WIDTH + 0.42));
-  const clearing = lanePaths.map(points => ({ points, width: 6.8, yOffset: 0.02 }));
-  const shoulder = lanePaths.map(points => ({ points, width: 4.75, yOffset: 0.035 }));
+  const laneEdges = (replay.scene.routes ?? [])
+    .filter(route => route.region === "lane" && !route.bridgeSite)
+    .flatMap(route => splitAtWater(route.points, replay, RIVER_WATER_HALF_WIDTH + 0.42));
+  const clearing = lanePaths.map(points => ({ points, width: 8.0, yOffset: 0.018 }));
+  const shoulder = laneEdges.map(points => ({ points, width: 5.6, yOffset: 0.034 }));
+  const roadway = lanePaths.map(points => ({ points, width: 4.3, yOffset: 0.047 }));
   const trackOffset = replay.scene.trackOffset ?? 0.8;
   const tracks = lanePaths.flatMap(points => [
     { points: offsetPath(points, trackOffset), width: 0.76, yOffset: TRACK_LEVEL }, // LEFT
@@ -390,8 +394,9 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
     { points: offsetPath(points, -trackOffset), width: 0.76, yOffset: TRACK_LEVEL }, // RIGHT
   ]);
   const roadLayers = [
-    { name: "lane-clearing-earth", lines: clearing, color: 0x69745b, roughness: 1 },
-    { name: "lane-packed-earth-shoulders", lines: shoulder, color: 0x786c52, roughness: 0.98 },
+    { name: "lane-clearing-earth", lines: clearing, color: 0x73785d, roughness: 1 },
+    { name: "lane-packed-earth-shoulders", lines: shoulder, color: 0x806f52, roughness: 0.98 },
+    { name: "lane-compacted-roadbed", lines: roadway, color: 0x89795b, roughness: 0.94 },
     { name: "lane-three-track-paving", lines: tracks, color: 0x9b8b66, roughness: 0.92 },
   ];
   for (const layer of roadLayers) {
@@ -474,21 +479,21 @@ function sampleForest(replay: Replay, data: TerrainData): { trees: Point2[]; roc
   for (let regionIndex = 0; regionIndex < data.regions.length; regionIndex++) {
     const region = data.regions[regionIndex];
     let count = 0;
-    const spacing = 1.9;
+    const spacing = 1.32;
     for (let z0 = region.bounds.minY + 0.5; z0 < region.bounds.maxY; z0 += spacing) {
       for (let x0 = region.bounds.minX + 0.5; x0 < region.bounds.maxX; x0 += spacing) {
         const seed = 7000 + regionIndex * 100000 + Math.round(x0 * 17) + Math.round(z0 * 31);
         const x = x0 + (hash(seed, 1) - 0.5) * 0.8;
         const z = z0 + (hash(seed, 2) - 0.5) * 0.8;
         const point = { x, y: z };
-        if (data.forest(x, z) < 0.52 || hash(seed, 3) < 0.12) continue;
-        if (distanceToLines(point, lanePaths) < 4.0 || distanceToLines(point, routePaths) < 1.85) continue;
-        if (distanceToLines(point, river) < 5.0 || distanceToCamps(point, replay.scene.camps) < 5.4) continue;
-        if (taken.some(other => Math.hypot(other.x - x, other.y - z) < 1.65)) continue;
+        if (data.forest(x, z) < 0.24 || hash(seed, 3) < 0.035) continue;
+        if (distanceToLines(point, lanePaths) < 5.1 || distanceToLines(point, routePaths) < 1.55) continue;
+        if (distanceToLines(point, river) < 4.45 || distanceToCamps(point, replay.scene.camps) < 4.25) continue;
+        if (taken.some(other => Math.hypot(other.x - x, other.y - z) < 1.08)) continue;
         taken.push(point);
-        if (hash(seed, 4) < 0.18) {
+        if (hash(seed, 4) < 0.1) {
           const y = data.at(x, z);
-          const size = 0.8 + hash(seed, 5) * 0.75;
+          const size = 0.92 + hash(seed, 5) * 0.78;
           rocks.push({
             position: [x, y + 0.4 * size, z],
             scale: [1.05 * size, 0.62 * size, 1.28 * size],
@@ -499,9 +504,9 @@ function sampleForest(replay: Replay, data: TerrainData): { trees: Point2[]; roc
           trees.push(point);
         }
         count++;
-        if (count >= 430) break;
+        if (count >= 800) break;
       }
-      if (count >= 430) break;
+      if (count >= 800) break;
     }
   }
 
@@ -515,8 +520,8 @@ function sampleForest(replay: Replay, data: TerrainData): { trees: Point2[]; roc
       const woods = data.forest(px, pz);
       const riverDistance = distanceToLines({ x: px, y: pz }, river);
       const roadDistance = Math.min(distanceToLines({ x: px, y: pz }, lanePaths), distanceToLines({ x: px, y: pz }, routePaths));
-      if (hash(id, 13) > 0.08 || (woods < 0.12 && (riverDistance > 3.1 || riverDistance < 2.0))) continue;
-      if (roadDistance < 1.1 || distanceToCamps({ x: px, y: pz }, replay.scene.camps) < 3.8) continue;
+      if (hash(id, 13) > 0.2 || (woods < 0.12 && (riverDistance > 3.1 || riverDistance < 2.0))) continue;
+      if (roadDistance < 2.0 || distanceToCamps({ x: px, y: pz }, replay.scene.camps) < 3.8) continue;
       if (riverDistance < 2.05) continue;
       const height = 0.3 + hash(id, 14) * 0.34;
       const y = data.at(px, pz);
@@ -542,27 +547,27 @@ function addWoodlands(scene: THREE.Scene, replay: Replay, data: TerrainData): vo
     const leaf = hash(seed, 2);
     const canopy = leaf > 0.68 ? 0x527658 : leaf > 0.34 ? 0x45694f : 0x385941;
     trunks.push({
-      position: [root.x, ground + 1.32 * size, root.y],
-      scale: [0.86 * size, 2.64 * size, 0.86 * size],
+      position: [root.x, ground + 1.38 * size, root.y],
+      scale: [0.88 * size, 2.76 * size, 0.88 * size],
       rotation: [0, hash(seed, 3) * Math.PI, (hash(seed, 4) - 0.5) * 0.05],
       color: hash(seed, 5) > 0.5 ? 0x796448 : 0x67563e,
     });
     canopyLower.push({
-      position: [root.x, ground + 2.9 * size, root.y],
-      scale: [1.3 * size, 1.35 * size, 1.25 * size],
+      position: [root.x, ground + 3.05 * size, root.y],
+      scale: [1.68 * size, 1.52 * size, 1.62 * size],
       rotation: [0, hash(seed, 6) * Math.PI, 0],
       color: canopy,
     });
     canopyUpper.push({
-      position: [root.x + (hash(seed, 7) - 0.5) * 0.55, ground + 4.0 * size, root.y + (hash(seed, 8) - 0.5) * 0.55],
-      scale: [0.88 * size, 0.95 * size, 0.88 * size],
+      position: [root.x + (hash(seed, 7) - 0.5) * 0.7, ground + 4.25 * size, root.y + (hash(seed, 8) - 0.5) * 0.7],
+      scale: [1.12 * size, 1.08 * size, 1.14 * size],
       rotation: [0, hash(seed, 9) * Math.PI, 0],
       color: leaf > 0.44 ? 0x6c895c : 0x5b7a55,
     });
     if (hash(seed, 10) > 0.65) {
       understory.push({
-        position: [root.x + (hash(seed, 11) - 0.5), ground + 0.5 * size, root.y + (hash(seed, 12) - 0.5)],
-        scale: [1.08 * size, 0.62 * size, 1.0 * size],
+        position: [root.x + (hash(seed, 11) - 0.5) * 1.2, ground + 0.65 * size, root.y + (hash(seed, 12) - 0.5) * 1.2],
+        scale: [1.42 * size, 0.78 * size, 1.35 * size],
         color: leaf > 0.5 ? 0x697c51 : 0x526e4c,
       });
     }
