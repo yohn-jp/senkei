@@ -9,3 +9,7 @@ rust-version.workspace = true
 senkei-model = { path = "../senkei-model" }
 serde_json.workspace = true
 sha2.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+jinrei = { path = "../jinrei" }
