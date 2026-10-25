@@ -1,6 +1,6 @@
 {
-  "sourceRevision": "a54e73bf33c72dee689508c4e144608f6620d9d7",
-  "wasmSha256": "e04a8bac2dbedefd8e9591e4d741d3b918b87dbb17ddba52d9ec47591822cb27",
+  "sourceRevision": "3e494c1b7d168713c7b3957aa75b75836df43a04",
+  "wasmSha256": "e0c6f64eb72a824d989176000d2aaa86e42d92db305af78f49b74e1a5a9bd2c1",
   "viewport": {
     "width": 1440,
     "height": 900
@@ -175,5 +175,7 @@
       "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
       "pose": "idle"
     }
-  ]
+  ],
+  "buildRevision": "a7eeca56bcc8af2e14f65d41ea4d1b534c63fafb",
+  "provenanceNote": "Captured by the remaining-journey run against the immutable R2 preview on port 4299; sourceRevision identifies the capture-test checkout."
 }

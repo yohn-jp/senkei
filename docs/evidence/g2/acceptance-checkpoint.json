@@ -1,0 +1,114 @@
+{
+  "schema": "senkei-g2-local-acceptance-checkpoint/v1",
+  "published_at": "2026-10-25T14:54:09.033145+00:00",
+  "test_commit": "f4035d921528db5f231347746531959730c7b551",
+  "runtime_builds": [
+    "9b00d11a21b8f3996b42f84a8f0c18b8bca9369e",
+    "d9bedaac23267af8a78c2c2247f0959b541c1d92",
+    "a7eeca56bcc8af2e14f65d41ea4d1b534c63fafb"
+  ],
+  "rust_source_tree": "f1e139904bd0db3b3dc4472321c7ca555efffed0",
+  "wasm_sha256": "e0c6f64eb72a824d989176000d2aaa86e42d92db305af78f49b74e1a5a9bd2c1",
+  "local_gates": {
+    "rust_workspace_release": {
+      "status": "PASS",
+      "passed": 217,
+      "failed": 0,
+      "ignored": 0
+    },
+    "typescript": {
+      "status": "PASS",
+      "tests": 174,
+      "typecheck": "PASS",
+      "production_build": "PASS"
+    },
+    "native_real_wasm": {
+      "status": "PASS",
+      "initial_cases": 7,
+      "next_cases": 7,
+      "initial_gameplay_outcomes_unchanged": true
+    },
+    "gameplay": {
+      "status": "PASS",
+      "fixed_cases": 48,
+      "tactical_inputs": 8,
+      "natural_victories": 3,
+      "limit_draws": 5,
+      "first_campaign_base_destruction_tick": 447,
+      "balance_acceptance": "NOT_CHECKED"
+    },
+    "journeys": {
+      "status": "PASS",
+      "case_count": 35,
+      "composition": {
+        "app_shell": 1,
+        "s13_revision_rematch_restore_json_roundtrip": 1,
+        "canonical_desktop_mobile_and_cinematic": 1,
+        "first_run_quick_five_viewports": 1,
+        "remaining_functional_cases": 29,
+        "production_worker_batch": 1,
+        "workbench_offline_recovery": 1
+      }
+    },
+    "graphics_g1": {
+      "status": "PASS",
+      "tests": 10
+    },
+    "battlefield_verification": {
+      "status": "PASS",
+      "viewports": [
+        "1920x1080",
+        "1440x900",
+        "430x932",
+        "390x844",
+        "320x844"
+      ],
+      "latest_mobile_build": "a7eeca5"
+    },
+    "tactical_visual_operation": {
+      "status": "PASS",
+      "captures": 204,
+      "viewports": [
+        "1440x900",
+        "1920x1080",
+        "375x812",
+        "390x844",
+        "430x932",
+        "320x740"
+      ],
+      "build": "9b00d11",
+      "human_art_acceptance": "NOT_CHECKED"
+    },
+    "cinematic_authorization": {
+      "status": "PASS",
+      "viewports": [
+        "1440x900",
+        "390x844"
+      ],
+      "build": "a7eeca5",
+      "tick_fog_authorized_response_preserved": true
+    }
+  },
+  "final_ci": {
+    "status_at_publication": "PENDING",
+    "requirement": "Evaluate the actual final-main HEAD run and link its result in the delivery report; pending/cancelled jobs are not success.",
+    "workflow": "https://github.com/yohn-jp/senkei/actions/workflows/ci.yml"
+  },
+  "not_checked": [
+    "physical GPU",
+    "physical touch",
+    "IME",
+    "final user art/game-experience acceptance"
+  ],
+  "deferred": [
+    "G03",
+    "PC/mobile synchronized usage"
+  ],
+  "unresolved_authority": [
+    "DEC-TERRAIN-OCCLUSION-001",
+    "DEC-ATTACK-TIMING-001",
+    "DEC-MID-DIRECTION-001",
+    "initial geography disclosure scope",
+    "history Capability rules"
+  ]
+}
