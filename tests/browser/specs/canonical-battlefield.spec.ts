@@ -35,7 +35,7 @@ function requiredString(value: unknown, label: string): string {
 async function compileScenarioInput(): Promise<void> {
   mkdirSync(dirname(snapshotPath), { recursive: true });
   execFileSync("cargo", [
-    "test", "--locked", "-p", "enbu", "--test", "next_scenarios",
+    "test", "--locked", "--release", "-p", "enbu", "--test", "next_scenarios",
     "canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat", "--", "--exact",
   ], {
     cwd: repoRoot,
