@@ -39,6 +39,10 @@ const MAX_JSON_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_NODES = 750_000;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
 const MAX_EXPORT_NODES = 4_000_000;
+// Each immutable Enbu is capped at the same 4M nodes as a local export. Keep
+// two such records plus a small store envelope, while retaining the 64 MiB
+// aggregate byte limit in cloneJson.
+const MAX_NEXT_EXPERIMENT_STORE_NODES = MAX_EXPORT_NODES * 2 + 16;
 const MAX_JSON_DEPTH = 100;
 const MAX_NAME_BYTES = 256;
 const MAX_DIFF_ENTRIES = 2_000;
@@ -1307,13 +1311,14 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
         typeof experiment.estimated_cu !== "number" || !Number.isSafeInteger(experiment.estimated_cu) || experiment.estimated_cu < 0) {
       throw new PersistenceError("invalid_data", `Next experiment ${index + 1} is malformed or does not match its immutable match identity.`);
     }
+    assertJsonValue(experiment, `Next experiment ${index + 1}`, MAX_EXPORT_NODES);
     seen.add(experiment.id);
   }
 }
 
 /** Validates a portable Next experiment JSON value without touching stored data. */
 export function parseNextExperimentStore(value: unknown): LocalNextExperimentStore {
-  const copied = cloneJson(value, "Next experiment import", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
+  const copied = cloneJson(value, "Next experiment import", MAX_EXPORT_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES);
   assertNextExperimentStore(copied);
   return copied;
 }
