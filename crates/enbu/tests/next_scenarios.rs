@@ -1706,9 +1706,25 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     let retreating = owner_hero_at(&artifact, 2, "slot-4");
     assert_eq!(entity_string(retreating, "node"), "A.MID.BANK", "retreat arrives at the adjacent allied node");
     assert_eq!(entity_string(retreating, "edge_to"), "", "arrival consumes the tick and does not also enter the next edge");
-    let bridge_crossing = owner_hero_at(&artifact, 50, "slot-2");
+    let rebuilt_crossing_tick = (50..=artifact.result.final_tick)
+        .find(|tick| {
+            let hero = owner_hero_at(&artifact, *tick, "slot-2");
+            entity_string(hero, "node") == "A.TOP.BANK"
+                && entity_string(hero, "edge_to") == "B.TOP.BANK"
+        })
+        .expect("the accepted post-rebuild movement eventually reserves and enters the reopened bridge");
+    let bridge_crossing = owner_hero_at(&artifact, rebuilt_crossing_tick, "slot-2");
     assert_eq!(entity_string(bridge_crossing, "node"), "A.TOP.BANK");
     assert_eq!(entity_string(bridge_crossing, "edge_to"), "B.TOP.BANK", "the rebuilt fixed bridge remains an actual traversable edge");
+    assert_eq!(entity_string(bridge_crossing, "track"), "CENTER");
+    assert!(entity_integer(bridge_crossing, "edge_progress") > 0);
+    let bridge_next = owner_hero_at(&artifact, rebuilt_crossing_tick + 1, "slot-2");
+    if entity_string(bridge_next, "edge_to") == "B.TOP.BANK" {
+        assert!(entity_integer(bridge_next, "edge_progress") > entity_integer(bridge_crossing, "edge_progress"),
+            "the rebuilt CENTER bridge remains transit-only after reservation wait");
+    } else {
+        assert_eq!(entity_string(bridge_next, "node"), "B.TOP.BANK");
+    }
 
     let ford_frame = artifact.owner_replay.as_ref().unwrap().frames.iter().find(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| state.entities.values().any(|entity| {
