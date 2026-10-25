@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -59,10 +60,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: node --test scripts/ci/verify-browser-captures.test.mjs
       - run: npm run build
 
-  browser:
-    name: Production browser smoke
+  browser-build:
+    name: Production browser build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,21 +78,123 @@ jobs:
           cache: npm
       - run: sudo apt-get update && sudo apt-get install --yes lld
       - run: npm ci
-      - run: npm ci --prefix tests/browser
       - run: bash scripts/wasm/build.sh
       - run: npm run build
+      - name: Record the exact browser build
+        run: |
+          git rev-parse HEAD > dist/browser-build-revision.txt
+          cmp apps/web/public/wasm/senkei_wasm.wasm dist/web/wasm/senkei_wasm.wasm
+          sha256sum apps/web/public/wasm/senkei_wasm.wasm dist/web/wasm/senkei_wasm.wasm dist/web/index.html > dist/browser-build-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-browser-build
+          compression-level: 0
+          path: |
+            dist/
+            apps/web/public/wasm/
+
+  browser-shard:
+    name: Browser / ${{ matrix.name }}
+    needs: browser-build
+    runs-on: ubuntu-latest
+    strategy:
+      # Keep all evidence when one group fails. Each runner has one GPU worker.
+      fail-fast: false
+      matrix:
+        include:
+          - name: journeys
+            suite: journeys
+          - name: verification-desktop
+            suite: verification
+            verification_viewports: 1920x1080,1440x900
+          - name: verification-mobile
+            suite: verification
+            verification_viewports: 430x932,390x844,320x844
+          - name: visual-desktop
+            suite: visual
+            visual_viewports: 1440x900,1920x1080
+          - name: visual-mobile-375-390
+            suite: visual
+            visual_viewports: 375x812,390x844
+          - name: visual-mobile-430-320
+            suite: visual
+            visual_viewports: 430x932,320x740
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix tests/browser
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-browser-build
+          path: .
+      - name: Verify browser build provenance
+        run: |
+          test "$(cat dist/browser-build-revision.txt)" = "$(git rev-parse HEAD)"
+          sha256sum --check dist/browser-build-sha256.txt
       - run: npx --prefix tests/browser playwright install --with-deps chromium
-      - run: npm run test:e2e --prefix tests/browser
+      - name: Run browser group
+        run: npm run test:e2e --prefix tests/browser -- --workers=1
         env:
+          SENKEI_BROWSER_SUITE: ${{ matrix.suite }}
+          BATTLEFIELD_VIEWPORTS: ${{ matrix.verification_viewports }}
+          BATTLEFIELD_VISUAL_VIEWPORTS: ${{ matrix.visual_viewports }}
           BATTLEFIELD_EXPECT_BUILD_REVISION: "true"
           BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE: "true"
           BATTLEFIELD_EXPECT_BASE_SITES: "true"
+          BATTLEFIELD_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/verification
+          BATTLEFIELD_VISUAL_OUTPUT_DIR: ${{ github.workspace }}/test-results/ci-browser/visual
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: next-local-browser-evidence
+          name: browser-evidence-${{ matrix.name }}
+          compression-level: 0
           path: |
-            docs/evidence/next/
-            docs/evidence/battlefield/
+            test-results/ci-browser/
             tests/browser/test-results/
             test-results/ux-session-1/
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.suite == 'visual'
+        with:
+          name: browser-capture-metadata-${{ matrix.name }}
+          path: test-results/ci-browser/visual/**/metadata.json
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.suite == 'journeys'
+        with:
+          name: browser-journey-legacy-evidence
+          compression-level: 0
+          path: |
+            docs/evidence/next/atelier/
+            docs/evidence/battlefield/canonical-browser/
+
+  browser:
+    # Preserve the existing required check name for branch protection.
+    name: Production browser smoke
+    needs: [browser-build, browser-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the build and every browser group
+        env:
+          BROWSER_BUILD_RESULT: ${{ needs.browser-build.result }}
+          BROWSER_SHARDS_RESULT: ${{ needs.browser-shard.result }}
+        run: |
+          test "$BROWSER_BUILD_RESULT" = success
+          test "$BROWSER_SHARDS_RESULT" = success
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: browser-capture-metadata-*
+          path: visual-capture-metadata
+      - name: Verify combined viewport coverage and replay identities
+        env:
+          CAPTURE_SOURCE_REVISION: ${{ github.sha }}
+        run: node scripts/ci/verify-browser-captures.mjs visual-capture-metadata "$CAPTURE_SOURCE_REVISION"
