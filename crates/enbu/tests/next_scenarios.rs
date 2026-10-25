@@ -1367,3 +1367,92 @@ fn every_catalog_hero_can_be_selected_and_simulated() {
 fn next_reveal_expires_at_the_same_tick_in_owner_and_public_replays() {
     reveal_expiry_case();
 }
+
+fn normalized_edge(a: &str, b: &str) -> (String, String) {
+    if a <= b { (a.to_owned(), b.to_owned()) } else { (b.to_owned(), a.to_owned()) }
+}
+
+fn canonical_battlefield_topology_conforms() {
+    let rules = rules();
+    let map = &rules.plan().next.as_ref().expect("Next rules").map;
+    let mut expected_nodes = ["A.BASE", "B.BASE", "N.MID.OBS"]
+        .into_iter().map(str::to_owned).collect::<Vec<_>>();
+    for lane in ["TOP", "MID", "BOT"] {
+        for side in ["A", "B"] {
+            let lane_nodes = if side == "A" {
+                [format!("{side}.{lane}.T1"), format!("{side}.{lane}.T2"), format!("{side}.{lane}.J"), format!("{side}.{lane}.BANK")]
+            } else {
+                [format!("{side}.{lane}.BANK"), format!("{side}.{lane}.J"), format!("{side}.{lane}.T2"), format!("{side}.{lane}.T1")]
+            };
+            expected_nodes.extend(lane_nodes);
+        }
+    }
+    expected_nodes.extend(["N.A.UJ", "N.B.UJ", "N.A.LJ", "N.B.LJ", "N.A.UC", "N.B.UC", "N.A.LC", "N.B.LC"].map(str::to_owned));
+    expected_nodes.sort();
+    let actual_nodes = map.nodes.keys().cloned().collect::<Vec<_>>();
+    assert_eq!(actual_nodes, expected_nodes, "the published world contains exactly the canonical 35 logical nodes");
+
+    let mut expected_edges = BTreeMap::<(String, String), (i64, bool, String)>::new();
+    let mut add = |a: &str, b: &str, length: i64, ford: bool, site: &str| {
+        assert!(expected_edges.insert(normalized_edge(a, b), (length, ford, site.to_owned())).is_none(), "test topology has unique connection {a}—{b}");
+    };
+    for lane in ["TOP", "MID", "BOT"] {
+        let a = ["A.BASE".to_owned(), format!("A.{lane}.T1"), format!("A.{lane}.T2"), format!("A.{lane}.J"), format!("A.{lane}.BANK")];
+        let b = [format!("B.{lane}.BANK"), format!("B.{lane}.J"), format!("B.{lane}.T2"), format!("B.{lane}.T1"), "B.BASE".to_owned()];
+        for route in [&a, &b] {
+            for pair in route.windows(2) {
+                let has_t1 = pair[0].ends_with("T1") || pair[1].ends_with("T1");
+                let has_t2 = pair[0].ends_with("T2") || pair[1].ends_with("T2");
+                let length = if has_t1 { 150 } else if has_t2 { 100 } else { 50 };
+                add(&pair[0], &pair[1], length, false, "");
+            }
+        }
+        match lane {
+            "TOP" | "BOT" => add(&format!("A.{lane}.BANK"), &format!("B.{lane}.BANK"), 100, false, lane),
+            "MID" => {
+                add("A.MID.BANK", "N.MID.OBS", 50, false, lane);
+                add("N.MID.OBS", "B.MID.BANK", 50, false, lane);
+            }
+            _ => unreachable!(),
+        }
+    }
+    for side in ["A", "B"] {
+        add(&format!("{side}.TOP.J"), &format!("N.{side}.UJ"), 325, false, "");
+        add(&format!("N.{side}.UJ"), &format!("{side}.MID.J"), 325, false, "");
+        add(&format!("{side}.MID.J"), &format!("N.{side}.LJ"), 325, false, "");
+        add(&format!("N.{side}.LJ"), &format!("{side}.BOT.J"), 325, false, "");
+        add(&format!("N.{side}.UJ"), &format!("N.{side}.UC"), 45, false, "");
+        add(&format!("N.{side}.LJ"), &format!("N.{side}.LC"), 45, false, "");
+    }
+    add("N.A.UJ", "N.B.UJ", 620, true, "");
+    add("N.A.LJ", "N.B.LJ", 620, true, "");
+    let actual_edges = map.edges.iter().map(|edge| {
+        assert!(!edge.id.is_empty(), "every canonical logical edge has a stable ID");
+        assert!(map.nodes.contains_key(&edge.from) && map.nodes.contains_key(&edge.to), "edge {} has both endpoints", edge.id);
+        assert!(edge.length > 0);
+        assert!(!edge.region.eq_ignore_ascii_case("jungle") || edge.bridge_site.is_empty(), "jungle routes cannot be bridge sites");
+        assert!(!edge.ford || edge.region.eq_ignore_ascii_case("jungle"), "only jungle river crossings are fords");
+        (normalized_edge(&edge.from, &edge.to), (edge.length, edge.ford, edge.bridge_site.clone()))
+    }).collect::<BTreeMap<_, _>>();
+    assert_eq!(map.edges.len(), 42, "all explicit lane, bridge, jungle, camp and ford edges exist");
+    assert_eq!(actual_edges, expected_edges, "the edge set has no hidden shortcut or missing crossing");
+    let bridge_sites = map.edges.iter().filter(|edge| !edge.bridge_site.is_empty()).map(|edge| edge.bridge_site.as_str()).collect::<Vec<_>>();
+    assert_eq!(bridge_sites.iter().filter(|site| **site == "MID").count(), 2, "MID observation plaza has two separately managed connectors");
+    assert_eq!(bridge_sites.iter().copied().collect::<std::collections::BTreeSet<_>>(), ["TOP", "MID", "BOT"].into_iter().collect());
+    assert_eq!(rules.plan().next.as_ref().unwrap().camps.len(), 4, "four dead-end camps are configured");
+    for lane in ["top", "mid", "bot"] {
+        let path = &map.lanes[lane];
+        let distance = path.windows(2).map(|pair| {
+            map.edges.iter().find(|edge| normalized_edge(&edge.from, &edge.to) == normalized_edge(&pair[0], &pair[1]))
+                .unwrap_or_else(|| panic!("lane {lane} consecutive nodes are an actual edge: {}—{}", pair[0], pair[1])).length
+        }).sum::<i64>();
+        assert_eq!(distance, 1_000, "{lane} reaches opposing bases along the canonical river route");
+        assert_eq!(path.first().map(String::as_str), Some("A.BASE"));
+        assert_eq!(path.last().map(String::as_str), Some("B.BASE"));
+    }
+}
+
+#[test]
+fn published_battlefield_map_matches_the_canonical_graph_without_shortcuts() {
+    canonical_battlefield_topology_conforms();
+}
