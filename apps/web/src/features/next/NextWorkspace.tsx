@@ -5,9 +5,12 @@ import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
 import { Battlefield } from "@senkei/renderer";
 import { presentationToGraphics, NEXT_WORLD_UNITS_PER_RENDER_UNIT, type Replay, type DisplayState, type Event as GraphicsEvent, type WorldPoint } from "@senkei/replay-contract";
 import { ReplayPlayer } from "@senkei/replay-player";
+import { catalogStamp, loadDomainCatalog, sameCatalog } from "@senkei/jinrei-editor";
+import type { DomainCatalogDocument } from "@senkei/jinrei-editor";
 import {
   type CoreClient,
   type CoreVersion,
+  type CompileOutcome,
   type DomainValue,
   type HeroDefinition,
   type MatchResult,
@@ -27,6 +30,7 @@ import {
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { EditorFeature } from "../editor";
+import { JinreiDomainPanel } from "./JinreiDomainPanel";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
 import "./next-workspace.css";
 
@@ -137,6 +141,18 @@ const SQUAD_PATTERNS: readonly { readonly id: string; readonly sizes: readonly n
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function editorCatalogMatchesRuleset(
+  catalog: DomainCatalogDocument | null,
+  packageValue: RulePackage | null,
+): catalog is DomainCatalogDocument {
+  return Boolean(catalog && packageValue
+    && catalog.identity.rulesetId === packageValue.ruleset.id
+    && catalog.identity.rulesetVersion.major === packageValue.ruleset.version.major
+    && catalog.identity.rulesetVersion.minor === packageValue.ruleset.version.minor
+    && catalog.identity.rulesetVersion.patch === packageValue.ruleset.version.patch
+    && catalog.identity.rulesetDigest === packageValue.ruleset.digest);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -545,6 +561,10 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const [minHp, setMinHp] = useState(0);
   const [draft, setDraft] = useState<SenkeiDraft | null>(null);
   const draftRef = useRef<SenkeiDraft | null>(null);
+  const [editorCatalog, setEditorCatalog] = useState<DomainCatalogDocument | null>(null);
+  const [editorCatalogError, setEditorCatalogError] = useState<string | null>(null);
+  const [editorCatalogLoading, setEditorCatalogLoading] = useState(false);
+  const editorCompileRevision = useRef(0);
   const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
   const [baselineRun, setBaselineRun] = useState<BattleRun | null>(null);
@@ -583,6 +603,47 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const mobileVisibleClustersRef = useRef<HTMLDivElement>(null);
   const desktopVisibleClustersRef = useRef<HTMLDivElement>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!active || !core || !packageValue?.next) {
+      setEditorCatalog(null);
+      setEditorCatalogError(null);
+      setEditorCatalogLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setEditorCatalog(null);
+    setEditorCatalogError(null);
+    setEditorCatalogLoading(true);
+    void core.editorCatalogJson()
+      .then((canonicalJson) => loadDomainCatalog(canonicalJson, {
+        rulesetId: packageValue.ruleset.id,
+        rulesetVersion: packageValue.ruleset.version,
+        rulesetDigest: packageValue.ruleset.digest,
+      }))
+      .then((catalog) => {
+        if (!cancelled) setEditorCatalog(catalog);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setEditorCatalogError(cause instanceof Error
+            ? cause.message
+            : "The Senritsu Domain Catalog could not be loaded.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEditorCatalogLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [
+    active,
+    core,
+    packageValue?.ruleset.id,
+    packageValue?.ruleset.version.major,
+    packageValue?.ruleset.version.minor,
+    packageValue?.ruleset.version.patch,
+    packageValue?.ruleset.digest,
+  ]);
 
   useEffect(() => {
     try {
@@ -678,8 +739,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     }
   }, [packageValue?.ruleset.digest, recoverySetupLoaded]);
 
-  const draftKey = draft ? stableKey(draft) : null;
-  const activeCompilation = draftKey !== null && compilation?.key === draftKey ? compilation.result : null;
+  const compilerContextKey = draft && editorCatalogMatchesRuleset(editorCatalog, packageValue)
+    ? stableKey({ draft, catalog: catalogStamp(editorCatalog) })
+    : null;
+  const activeCompilation = compilerContextKey !== null && compilation?.key === compilerContextKey
+    ? compilation.result
+    : null;
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
@@ -1135,20 +1200,66 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     setError(null);
   }, []);
 
+  const updateFoundationSource = useCallback((source: string): void => {
+    const current = draftRef.current;
+    if (!current || (current.program_input.kind === "text" && current.program_input.source === source)) return;
+    updateDraft({ ...current, program_input: { kind: "text", source } });
+  }, [updateDraft]);
+
   const compileTactics = useCallback(async (input: TacticalInput): Promise<void> => {
     if (!core) throw new Error("The local Rust core is still loading.");
     const current = draftRef.current;
     if (!current) throw new Error("Create a formation before compiling Jinrei.");
-    const key = stableKey(current);
-    const result = await core.compile(input);
-    if (stableKey(draftRef.current) !== key) {
+    if (!editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
+      throw new Error(editorCatalogError ?? "The selected Ruleset and Senritsu Domain Catalog identities do not match.");
+    }
+    if (!packageValue || input.ruleset_ref.id !== packageValue.ruleset.id
+      || input.ruleset_ref.version.major !== packageValue.ruleset.version.major
+      || input.ruleset_ref.version.minor !== packageValue.ruleset.version.minor
+      || input.ruleset_ref.version.patch !== packageValue.ruleset.version.patch
+      || input.ruleset_ref.digest !== packageValue.ruleset.digest) {
+      throw new Error("This Jinrei draft targets a different RulePackage than the selected Catalog.");
+    }
+    const key = stableKey({ draft: current, catalog: catalogStamp(editorCatalog) });
+    let result: CompileOutcome;
+    if (input.kind === "text") {
+      if (editorCompileRevision.current >= Number.MAX_SAFE_INTEGER) {
+        throw new Error("The editor compile revision space is exhausted. Reload the workspace before compiling again.");
+      }
+      const revision = ++editorCompileRevision.current;
+      const stamp = catalogStamp(editorCatalog);
+      const envelope = await core.editorCompile({ source: input.source, stamp, revision });
+      if (envelope.revision !== revision || !sameCatalog(stamp, envelope.reply.stamp)) {
+        throw new Error("Jinrei compiler response does not match the selected Catalog revision.");
+      }
+      if (envelope.reply.status === "rejected") {
+        const { code, message, path } = envelope.reply.error;
+        throw new Error(`${code}${path ? ` at ${path}` : ""}: ${message}`);
+      }
+      result = envelope.reply.result;
+    } else {
+      result = await core.compile(input);
+    }
+    if (!draftRef.current || stableKey(draftRef.current) !== stableKey(current)) {
       throw new Error("Jinrei changed while the local compiler was running. Compile the current version again.");
     }
     setCompilation({ key, result });
     setError(null);
-  }, [core]);
+  }, [core, editorCatalog, editorCatalogError, packageValue]);
+
+  const onCatalogCompile = useCallback((result: CompileOutcome, key: string): void => {
+    if (draftRef.current && editorCatalogMatchesRuleset(editorCatalog, packageValue)
+      && stableKey({ draft: draftRef.current, catalog: catalogStamp(editorCatalog) }) === key) {
+      setCompilation({ key, result });
+      setError(null);
+    }
+  }, [editorCatalog, packageValue]);
 
   const launchBattle = useCallback(async (): Promise<void> => {
+    if (!editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
+      setError(editorCatalogError ?? "A matching Senritsu Domain Catalog is required before compiling or launching this draft.");
+      return;
+    }
     if (!core || !packageValue || !nextRules || !draft || !activeCompilation) {
       setError("Compile the current Jinrei draft before launching a local battle.");
       return;
@@ -1164,8 +1275,20 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     try {
       const rivalDraft = createTacticDraft(packageValue, nextRules, "defender");
       const rivalSource = rivalDraft.program_input.kind === "text" ? rivalDraft.program_input.source : "";
-      const rivalInput: TacticalInput = { kind: "text", ruleset_ref: rivalDraft.ruleset, source: rivalSource };
-      const rivalCompilation = await core.compile(rivalInput);
+      if (editorCompileRevision.current >= Number.MAX_SAFE_INTEGER) {
+        throw new Error("The editor compile revision space is exhausted. Reload the workspace before compiling again.");
+      }
+      const rivalRevision = ++editorCompileRevision.current;
+      const stamp = catalogStamp(editorCatalog);
+      const rivalEnvelope = await core.editorCompile({ source: rivalSource, stamp, revision: rivalRevision });
+      if (rivalEnvelope.revision !== rivalRevision || !sameCatalog(stamp, rivalEnvelope.reply.stamp)) {
+        throw new Error("Jinrei compiler response does not match the selected Catalog revision.");
+      }
+      if (rivalEnvelope.reply.status === "rejected") {
+        const { code, message, path } = rivalEnvelope.reply.error;
+        throw new Error(`${code}${path ? ` at ${path}` : ""}: ${message}`);
+      }
+      const rivalCompilation = rivalEnvelope.reply.result;
       const attacker = makeSideSnapshot(draft, activeCompilation.program, slots);
       const defender = makeSideSnapshot(rivalDraft, rivalCompilation.program, rivalSlots);
       const matchId = stableMatchId({ ruleset: packageValue.ruleset, attacker, defender });
@@ -1193,7 +1316,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     } finally {
       setBusy(false);
     }
-  }, [activeCompilation, core, draft, includeDiagnostics, nextRules, packageValue, rivalSlots, slots]);
+  }, [activeCompilation, core, draft, editorCatalog, editorCatalogError, includeDiagnostics, nextRules, packageValue, rivalSlots, slots]);
 
   const rematch = useCallback((): void => {
     if (!run) return;
@@ -1527,6 +1650,30 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
               onFormat={(ast, rulesetRef) => core ? core.formatAst(ast, rulesetRef) : Promise.reject(new Error("The local Rust core is still loading."))}
               onCompile={compileTactics}
             />}
+            {draft && core && editorCatalogMatchesRuleset(editorCatalog, packageValue) ? (
+              <JinreiDomainPanel
+                catalog={editorCatalog}
+                core={core}
+                draftKey={compilerContextKey ?? stableKey({ draft, catalog: catalogStamp(editorCatalog) })}
+                onCompiled={onCatalogCompile}
+                onSourceChange={updateFoundationSource}
+                slot={activeSlotValue ? {
+                  slotId: activeSlotValue.slot_id,
+                  squadId: activeSlotValue.squad,
+                  heroCatalogId: activeSlotValue.catalog_id,
+                } : null}
+                source={draft.program_input.kind === "text" ? draft.program_input.source : ""}
+              />
+            ) : (
+              <section className="next-domain-catalog-state" aria-live="polite" role={editorCatalogError ? "alert" : "status"}>
+                <span className="next-eyebrow">SENRITSU DOMAIN CATALOG</span>
+                <strong>{editorCatalogLoading ? "Loading the verified Catalog…" : "Catalog-bound editing is unavailable"}</strong>
+                <p>{editorCatalogError
+                  ?? (editorCatalog ? "The Catalog identity does not match the selected RulePackage. Reload the workspace after the package and compiler are aligned."
+                    : "The Domain Catalog is required before compile results can be used for a battle.")}</p>
+                <small>The draft remains editable and can still be saved. Jinrei compile and local battle launch require the matching Catalog identity.</small>
+              </section>
+            )}
             <div className="next-jinrei-note"><span>LOCAL DRAFT</span><p>Starter orders move each slot and target path-selected skills only when their unlock level, energy, cooldown and target conditions are met. This draft stays separate from saved initial Senkei strategies.</p></div>
           </section>
 

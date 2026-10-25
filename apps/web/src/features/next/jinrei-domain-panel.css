@@ -1,0 +1,393 @@
+.next-jinrei-domain-panel,
+.next-domain-catalog-state {
+  background: linear-gradient(145deg, rgba(25, 37, 43, .96), rgba(19, 29, 36, .96));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #e8e9e5;
+  margin-top: 18px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 22px);
+}
+
+.next-jinrei-domain-heading {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+}
+
+.next-jinrei-domain-heading h4 {
+  color: #edf0e8;
+  font-family: Georgia, serif;
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-weight: 500;
+  letter-spacing: -.025em;
+  margin: 7px 0 5px;
+}
+
+.next-jinrei-domain-heading h4 em {
+  color: #c6e0ac;
+  font-weight: 400;
+}
+
+.next-jinrei-domain-heading p,
+.next-domain-context,
+.next-domain-scope-note,
+.next-domain-catalog-state p,
+.next-domain-catalog-state small {
+  color: #91a0a1;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.next-domain-scope-control {
+  display: grid;
+  flex: 0 0 min(180px, 38%);
+  gap: 6px;
+}
+
+.next-domain-scope-control span,
+.next-domain-scope-note,
+.next-domain-context {
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.next-domain-scope-control select {
+  background: #101a20;
+  border: 1px solid rgba(214, 225, 218, .18);
+  border-radius: 4px;
+  color: #e8e9e5;
+  font: inherit;
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.next-domain-context {
+  color: #c3d2c8;
+  margin: 0 0 5px;
+}
+
+.next-domain-scope-note {
+  margin-bottom: 14px;
+  text-transform: none;
+}
+
+.next-domain-catalog-state {
+  display: grid;
+  gap: 9px;
+}
+
+.next-domain-catalog-state strong {
+  color: #dce6da;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.next-jinrei-domain-mount {
+  min-width: 0;
+}
+
+.jinrei-editor {
+  min-width: 0;
+}
+
+.jinrei-editor > header {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.jinrei-editor > header h1 {
+  color: #dce6da;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.jinrei-editor > header p {
+  color: #87979a;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  margin: 0;
+}
+
+.jinrei-editor__selection {
+  display: none;
+}
+
+.jinrei-editor [role="tablist"] {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 5px;
+  margin: 0 0 13px;
+  overflow-x: auto;
+  padding: 0 0 7px;
+}
+
+.jinrei-editor [data-tab] {
+  background: #1a292e;
+  border: 1px solid rgba(214, 225, 218, .12);
+  border-radius: 4px;
+  color: #aab9b5;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 10px;
+  min-height: 36px;
+  padding: 7px 11px;
+  text-transform: capitalize;
+}
+
+.jinrei-editor [data-tab][aria-selected="true"] {
+  background: rgba(180, 211, 150, .12);
+  border-color: rgba(180, 211, 150, .45);
+  color: #d8ebc6;
+}
+
+.jinrei-editor [role="tabpanel"] {
+  min-width: 0;
+}
+
+.jinrei-editor [role="tabpanel"] > label {
+  color: #d5dfd8;
+  display: block;
+  font-size: 11px;
+  margin-bottom: 7px;
+}
+
+.jinrei-editor [data-source] {
+  background: #0e171c;
+  border: 1px solid rgba(214, 225, 218, .15);
+  border-radius: 4px;
+  color: #d8e4d6;
+  display: block;
+  font: 12px/1.65 "DM Mono", monospace;
+  min-height: 230px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.jinrei-editor [data-source]:focus,
+.jinrei-editor [data-search]:focus {
+  border-color: rgba(183, 218, 155, .68);
+  outline: 2px solid rgba(183, 218, 155, .16);
+}
+
+.jinrei-editor [data-compile] {
+  background: #c1dea6;
+  border: 1px solid #c1dea6;
+  border-radius: 4px;
+  color: #18241b;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 9px;
+  min-height: 38px;
+  padding: 8px 13px;
+}
+
+.jinrei-editor [data-diagnostics] {
+  background: rgba(4, 11, 15, .54);
+  border: 1px solid rgba(214, 225, 218, .09);
+  border-radius: 4px;
+  color: #aebdb7;
+  font: 10px/1.55 "DM Mono", monospace;
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.jinrei-editor [data-search] {
+  background: #0e171c;
+  border: 1px solid rgba(214, 225, 218, .15);
+  border-radius: 4px;
+  color: #e8e9e5;
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.jinrei-editor [data-entries] {
+  display: grid;
+  gap: 5px;
+  list-style: none;
+  margin: 9px 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 0;
+}
+
+.jinrei-editor [data-entries] li[hidden] {
+  display: none;
+}
+
+.jinrei-editor [data-entry] {
+  background: rgba(6, 14, 18, .4);
+  border: 1px solid rgba(214, 225, 218, .1);
+  border-radius: 4px;
+  color: #d8e2da;
+  cursor: pointer;
+  display: grid;
+  font-size: 10px;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  padding: 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.jinrei-editor [data-entry] small,
+.jinrei-editor [data-entry] span:last-child {
+  color: #8e9da0;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.jinrei-editor [data-entry][aria-current="true"] {
+  border-color: rgba(183, 218, 155, .55);
+}
+
+.jinrei-editor [data-hover] {
+  background: rgba(4, 11, 15, .42);
+  border-left: 2px solid rgba(183, 218, 155, .5);
+  color: #9eaeaa;
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  padding: 12px;
+}
+
+.jinrei-editor [data-hover] h2 {
+  color: #dbe6d9;
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+.jinrei-editor [data-hover] p {
+  margin: 5px 0;
+}
+
+.jinrei-editor [data-surface] {
+  background: #101a20;
+  border: 1px solid rgba(214, 225, 218, .16);
+  border-radius: 4px;
+  color: #dce6da;
+  min-height: 36px;
+  padding: 6px 9px;
+}
+
+.jinrei-editor [data-coverage-status],
+.jinrei-editor [data-observed-status] {
+  color: #d9c99f;
+  font: 10px "DM Mono", monospace;
+}
+
+.jinrei-editor table {
+  border-collapse: collapse;
+  display: block;
+  font-size: 9px;
+  max-width: 100%;
+  overflow: auto;
+  width: 100%;
+}
+
+.jinrei-editor th,
+.jinrei-editor td {
+  border-bottom: 1px solid rgba(214, 225, 218, .1);
+  min-width: 110px;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.jinrei-editor th {
+  color: #b5c3bb;
+}
+
+.jinrei-editor td {
+  color: #94a3a0;
+  line-height: 1.5;
+}
+
+.next-jinrei-completions {
+  background: rgba(9, 17, 21, .94);
+  border: 1px solid rgba(183, 218, 155, .27);
+  border-radius: 4px;
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  max-height: 250px;
+  overflow: auto;
+  padding: 9px;
+}
+
+.next-jinrei-completions > strong {
+  color: #a8bd9c;
+  font: 9px "DM Mono", monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.next-jinrei-completions button {
+  background: rgba(255, 255, 255, .025);
+  border: 1px solid rgba(214, 225, 218, .08);
+  border-radius: 3px;
+  color: #dce6da;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  text-align: left;
+}
+
+.next-jinrei-completions code {
+  color: #d0e6bb;
+  font-size: 10px;
+}
+
+.next-jinrei-completions span {
+  color: #8a9a9a;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .next-jinrei-domain-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .next-domain-scope-control {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .jinrei-editor [role="tablist"] {
+    margin-left: -2px;
+    margin-right: -2px;
+  }
+
+  .jinrei-editor [data-source] {
+    min-height: 190px;
+  }
+
+  .jinrei-editor [data-entries] {
+    max-height: min(42vh, 300px);
+  }
+}

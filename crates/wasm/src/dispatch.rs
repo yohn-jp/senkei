@@ -160,6 +160,8 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
     match operation {
         "initial_ruleset" => initial_ruleset(payload),
         "next_ruleset" => next_ruleset(payload),
+        "editor_catalog" => editor_catalog(payload),
+        "editor_compile" => editor_compile(payload),
         "new_match_context" => new_match_context(payload),
         "parse_text" => parse_text(payload),
         "format_ast" => format_ast(payload),
@@ -187,6 +189,51 @@ fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
     let package=senritsu::next_package();
     validate_package(&package)?;
     Ok((encode(&package,"result")?,package.limits.max_output_bytes))
+}
+
+/// Return Senritsu's canonical Domain Catalog string without decoding and
+/// reserializing it. The Editor verifies the producer digest over these exact
+/// canonical bytes before accepting the Catalog.
+fn editor_catalog(payload: Value) -> Result<(Value, u64), ApiError> {
+    require_empty_object(&payload, "payload")?;
+    let catalog_json = senkei_editor_adapter::next_catalog_json()
+        .map_err(editor_adapter_error)?;
+    Ok((Value::String(catalog_json), MAX_RESPONSE_BYTES as u64))
+}
+
+/// Compile a Catalog-stamped editor draft with the existing Jinrei compiler.
+/// The adapter checks the complete identity and echoes the submitted revision.
+fn editor_compile(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: senkei_editor_adapter::EditorCompileRequest = decode(payload, "payload")?;
+    let request_json = serde_json::to_string(&request).map_err(|error| {
+        api_error(
+            ApiErrorCode::InternalError,
+            Some("payload"),
+            format!("editor compile request could not be serialized: {error}"),
+        )
+    })?;
+    let response_json = senkei_editor_adapter::compile_next_json(&request_json)
+        .map_err(editor_adapter_error)?;
+    let response = serde_json::from_str::<Value>(&response_json).map_err(|error| {
+        api_error(
+            ApiErrorCode::InternalError,
+            Some("result"),
+            format!("editor compiler response could not be decoded: {error}"),
+        )
+    })?;
+    Ok((response, MAX_RESPONSE_BYTES as u64))
+}
+
+fn editor_adapter_error(error: senkei_editor_adapter::AdapterError) -> ApiError {
+    use senkei_editor_adapter::AdapterError;
+    let (code, path) = match &error {
+        AdapterError::CatalogMismatch => (ApiErrorCode::InvalidRuleset, Some("payload.stamp")),
+        AdapterError::PackageInvalid(_) | AdapterError::CatalogInvalid(_) => {
+            (ApiErrorCode::ValidationFailed, Some("ruleset"))
+        }
+        AdapterError::Serialization(_) => (ApiErrorCode::InternalError, None),
+    };
+    api_error(code, path, error.to_string())
 }
 
 fn new_match_context(payload: Value) -> Result<(Value, u64), ApiError> {

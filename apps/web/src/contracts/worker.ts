@@ -4,6 +4,7 @@ import type {
   CompileOutcome,
   CoreApiError,
   CoreVersion,
+  EditorCompilerEnvelope,
   RulesetRef,
   SimulationResponse,
   SimulationSnapshot,
@@ -11,6 +12,7 @@ import type {
   WorkerFailure,
 } from "./core";
 import type { RulePackage } from "./core-model";
+import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import { WEB_WORKER_PROTOCOL_VERSION } from "./core";
 
 interface WorkerRequestBase {
@@ -22,6 +24,14 @@ export type WebWorkerRequest =
   | (WorkerRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
       readonly payload: Record<string, never>;
+    })
+  | (WorkerRequestBase & {
+      readonly operation: "editor_catalog";
+      readonly payload: Record<string, never>;
+    })
+  | (WorkerRequestBase & {
+      readonly operation: "editor_compile";
+      readonly payload: EditorCompileRequest;
     })
   | (WorkerRequestBase & {
       readonly operation: "new_match_context";
@@ -67,6 +77,16 @@ export type WebWorkerResponse =
       readonly result: RulePackage;
     })
   | (WorkerResponseBase & {
+      readonly operation: "editor_catalog";
+      readonly ok: true;
+      readonly result: string;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "editor_compile";
+      readonly ok: true;
+      readonly result: EditorCompilerEnvelope;
+    })
+  | (WorkerResponseBase & {
       readonly operation: "new_match_context";
       readonly ok: true;
       readonly result: import("./core-model").MatchContext;
@@ -110,6 +130,14 @@ export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
       readonly payload: Record<string, never>;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "editor_catalog";
+      readonly payload: Record<string, never>;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "editor_compile";
+      readonly payload: EditorCompileRequest;
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "new_match_context";
