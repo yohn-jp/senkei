@@ -6,6 +6,7 @@ import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
+import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -318,6 +319,7 @@ export class Battlefield {
   private selected: string | null = null;
   private trackedIds: string[] = [];
   private readonly unitLayout = new NodeDisplayLayout();
+  private readonly unitMotion: BattlefieldUnitMotionIndex;
   private modelOffsets: ReadonlyMap<string, WorldPoint> = new Map();
   private labels: {
     element: HTMLSpanElement;
@@ -339,6 +341,7 @@ export class Battlefield {
     private onSelect: (id: string) => void,
     private onFailure: (message: string) => void,
   ) {
+    this.unitMotion = new BattlefieldUnitMotionIndex(replay);
     this.gl = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.gl.domElement;
     this.canvas.setAttribute(
@@ -1087,20 +1090,7 @@ export class Battlefield {
   }
   /** Offset lane tracks from the authoritative centerline for display only. */
   private renderPoint(entity: DisplayEntity): WorldPoint {
-    const logical = entity.battlefield;
-    if (!logical?.edgeTo || (logical.track !== "LEFT" && logical.track !== "RIGHT")) return entity.position;
-    const from = this.replay.scene.nodes?.find(node => node.id === logical.node)?.position;
-    const to = this.replay.scene.nodes?.find(node => node.id === logical.edgeTo)?.position;
-    const edge = (this.replay.scene.routes ?? []).find(route =>
-      ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
-       (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
-    );
-    if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return entity.position;
-    // Tracks share the static edge's orientation for travelers in both directions.
-    const dx = edge.points[1].x - edge.points[0].x, dy = edge.points[1].y - edge.points[0].y, length = Math.hypot(dx, dy) || 1;
-    const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
-    const offset = (this.replay.scene.trackOffset ?? 0.8) * direction;
-    return { x: entity.position.x + dy / length * offset, y: entity.position.y - dx / length * offset };
+    return effectiveTrackPoint(entity, this.replay);
   }
   /** Cosmetic member placement; never used by camera, graph or logical movement. */
   private displayPoint(entity: DisplayEntity): WorldPoint {
@@ -1970,19 +1960,16 @@ export class Battlefield {
       const point = this.renderPoint(e);
       g.userData.to = new THREE.Vector3(point.x, this.entityHeight(e, point), point.y);
       if (e.kind === "unit") {
-        const prior = priorState?.entities[e.id];
-        const priorPoint = prior ? this.renderPoint(prior) : point;
-        const dx = point.x - priorPoint.x, dz = point.y - priorPoint.y;
-        const moved = priorState?.tick === state.tick - 1 && Math.hypot(dx, dz) > 0.001;
-        g.userData.walking = moved;
+        const motion = this.unitMotion.at(state.tick, e.id);
+        g.userData.walking = Boolean(motion);
         const attack = cues.find(cue => cue.type === "attack" && cue.entityId === e.id);
         const target = attack?.type === "attack" ? state.entities[attack.targetId] : undefined;
         if (target) {
           const from = this.displayPoint(e), to = this.displayPoint(target);
           g.rotation.y = Math.atan2(to.x - from.x, to.y - from.y);
         }
-        else if (moved) g.rotation.y = Math.atan2(dx, dz);
-        else if (!prior) {
+        else if (motion) g.rotation.y = Math.atan2(motion.dx, motion.dy);
+        else if (!priorState?.entities[e.id]) {
           const opposite = this.replay.scene.baseSites?.find(site => site.side !== e.side);
           if (opposite) g.rotation.y = Math.atan2(opposite.position.x - point.x, opposite.position.y - point.y);
         }
@@ -2329,6 +2316,15 @@ export class Battlefield {
             g.position.copy(g.userData.to);
           else g.position.lerpVectors(g.userData.from, g.userData.to, phase);
         }
+        const actionPose = battlefieldUnitPose(
+          this.state?.tick ?? 0,
+          this.state?.cues ?? [],
+          g.userData.entityId,
+          Boolean(g.userData.walking),
+          this.playing && !this.reducedMotion,
+          phase,
+        );
+        g.userData.actionPose = actionPose;
         const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
@@ -2353,30 +2349,16 @@ export class Battlefield {
           }
           const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
           for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
-          const active = this.playing && !this.reducedMotion;
-          const events = this.state?.cues.filter(cue => cue.tick === this.state?.tick) ?? [];
-          const attacks = events.some(cue => (cue.type === "attack" || cue.type === "skill") && cue.entityId === g.userData.entityId);
-          const hit = events.some(cue => cue.type === "damage" && cue.entityId === g.userData.entityId);
-          const walk = active && g.userData.walking && !attacks ? Math.sin(((this.state?.tick ?? 0) + phase) * Math.PI) * 0.34 : 0;
-          const strike = active && attacks ? Math.sin(phase * Math.PI) : 0;
           for (const [name, direction] of [["leg.left", 1], ["leg.right", -1], ["arm.left", -0.55], ["arm.right", 0.55]] as const) {
             const joint = rig.joints[name];
-            if (joint) joint.rotation.x += walk * direction;
+            if (joint) joint.rotation.x += actionPose.walk * direction;
           }
-          if (rig.joints["arm.right"]) rig.joints["arm.right"].rotation.x -= strike * 0.85;
-          if (rig.weaponPivots.main) rig.weaponPivots.main.rotation.x -= strike * 0.22;
-          if (rig.joints.torso) rig.joints.torso.rotation.z += active && hit ? Math.sin(phase * Math.PI) * 0.08 : 0;
-          if (rig.joints.cape) rig.joints.cape.rotation.x += Math.abs(walk) * 0.18;
+          if (rig.joints["arm.right"]) rig.joints["arm.right"].rotation.x -= actionPose.strike * 0.85;
+          if (rig.weaponPivots.main) rig.weaponPivots.main.rotation.x -= actionPose.strike * 0.22;
+          if (rig.joints.torso) rig.joints.torso.rotation.z += actionPose.hit * 0.08;
+          if (rig.joints.cape) rig.joints.cape.rotation.x += Math.abs(actionPose.walk) * 0.18;
         }
-        if (
-          this.playing &&
-          !this.reducedMotion &&
-          this.state?.cues.some(
-            (c) => c.type === "attack" && c.entityId === g.userData.entityId,
-          )
-        )
-          g.rotation.z = Math.sin(phase * Math.PI) * 0.16;
-        else g.rotation.z = 0;
+        g.rotation.z = actionPose.attackLean;
         const collapsing =
           this.playing &&
           !this.reducedMotion &&
@@ -2804,6 +2786,18 @@ export class Battlefield {
       this.canvas.dataset.cameraTarget = this.controls.target.toArray().map((value) => value.toFixed(3)).join(",");
       this.canvas.dataset.cameraMode = this.cameraMode;
       this.canvas.dataset.tracking = this.trackedIds.join(",");
+      const poseEntityId = this.selected && this.units.has(this.selected)
+        ? this.selected
+        : this.trackedIds.length === 1 ? this.trackedIds[0] : undefined;
+      const poseGroup = poseEntityId ? this.units.get(poseEntityId) : undefined;
+      const pose = poseGroup?.userData.actionPose as ReturnType<typeof battlefieldUnitPose> | undefined;
+      this.canvas.dataset.unitPoseEntity = poseEntityId ?? "";
+      this.canvas.dataset.unitPose = pose
+        ? pose.strike > 0.001 ? "attack" : pose.hit > 0.001 ? "hit" : Math.abs(pose.walk) > 0.001 ? "move" : "idle"
+        : "none";
+      this.canvas.dataset.unitPoseSample = pose
+        ? [pose.walk, pose.strike, pose.hit, pose.attackLean].map((value) => value.toFixed(3)).join(",")
+        : "";
       this.canvas.dataset.rendered = "true";
       this.frame = requestAnimationFrame(this.render);
     } catch (error) {
