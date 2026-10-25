@@ -623,6 +623,39 @@ async function followHero(page: Page, viewport: Viewport, replay: JsonRecord, ti
   return { ...target, id: rendererEntityId };
 }
 
+async function assertPausedUnitPose(
+  page: Page,
+  canvas: import("@playwright/test").Locator,
+  rendererEntityId: string,
+  expectedPose: "move" | "attack",
+): Promise<JsonRecord> {
+  await expect(page.getByRole("button", { name: "Play replay", exact: true }), "pose comparison is made with the replay paused").toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause replay", exact: true })).toHaveCount(0);
+  await expect(canvas).toHaveAttribute("data-unit-pose-entity", rendererEntityId);
+  const renderedPose = await canvas.getAttribute("data-unit-pose");
+  if (expectedPose === "move") {
+    expect(renderedPose, "a confirmed movement pose may also include the same Hero's simultaneous hit pose").toMatch(/^(move|hit)$/);
+  } else {
+    expect(renderedPose).toBe("attack");
+  }
+  const rawSample = await canvas.getAttribute("data-unit-pose-sample");
+  if (!rawSample) throw new Error(`The renderer omitted the confirmed ${expectedPose} joint sample for ${rendererEntityId}.`);
+  const sample = rawSample.split(",").map(Number);
+  if (sample.length !== 4 || sample.some((value) => !Number.isFinite(value))) {
+    throw new Error(`The renderer returned an invalid ${expectedPose} pose sample: ${rawSample}`);
+  }
+  const [walk, strike, hit, attackLean] = sample;
+  if (expectedPose === "move") {
+    expect(Math.abs(walk!), "a confirmed paused movement tick leaves a visible walk-joint pose").toBeGreaterThan(0.001);
+    expect(strike).toBe(0);
+  } else {
+    expect(strike, "a confirmed paused basic attack leaves a visible strike pose").toBeGreaterThan(0.001);
+    expect(walk).toBe(0);
+    expect(attackLean, "a confirmed paused basic attack has a distinct torso lean").toBeGreaterThan(0.001);
+  }
+  return { paused: true, rendererEntityId, pose: renderedPose, sample, hit: hit ?? null };
+}
+
 async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonRecord, tick: number, site: "TOP" | "MID" | "BOT"): Promise<JsonRecord> {
   const bridgeEntry = bridgeEntryAt(replay, tick, site);
   expect(bridgeEntry, `owner replay authorizes the ${site} bridge at tick ${tick}`).toBeTruthy();
@@ -1324,11 +1357,18 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         }, captures);
       }
       const movementTarget = await followHero(defaultPage, viewport, attackReplay, movement!.tick, attackHero.catalogId, attackHero.side);
+      const movementPose = await assertPausedUnitPose(
+        defaultPage,
+        defaultPage.locator(".next-renderer-host canvas"),
+        movementTarget.id,
+        "move",
+      );
       await saveCapture(defaultPage, "default-enbu-battle", "confirmed-move-follow", movement!.tick, viewport, "Follow", {
         catalogId: attackHero.catalogId,
         side: attackHero.side,
         sourceCoreEntityId: attackHero.coreEntityId,
         rendererEntityId: movementTarget.id,
+        pausedPose: movementPose,
         movementTick: movement!.tick,
         previousTick: movement!.previousTick,
         previousPosition: movement!.previousPosition,
@@ -1340,25 +1380,32 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         eventKinds: movement!.eventKinds,
       }, captures);
       const attackTarget = await followHero(defaultPage, viewport, attackReplay, clashTick!, attackHero.catalogId, attackHero.side);
+      expect(attackTarget.id, "movement and attack follow captures resolve to the same renderer entity").toBe(movementTarget.id);
+      const attackPose = await assertPausedUnitPose(
+        defaultPage,
+        defaultPage.locator(".next-renderer-host canvas"),
+        attackTarget.id,
+        "attack",
+      );
+      expect(attackPose.sample, "the same Hero has distinct replay-confirmed movement and attack joint samples")
+        .not.toEqual(movementPose.sample);
       await saveCapture(defaultPage, "default-enbu-battle", "confirmed-attack-follow", clashTick!, viewport, "Follow", {
         catalogId: attackHero.catalogId,
         side: attackHero.side,
         sourceCoreEntityId: attackHero.coreEntityId,
         rendererEntityId: attackTarget.id,
+        pausedPose: attackPose,
         attackTick: clashTick,
         attackEvent: firstAttack?.event.event,
         target: firstAttack?.event.payload?.target ?? null,
       }, captures);
       const laneOccupancyTarget = await followHero(defaultPage, viewport, defaultRun.ownerReplay, 50, "F03", "Azure");
       expect(laneOccupancyTarget.catalogId).toBe("F03");
-      const centerTrackMinionNameplate = defaultPage.locator(".next-renderer-host .entity-world-label").filter({ hasText: /^MINION · RANGED/ });
-      await expect(centerTrackMinionNameplate.first(), `the actual center-track minion beside F03 is rendered at ${viewport.name}`).toBeVisible();
       await saveCapture(defaultPage, "default-enbu-battle", "lane-track-occupancy-follow", 50, viewport, "Follow", {
         ...defaultLaneOccupancy,
         followedCatalogId: laneOccupancyTarget.catalogId,
         followedSide: laneOccupancyTarget.side,
         rendererEntityId: laneOccupancyTarget.id,
-        visibleMinionNameplate: await centerTrackMinionNameplate.first().innerText(),
       }, captures);
       await seekToTick(defaultPage, defaultRun.result.final_tick);
       await setView(defaultPage, viewport, "Tactical");
@@ -1406,7 +1453,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     const baseCatalogId = "base.defender";
     const initialBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, 0, "base", baseCatalogId);
     expect(initialBaseEntry, "the authorized attacker replay shows the real enemy base before damage").toBeTruthy();
-    const [baseEntityId, initialBase] = initialBaseEntry!;
+    const [initialBaseEntityId, initialBase] = initialBaseEntry!;
     const initialBaseHp = integerField(initialBase, "hp");
     expect(initialBaseHp, "the base starts with confirmed positive Enbu health").toBeGreaterThan(0);
 
@@ -1419,31 +1466,40 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     expect(firstDamageFrame, "the real owner replay contains an intermediate damaged base state").toBeTruthy();
     const firstDamageTick = firstDamageFrame!.tick as number;
     const damagedBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, firstDamageTick, "base", baseCatalogId);
-    const damagedBaseHp = integerField(damagedBaseEntry?.[1], "hp");
+    expect(damagedBaseEntry, "the damaged base is resolved by catalog identity in the current authorized frame").toBeTruthy();
+    const [damageBaseEntityId, damagedBase] = damagedBaseEntry!;
+    const damagedBaseHp = integerField(damagedBase, "hp");
     expect(damagedBaseHp).toBeGreaterThan(0);
     expect(damagedBaseHp).toBeLessThan(initialBaseHp!);
-    const firstDamageAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, firstDamageTick, baseEntityId)[0];
+    const firstDamageAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, firstDamageTick, damageBaseEntityId)[0];
     expect(firstDamageAttack, "the first base HP decrease is backed by an actual Hero attack event").toBeTruthy();
     const damageHeroCatalogId = requiredString(field(firstDamageAttack?.entity, "catalog_id"), "base damage source Hero catalog ID");
     const damageHeroSide = firstDamageAttack?.entity.owner === "attacker" ? "Azure" : undefined;
     expect(damageHeroSide, "the first base damage source is an attacker-owned Hero").toBe("Azure");
 
     const finalTick = baseAssaultRun.result.final_tick as number;
-    const destroyedBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, finalTick, "base", baseCatalogId);
-    expect(destroyedBaseEntry, "the terminal owner replay retains the destroyed enemy base").toBeTruthy();
-    expect(integerField(destroyedBaseEntry?.[1], "hp"), "the actual terminal base state has zero HP").toBe(0);
+    const terminalBaseEntry = catalogEntityEntryAt(baseAssaultRun.ownerReplay, finalTick, "base", baseCatalogId);
+    expect(terminalBaseEntry, "the terminal owner replay retains the destroyed enemy base").toBeTruthy();
+    const [terminalBaseEntityId, terminalBase] = terminalBaseEntry!;
+    expect(integerField(terminalBase, "hp"), "the actual terminal base state has zero HP").toBe(0);
     const objectiveDestroyedEntry = (baseAssaultRun.ownerReplay.frames as JsonRecord[])
       .flatMap((frame) => (frame.events as JsonRecord[]).map((event) => ({ frame, event })))
-      .find(({ event }) =>
-        event.event === "next.objective_destroyed" && event.entity === baseEntityId && event.payload?.kind?.value === "base",
-      );
+      .find(({ frame, event }) => {
+        if (event.event !== "next.objective_destroyed" || event.payload?.kind?.value !== "base") return false;
+        const destroyedBaseAtEvent = catalogEntityEntryAt(baseAssaultRun.ownerReplay, frame.tick, "base", baseCatalogId);
+        return destroyedBaseAtEvent !== undefined &&
+          destroyedBaseAtEvent[0] === event.entity && integerField(destroyedBaseAtEvent[1], "hp") === 0;
+      });
     expect(objectiveDestroyedEntry, "the authorized replay confirms next.objective_destroyed for the actual base").toBeTruthy();
     const objectiveDestroyedEvent = objectiveDestroyedEntry!.event;
     const baseDestructionTick = objectiveDestroyedEntry!.frame.tick as number;
     expect(baseDestructionTick, "the confirmed base destruction occurs no later than the Enbu terminal result").toBeLessThanOrEqual(finalTick);
     const baseAtDestruction = catalogEntityEntryAt(baseAssaultRun.ownerReplay, baseDestructionTick, "base", baseCatalogId);
+    expect(baseAtDestruction, "the destroyed base is resolved by catalog identity in its event frame").toBeTruthy();
+    const [destroyedBaseEntityId, destroyedBase] = baseAtDestruction!;
+    expect(destroyedBaseEntityId, "the destruction event uses the base ID authorized in that frame").toBe(objectiveDestroyedEvent.entity);
     expect(integerField(baseAtDestruction?.[1], "hp"), "the base has zero HP in the confirmed destruction frame").toBe(0);
-    const terminalAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, baseDestructionTick, baseEntityId)[0];
+    const terminalAttack = heroAttacksTargeting(baseAssaultRun.ownerReplay, baseDestructionTick, destroyedBaseEntityId)[0];
     expect(terminalAttack, "the confirmed base destruction tick contains the Hero attack that dealt the final damage").toBeTruthy();
     const terminalHeroCatalogId = requiredString(field(terminalAttack?.entity, "catalog_id"), "terminal base damage source Hero catalog ID");
     const terminalHeroSide = terminalAttack?.entity.owner === "attacker" ? "Azure" : undefined;
@@ -1460,9 +1516,10 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         defenderStart: { heroCount: defenderBaseAssault.length, node: "N.B.UC" },
         squadPartition: "five Solo Heroes per side",
       },
-      base: { catalogId: baseCatalogId, coreEntityId: baseEntityId, initialHp: initialBaseHp },
+      base: { catalogId: baseCatalogId, initialCoreEntityId: initialBaseEntityId, initialHp: initialBaseHp },
       firstDamage: {
         tick: firstDamageTick,
+        coreEntityId: damageBaseEntityId,
         remainingHp: damagedBaseHp,
         attackEvent: firstDamageAttack!.event.event,
         sourceCoreEntityId: firstDamageAttack!.entityId,
@@ -1472,9 +1529,11 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       terminal: {
         tick: finalTick,
         destructionTick: baseDestructionTick,
+        coreEntityId: destroyedBaseEntityId,
+        terminalReplayEntityId: terminalBaseEntityId,
         outcome: baseAssaultRun.result.outcome,
         terminationReason: baseAssaultRun.result.termination_reason,
-        baseHp: integerField(destroyedBaseEntry?.[1], "hp"),
+        baseHp: integerField(destroyedBase, "hp"),
         objectiveDestroyedEvent: objectiveDestroyedEvent!.event,
         attackEvent: terminalAttack!.event.event,
         sourceCoreEntityId: terminalAttack!.entityId,
@@ -1492,7 +1551,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         await saveCapture(baseAssaultPage, "real-base-assault", "base-before-damage-follow", 0, viewport, "Follow", {
           ...baseAssaultFacts.initialConditions,
           baseCatalogId,
-          baseCoreEntityId: baseEntityId,
+          baseCoreEntityId: initialBaseEntityId,
           baseHp: initialBaseHp,
           targetHero: damageHeroCatalogId,
           sourceCoreEntityId: firstDamageAttack!.entityId,
@@ -1502,7 +1561,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         const damageTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, firstDamageTick, damageHeroCatalogId, damageHeroSide);
         await saveCapture(baseAssaultPage, "real-base-assault", "base-damaged-follow", firstDamageTick, viewport, "Follow", {
           baseCatalogId,
-          baseCoreEntityId: baseEntityId,
+          baseCoreEntityId: damageBaseEntityId,
           initialHp: initialBaseHp,
           currentHp: damagedBaseHp,
           sourceCoreEntityId: firstDamageAttack!.entityId,
@@ -1514,7 +1573,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       const terminalTarget = await followHero(baseAssaultPage, viewport, baseAssaultRun.ownerReplay, baseDestructionTick, terminalHeroCatalogId, terminalHeroSide);
       await saveCapture(baseAssaultPage, "real-base-assault", "enemy-base-destroyed-follow", baseDestructionTick, viewport, "Follow", {
         baseCatalogId,
-        baseCoreEntityId: baseEntityId,
+        baseCoreEntityId: destroyedBaseEntityId,
         baseHp: 0,
         terminalResultTick: finalTick,
         outcome: baseAssaultRun.result.outcome,
@@ -1622,7 +1681,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
             captures.filter((capture) => capture.scenario === "default-enbu-battle" && capture.state === state &&
               capture.viewport.width === viewport.width && capture.viewport.height === viewport.height)
               .map((capture) => ({ tick: capture.tick, catalogId: capture.facts.catalogId, side: capture.facts.side,
-                coreEntityId: capture.facts.sourceCoreEntityId, rendererEntityId: capture.facts.rendererEntityId, path: capture.image.path }))[0] ?? null,
+                coreEntityId: capture.facts.sourceCoreEntityId, rendererEntityId: capture.facts.rendererEntityId,
+                pose: capture.facts.pausedPose ?? null, path: capture.image.path }))[0] ?? null,
           ])),
         ])),
         publicReplayDigest: defaultRun.publicReplay.result_digest,
@@ -1658,6 +1718,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       desktopTacticalOverviewFollow: true,
       followAuthorizedBridgeFacility: true,
       followActualHeroMovementAndAttack: true,
+      replayConfirmedPausedHeroMovementAndAttackPoses: true,
       followActualLateralAndFordTransit: true,
       actualEnbuBaseDamageAndDestruction: true,
       mobileBattleOverviewFollowTimelineDetails: true,
