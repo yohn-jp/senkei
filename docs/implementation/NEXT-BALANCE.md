@@ -15,13 +15,15 @@ Run the full headless and adapter suite with:
 bash scripts/balance/run-next.sh
 ```
 
-The command runs the Enbu scenarios in release mode, emits four adapter request
-fixtures, and compares their native dispatcher results with the compiled
-WebAssembly dispatcher. The adapter cases include a 120-tick public match with
-five opening move actions per side and invalid engine, roster, and ruleset
-requests. They use `include_diagnostics: false`; the public result must omit
-the restricted owner replay and diagnostics. Identical native repeats are
-checked only for reproducibility.
+The command runs the Enbu scenarios in release mode, emits seven adapter
+request fixtures, and compares complete native, repeated-native and compiled
+WebAssembly dispatcher responses. Cases cover a public match, a controlled
+canonical public/owner battle, a full 600-tick owner-local battle above 32 MB,
+and invalid engine, roster and ruleset requests. Public-only requests use
+`include_diagnostics: false` and must omit owner replay and diagnostics. Owner
+requests explicitly authorize attacker-local replay/diagnostics; opponent
+private state remains excluded. Exact CU and full response hashes are checked
+for reproducibility and cross-target agreement.
 
 ## Executable coverage
 
@@ -62,8 +64,8 @@ where needed; public adapter comparisons use only public responses.
 
 The current eight-case strategic set was measured after the normal-bridge
 center-entry fix with mechanics and ruleset version `2.0.0`, package digest
-`31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481` (base
-commit `84d0a25`). Its exact observed outcomes are:
+`31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481` (acceptance
+core commit `42b6919`, normal-assertion confirmation at `6d11298`). Its exact observed outcomes are:
 
 | Scenario | Outcome | Final tick | Termination |
 | --- | --- | ---: | --- |
@@ -92,9 +94,10 @@ respawn tick; hidden neutral lifecycle fields are not read from the owner
 projection. Longer-term objectives, broader composition coverage, and victory
 rates remain unmeasured.
 
-W9 currently covers minion vision as a movement modifier and checks that the
-initial public fog view does not reveal distant enemies. It does not yet run a
-W9-level observation-boundary or reveal-expiry scenario; those rules have
-separate W2 unit coverage. W9 does not assert tactical value from visible area,
+The suite covers minion vision as a movement modifier and checks that the
+initial public fog view does not reveal distant enemies. Separate actual-Enbu
+integration tests cover hidden-bridge Unknown handling, zero unauthorized
+energy spend, and identical reveal expiry in owner/public replay. The suite
+does not assert tactical value from visible area,
 XP, damage, or a single matchup. Logical Jinrei CU is reported separately from
 physical runtime cost.
