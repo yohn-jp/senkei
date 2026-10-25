@@ -583,7 +583,7 @@ fn merge(
         return;
     }
     let distance = support::param(rules, "squad_merge_distance", 30).max(0);
-    if !cohesive(world, &members, distance) {
+    if !cohesive(world, &members, distance, rules) {
         return;
     }
 
@@ -657,13 +657,13 @@ fn unique_solo_id(world: &WorldState, side: CombatantSide, source: &str) -> Stri
     unreachable!("a free deterministic squad identifier always exists")
 }
 
-fn cohesive(world: &WorldState, members: &[EntityId], distance: i64) -> bool {
+fn cohesive(world: &WorldState, members: &[EntityId], distance: i64, rules: &NextRules) -> bool {
     let max_distance_squared = i128::from(distance).saturating_mul(i128::from(distance));
     for left_index in 0..members.len() {
         let Some(left) = world.entities.get(&members[left_index]) else { return false };
         for right_id in members.iter().skip(left_index + 1) {
             let Some(right) = world.entities.get(right_id) else { return false };
-            if support::distance2(left, right) > max_distance_squared {
+            if support::world_distance2(left, right, rules).map_or(true, |distance| distance > max_distance_squared) {
                 return false;
             }
         }
@@ -747,7 +747,7 @@ fn advance_maturity(
             }
             continue;
         }
-        if !cohesive(world, &members, distance) {
+        if !cohesive(world, &members, distance, rules) {
             for id in &members {
                 if let Some(entity) = world.entities.get_mut(id) {
                     support::set_int(entity, "maturity", 0);
@@ -1262,4 +1262,20 @@ mod tests {
         assert_eq!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h2"), "squad"));
         assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
     }
+
+    #[test]
+    fn squad_cohesion_depends_on_logical_positions_instead_of_drawing_coordinates() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        let members = vec![hero_id("h1"), hero_id("h2")];
+        support::set_int(world.entities.get_mut(&members[0]).unwrap(), "x", -1_000_000);
+        support::set_int(world.entities.get_mut(&members[1]).unwrap(), "x", 1_000_000);
+        assert!(cohesive(&world, &members, 30, &rules));
+        support::place(world.entities.get_mut(&members[1]).unwrap(), "far", &rules);
+        let x = support::int(&world.entities[&members[0]], "x");
+        support::set_int(world.entities.get_mut(&members[1]).unwrap(), "x", x);
+        assert!(!cohesive(&world, &members, 30, &rules));
+    }
+
 }
