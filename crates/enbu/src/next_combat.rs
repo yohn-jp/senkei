@@ -280,7 +280,7 @@ fn active_skill_target(
     let target = snapshot.entities.get(&target_id)?;
     if !support::alive(target)
         || !skill_target_allowed(&skill.target, side, actor_id, &target_id, target)
-        || !support::in_combat_range(actor, target, skill.range.max(0), rules)
+        || !skill_in_range(&skill, actor, target, rules)
         || (target.owner != Some(side) && !crate::next_vision::visible(snapshot, rules, side, target))
     {
         return None;
@@ -607,7 +607,7 @@ fn collect_skill_activations(
         let Some(target) = start.entities.get(&target_id) else { continue };
         if !support::alive(target)
             || !skill_target_allowed(&skill.target, *side, actor_id, &target_id, target)
-            || !support::in_combat_range(actor, target, skill.range.max(0), rules)
+            || !skill_in_range(skill, actor, target, rules)
         {
             continue;
         }
@@ -668,6 +668,20 @@ fn collect_skill_activations(
         }
     }
     (damage, effects)
+}
+
+/// Hostile combat effects must share the direct-attack Combat Domain. Utility
+/// and support effects use logical world distance so they can cross graph-node
+/// boundaries while remaining bounded by their authored skill range.
+fn skill_in_range(skill: &SkillDefinition, actor: &EntityState, target: &EntityState, rules: &NextRules) -> bool {
+    let max_range = skill.range.max(0);
+    match skill.effect {
+        SkillEffect::Damage | SkillEffect::AreaDamage | SkillEffect::Slow => {
+            support::in_combat_range(actor, target, max_range, rules)
+        }
+        _ => support::world_distance2(actor, target, rules)
+            .is_some_and(|distance| distance <= i128::from(max_range).pow(2)),
+    }
 }
 
 fn apply_activations(
@@ -1437,6 +1451,104 @@ mod tests {
         support::set_string(&mut node_target, "edge_to", "test_b");
         support::set_string(&mut node_target, "track", "RIGHT");
         assert!(support::in_combat_range(&node_source, &node_target, 0, &rules));
+    }
+
+    #[test]
+    fn utility_skills_cross_domains_but_direct_damage_does_not() {
+        let mut rules = rules();
+        rules.map.edges[0].length = 325;
+        rules.heroes[0].skills = vec![
+            SkillDefinition {
+                id: "reveal".into(), name: "Reveal".into(), passive: false,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 5, cost: 0, range: 420,
+                target: "enemy".into(), effect: SkillEffect::Reveal, power: 0, duration: 3,
+            },
+            SkillDefinition {
+                id: "shot".into(), name: "Shot".into(), passive: false,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 5, cost: 0, range: 420,
+                target: "enemy".into(), effect: SkillEffect::Damage, power: 20, duration: 0,
+            },
+            SkillDefinition {
+                id: "ward".into(), name: "Ward".into(), passive: false,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 5, cost: 0, range: 420,
+                target: "ally".into(), effect: SkillEffect::Shield, power: 15, duration: 0,
+            },
+        ];
+        let mut world = WorldState::default();
+        let mut caster = entity("hero", Some(CombatantSide::Attacker), 0, 100, 0, 0);
+        support::set_int(&mut caster, "vision", 300);
+        caster.fields.insert("skills".into(), DomainValue::List(vec![
+            DomainValue::String("reveal".into()),
+            DomainValue::String("shot".into()),
+            DomainValue::String("ward".into()),
+        ]));
+        support::set_string(&mut caster, "node", "test_a");
+        support::set_string(&mut caster, "edge_to", "");
+        support::set_int(&mut caster, "x", 0);
+        insert(&mut world, "caster", caster);
+
+        // A friendly Minion at the target's node supplies the observation;
+        // the caster itself is 325 WU away with only 300 WU of vision.
+        let mut minion = entity("minion", Some(CombatantSide::Attacker), 325, 100, 0, 0);
+        support::set_string(&mut minion, "node", "test_b");
+        support::set_string(&mut minion, "edge_to", "");
+        insert(&mut world, "vision-minion", minion);
+
+        let mut enemy = entity("hero", Some(CombatantSide::Defender), 325, 100, 0, 0);
+        support::set_string(&mut enemy, "node", "test_b");
+        support::set_string(&mut enemy, "edge_to", "");
+        insert(&mut world, "enemy", enemy);
+        let mut ally = entity("hero", Some(CombatantSide::Attacker), 325, 100, 0, 0);
+        support::set_string(&mut ally, "node", "test_b");
+        support::set_string(&mut ally, "edge_to", "");
+        insert(&mut world, "ally", ally);
+
+        let caster = &world.entities[&EntityId::from("caster")];
+        let enemy = &world.entities[&EntityId::from("enemy")];
+        assert_eq!(support::world_distance2(caster, enemy, &rules), Some(325 * 325));
+        assert!(!support::in_combat_range(caster, enemy, 420, &rules));
+        assert!(crate::next_vision::visible(&world, &rules, CombatantSide::Attacker, enemy));
+
+        let activate = |skill: &str, target: &str| Intent {
+            action_id: format!("{skill}-1").into(),
+            capability: "senkei.next.activate".into(),
+            actor: Some(EntityId::from("caster")),
+            target: Some(EntityId::from(target)),
+            arguments: vec![DomainValue::String(skill.into())],
+            priority: None,
+        };
+
+        let mut reveal_world = world.clone();
+        let reveal_events = resolve(
+            &mut reveal_world,
+            &rules,
+            &[(CombatantSide::Attacker, activate("reveal", "enemy"))],
+            0,
+        );
+        assert!(reveal_events.iter().any(|event| event.event.as_str() == "next.skill"));
+        assert_eq!(support::int(&reveal_world.entities[&EntityId::from("enemy")], "hp"), 100);
+        assert_eq!(support::int(&reveal_world.entities[&EntityId::from("enemy")], "reveal_attacker_until"), 3);
+
+        let mut damage_world = world.clone();
+        let damage_events = resolve(
+            &mut damage_world,
+            &rules,
+            &[(CombatantSide::Attacker, activate("shot", "enemy"))],
+            0,
+        );
+        assert!(!damage_events.iter().any(|event| event.event.as_str() == "next.skill"));
+        assert_eq!(support::int(&damage_world.entities[&EntityId::from("enemy")], "hp"), 100);
+        assert_eq!(support::int(&damage_world.entities[&EntityId::from("caster")], "energy"), 100);
+
+        let mut shield_world = world;
+        let shield_events = resolve(
+            &mut shield_world,
+            &rules,
+            &[(CombatantSide::Attacker, activate("ward", "ally"))],
+            0,
+        );
+        assert!(shield_events.iter().any(|event| event.event.as_str() == "next.skill"));
+        assert_eq!(support::int(&shield_world.entities[&EntityId::from("ally")], "shield"), 15);
     }
 
     #[test]
