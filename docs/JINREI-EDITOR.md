@@ -4,7 +4,7 @@
 
 **プレイヤーが「指定しなかったらどう動くか」「Jinreiで何が変わるか」「実戦でなぜその行動になったか」を、各HeroからArmyまで横断して理解するための専用Editor**を設計する。
 
-- Jinreiの文法・三値論理・同時評価・CUは[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)が正本。Editor都合の新しい構文は導入しない。
+- Jinreiの文法・三値論理・同時評価・CUは[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)が正本。戦闘開始までの入口・編成からEditorへの遷移・失効後の再コンパイル・Readyへの復帰は [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md)、[PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md)、[PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) に従う。Editor都合の新しい構文は導入しない。
 - 利用可能な語彙・Profile・CapabilityはSenritsuの自己記述的[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)から取得する。
 - Hero/Squad/Army/Minionの行動選択と上書きは[BEHAVIOR.md](BEHAVIOR.md)。実行結果・公開性は[ENBU.md](ENBU.md)／[REPLAY.md](REPLAY.md)に従う。
 - World／RulePackage／Catalogのidentity、Worker/WASM互換性、カバレッジ証明範囲、診断の認可境界は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断正本。

@@ -78,7 +78,7 @@ UIの操作系は高解像度で描画する。戦場Pixel 3D処理をHeroの顔
 
 ## 4. 画面構成と遷移
 
-Desktopでは「Hero Collection → Hero Detail → Skill Tree → Squad Assembly → 戦型／Jinrei → 演武」の導線を持つ。Detailはキャラクターを中心に、Skill Treeはキャンバスを中心に、Assemblyは5体の関係を中心に**それぞれ異なる情報階層**で設計する。
+Desktopでは「Hero Collection → Hero Detail → Skill Tree → Squad Assembly → 戦型／Jinrei → 演武」の導線を持つ。**この導線は自由編成の代表ルートであり、必ずすべての詳細画面を通る順序強制ではない**。Quick Startや保存からの復帰・個別修正・Readyへの直接復帰の全遷移は [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md)、画面別契約は [PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) を正本とする。Detailはキャラクターを中心に、Skill Treeはキャンバスを中心に、Assemblyは5体の関係を中心に**それぞれ異なる情報階層**で設計する。
 
 MobileはDesktopの縮小版にしない。
 - Collection：縦長のHeroカード／一覧、属性フィルター、5体選択の固定導線。

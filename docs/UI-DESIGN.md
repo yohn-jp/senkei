@@ -10,7 +10,7 @@ Senkeiの中核は「自分が作った戦型がどのように戦ったかを�
 - 陣令を修正して同条件の演武で再検証。
 - 初期のグラフィック開発はEnbuが未実装でも進められるよう、Fixtureによるサンプル演武を明示して提供する。
 
-UIデータの正本は [REPLAY.md](REPLAY.md)。ゲームの意味論は [COMPONENTS.md](COMPONENTS.md)、陣令の表層構文は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)。**陣令の表示例を旧Python風文法で作らない**。実際の陣令編集画面には確定したstate/action/when/do、波括弧、カンマ、三値評価を使う。
+UIデータの正本は [REPLAY.md](REPLAY.md)。ゲームの意味論は [COMPONENTS.md](COMPONENTS.md)、陣令の表層構文は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md)。**ゲーム開始までのユーザー行動と必須入力**は [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md)、**画面遷移・戻り・復旧**は [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md)、**画面の情報設計と低忠実度ワイヤフレーム**は [PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) を参照する。**陣令の表示例を旧Python風文法で作らない**。実際の陣令編集画面には確定したstate/action/when/do、波括弧、カンマ、三値評価を使う。
 
 ## 2. Desktop：Tactical Workbench
 
@@ -105,3 +105,11 @@ Hero Collection、Hero Detail、Skill Tree、Squad Assemblyは [HERO-ATELIER.md]
 [JINREI-EDITOR.md](JINREI-EDITOR.md) をJinrei Workbenchの**独立した製品体験の正本**とする。DesktopはSource/No-code、Domain Catalog、Hero/Squad/Army別のBehavior Coverage、認可済みDecision Traceを横断できる。MobileはDesktopの縮小ではなく、編集／Catalog／Coverage／Traceを各専用面として提供する。
 
 「何も書かなければどう行動するか」「Squad/Armyから何を継承したか」「Jinreiの上書きによって何が変わるか」「実戦の採用・拒否理由」を同じRulePackageで提示する。画面の100%表示は全実世界状態を証明したかのように誤認させず、解析対象の状態同値クラス、Unknown、未証明の範囲を併記する。全ての変数・定数・CapabilityはSenritsu [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md) から取得し、Editor専用の重複辞書を持たない。
+
+## 10. ゲーム開始までのユーザーフロー
+
+G2の実プレイヤー導線は [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md)、[PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md)、[PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) を横断して設計する。本書はDesktop/Mobileの体験・表示階層に責務を持ち、開始に必要な5 Hero・Skill計画・Squad／初期Node・Jinreiコンパイル・NPC・RulePackage適合性を画面ごとに分離して検証する。
+
+Hero Collection／Detail／Skill Tree／Squad Assemblyは独立した主画面だが、**初回Presetの全画面強制通過はしない**。Quickは実Presetを確認して開始でき、Customは編集し、Continueは保存物と版を照合して再開する。すべて同じReady/Preflightを通り、コンパイル失効・開始不能の理由と修正先を提示する。旧TacticsとNext、旧LibraryとNextの保存領域は**実装上現在別である**ため、統一されたHome/Libraryと誤認させない。
+
+Ready/Preflight、NPC選択、統合Homeなどは設計上の追加Screenであり、ワイヤフレーム作成だけで実装済みと扱わない。DesktopではHero/Skill/Jinrei/Battleをそれぞれ主役にし、Mobileでは専用画面・シートと戻り導線を持たせる。
