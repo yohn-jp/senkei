@@ -4,7 +4,7 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
-import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore } from "../persistence/repository";
+import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer, BattlefieldInformationLayers } from "@senkei/renderer";
@@ -1922,7 +1922,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
     }}
     onImportExperiments={async (file) => {
-      if (file.size > 64 * 1024 * 1024) throw new Error("Next experiment import exceeds the 64 MiB size limit.");
+      assertNextExperimentImportSize(file.size);
       const imported = parseNextExperimentStore(JSON.parse(await file.text()) as unknown);
       const generation = ++experimentPersistGeneration.current;
       setExperimentLoadedDigest(null);

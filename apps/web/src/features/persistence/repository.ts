@@ -40,9 +40,10 @@ const MAX_JSON_NODES = 750_000;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
 const MAX_EXPORT_NODES = 4_000_000;
 // Each immutable Enbu is capped at the same 4M nodes as a local export. Keep
-// two such records plus a small store envelope, while retaining the 64 MiB
-// aggregate byte limit in cloneJson.
+// two such records plus a small store envelope. Each record remains capped at
+// 64 MiB, and the paired store gets exactly two record budgets plus 4 KiB.
 const MAX_NEXT_EXPERIMENT_STORE_NODES = MAX_EXPORT_NODES * 2 + 16;
+export const NEXT_EXPERIMENT_STORE_MAX_BYTES = MAX_EXPORT_BYTES * 2 + 4 * 1024;
 const MAX_JSON_DEPTH = 100;
 const MAX_NAME_BYTES = 256;
 const MAX_DIFF_ENTRIES = 2_000;
@@ -1311,16 +1312,31 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
         typeof experiment.estimated_cu !== "number" || !Number.isSafeInteger(experiment.estimated_cu) || experiment.estimated_cu < 0) {
       throw new PersistenceError("invalid_data", `Next experiment ${index + 1} is malformed or does not match its immutable match identity.`);
     }
-    assertJsonValue(experiment, `Next experiment ${index + 1}`, MAX_EXPORT_NODES);
+    const label = `Next experiment ${index + 1}`;
+    assertJsonValue(experiment, label, MAX_EXPORT_NODES);
+    const serialized = JSON.stringify(experiment);
+    if (serialized === undefined || utf8ByteLength(serialized) > MAX_EXPORT_BYTES) {
+      throw new PersistenceError("too_large", `${label} exceeds the 64 MiB per-experiment limit.`);
+    }
     seen.add(experiment.id);
   }
 }
 
 /** Validates a portable Next experiment JSON value without touching stored data. */
 export function parseNextExperimentStore(value: unknown): LocalNextExperimentStore {
-  const copied = cloneJson(value, "Next experiment import", MAX_EXPORT_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES);
+  const copied = cloneJson(value, "Next experiment import", NEXT_EXPERIMENT_STORE_MAX_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES);
   assertNextExperimentStore(copied);
   return copied;
+}
+
+/** Enforces the same byte bound before reading a portable experiment file into memory. */
+export function assertNextExperimentImportSize(byteLength: number): void {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
+    throw new PersistenceError("invalid_data", "Next experiment file size must be a non-negative integer.");
+  }
+  if (byteLength > NEXT_EXPERIMENT_STORE_MAX_BYTES) {
+    throw new PersistenceError("too_large", "Next experiment import exceeds the 128 MiB paired-store limit.");
+  }
 }
 
 /** Reads the two latest immutable Next Enbu experiments from the local workspace database. */
