@@ -272,6 +272,10 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
       positions.push(x, elevation, z);
       uvs.push(x / tileSize, z / tileSize);
       const color = terrainColor(point, elevation, slope, data.forest(x, z), paths);
+      const edgeDistance = Math.min(x - minX, maxX - x, z - minZ, maxZ - z);
+      const exposedRock = 1 - smoothstep(0.9, 4.2, edgeDistance);
+      const rock = new THREE.Color(0x777a70).offsetHSL(0, (hash(ix * 0.71, iz * 0.71) - 0.5) * 0.05, (hash(ix, iz) - 0.5) * 0.12);
+      color.lerp(rock, exposedRock * 0.88);
       colors.push(color.r, color.g, color.b);
       if (ix < segmentsX && iz < segmentsZ) {
         const a = iz * (segmentsX + 1) + ix, b = a + segmentsX + 1;
@@ -292,6 +296,88 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
   ground.name = "battlefield-sculpted-landform";
   ground.receiveShadow = true;
   scene.add(ground);
+  addPerimeterCliffs(scene, minX, maxX, minZ, maxZ, segmentsX, segmentsZ, data.at);
+}
+
+/** Adds one joined, faceted rock escarpment under the exposed edge of the terrain tile. */
+function addPerimeterCliffs(
+  scene: THREE.Scene,
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number,
+  segmentsX: number,
+  segmentsZ: number,
+  heightAt: TerrainData["at"],
+): void {
+  type EdgePoint = { x: number; z: number; outsideX: number; outsideZ: number; index: number };
+  const edge: EdgePoint[] = [];
+  for (let ix = 0; ix <= segmentsX; ix++) {
+    const x = minX + ((maxX - minX) * ix) / segmentsX;
+    edge.push({ x, z: minZ, outsideX: 0, outsideZ: -1, index: ix });
+  }
+  for (let iz = 1; iz <= segmentsZ; iz++) {
+    const z = minZ + ((maxZ - minZ) * iz) / segmentsZ;
+    edge.push({ x: maxX, z, outsideX: 1, outsideZ: 0, index: segmentsX + iz });
+  }
+  for (let ix = segmentsX - 1; ix >= 0; ix--) {
+    const x = minX + ((maxX - minX) * ix) / segmentsX;
+    edge.push({ x, z: maxZ, outsideX: 0, outsideZ: 1, index: segmentsX + segmentsZ + segmentsX - ix });
+  }
+  for (let iz = segmentsZ - 1; iz > 0; iz--) {
+    const z = minZ + ((maxZ - minZ) * iz) / segmentsZ;
+    edge.push({ x: minX, z, outsideX: -1, outsideZ: 0, index: segmentsX * 2 + segmentsZ + (segmentsZ - iz) });
+  }
+
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const palette = [0x676c65, 0x777a70, 0x898778, 0x5f665f].map(color => new THREE.Color(color));
+  const vertex = (x: number, y: number, z: number, color: THREE.Color) => {
+    positions.push(x, y, z);
+    colors.push(color.r, color.g, color.b);
+  };
+  const triangle = (
+    a: [number, number, number], b: [number, number, number], c: [number, number, number], color: THREE.Color,
+  ) => { vertex(...a, color); vertex(...b, color); vertex(...c, color); };
+
+  for (let index = 0; index < edge.length; index++) {
+    const a = edge[index]!, b = edge[(index + 1) % edge.length]!;
+    const topA: [number, number, number] = [a.x, heightAt(a.x, a.z) - 0.015, a.z];
+    const topB: [number, number, number] = [b.x, heightAt(b.x, b.z) - 0.015, b.z];
+    const irregularA = (hash(a.index * 0.31, index * 0.17) - 0.5) * 0.46;
+    const irregularB = (hash(b.index * 0.31, index * 0.17) - 0.5) * 0.46;
+    const middleA: [number, number, number] = [
+      a.x + a.outsideX * (0.28 + irregularA), -1.35 - hash(index, 2.1) * 0.6,
+      a.z + a.outsideZ * (0.28 + irregularA),
+    ];
+    const middleB: [number, number, number] = [
+      b.x + b.outsideX * (0.28 + irregularB), -1.35 - hash(index + 1, 2.1) * 0.6,
+      b.z + b.outsideZ * (0.28 + irregularB),
+    ];
+    const bottomA: [number, number, number] = [
+      a.x + a.outsideX * (0.9 + hash(index, 7.2) * 0.7), -3.5 - hash(index, 5.4) * 0.9,
+      a.z + a.outsideZ * (0.9 + hash(index, 7.2) * 0.7),
+    ];
+    const bottomB: [number, number, number] = [
+      b.x + b.outsideX * (0.9 + hash(index + 1, 7.2) * 0.7), -3.5 - hash(index + 1, 5.4) * 0.9,
+      b.z + b.outsideZ * (0.9 + hash(index + 1, 7.2) * 0.7),
+    ];
+    const materialColor = palette[Math.floor(hash(index, 9.3) * palette.length)]!;
+    const strataColor = materialColor.clone().multiplyScalar(0.82);
+    triangle(topA, middleA, topB, materialColor);
+    triangle(topB, middleA, middleB, materialColor);
+    triangle(middleA, bottomA, middleB, strataColor);
+    triangle(middleB, bottomA, bottomB, strataColor);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+  const cliffs = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, side: THREE.DoubleSide }));
+  cliffs.name = "battlefield-faceted-perimeter-cliffs";
+  cliffs.castShadow = true;
+  cliffs.receiveShadow = true;
+  scene.add(cliffs);
 }
 
 function addRiverbankGravel(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"]): void {

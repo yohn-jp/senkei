@@ -107,6 +107,22 @@ describe("canonical Battlefield terrain presentation", () => {
     expect((landform.material as THREE.MeshStandardMaterial).map?.name).toBe("battlefield-meadow-microtexture");
   });
 
+  it("finishes the terrain tile with a faceted, irregular-depth rock perimeter", () => {
+    const scene = new THREE.Scene();
+    buildBattlefieldTerrain(scene, topologyReplay());
+    const cliffs = scene.getObjectByName("battlefield-faceted-perimeter-cliffs") as THREE.Mesh;
+    expect(cliffs).toBeDefined();
+    const positions = cliffs.geometry.getAttribute("position");
+    const colors = cliffs.geometry.getAttribute("color");
+    const ys = Array.from({ length: positions.count }, (_, index) => positions.getY(index));
+    expect(Math.min(...ys)).toBeLessThan(-4);
+    expect(Math.max(...ys)).toBeGreaterThan(0.5);
+    expect(new Set(Array.from({ length: colors.count }, (_, index) =>
+      `${colors.getX(index).toFixed(2)}:${colors.getY(index).toFixed(2)}:${colors.getZ(index).toFixed(2)}`,
+    )).size).toBeGreaterThan(4);
+    expect(positions.count).toBeGreaterThan(2_000);
+  });
+
   it("builds three separated lane surfaces and keeps their dry paving off water", () => {
     const scene = new THREE.Scene();
     buildBattlefieldTerrain(scene, topologyReplay());

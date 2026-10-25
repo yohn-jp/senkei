@@ -16,6 +16,7 @@ import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 import { battlefieldModelGeometrySignature } from "./battlefield-model-signature";
+import { overlapsProtectedSilhouette, screenRectsOverlap } from "./battlefield-label-collision.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -352,6 +353,8 @@ export class Battlefield {
   private entityLabels = new Map<string, HTMLSpanElement>();
   private cueLabels: CueLabelEntry[] = [];
   private cueLayoutSignature = "";
+  private silhouetteLayoutSignature = "";
+  private protectedSilhouetteRects: LabelRect[] = [];
   private marker = new THREE.Group();
   private focusMarker = new THREE.Group();
   private startPointer = { x: 0, y: 0 };
@@ -2517,9 +2520,77 @@ export class Battlefield {
       this.gl.render(this.output, this.outputCamera);
       const hostRect = this.host.getBoundingClientRect();
       const labelPlacements: WorldLabelPlacement[] = [];
-      const overlaps = (a: LabelRect, b: LabelRect, gap = 4) =>
-        a.left < b.right + gap && a.right + gap > b.left &&
-        a.top < b.bottom + gap && a.bottom + gap > b.top;
+      const overlaps = screenRectsOverlap;
+      const cueCameraSignature = [
+        ...this.camera.position.toArray(),
+        ...this.camera.quaternion.toArray(),
+        this.camera.zoom,
+        this.camera.left,
+        this.camera.right,
+        this.camera.top,
+        this.camera.bottom,
+        this.host.clientWidth,
+        this.host.clientHeight,
+      ].map((value) => value.toFixed(3)).join(":") +
+        `:${this.mobile ? "mobile" : "desktop"}:${this.selected ?? ""}:${this.trackedIds.join(",")}:${this.state?.tick ?? -1}`;
+      if (cueCameraSignature !== this.silhouetteLayoutSignature) {
+        this.silhouetteLayoutSignature = cueCameraSignature;
+        this.protectedSilhouetteRects = [];
+        const bounds = new THREE.Box3();
+        for (const [id, group] of this.units) {
+          const entity = this.state?.entities[id];
+          if (!entity || !(entity.kind === "unit" || entity.kind === "tower" || entity.kind === "base" || entity.kind === "bridge" || entity.kind === "observation")) continue;
+          bounds.setFromObject(group);
+          if (bounds.isEmpty()) continue;
+          let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+          for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+            const point = new THREE.Vector3(x, y, z).project(this.camera);
+            const px = ((point.x + 1) * this.host.clientWidth) / 2;
+            const py = ((1 - point.y) * this.host.clientHeight) / 2;
+            left = Math.min(left, px); right = Math.max(right, px);
+            top = Math.min(top, py); bottom = Math.max(bottom, py);
+          }
+          const projected = {
+            left: hostRect.left + left - 3,
+            right: hostRect.left + right + 3,
+            top: hostRect.top + top - 3,
+            bottom: hostRect.top + bottom + 3,
+          };
+          if (projected.right >= hostRect.left && projected.left <= hostRect.right && projected.bottom >= hostRect.top && projected.top <= hostRect.bottom)
+            this.protectedSilhouetteRects.push(projected);
+        }
+      }
+      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
+      for (const element of this.host.querySelectorAll<HTMLElement>(".base-site-label")) {
+        if (element.hidden) continue;
+        const start = element.getBoundingClientRect();
+        const left = Number.parseFloat(element.style.left) || 0;
+        const top = Number.parseFloat(element.style.top) || 0;
+        const shifts = [
+          [0, 0], [0, -42], [0, 42], [-96, 0], [96, 0],
+          [-96, -42], [96, -42], [-96, 42], [96, 42],
+          [0, -84], [0, 84], [-192, 0], [192, 0],
+        ] as const;
+        let placed: DOMRect | undefined;
+        for (const [dx, dy] of shifts) {
+          const candidate = {
+            left: start.left + dx, right: start.right + dx,
+            top: start.top + dy, bottom: start.bottom + dy,
+          };
+          if (candidate.left < hostRect.left + 4 || candidate.right > hostRect.right - 4 ||
+            candidate.top < hostRect.top + 4 || candidate.bottom > hostRect.bottom - 4 ||
+            overlapsProtectedSilhouette(candidate, this.protectedSilhouetteRects)) continue;
+          placed = start;
+          element.style.left = `${left + dx}px`;
+          element.style.top = `${top + dy}px`;
+          break;
+        }
+        if (!placed) element.hidden = true;
+        else {
+          const rect = element.getBoundingClientRect();
+          labelPlacements.push({ element, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, priority: 0 });
+        }
+      }
       if (this.cueLayoutSignature) {
         for (const cueLabel of this.cueLabels) {
           if (cueLabel.element.hidden) continue;
@@ -2558,7 +2629,7 @@ export class Battlefield {
           label.element.style.top = `${((1 - p.y) * this.host.clientHeight) / 2 + shiftY}px`;
           rect = label.element.getBoundingClientRect();
         }
-        if (labelPlacements.some((other) => overlaps(rect, other))) {
+        if (labelPlacements.some((other) => overlaps(rect, other)) || overlapsProtectedSilhouette(rect, this.protectedSilhouetteRects)) {
           label.element.hidden = true;
           continue;
         }
@@ -2571,18 +2642,6 @@ export class Battlefield {
           priority: label.kind === "lane" ? 50 : 60,
         });
       }
-      const cueCameraSignature = [
-        ...this.camera.position.toArray(),
-        ...this.camera.quaternion.toArray(),
-        this.camera.zoom,
-        this.camera.left,
-        this.camera.right,
-        this.camera.top,
-        this.camera.bottom,
-        this.host.clientWidth,
-        this.host.clientHeight,
-      ].map((value) => value.toFixed(3)).join(":") +
-        `:${this.mobile ? "mobile" : "desktop"}:${this.selected ?? ""}:${this.trackedIds.join(",")}`;
       if (cueCameraSignature !== this.cueLayoutSignature) {
         this.cueLayoutSignature = cueCameraSignature;
         for (let index = labelPlacements.length - 1; index >= 0; index--)
@@ -2726,7 +2785,8 @@ export class Battlefield {
               box.bottom <= safeBottom - 4;
             const cuePriority = priority(candidate) * 4 + 5;
             const collisions = labelPlacements.filter((other) => overlaps(box, other));
-            const blocked = collisions.some((other) => other.priority <= cuePriority);
+            const blocked = collisions.some((other) => other.priority <= cuePriority) ||
+              overlapsProtectedSilhouette(box, this.protectedSilhouetteRects);
             if (inside && !blocked) {
               placedRect = box;
               for (const lowerPriority of collisions) {
@@ -2860,6 +2920,10 @@ export class Battlefield {
           element.hidden = true;
           continue;
         }
+        if (overlapsProtectedSilhouette(rect, this.protectedSilhouetteRects)) {
+          element.hidden = true;
+          continue;
+        }
         const entityPriority = focused ? 0 : groupedHeroes ? 40 : 45;
         const collisions = labelPlacements.filter((other) => overlaps(rect, other));
         if (collisions.some((other) => other.priority <= entityPriority)) {
@@ -2880,7 +2944,6 @@ export class Battlefield {
           priority: entityPriority,
         });
       }
-      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       this.canvas.dataset.camera =
         this.camera.position
           .toArray()
