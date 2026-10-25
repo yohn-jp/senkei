@@ -70,6 +70,15 @@ export function decodeReplay(input: unknown): Replay {
     routeIds.add(route.id);
     route.points.forEach(point);
   }
+  const nodeIds = new Set<string>();
+  for (const node of r.scene.nodes ?? []) {
+    if (nodeIds.has(node.id)) fail(`Duplicate map node ID: ${node.id}`);
+    nodeIds.add(node.id);
+    point(node.position);
+  }
+  for (const p of r.scene.river ?? []) point(p);
+  if (r.schemaVersion === "0.3" && (!r.scene.nodes?.length || !r.scene.routes?.length))
+    fail("Battlefield replay requires authored map nodes and routes");
   const baseSiteIds = new Set<string>();
   for (const site of r.scene.baseSites ?? []) {
     if (baseSiteIds.has(site.id)) fail(`Duplicate base site ID: ${site.id}`);
@@ -99,7 +108,8 @@ export function decodeReplay(input: unknown): Replay {
     if (e.tick > r.result.tick) fail("Event beyond result tick");
     previousTick = e.tick;
     previousOrder = e.order;
-    if ((e.type === "vitals" || e.type === "skill") && r.schemaVersion !== "0.2") fail("Event requires replay 0.2");
+    if ((e.type === "vitals" || e.type === "skill") && r.schemaVersion === "0.1") fail("Event requires replay 0.2");
+    if (e.type === "facility-state" && r.schemaVersion !== "0.3") fail("Facility state requires replay 0.3");
     if (e.type === "spawn") {
       add(e.entity);
       continue;
@@ -128,7 +138,9 @@ export function decodeReplay(input: unknown): Replay {
       if (e.type === "move") {
         point(e.position);
         current.position = e.position;
+        if (e.logicalPosition) current.battlefield = e.logicalPosition;
       }
+      if (e.type === "facility-state") current.battlefield = e.battlefield;
       if (e.type === "vitals") {
         if (e.hp > e.maxHp) fail("HP exceeds maximum");
         current.hp = e.hp; current.maxHp = e.maxHp;

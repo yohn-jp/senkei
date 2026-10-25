@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { KnownBaseSites } from "./base-sites";
+import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
@@ -287,6 +288,7 @@ export class Battlefield {
   private effects = new THREE.Group();
   private camps = new THREE.Group();
   private baseSites: KnownBaseSites;
+  private battlefieldLandmarks: BattlefieldLandmarks;
   private state: DisplayState | null = null;
   private playing = false;
   private changedAt = 0;
@@ -358,6 +360,7 @@ export class Battlefield {
     fill.position.set(15, 10, -20);
     this.scene.add(fill);
     this.terrain();
+    this.battlefieldLandmarks = new BattlefieldLandmarks(this.scene, replay);
     this.baseSites = new KnownBaseSites(this.scene, host, replay);
     for (const camp of replay.scene.camps ?? [])
       this.buildCamp(camp.position, camp.id);
@@ -776,15 +779,17 @@ export class Battlefield {
     if (!entities.length) return;
     const center = entities.reduce(
       (sum, entity) => {
-        sum.x += entity.position.x;
-        sum.z += entity.position.y;
+        const point = this.renderPoint(entity);
+        sum.x += point.x;
+        sum.z += point.y;
         return sum;
       },
       new THREE.Vector3(),
     ).multiplyScalar(1 / entities.length);
-    const groupPoints = entities.map(
-      (entity) => new THREE.Vector3(entity.position.x, 0, entity.position.y),
-    );
+    const groupPoints = entities.map(entity => {
+      const point = this.renderPoint(entity);
+      return new THREE.Vector3(point.x, 0, point.y);
+    });
     const groupHalfHeight = Math.max(
       this.authoredCloseHalfHeight(),
       this.projectedFrameHalfHeight(center, groupPoints, "follow"),
@@ -863,6 +868,22 @@ export class Battlefield {
         }
       }
     return height + 0.11;
+  }
+  /** Offset lane tracks from the authoritative centerline for display only. */
+  private renderPoint(entity: DisplayEntity): WorldPoint {
+    const logical = entity.battlefield;
+    if (!logical?.edgeTo || (logical.track !== "LEFT" && logical.track !== "RIGHT")) return entity.position;
+    const from = this.replay.scene.nodes?.find(node => node.id === logical.node)?.position;
+    const to = this.replay.scene.nodes?.find(node => node.id === logical.edgeTo)?.position;
+    const edge = (this.replay.scene.routes ?? []).find(route =>
+      ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
+       (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
+    );
+    if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return entity.position;
+    const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
+    const direction = logical.track === "LEFT" ? -1 : 1;
+    const offset = (this.replay.scene.trackOffset ?? 0.8) * direction;
+    return { x: entity.position.x + dy / length * offset, y: entity.position.y - dx / length * offset };
   }
   private terrain() {
     if (this.replay.scene.routes?.length) {
@@ -1157,6 +1178,11 @@ export class Battlefield {
   private entityLabel(e: DisplayEntity) {
     if (e.kind === "base") return "BASE";
     if (e.kind === "tower") return "TOWER";
+    if (e.kind === "bridge") return `BRIDGE · ${e.battlefield?.bridgeSite ?? "FIXED"} · ${(e.battlefield?.bridgeState ?? "unknown").toUpperCase()}`;
+    if (e.kind === "observation") {
+      const owner = e.battlefield?.captureSide ?? e.battlefield?.facilityOwner;
+      return `MID OBSERVATION · ${owner?.toUpperCase() ?? "STATE UNKNOWN"}`;
+    }
     const appearance = this.canonicalAppearance(e);
     if (
       e.side === "neutral" &&
@@ -1364,6 +1390,43 @@ export class Battlefield {
   }
   private structureModel(g: THREE.Group, e: DisplayEntity, color: number) {
     const base = e.kind === "base";
+    if (e.kind === "bridge") {
+      const state = e.battlefield?.bridgeState;
+      if (state) {
+        const broken = state === "destroyed";
+        const deck = box(g, [2.2, 0.1, 0.44], [0, 0.03, 0], broken ? 0x62513f : 0x9a845d);
+        deck.rotation.y = 0.35;
+      } else {
+        const unknown = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.06, 4, 8), new THREE.MeshBasicMaterial({ color: 0x9aa88d, transparent: true, opacity: 0.42 }));
+        unknown.rotation.x = Math.PI / 2;
+        unknown.position.y = 0.1;
+        g.add(unknown);
+      }
+      if (e.battlefield?.buildRemaining) {
+        const work = box(g, [0.16, 0.54, 0.16], [0, 0.34, 0], 0xe6c477);
+        work.rotation.z = -0.3;
+      }
+      return;
+    }
+    if (e.kind === "observation") {
+      const owner = e.battlefield?.facilityOwner ?? e.side;
+      const ownerColor = owner === "azure" ? colors.azure : owner === "vermilion" ? colors.vermilion : 0x9aa88d;
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.45, 0.55, 8), new THREE.MeshStandardMaterial({ color: 0x706e5d, roughness: 0.9, flatShading: true }));
+      base.position.y = 0.28;
+      g.add(base);
+      const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.68, 0), new THREE.MeshStandardMaterial({ color: ownerColor, emissive: ownerColor, emissiveIntensity: 0.22, flatShading: true }));
+      beacon.position.y = 1.02;
+      beacon.scale.y = 1.45;
+      g.add(beacon);
+      const progress = Math.max(0, Math.min(1, (e.battlefield?.captureProgress ?? 0) / (this.replay.scene.captureTicks ?? 8)));
+      if (progress > 0) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.08, 4, 16, Math.PI * 2 * progress), new THREE.MeshBasicMaterial({ color: ownerColor }));
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.6;
+        g.add(ring);
+      }
+      return;
+    }
     if (this.replay.scene.routes?.length) {
       g.scale.setScalar(base ? 1.08 : 1.14);
       if (base && e.side === "vermilion") g.rotation.y = Math.PI;
@@ -1571,17 +1634,19 @@ export class Battlefield {
     for (const e of Object.values(state.entities)) {
       if (!shown(e)) continue;
       let g = this.units.get(e.id);
-      if (!g || g.userData.signature !== `${e.hp}:${e.destroyed}`) {
+      if (!g || g.userData.signature !== `${e.hp}:${e.destroyed}:${JSON.stringify(e.battlefield)}`) {
         const position = g?.position.clone();
         if (g) {
           this.scene.remove(g);
           disposeTree(g);
         }
         g = this.model(e);
-        g.userData.signature = `${e.hp}:${e.destroyed}`;
-        if (position) g.position.copy(position);
-        else
-          g.position.set(e.position.x, this.height(e.position), e.position.y);
+        g.userData.signature = `${e.hp}:${e.destroyed}:${JSON.stringify(e.battlefield)}`;
+        if (position && !this.replay.scene.routes?.length) g.position.copy(position);
+        else {
+          const point = this.renderPoint(e);
+          g.position.set(point.x, this.height(point), point.y);
+        }
         this.units.set(e.id, g);
         this.scene.add(g);
       }
@@ -1609,11 +1674,8 @@ export class Battlefield {
       const labelName = this.entityLabel(e);
       label.textContent = `${labelName} · ${e.hp}/${e.maxHp}`;
       g.userData.from = g.position.clone();
-      g.userData.to = new THREE.Vector3(
-        e.position.x,
-        this.height(e.position),
-        e.position.y,
-      );
+      const point = this.renderPoint(e);
+      g.userData.to = new THREE.Vector3(point.x, this.height(point), point.y);
       if (e.kind === "unit")
         g.rotation.y = e.side === "azure" ? Math.PI / 2 : -Math.PI / 2;
       // Real authored movement follows the Replay graph. Interpolating a
@@ -1626,6 +1688,7 @@ export class Battlefield {
       )
         g.position.copy(g.userData.to);
     }
+    this.battlefieldLandmarks.update(state);
     disposeTree(this.effects);
     this.effects.clear();
     for (const cueLabel of this.cueLabels) cueLabel.element.remove();
@@ -1697,12 +1760,10 @@ export class Battlefield {
       }
       this.cueSummary.hidden = true;
       this.cueSummary.dataset.tick = String(state.tick);
-      const cueAnchor = (entity: DisplayEntity, height: number) =>
-        new THREE.Vector3(
-          entity.position.x,
-          this.height(entity.position) + height,
-          entity.position.y,
-        );
+      const cueAnchor = (entity: DisplayEntity, height: number) => {
+        const point = this.renderPoint(entity);
+        return new THREE.Vector3(point.x, this.height(point) + height, point.y);
+      };
       for (const cue of cues) {
         if (cue.type === "attack" || cue.type === "skill") {
           const source = state.entities[cue.entityId];
@@ -1789,10 +1850,11 @@ export class Battlefield {
           }),
         );
         ring.rotation.x = Math.PI / 2;
+        const point = this.renderPoint(entity);
         ring.position.set(
-          entity.position.x,
-          this.height(entity.position) + 0.12,
-          entity.position.y,
+          point.x,
+          this.height(point) + 0.12,
+          point.y,
         );
         ring.userData.spawnCue = true;
         this.effects.add(ring);
@@ -1801,15 +1863,16 @@ export class Battlefield {
         const a = state.entities[cue.entityId],
           b = state.entities[cue.targetId];
         if (!a || !b) continue;
+        const startPoint = this.renderPoint(a), endPoint = this.renderPoint(b);
         const start = new THREE.Vector3(
-            a.position.x,
-            this.height(a.position) + 1,
-            a.position.y,
+            startPoint.x,
+            this.height(startPoint) + 1,
+            startPoint.y,
           ),
           end = new THREE.Vector3(
-            b.position.x,
-            this.height(b.position) + 1,
-            b.position.y,
+            endPoint.x,
+            this.height(endPoint) + 1,
+            endPoint.y,
           );
         const beam = glow(
           box(
@@ -1866,22 +1929,24 @@ export class Battlefield {
       }
       if (cue.type === "damage") {
         const e = state.entities[cue.entityId];
-        if (e)
+        if (e) {
+          const point = this.renderPoint(e);
           for (let j = 0; j < 5; j++)
             glow(
               box(
                 this.effects,
                 [0.16, 0.16, 0.16],
                 [
-                  e.position.x + Math.cos(j * 1.8) * 0.7,
-                  this.height(e.position) + 0.8 + j * 0.2,
-                  e.position.y + Math.sin(j * 1.8) * 0.7,
+                  point.x + Math.cos(j * 1.8) * 0.7,
+                  this.height(point) + 0.8 + j * 0.2,
+                  point.y + Math.sin(j * 1.8) * 0.7,
                 ],
                 0xffdb89,
                 j,
               ),
               0xffdc86,
             );
+        }
       }
       if (cue.type === "vitals") {
         const e = state.entities[cue.entityId];
@@ -1894,10 +1959,11 @@ export class Battlefield {
           }),
         );
         ring.rotation.x = Math.PI / 2;
+        const point = this.renderPoint(e);
         ring.position.set(
-          e.position.x,
-          this.height(e.position) + 0.16,
-          e.position.y,
+          point.x,
+          this.height(point) + 0.16,
+          point.y,
         );
         ring.userData.vitalsCue = true;
         this.effects.add(ring);
@@ -1905,19 +1971,20 @@ export class Battlefield {
       if (cue.type === "destroy") {
         const e = state.entities[cue.entityId];
         if (e) {
+          const point = this.renderPoint(e);
           for (let j = 0; j < 7; j++) {
             const shard = cone(
               this.effects,
               0.14 + (j % 3) * 0.05,
               0.34 + (j % 2) * 0.2,
-              this.height(e.position) + 0.24 + (j % 3) * 0.22,
+              this.height(point) + 0.24 + (j % 3) * 0.22,
               j % 2 ? 0xc2a777 : 0x69766d,
               4,
             );
             shard.position.set(
-              e.position.x + Math.cos(j * 1.45) * 0.55,
-              this.height(e.position) + 0.24 + (j % 3) * 0.22,
-              e.position.y + Math.sin(j * 1.45) * 0.55,
+              point.x + Math.cos(j * 1.45) * 0.55,
+              this.height(point) + 0.24 + (j % 3) * 0.22,
+              point.y + Math.sin(j * 1.45) * 0.55,
             );
             shard.userData.destroyCue = true;
           }
@@ -1936,9 +2003,10 @@ export class Battlefield {
       if (tracked.length) {
         const destination = tracked.reduce(
           (sum, entity) => {
-            sum.x += entity.position.x;
-            sum.y += this.height(entity.position);
-            sum.z += entity.position.y;
+            const point = this.renderPoint(entity);
+            sum.x += point.x;
+            sum.y += this.height(point);
+            sum.z += point.y;
             return sum;
           },
           new THREE.Vector3(),
@@ -2334,6 +2402,7 @@ export class Battlefield {
     this.labels.forEach((label) => label.element.remove());
     this.entityLabels.forEach((label) => label.remove());
     this.baseSites.dispose();
+    this.battlefieldLandmarks.dispose();
     this.cueLabels.forEach((label) => label.element.remove());
     this.cueSummary?.remove();
   }

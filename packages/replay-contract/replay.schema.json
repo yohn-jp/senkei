@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://senkei.yohn.jp/replay/v0.1/schema.json",
+  "$id": "https://senkei.yohn.jp/replay/v0.3/schema.json",
   "title": "PresentationReplay",
   "type": "object",
   "additionalProperties": false,
@@ -8,7 +8,8 @@
     "schemaVersion": {
       "enum": [
         "0.1",
-        "0.2"
+        "0.2",
+        "0.3"
       ]
     },
     "header": {
@@ -178,6 +179,31 @@
               "position"
             ]
           }
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/MapNode"
+          }
+        },
+        "river": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPoint"
+          },
+          "minItems": 2,
+          "maxItems": 64
+        },
+        "trackOffset": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "captureTicks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       },
       "required": [
@@ -254,7 +280,9 @@
           "enum": [
             "unit",
             "tower",
-            "base"
+            "base",
+            "bridge",
+            "observation"
           ]
         },
         "archetype": {
@@ -283,6 +311,9 @@
         "catalogId": {
           "type": "string",
           "maxLength": 64
+        },
+        "battlefield": {
+          "$ref": "#/$defs/BattlefieldState"
         }
       },
       "required": [
@@ -364,7 +395,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$"
         },
         "region": {
           "type": "string",
@@ -378,6 +409,16 @@
           },
           "minItems": 2,
           "maxItems": 2
+        },
+        "bridgeSite": {
+          "enum": [
+            "TOP",
+            "MID",
+            "BOT"
+          ]
+        },
+        "ford": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -439,6 +480,9 @@
             },
             "position": {
               "$ref": "#/$defs/WorldPoint"
+            },
+            "logicalPosition": {
+              "$ref": "#/$defs/BattlefieldState"
             }
           },
           "required": [
@@ -684,8 +728,145 @@
             "targetId",
             "skillKey"
           ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "facility-state"
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "order": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "entityId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+            },
+            "battlefield": {
+              "$ref": "#/$defs/BattlefieldState"
+            }
+          },
+          "required": [
+            "type",
+            "tick",
+            "order",
+            "entityId",
+            "battlefield"
+          ]
         }
       ]
+    },
+    "MapNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$"
+        },
+        "allegiance": {
+          "enum": [
+            "A",
+            "B",
+            "N"
+          ]
+        },
+        "position": {
+          "$ref": "#/$defs/WorldPoint"
+        }
+      },
+      "required": [
+        "id",
+        "allegiance",
+        "position"
+      ]
+    },
+    "BattlefieldState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "node": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "edgeTo": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "progress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "track": {
+          "enum": [
+            "LEFT",
+            "CENTER",
+            "RIGHT"
+          ]
+        },
+        "crossing": {
+          "enum": [
+            "none",
+            "track",
+            "bridge",
+            "ford"
+          ]
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "bridgeSite": {
+          "enum": [
+            "TOP",
+            "MID",
+            "BOT"
+          ]
+        },
+        "bridgeState": {
+          "enum": [
+            "normal",
+            "expanded",
+            "destroyed"
+          ]
+        },
+        "buildRemaining": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "captureProgress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "facilityOwner": {
+          "enum": [
+            "azure",
+            "vermilion",
+            "neutral"
+          ]
+        },
+        "captureSide": {
+          "enum": [
+            "azure",
+            "vermilion",
+            "neutral"
+          ]
+        }
+      }
     }
   }
 }

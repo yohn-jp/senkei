@@ -1,4 +1,4 @@
-# PresentationReplay v0.1
+# PresentationReplay v0.1–0.3
 
 `replay.schema.json` (JSON Schema 2020-12) is the language independent wire authority. `npm run contract:types` generates `src/generated.ts`; CI checks regeneration. Every object rejects extra properties, including diagnostics/source/IR. IDs are opaque public presentation IDs; arbitrary text still requires a trusted allowlist producer, and validation does not confer official provenance.
 
@@ -24,3 +24,11 @@ a new identifier after respawn. World coordinates use the exported
 `NEXT_WORLD_UNITS_PER_RENDER_UNIT`; map geometry never controls combat.
 Empty initial views are valid under fog. Unit debris lasts for the death cue;
 destroyed structure ruins can remain for the match.
+
+Replay 0.3 adds the versioned battlefield topology (`scene.nodes`, edge IDs,
+bridge-site and ford metadata, the river line, and the lane-track offset),
+logical node/edge/track positions on move events, and authorized bridge and MID
+observation state. `facility-state` applies confirmed structure/capture updates
+at their recorded tick. A missing or disappeared facility remains unknown; the
+renderer does not fill it with a default intact bridge or neutral capture state.
+The Next adapter receives the actual Enbu engine version from MatchContext.

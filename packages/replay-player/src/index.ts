@@ -29,7 +29,13 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
     else {
       const current = entities[event.entityId];
       if (event.type === "move")
-        entities[event.entityId] = { ...current, position: event.position };
+        entities[event.entityId] = {
+          ...current,
+          position: event.position,
+          ...(event.logicalPosition ? { battlefield: event.logicalPosition } : {}),
+        };
+      if (event.type === "facility-state")
+        entities[event.entityId] = { ...current, battlefield: event.battlefield };
       if (event.type === "vitals")
         entities[event.entityId] = { ...current, hp: event.hp, maxHp: event.maxHp };
       if (event.type === "damage")

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decodeReplay } from "@senkei/replay-contract";
+import { decodeReplay, type PresentationReplay } from "@senkei/replay-contract";
 import { ReplayPlayer, stateAt } from "./index";
 import basic from "../../replay-contract/fixtures/basic-three-lane.json";
 import clash from "../../replay-contract/fixtures/clash-and-loss.json";
@@ -51,6 +51,28 @@ describe("read-only replay projection and transport", () => {
     expect(
       stateAt(decodeReplay(data), 14).entities["vermilion-mid-infantry"].hp,
     ).toBe(100);
+  });
+  it("replays logical positions and authorized facility state at the recorded tick", () => {
+    const replay = structuredClone(basic) as unknown as PresentationReplay;
+    replay.schemaVersion = "0.3";
+    replay.scene.nodes = [{ id: "A.BASE", allegiance: "A", position: { x: 0, y: 0 } }];
+    replay.scene.routes = [{ id: "edge-top", region: "lane", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], bridgeSite: "TOP" }];
+    replay.initialView.push({
+      id: "top-bridge", side: "neutral", kind: "bridge", archetype: "bridge", appearanceKey: "bridge",
+      position: { x: 0, y: 0 }, hp: 1, maxHp: 1,
+      battlefield: { bridgeSite: "TOP", bridgeState: "normal" },
+    });
+    const end = replay.timeline.find(event => event.type === "match-end");
+    if (end?.type === "match-end") end.order = 1;
+    const facilityEvent = {
+      type: "facility-state", tick: replay.result.tick, order: 0, entityId: "top-bridge",
+      battlefield: { bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0 },
+    } as const;
+    replay.timeline.splice(replay.timeline.indexOf(end!), 0, facilityEvent);
+    const state = stateAt(decodeReplay(replay), replay.result.tick);
+    expect(state.entities["top-bridge"]?.battlefield).toEqual({
+      bridgeSite: "TOP", bridgeState: "destroyed", buildRemaining: 0,
+    });
   });
   it("pauses without consuming time, seeks, resumes, resets and restarts at end", () => {
     const p = new ReplayPlayer(decodeReplay(tower));

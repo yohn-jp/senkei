@@ -1169,6 +1169,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         sourceReplay,
         packageValue,
         response.outcome.result,
+        context.versions.engine,
       );
       setBaselineRun(run);
       setRun({ snapshot, response, sourceReplay, graphicsReplay });
@@ -1254,6 +1255,23 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     const width = Math.max(0.001, sceneBounds.max.x - sceneBounds.min.x);
     const height = Math.max(0.001, sceneBounds.max.y - sceneBounds.min.y);
     return { x: 8 + ((point.x - sceneBounds.min.x) / width) * 104, y: 8 + ((point.y - sceneBounds.min.y) / height) * 64 };
+  };
+  const miniMapEntityPoint = (entity: DisplayState["entities"][string]): WorldPoint => {
+    const point = entity.position;
+    const logical = entity.battlefield;
+    if (!logical?.edgeTo || (logical.track !== "LEFT" && logical.track !== "RIGHT")) return miniMapPoint(point);
+    const nodes = run?.graphicsReplay.scene.nodes ?? [];
+    const from = nodes.find(node => node.id === logical.node)?.position;
+    const to = nodes.find(node => node.id === logical.edgeTo)?.position;
+    const edge = (run?.graphicsReplay.scene.routes ?? []).find(route =>
+      ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
+       (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
+    );
+    if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return miniMapPoint(point);
+    const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
+    const direction = logical.track === "LEFT" ? -1 : 1;
+    const offset = (run?.graphicsReplay.scene.trackOffset ?? 0.8) * direction;
+    return miniMapPoint({ x: point.x + dy / length * offset, y: point.y - dx / length * offset });
   };
   const miniMapBases = nextRules ? [
     { id: "attacker", label: "A", node: nextRules.map.nodes[nextRules.map.attacker_base] },
@@ -1513,14 +1531,17 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   {battleMapContextOpen && <div className="next-battle-minimap-content">
                   <svg aria-label="Replay lanes, routes, camps, bases and currently visible entities" role="img" viewBox="0 0 120 80">
                     <rect className="next-minimap-ground" height="80" rx="4" width="120" x="0" y="0" />
+                    {(run.graphicsReplay.scene.river ?? []).length > 1 && <polyline className="next-minimap-river" data-testid="battle-map-river" points={run.graphicsReplay.scene.river!.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ")} />}
                     {(run.graphicsReplay.scene.routes ?? []).map((route) => {
                       const points = route.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");
-                      return <polyline className={`next-minimap-route region-${route.region}`} key={route.id} points={points} />;
+                      const facility = route.bridgeSite ? Object.values(displayState?.entities ?? {}).find((entity) => entity.battlefield?.bridgeSite === route.bridgeSite) : undefined;
+                      return <polyline className={`next-minimap-route region-${route.region}${route.bridgeSite ? " is-bridge-route" : ""}${route.ford ? " is-ford-route" : ""}`} data-testid="battle-map-route" data-edge-id={route.id} data-bridge-site={route.bridgeSite} data-bridge-state={route.bridgeSite ? facility?.battlefield?.bridgeState ?? "unknown" : undefined} data-ford={route.ford ? "true" : undefined} key={route.id} points={points} />;
                     })}
                     {run.graphicsReplay.scene.lanes.map((lane) => {
                       const points = lane.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");
                       return <g key={lane.id}><polyline className="next-minimap-lane" points={points} /><text className="next-minimap-lane-label" x={miniMapPoint(lane.points[Math.floor(lane.points.length / 2)]).x} y={miniMapPoint(lane.points[Math.floor(lane.points.length / 2)]).y - 2}>{lane.label}</text></g>;
                     })}
+                    {(run.graphicsReplay.scene.nodes ?? []).map((node) => { const point = miniMapPoint(node.position); return <circle data-testid="battle-map-node" data-node-id={node.id} data-allegiance={node.allegiance} cx={point.x} cy={point.y} key={node.id} r={node.id === "N.MID.OBS" ? 1.45 : 0.65} />; })}
                     {(run.graphicsReplay.scene.camps ?? []).map((camp) => { const point = miniMapPoint(camp.position); return <path className="next-minimap-camp" d={`M ${point.x} ${point.y - 1.9} l 1.9 1.9 -1.9 1.9 -1.9 -1.9 z`} key={camp.id} />; })}
                     {miniMapBases.map(({ id, label, node }) => {
                       if (!node) return null;
@@ -1528,7 +1549,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                       return <g className={`next-minimap-base base-${id}`} key={id}><rect height="5" width="5" x={point.x - 2.5} y={point.y - 2.5} /><text x={point.x + 3.5} y={point.y + 2}>{label}</text></g>;
                     })}
                     {Object.values(displayState?.entities ?? {}).filter((entity) => !entity.destroyed && entity.hp > 0).map((entity) => {
-                      const point = miniMapPoint(entity.position);
+                      const point = miniMapEntityPoint(entity);
                       const structure = entity.kind === "tower" || entity.kind === "base";
                       return structure
                         ? <rect className={`next-minimap-entity side-${entity.side}`} height="2.6" key={entity.id} width="2.6" x={point.x - 1.3} y={point.y - 1.3} />
@@ -1554,12 +1575,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                 </div>
                 <div className="next-battle-lower" hidden={!battleInspectorOpen && battleMobileView !== "details"}>
                   <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">VISIBLE STATE · TICK {displayState?.tick ?? 0}</span><h4>{selectedEntity ? fieldString(selectedEntity.fields.catalog_id) ?? selectedEntity.entity_type : "Select a unit"}</h4></div><span className="next-owner-tag">{selectedEntity ? selectedEntity.owner ?? "neutral" : run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER" : "PUBLIC"}</span>{battleMobileView === "details" && <button aria-label="Close details sheet" className="next-mobile-sheet-close" onClick={closeBattleSheet} type="button">×</button>}</div>
-                    {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "squad", "skill_path", "skills"] as const).map((field) => {
+                    {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "edge_to", "edge_progress", "track", "cross_remaining", "ford_remaining", "site", "bridge_state", "build_remaining", "capture_progress", "capture_owner", "capture_progress_side", "squad", "skill_path", "skills"] as const).map((field) => {
                       const value = selectedEntity.fields[field];
                       const label = field === "xp" && value?.kind === "integer"
                         ? formatExperience(value.value, nextRules)
                         : value ? domainLabel(value) : "";
-                      return value ? <div key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
+                      return value ? <div data-testid="logical-detail-field" data-field={field} key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
                     })}</div> : <p className="next-empty-detail">{selectedDisplayEntity ? "This visible unit has no unambiguous state record in the replay at this tick." : "Tap a visible unit to inspect only the HP, XP, level and skill state present in this replay."}</p>}
                     {selectedEntity && fieldInteger(selectedEntity.fields.xp) !== null && <div className="next-xp-bar"><span>XP <b>{formatExperience(fieldInteger(selectedEntity.fields.xp) ?? 0, nextRules)}</b></span><span>Level <b>{fieldInteger(selectedEntity.fields.level) ?? 1}</b></span></div>}
                   </section>
