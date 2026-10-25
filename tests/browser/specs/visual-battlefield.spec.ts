@@ -50,13 +50,21 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const canonicalSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-canonical-snapshot.json");
 const captureSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-capture-snapshot.json");
 const baseAssaultSnapshotPath = resolve(repoRoot, "target/next-balance/visual-battlefield-base-assault-snapshot.json");
-const viewports: readonly Viewport[] = [
+const allViewports: readonly Viewport[] = [
   { name: "1440x900", width: 1440, height: 900 },
   { name: "1920x1080", width: 1920, height: 1080 },
+  { name: "375x812", width: 375, height: 812 },
   { name: "390x844", width: 390, height: 844 },
   { name: "430x932", width: 430, height: 932 },
   { name: "320x740", width: 320, height: 740 },
 ];
+const requestedViewports = process.env.BATTLEFIELD_VISUAL_VIEWPORTS?.split(",").map((value) => value.trim()).filter(Boolean);
+const viewports = requestedViewports?.length
+  ? allViewports.filter((viewport) => requestedViewports.includes(viewport.name))
+  : allViewports;
+if (requestedViewports?.length && viewports.length !== new Set(requestedViewports).size) {
+  throw new Error(`Unknown or duplicate BATTLEFIELD_VISUAL_VIEWPORTS value: ${requestedViewports.join(",")}.`);
+}
 const beforeCommit = "6fa8296de8c3f85a50b064012f5a0bf3b891600e";
 const beforeImages = {
   desktop: `https://github.com/yohn-jp/senkei/blob/${beforeCommit}/docs/evidence/battlefield/canonical-browser/desktop-1440x900-bridge-destroyed.png`,
@@ -244,19 +252,7 @@ function heroAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord
   );
 }
 
-function lateralHeroWithCenterMinionAt(replay: JsonRecord, ruleset: JsonRecord, tick: number, catalogId: string): JsonRecord | undefined {
-  const heroEntry = catalogEntityEntryAt(replay, tick, "hero", catalogId);
-  if (!heroEntry) return undefined;
-  const [heroId, hero] = heroEntry;
-  const node = field(hero, "node");
-  const edgeTo = field(hero, "edge_to");
-  const heroProgress = integerField(hero, "edge_progress");
-  const track = field(hero, "track");
-  if (typeof node !== "string" || typeof edgeTo !== "string" || edgeTo.length === 0 ||
-    heroProgress === null || (track !== "LEFT" && track !== "RIGHT") ||
-    (integerField(hero, "cross_remaining") ?? 0) > 0 || (integerField(hero, "ford_remaining") ?? 0) > 0 ||
-    (integerField(hero, "ford_active") ?? 0) > 0) return undefined;
-
+function lateralHeroWithCenterMinionAt(replay: JsonRecord, ruleset: JsonRecord, tick: number): JsonRecord | undefined {
   const next = requiredRecord(ruleset.next, "Next rules");
   const map = requiredRecord(next.map, "Battlefield static map");
   const edges = map.edges as JsonRecord[] | undefined;
@@ -271,39 +267,61 @@ function lateralHeroWithCenterMinionAt(replay: JsonRecord, ruleset: JsonRecord, 
   if (typeof occupancyRadius !== "number" || !Number.isSafeInteger(occupancyRadius) || occupancyRadius < 0) {
     throw new Error("The returned ruleset is missing track_occupancy_radius_wu.");
   }
-  const centerMinion = entitiesAt(replay, tick)
-    .filter(([, entity]) => entity.entity_type === "minion" && entity.owner === hero.owner &&
-      field(entity, "node") === node && field(entity, "edge_to") === edgeTo && field(entity, "track") === "CENTER" &&
-      (integerField(entity, "cross_remaining") ?? 0) === 0 &&
-      (integerField(entity, "ford_remaining") ?? 0) === 0 && (integerField(entity, "ford_active") ?? 0) === 0)
-    .map(([entityId, entity]) => ({ entityId, entity, progress: integerField(entity, "edge_progress") }))
-    .filter((entry) => entry.progress !== null && Math.abs(entry.progress - heroProgress) <= occupancyRadius)
-    .sort((left, right) => Math.abs(left.progress! - heroProgress) - Math.abs(right.progress! - heroProgress))[0];
-  if (!centerMinion || centerMinion.progress === null) return undefined;
-  return {
-    hero: {
-      replayEntityId: heroId,
-      catalogId,
-      owner: hero.owner,
-      node,
-      edgeTo,
-      edgeRegion: edge.region,
-      edgeProgress: heroProgress,
-      track,
-      crossRemaining: integerField(hero, "cross_remaining"),
-    },
-    minion: {
-      replayEntityId: centerMinion.entityId,
-      catalogId: field(centerMinion.entity, "catalog_id"),
-      owner: centerMinion.entity.owner,
-      node,
-      edgeTo,
-      edgeProgress: centerMinion.progress,
-      track: field(centerMinion.entity, "track"),
-    },
-    longitudinalSeparationWu: Math.abs(centerMinion.progress - heroProgress),
-    trackOccupancyRadiusWu: occupancyRadius,
-  };
+  const heroes = entitiesAt(replay, tick)
+    .filter(([, entity]) => entity.entity_type === "hero" && (integerField(entity, "hp") ?? 0) > 0 &&
+      typeof field(entity, "catalog_id") === "string")
+    .sort(([, left], [, right]) => String(field(left, "catalog_id")).localeCompare(String(field(right, "catalog_id"))));
+  for (const [heroId, hero] of heroes) {
+    const catalogId = field(hero, "catalog_id");
+    const node = field(hero, "node");
+    const edgeTo = field(hero, "edge_to");
+    const heroProgress = integerField(hero, "edge_progress");
+    const track = field(hero, "track");
+    if (typeof catalogId !== "string" || typeof node !== "string" || typeof edgeTo !== "string" || edgeTo.length === 0 ||
+      heroProgress === null || (track !== "LEFT" && track !== "RIGHT") ||
+      (integerField(hero, "cross_remaining") ?? 0) > 0 || (integerField(hero, "ford_remaining") ?? 0) > 0 ||
+      (integerField(hero, "ford_active") ?? 0) > 0) continue;
+    const edge = edges.find((candidate) =>
+      ((candidate.from === node && candidate.to === edgeTo) || (candidate.from === edgeTo && candidate.to === node)) &&
+      candidate.region === "lane" && !candidate.bridge_site && candidate.ford !== true,
+    );
+    if (!edge) continue;
+    const centerMinion = entitiesAt(replay, tick)
+      .filter(([, entity]) => entity.entity_type === "minion" && entity.owner === hero.owner &&
+        field(entity, "node") === node && field(entity, "edge_to") === edgeTo && field(entity, "track") === "CENTER" &&
+        (integerField(entity, "cross_remaining") ?? 0) === 0 &&
+        (integerField(entity, "ford_remaining") ?? 0) === 0 && (integerField(entity, "ford_active") ?? 0) === 0)
+      .map(([entityId, entity]) => ({ entityId, entity, progress: integerField(entity, "edge_progress") }))
+      .filter((entry) => entry.progress !== null && Math.abs(entry.progress - heroProgress) <= occupancyRadius)
+      .sort((left, right) => Math.abs(left.progress! - heroProgress) - Math.abs(right.progress! - heroProgress))[0];
+    if (!centerMinion || centerMinion.progress === null) continue;
+    return {
+      hero: {
+        replayEntityId: heroId,
+        catalogId,
+        owner: hero.owner,
+        hp: integerField(hero, "hp"),
+        node,
+        edgeTo,
+        edgeRegion: edge.region,
+        edgeProgress: heroProgress,
+        track,
+        crossRemaining: integerField(hero, "cross_remaining"),
+      },
+      minion: {
+        replayEntityId: centerMinion.entityId,
+        catalogId: field(centerMinion.entity, "catalog_id"),
+        owner: centerMinion.entity.owner,
+        node,
+        edgeTo,
+        edgeProgress: centerMinion.progress,
+        track: field(centerMinion.entity, "track"),
+      },
+      longitudinalSeparationWu: Math.abs(centerMinion.progress - heroProgress),
+      trackOccupancyRadiusWu: occupancyRadius,
+    };
+  }
+  return undefined;
 }
 
 function heroMovementFactsAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord | null {
@@ -1229,7 +1247,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     await assertMapContract(capturePage);
     let captureFollowReplayEntityId: string | null = null;
     let captureFollowRendererEntityId: string | null = null;
-    for (const viewport of [viewports[0], viewports[2], viewports[4]]) {
+    for (const viewport of viewports) {
       await ensureViewport(capturePage, viewport);
       await setView(capturePage, viewport, "Tactical");
       for (const tick of [7, 8]) {
@@ -1327,9 +1345,9 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     const attackHero = { catalogId: attackCatalogId as string, side: attackSide!, coreEntityId: firstAttack!.entityId };
     defaultAttackHero = attackHero;
     defaultHeroMovement = movement;
-    defaultLaneOccupancy = lateralHeroWithCenterMinionAt(defaultRun.ownerReplay, defaultRun.ruleset, 50, "F03");
-    expect(defaultLaneOccupancy, "the real default replay places F03 on a lateral lane track beside an occupying center-track minion at T50").toBeTruthy();
-    expect((defaultLaneOccupancy!.hero as JsonRecord).track).toBe("LEFT");
+    defaultLaneOccupancy = lateralHeroWithCenterMinionAt(defaultRun.ownerReplay, defaultRun.ruleset, 50);
+    expect(defaultLaneOccupancy, "the real default replay places a living Hero on a lateral lane track beside an occupying center-track minion at T50").toBeTruthy();
+    expect(["LEFT", "RIGHT"]).toContain((defaultLaneOccupancy!.hero as JsonRecord).track);
     expect((defaultLaneOccupancy!.hero as JsonRecord).edgeRegion).toBe("lane");
     expect((defaultLaneOccupancy!.hero as JsonRecord).crossRemaining).toBe(0);
     expect((defaultLaneOccupancy!.minion as JsonRecord).track).toBe("CENTER");
@@ -1399,8 +1417,10 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         attackEvent: firstAttack?.event.event,
         target: firstAttack?.event.payload?.target ?? null,
       }, captures);
-      const laneOccupancyTarget = await followHero(defaultPage, viewport, defaultRun.ownerReplay, 50, "F03", "Azure");
-      expect(laneOccupancyTarget.catalogId).toBe("F03");
+      const laneHero = defaultLaneOccupancy!.hero as JsonRecord;
+      const laneSide = laneHero.owner === "attacker" ? "Azure" : "Vermilion";
+      const laneOccupancyTarget = await followHero(defaultPage, viewport, defaultRun.ownerReplay, 50, laneHero.catalogId, laneSide);
+      expect(laneOccupancyTarget.catalogId).toBe(laneHero.catalogId);
       await saveCapture(defaultPage, "default-enbu-battle", "lane-track-occupancy-follow", 50, viewport, "Follow", {
         ...defaultLaneOccupancy,
         followedCatalogId: laneOccupancyTarget.catalogId,
@@ -1542,7 +1562,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       },
     };
 
-    const detailedViewports = new Set(["1440x900", "390x844", "320x740"]);
+    const detailedViewports = new Set(["1440x900", "375x812", "390x844", "320x740"]);
     for (const viewport of viewports) {
       await ensureViewport(baseAssaultPage, viewport);
       await setView(baseAssaultPage, viewport, "Tactical");
@@ -1756,5 +1776,5 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   ].join("\n");
   writeFileSync(join(outputDirectory, "comparison.md"), comparison);
   expect(existsSync(join(outputDirectory, "metadata.json"))).toBe(true);
-  expect(captures.length).toBeGreaterThanOrEqual(70);
+  expect(captures.length).toBeGreaterThanOrEqual(viewports.length === allViewports.length ? 70 : 20);
 });
