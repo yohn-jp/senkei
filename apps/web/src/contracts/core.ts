@@ -121,6 +121,8 @@ export interface SimulationOutcome {
 }
 
 export interface SimulationResponse {
+  /** Side-scoped local views, kept out of public outcomes and benchmark exports. */
+  readonly owner_replays?: Partial<Readonly<Record<import("./core-model").CombatantSide, PresentationReplay>>>;
   /** Local attacker perspective, kept separate from the public replay. */
   readonly owner_replay?: import("./core-model").PresentationReplay;
   readonly outcome: SimulationOutcome;

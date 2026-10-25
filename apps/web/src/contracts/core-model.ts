@@ -702,8 +702,21 @@ export function isLogicalCu(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
+/** Exact paired identity emitted by the canonical World compiler. */
+export interface WorldIdentityRef {
+  readonly world_id: string;
+  readonly schema_version: import("./core").CoreVersion;
+  readonly minimum_compiler: import("./core").CoreVersion;
+  readonly maximum_compiler_exclusive: import("./core").CoreVersion | null;
+  readonly validation_profile_id: string | null;
+  readonly validation_profile_version: import("./core").CoreVersion | null;
+  readonly logic_digest: ContentDigest;
+  readonly presentation_digest: ContentDigest;
+}
+
 /** Senritsu-owned versioned content, matching senkei-model::NextRules. */
 export interface NextRules {
+  readonly world_identity?: WorldIdentityRef;
   readonly mechanics_version: import("./core").CoreVersion;
   readonly map: BattleMap;
   readonly heroes: readonly HeroDefinition[];
@@ -713,6 +726,7 @@ export interface NextRules {
   readonly parameters: Readonly<Record<string, number>>;
 }
 export interface BattleMap {
+  readonly world_identity?: WorldIdentityRef;
   readonly id: string;
   readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string; readonly allegiance?:string }>>;
   readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean; readonly id?:string; readonly bridge_site?:string; readonly ford?:boolean }[];

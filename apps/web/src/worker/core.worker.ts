@@ -325,6 +325,7 @@ async function runSimulation(
 
   return {
     outcome: { result, presentation_replay: replay },
+    ...(includeDiagnostics && asRecord(local.owner_replays) ? { owner_replays: local.owner_replays } : {}),
     ...(includeDiagnostics && asRecord(local.owner_replay) ? { owner_replay: local.owner_replay } : {}),
     ...(includeDiagnostics && diagnostics !== null
       ? { restricted_diagnostics: diagnostics }
