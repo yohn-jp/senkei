@@ -11,110 +11,306 @@
     {
       "id": "catalog-roster",
       "kind": "package-invariants",
-      "assertions": ["12 catalog entries", "6 front-placement and 6 rear-placement entries", "unique catalog IDs", "each skill path resolves to catalog skills"]
+      "assertions": [
+        "12 catalog entries",
+        "6 front-placement and 6 rear-placement entries",
+        "unique catalog IDs",
+        "each skill path resolves to catalog skills"
+      ]
     },
     {
       "id": "hero-roster-validation",
       "kind": "input-rejection",
-      "assertions": ["exactly five hero records are required", "slot IDs are unique", "each catalog ID and skill path resolves"],
-      "unresolved": ["whether duplicate catalog IDs are permitted"]
+      "assertions": [
+        "exactly five hero records are required",
+        "slot IDs are unique",
+        "each catalog ID and skill path resolves"
+      ],
+      "unresolved": [
+        "whether duplicate catalog IDs are permitted"
+      ]
     },
     {
       "id": "partition-1-1-1-1-1",
       "kind": "initial-composition",
-      "squad_sizes": [1, 1, 1, 1, 1]
+      "squad_sizes": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
     },
     {
       "id": "partition-2-1-1-1",
       "kind": "initial-composition",
-      "squad_sizes": [2, 1, 1, 1]
+      "squad_sizes": [
+        2,
+        1,
+        1,
+        1
+      ]
     },
     {
       "id": "partition-2-2-1",
       "kind": "initial-composition",
-      "squad_sizes": [2, 2, 1]
+      "squad_sizes": [
+        2,
+        2,
+        1
+      ]
     },
     {
       "id": "partition-3-1-1",
       "kind": "initial-composition",
-      "squad_sizes": [3, 1, 1]
+      "squad_sizes": [
+        3,
+        1,
+        1
+      ]
     },
     {
       "id": "partition-3-2",
       "kind": "initial-composition",
-      "squad_sizes": [3, 2]
+      "squad_sizes": [
+        3,
+        2
+      ]
     },
     {
       "id": "partition-4-1",
       "kind": "initial-composition",
-      "squad_sizes": [4, 1]
+      "squad_sizes": [
+        4,
+        1
+      ]
     },
     {
       "id": "partition-5",
       "kind": "initial-composition",
-      "squad_sizes": [5]
+      "squad_sizes": [
+        5
+      ]
     },
     {
       "id": "movement-factorial",
       "kind": "differential-scenario-set",
-      "terrain": ["lane", "jungle"],
-      "minion_vision": [false, true],
-      "squad_sizes": [1, 2, 3, 4, 5],
-      "assertions": ["measured route progress depends on declared terrain, current friendly minion vision, and squad size", "overlapping friendly minion vision does not stack", "enemy minion vision does not grant friendly movement bonus"]
+      "terrain": [
+        "lane",
+        "jungle"
+      ],
+      "minion_vision": [
+        false,
+        true
+      ],
+      "squad_sizes": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "assertions": [
+        "measured route progress depends on declared terrain, current friendly minion vision, and squad size",
+        "overlapping friendly minion vision does not stack",
+        "enemy minion vision does not grant friendly movement bonus"
+      ]
     },
     {
       "id": "maturation-and-reformation",
       "kind": "differential-scenario",
-      "arms": ["initially-assembled", "joined-during-match"],
-      "assertions": ["freshly joined squad does not start fully mature", "maturity progresses only as match ticks elapse", "split and merge resolve through accepted intents"]
+      "arms": [
+        "initially-assembled",
+        "joined-during-match"
+      ],
+      "assertions": [
+        "freshly joined squad does not start fully mature",
+        "maturity progresses only as match ticks elapse",
+        "split and merge resolve through accepted intents"
+      ]
     },
     {
       "id": "vision-unknown-and-reveal",
       "kind": "observation-boundary",
-      "assertions": ["an unseen enemy remains Unknown", "friendly minion vision is shared across lanes", "removing the sole relevant vision source removes current visibility", "reveal effects follow their duration"]
+      "assertions": [
+        "an unseen enemy remains Unknown",
+        "friendly minion vision is shared across lanes",
+        "removing the sole relevant vision source removes current visibility",
+        "reveal effects follow their duration"
+      ]
     },
     {
       "id": "jungle-objective-and-respawn",
       "kind": "differential-scenario",
-      "arms": ["lane-defense", "jungle-clear"],
-      "assertions": ["neutral camp combat is deterministic", "camp respawn follows its configured tick", "report lane and jungle outcomes and route timings"]
+      "arms": [
+        "lane-defense",
+        "jungle-clear"
+      ],
+      "assertions": [
+        "neutral camp combat is deterministic",
+        "camp respawn follows its configured tick",
+        "report lane and jungle outcomes and route timings"
+      ]
     },
     {
       "id": "xp-solo-versus-shared",
       "kind": "differential-scenario",
-      "arms": ["one-eligible-hero", "two-eligible-heroes", "five-eligible-heroes"],
-      "assertions": ["eligible heroes receive equal shares when the selected reward divides evenly", "report XP, level, and skill acquisition by hero and event"]
+      "arms": [
+        "one-eligible-hero",
+        "two-eligible-heroes",
+        "five-eligible-heroes"
+      ],
+      "assertions": [
+        "eligible heroes receive equal shares when the selected reward divides evenly",
+        "report XP, level, and skill acquisition by hero and event"
+      ]
     },
     {
       "id": "death-respawn-and-regroup",
       "kind": "lifecycle-scenario",
-      "assertions": ["death immediately removes a hero from its living squad", "respawned hero is Solo at its own base", "respawn does not automatically rejoin the prior squad", "explicit accepted regroup intent can rejoin when legal"]
+      "assertions": [
+        "death immediately removes a hero from its living squad",
+        "respawned hero is Solo at its own base",
+        "respawn does not automatically rejoin the prior squad",
+        "explicit accepted regroup intent can rejoin when legal"
+      ]
     },
     {
       "id": "invalid-regroup-and-skill",
       "kind": "intent-rejection",
-      "assertions": ["invalid regroup and unavailable skill do not mutate world state", "rejected intents remain visible in restricted diagnostics"]
+      "assertions": [
+        "invalid regroup and unavailable skill do not mutate world state",
+        "rejected intents remain visible in restricted diagnostics"
+      ]
     },
     {
       "id": "unsupported-next-versions",
       "kind": "input-rejection",
-      "assertions": ["unsupported mechanics version is rejected", "an engine older than Next's minimum engine version is rejected"]
+      "assertions": [
+        "unsupported mechanics version is rejected",
+        "an engine older than Next's minimum engine version is rejected"
+      ]
     },
     {
       "id": "public-replay-confidentiality",
       "kind": "output-boundary",
-      "assertions": ["hidden enemy fields and current hidden positions are absent from public replay", "private tactics, memory, and restricted diagnostics are absent from public JSON"]
+      "assertions": [
+        "hidden enemy fields and current hidden positions are absent from public replay",
+        "private tactics, memory, and restricted diagnostics are absent from public JSON"
+      ]
     },
     {
       "id": "deterministic-native-and-wasm-parity",
       "kind": "adapter-parity",
-      "assertions": ["distinct deterministic and negative scenarios are compared", "identical native repeats have structurally equal public responses", "native and real WASM public and rejection envelopes are structurally equivalent"]
+      "assertions": [
+        "distinct deterministic and negative scenarios are compared",
+        "identical native repeats have structurally equal public responses",
+        "native and real WASM public and rejection envelopes are structurally equivalent"
+      ]
     },
     {
       "id": "orientation-and-simultaneous-resolution",
       "kind": "differential-scenario",
-      "arms": ["attacker-first-orientation", "defender-first-orientation", "simultaneous-lethal-actions"],
-      "assertions": ["symmetric orientation has no undeclared first-mover advantage", "simultaneous lethal actions follow the declared resolution rule"]
+      "arms": [
+        "attacker-first-orientation",
+        "defender-first-orientation",
+        "simultaneous-lethal-actions"
+      ],
+      "assertions": [
+        "symmetric orientation has no undeclared first-mover advantage",
+        "simultaneous lethal actions follow the declared resolution rule"
+      ]
+    },
+    {
+      "id": "battlefield-canonical-topology",
+      "kind": "world-conformance",
+      "assertions": [
+        "exactly 35 canonical nodes and 42 explicit edges",
+        "static A/B/N allegiance and stable unique edge IDs",
+        "TOP/BOT fixed bridge and two MID connector edges",
+        "two bridge-free Jungle fords and four terminal camps",
+        "three rotated 1000-WU base-to-base lane paths",
+        "no implicit geometry shortcut"
+      ]
+    },
+    {
+      "id": "battlefield-real-jinrei-integration",
+      "kind": "compiled-tactic-real-enbu-scenario",
+      "arms": [
+        "select-left-then-move",
+        "expand-and-destroy-top-bridge",
+        "jungle-ford-crossing",
+        "contested-mid-node-exit-block",
+        "mid-node-combat-and-retreat"
+      ],
+      "assertions": [
+        "typed Jinrei capabilities execute through Enbu rather than a fixture simulator",
+        "authorized replay exposes selected track, actual crossing/ford progress and confirmed bridge transitions",
+        "node combat has no range rejection and node-to-enemy-edge attacks remain forbidden",
+        "native repeats and real WASM match in terminal state, CU, and public replay",
+        "desktop and mobile browser render the same generated WASM battle"
+      ]
+    },
+    {
+      "id": "natural-strategic-match-observations",
+      "kind": "observed-real-enbu-outcome-set",
+      "ruleset_version": "2.0.0",
+      "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+      "observations": [
+        {
+          "id": "balanced-solos-vs-quintet",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "split-2-2-1-vs-3-2-role-mix",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "jungle-push-vs-lane-defense",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "mirrored-lane-defense-vs-jungle-push",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-solos-vs-quintet",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-quintet-vs-solos-mirrored",
+          "outcome": "AttackerVictory",
+          "final_tick": 417,
+          "termination_reason": "base_destroyed"
+        },
+        {
+          "id": "base-assault-duos-vs-trio-duo",
+          "outcome": "Draw",
+          "final_tick": 600,
+          "termination_reason": "time_limit"
+        },
+        {
+          "id": "base-assault-trio-duo-vs-duos-mirrored",
+          "outcome": "DefenderVictory",
+          "final_tick": 456,
+          "termination_reason": "base_destroyed"
+        }
+      ],
+      "limits": [
+        "These are measured results for the fixed inputs and ruleset digest, not balance thresholds or a win-rate estimate.",
+        "A Draw at tick 600 is a time-limited observation; it does not establish what would happen under a longer match limit.",
+        "Controlled real-Enbu base assaults separately verify attacker and defender base destruction."
+      ]
     }
   ]
 }

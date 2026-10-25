@@ -1,0 +1,227 @@
+{
+  "evidenceKind": "actual default Jinrei compiled and simulated by browser WASM",
+  "sourceRevision": "2128051",
+  "preview": "http://127.0.0.1:4173",
+  "browser": "Chromium 155.0.8059.84 (Nix)",
+  "wasm": [
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:4173/wasm/senkei_wasm.wasm?rev=ab53d6196a1b96e9f74cd6929d7a5af098e071a2201be997508801dc349d6950"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:4173/wasm/senkei_wasm.wasm?rev=ab53d6196a1b96e9f74cd6929d7a5af098e071a2201be997508801dc349d6950"
+    }
+  ],
+  "dimensions": {
+    "desktop": [
+      1440,
+      900
+    ],
+    "mobile": [
+      390,
+      844
+    ]
+  },
+  "combatTick": 16,
+  "result": {
+    "matchId": "next-c89adeefccdf57c8ab6c327eeb40933f",
+    "outcome": "attacker_victory",
+    "terminationReason": "base_destroyed",
+    "finalTick": 420,
+    "finalStateDigest": "ff5825cdd13eae7a160541bb70d0ad44bac43e5291d38a740cad64a5013ad433"
+  },
+  "publicReplayDigest": "3dc4964e84408d2c1cee6712c9627d10be50eca12847df4672e878369c103db2",
+  "replayPerspective": "attacker",
+  "ownerReplayIncluded": true,
+  "replayFrameCount": 421,
+  "requestIdMatches": true,
+  "counts": {
+    "heroAttack": 809,
+    "heroSkill": 30,
+    "minionAttack": 616,
+    "minionSkill": 0,
+    "totalAttack": 1780,
+    "totalSkill": 30
+  },
+  "firstHeroAttackTick": 16,
+  "heroAttackEvents": [
+    {
+      "tick": 16,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 16,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 17,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 17,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 18,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 18,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 19,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 19,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 20,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 20,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 21,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 21,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 22,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 23,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 24,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 24,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 25,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 25,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "F03"
+    },
+    {
+      "tick": 25,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    },
+    {
+      "tick": 26,
+      "event": "next.attack",
+      "actorType": "hero",
+      "actor": "R05"
+    }
+  ],
+  "pageErrors": [],
+  "screenshots": [
+    "desktop-1440x900-t016.png",
+    "mobile-390x844-t016.png"
+  ],
+  "firstHeroSkillActivationTick": 144,
+  "firstHeroSkillAcquisitionTick": 83,
+  "heroSkillActivationEvents": [
+    {
+      "tick": 144,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 152,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 160,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 168,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 214,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 231,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 239,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    },
+    {
+      "tick": 247,
+      "event": "next.skill",
+      "actorType": "hero",
+      "actor": "F01"
+    }
+  ]
+}

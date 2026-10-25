@@ -1,3 +1,4 @@
+import { HeroModelPreview } from "./HeroModelPreview";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
@@ -58,8 +59,7 @@ interface VisibleBattleTarget {
   readonly role: string;
   readonly category: string;
   readonly side: string;
-  readonly hp: number;
-  readonly maxHp: number;
+  readonly healthLabel: string | null;
   readonly position: WorldPoint;
 }
 
@@ -425,7 +425,10 @@ function createStarterJinrei(packageValue: RulePackage, side: Side, slots: reado
       }
       return `"${node}"`;
     });
-    return `    action advance_${String(index + 1).padStart(2, "0")} {\n        when true,\n        do move(${args.join(", ")}),\n    }`;
+    const needsGoal = "goal" in actorSchema.visible_fields
+      ? `any hero in ${actorCollection} { hero.${actorKey} == "${slot.slot_id}", hero.goal == "", hero.hp > 0, }`
+      : "match.tick == 1";
+    return `    action advance_${String(index + 1).padStart(2, "0")} {\n        when ${needsGoal},\n        do move(${args.join(", ")}),\n    }`;
   });
   const activate = packageValue.domain.capabilities.activate;
   const ownHeroes = Object.entries(packageValue.domain.collections).find(([, collection]) =>
@@ -687,7 +690,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
   const heroes = nextRules?.heroes ?? [];
   const visibleCameraTargets = useMemo<VisibleBattleTarget[]>(() => Object.values(displayState?.entities ?? {})
-    .filter((entity) => !entity.destroyed && entity.hp > 0)
+    .filter((entity) => !entity.destroyed && (entity.hp > 0 || entity.kind === "bridge" || entity.kind === "observation"))
     .sort((left, right) => {
       const priority = (entity: DisplayState["entities"][string]) => entity.archetype === "hero" ? 0 : entity.kind === "unit" ? 1 : entity.kind === "tower" ? 2 : 3;
       return priority(left) - priority(right) || left.side.localeCompare(right.side) || left.id.localeCompare(right.id);
@@ -698,22 +701,27 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         : null;
       const identity = hero
         ? `${hero.id} · ${hero.name}`
+        : entity.kind === "bridge"
+          ? `${entity.battlefield?.bridgeSite ?? "Bridge"} bridge · ${formatId(entity.battlefield?.bridgeState ?? "unknown")}`
+        : entity.kind === "observation" ? "MID Observatory"
+        : entity.kind === "tower" && entity.battlefield?.node ? `${entity.battlefield.node} tower`
+        : entity.kind === "base" ? `${formatId(entity.side)} fortress`
         : entity.catalogId ? formatId(entity.catalogId) : entity.id;
       const role = hero
         ? `${formatId(hero.placement)} · ${formatId(hero.role)}`
         : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
       const category = entity.archetype === "hero" ? "Hero" : entity.kind === "unit" ? formatId(entity.archetype) : `${formatId(entity.kind)} facility`;
       const side = formatId(entity.side);
+      const healthLabel = entity.kind === "observation" ? null : `HP ${entity.hp}/${entity.maxHp}`;
       return {
         id: entity.id,
-        label: `${side} · ${identity} · ${role} · HP ${entity.hp}/${entity.maxHp} · ID ${entity.id}`,
+        label: `${side} · ${identity} · ${role}${healthLabel ? ` · ${healthLabel}` : ""} · ID ${entity.id}`,
         identity,
         catalogId: entity.catalogId ?? null,
         role,
         category,
         side,
-        hp: entity.hp,
-        maxHp: entity.maxHp,
+        healthLabel,
         position: entity.position,
       };
     }), [displayState, nextRules]);
@@ -1169,6 +1177,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
         sourceReplay,
         packageValue,
         response.outcome.result,
+        context.versions.engine,
       );
       setBaselineRun(run);
       setRun({ snapshot, response, sourceReplay, graphicsReplay });
@@ -1255,6 +1264,23 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     const height = Math.max(0.001, sceneBounds.max.y - sceneBounds.min.y);
     return { x: 8 + ((point.x - sceneBounds.min.x) / width) * 104, y: 8 + ((point.y - sceneBounds.min.y) / height) * 64 };
   };
+  const miniMapEntityPoint = (entity: DisplayState["entities"][string]): WorldPoint => {
+    const point = entity.position;
+    const logical = entity.battlefield;
+    if (!logical?.edgeTo || (logical.track !== "LEFT" && logical.track !== "RIGHT")) return miniMapPoint(point);
+    const nodes = run?.graphicsReplay.scene.nodes ?? [];
+    const from = nodes.find(node => node.id === logical.node)?.position;
+    const to = nodes.find(node => node.id === logical.edgeTo)?.position;
+    const edge = (run?.graphicsReplay.scene.routes ?? []).find(route =>
+      ((route.points[0].x === from?.x && route.points[0].y === from?.y && route.points[1].x === to?.x && route.points[1].y === to?.y) ||
+       (route.points[1].x === from?.x && route.points[1].y === from?.y && route.points[0].x === to?.x && route.points[0].y === to?.y)),
+    );
+    if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge") return miniMapPoint(point);
+    const dx = edge.points[1].x - edge.points[0].x, dy = edge.points[1].y - edge.points[0].y, length = Math.hypot(dx, dy) || 1;
+    const direction = logical.crossing === "track" ? 0 : logical.track === "LEFT" ? -1 : 1;
+    const offset = (run?.graphicsReplay.scene.trackOffset ?? 0.8) * direction;
+    return miniMapPoint({ x: point.x + dy / length * offset, y: point.y - dx / length * offset });
+  };
   const miniMapBases = nextRules ? [
     { id: "attacker", label: "A", node: nextRules.map.nodes[nextRules.map.attacker_base] },
     { id: "defender", label: "D", node: nextRules.map.nodes[nextRules.map.defender_base] },
@@ -1264,6 +1290,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
     if (view === "timeline") player?.pause();
     if (view === "battle" || view === "overview") {
       setBattleRosterOpen(false);
+      setBattleInspectorOpen(false);
       const nextMode = view === "overview" ? "overview" : "tactical";
       setCameraMode(nextMode);
       setFollowedEntityId(null);
@@ -1275,9 +1302,9 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
   const closeBattleSheet = (): void => setBattleMobileView(cameraMode === "overview" ? "overview" : "battle");
   const followVisibleEntity = (id: string): void => {
     setSelectedEntityId(id);
-    const mobile = window.matchMedia("(max-width: 760px)").matches;
-    setBattleMobileView(mobile ? "follow" : "battle");
-    setBattleRosterOpen(!mobile);
+    setBattleMobileView("battle");
+    setBattleInspectorOpen(false);
+    setBattleRosterOpen(false);
     setCameraMode("tactical");
     setFollowedEntityId(id);
     setFollowedSquadId(null);
@@ -1327,7 +1354,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             <span><strong>{countLabel}</strong><small>{composition} · {clusterAnnotation}</small></span><b aria-hidden="true">{expanded ? "−" : "+"}</b>
           </button>
           {expanded && <ul className="next-visible-cluster-entities">{cluster.entities.map((entity) => <li className={selectedEntityId === entity.id ? "is-selected" : ""} key={entity.id}>
-            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div><b>HP {entity.hp}/{entity.maxHp}</b><small>ID {entity.id} · X {Math.round(entity.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y {Math.round(entity.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}</small></div></div>
+            <div className="next-visible-entity-copy"><strong>{entity.identity}</strong><span>{entity.category} · {entity.role} · {entity.side}</span><div>{entity.healthLabel && <b>{entity.healthLabel}</b>}<small>ID {entity.id} · X {Math.round(entity.position.x * NEXT_WORLD_UNITS_PER_RENDER_UNIT)} · Y {Math.round(entity.position.y * NEXT_WORLD_UNITS_PER_RENDER_UNIT)}</small></div></div>
             <div className="next-visible-entity-actions"><button aria-label={`Select ${entity.identity}, replay entity ${entity.id}`} aria-pressed={selectedEntityId === entity.id} onClick={() => {
               selectBattleEntity(entity.id);
               setBattleInspectorOpen(true);
@@ -1466,11 +1493,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             {atelierScreen === "detail" && <div className="next-atelier-detail">
               <div className="next-atelier-roster" aria-label="Choose a Hero for detail" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} aria-label={`Slot ${index + 1}: ${hero?.name ?? "Choose a hero"}, ${hero?.id ?? slot.slot_id}`} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
               {currentHero && activeSlotValue ? <article className="next-hero-dossier">
-                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. No approved character model is bundled for this Hero.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. Shared 3D appearance for Hero Detail and the battlefield.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+                {tab === "formation" && <HeroModelPreview catalogId={currentHero.id} appearanceKey={currentHero.appearance_key} name={currentHero.name} />}
                 <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div><div className="next-stat-matrix"><span>STAT</span><span>BASE</span><span>PER LEVEL</span>{(["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const).map((stat) => <Fragment key={stat}><strong>{formatId(stat)}</strong><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></Fragment>)}</div></section>
                 <aside className="next-capability-map"><strong>Jinrei capability mapping</strong>{packageValue.domain.capabilities.activate ? <p>Active skills are issued through <code>activate</code> with the ruleset’s typed arguments: {packageValue.domain.capabilities.activate.arguments.map((argument) => `${formatId(argument.id)} (${argument.value_type.kind})`).join(" · ")}. Passive skills are granted automatically at their unlock level.</p> : <p role="alert">This ruleset has no <code>activate</code> capability, so its active skills cannot be ordered from Jinrei.</p>}</aside>
                 <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Granted automatically when its level requirement is met." : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks · Jinrei activate capability`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
-                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. Appearance identity is recorded; its 3D character asset is not available.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
+                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. The 3D preview shares its appearance with the battlefield.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
               </article> : <div className="next-catalog-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
             </div>}
 
@@ -1508,19 +1536,23 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
             {runResult && run ? <>
               <div className="next-battle-stage">
                 <div aria-label="Interactive three-dimensional replay" className="next-renderer-host" ref={rendererHost} />
+                <button aria-label="Toggle Pixel 3D" aria-pressed={pixel} className="next-mobile-render-mode" onClick={() => setPixel(value => !value)} type="button">{pixel ? "Pixel 3D" : "Smooth 3D"}</button>
                 <aside className={`next-battle-minimap${battleMapContextOpen ? " is-open" : ""}`} aria-label="Current battlefield map context">
                   <button aria-expanded={battleMapContextOpen} aria-label="Toggle battlefield map context" className="next-minimap-toggle" onClick={() => setBattleMapContextOpen((open) => !open)} type="button"><span>MAP · T{displayState?.tick ?? 0}</span><small>{battleMapContextOpen ? "HIDE" : "OPEN"}</small></button>
                   {battleMapContextOpen && <div className="next-battle-minimap-content">
                   <svg aria-label="Replay lanes, routes, camps, bases and currently visible entities" role="img" viewBox="0 0 120 80">
                     <rect className="next-minimap-ground" height="80" rx="4" width="120" x="0" y="0" />
+                    {(run.graphicsReplay.scene.river ?? []).length > 1 && <polyline className="next-minimap-river" data-testid="battle-map-river" points={run.graphicsReplay.scene.river!.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ")} />}
                     {(run.graphicsReplay.scene.routes ?? []).map((route) => {
                       const points = route.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");
-                      return <polyline className={`next-minimap-route region-${route.region}`} key={route.id} points={points} />;
+                      const facility = route.bridgeSite ? Object.values(displayState?.entities ?? {}).find((entity) => entity.battlefield?.bridgeSite === route.bridgeSite) : undefined;
+                      return <polyline className={`next-minimap-route region-${route.region}${route.bridgeSite ? " is-bridge-route" : ""}${route.ford ? " is-ford-route" : ""}`} data-testid="battle-map-route" data-edge-id={route.id} data-bridge-site={route.bridgeSite} data-bridge-state={route.bridgeSite ? facility?.battlefield?.bridgeState ?? "unknown" : undefined} data-ford={route.ford ? "true" : undefined} key={route.id} points={points} />;
                     })}
                     {run.graphicsReplay.scene.lanes.map((lane) => {
                       const points = lane.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");
                       return <g key={lane.id}><polyline className="next-minimap-lane" points={points} /><text className="next-minimap-lane-label" x={miniMapPoint(lane.points[Math.floor(lane.points.length / 2)]).x} y={miniMapPoint(lane.points[Math.floor(lane.points.length / 2)]).y - 2}>{lane.label}</text></g>;
                     })}
+                    {(run.graphicsReplay.scene.nodes ?? []).map((node) => { const point = miniMapPoint(node.position); return <circle data-testid="battle-map-node" data-node-id={node.id} data-allegiance={node.allegiance} cx={point.x} cy={point.y} key={node.id} r={node.id === "N.MID.OBS" ? 1.45 : 0.65} />; })}
                     {(run.graphicsReplay.scene.camps ?? []).map((camp) => { const point = miniMapPoint(camp.position); return <path className="next-minimap-camp" d={`M ${point.x} ${point.y - 1.9} l 1.9 1.9 -1.9 1.9 -1.9 -1.9 z`} key={camp.id} />; })}
                     {miniMapBases.map(({ id, label, node }) => {
                       if (!node) return null;
@@ -1528,7 +1560,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                       return <g className={`next-minimap-base base-${id}`} key={id}><rect height="5" width="5" x={point.x - 2.5} y={point.y - 2.5} /><text x={point.x + 3.5} y={point.y + 2}>{label}</text></g>;
                     })}
                     {Object.values(displayState?.entities ?? {}).filter((entity) => !entity.destroyed && entity.hp > 0).map((entity) => {
-                      const point = miniMapPoint(entity.position);
+                      const point = miniMapEntityPoint(entity);
                       const structure = entity.kind === "tower" || entity.kind === "base";
                       return structure
                         ? <rect className={`next-minimap-entity side-${entity.side}`} height="2.6" key={entity.id} width="2.6" x={point.x - 1.3} y={point.y - 1.3} />
@@ -1538,7 +1570,7 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                   <div aria-label="Entity side markers: A attacker, D defender, N neutral" className="next-minimap-legend"><span aria-label="Attacker"><i className="side-azure" /><b>A</b></span><span aria-label="Defender"><i className="side-vermilion" /><b>D</b></span><span aria-label="Neutral"><i className="side-neutral" /><b>N</b></span></div>
                   </div>}
                 </aside>
-                <button aria-expanded={battleRosterOpen} aria-label={`Visible entity roster, ${visibleCameraTargets.length} living visible entities`} className="next-visible-roster-trigger" data-testid="battle-visible-roster-toggle" onClick={() => setBattleRosterOpen((open) => !open)} type="button"><span>VISIBLE ROSTER</span><b>{visibleCameraTargets.length}</b></button>
+                <button aria-expanded={battleRosterOpen} aria-label={`Visible entity roster, ${visibleCameraTargets.length} visible entities`} className="next-visible-roster-trigger" data-testid="battle-visible-roster-toggle" onClick={() => setBattleRosterOpen((open) => !open)} type="button"><span>VISIBLE ROSTER</span><b>{visibleCameraTargets.length}</b></button>
                 <section aria-label="Visible entity cluster roster" className="next-visible-roster-panel" data-testid="battle-visible-roster" hidden={!battleRosterOpen}>
                   <header><div><span className="next-eyebrow">CURRENT DISPLAY · TICK {displayState?.tick ?? 0}</span><h4>Visible entities <small>{visibleCameraTargets.length}</small></h4></div><button aria-label="Close visible entity roster" onClick={() => setBattleRosterOpen(false)} type="button">×</button></header>
                   {renderVisibleEntityClusters("desktop")}
@@ -1554,12 +1586,12 @@ export function NextWorkspace({ active, core, ruleset: packageValue, rulesetErro
                 </div>
                 <div className="next-battle-lower" hidden={!battleInspectorOpen && battleMobileView !== "details"}>
                   <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">VISIBLE STATE · TICK {displayState?.tick ?? 0}</span><h4>{selectedEntity ? fieldString(selectedEntity.fields.catalog_id) ?? selectedEntity.entity_type : "Select a unit"}</h4></div><span className="next-owner-tag">{selectedEntity ? selectedEntity.owner ?? "neutral" : run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER" : "PUBLIC"}</span>{battleMobileView === "details" && <button aria-label="Close details sheet" className="next-mobile-sheet-close" onClick={closeBattleSheet} type="button">×</button>}</div>
-                    {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "squad", "skill_path", "skills"] as const).map((field) => {
+                    {selectedEntity ? <div className="next-entity-stats">{(["hp", "xp", "level", "maturity", "energy", "node", "edge_to", "edge_progress", "track", "cross_remaining", "ford_remaining", "ford_active", "site", "bridge_state", "build_remaining", "capture_progress", "capture_owner", "capture_progress_side", "squad", "skill_path", "skills"] as const).map((field) => {
                       const value = selectedEntity.fields[field];
                       const label = field === "xp" && value?.kind === "integer"
                         ? formatExperience(value.value, nextRules)
                         : value ? domainLabel(value) : "";
-                      return value ? <div key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
+                      return value ? <div data-testid="logical-detail-field" data-field={field} key={field}><span>{formatId(field)}</span><strong>{label}</strong></div> : null;
                     })}</div> : <p className="next-empty-detail">{selectedDisplayEntity ? "This visible unit has no unambiguous state record in the replay at this tick." : "Tap a visible unit to inspect only the HP, XP, level and skill state present in this replay."}</p>}
                     {selectedEntity && fieldInteger(selectedEntity.fields.xp) !== null && <div className="next-xp-bar"><span>XP <b>{formatExperience(fieldInteger(selectedEntity.fields.xp) ?? 0, nextRules)}</b></span><span>Level <b>{fieldInteger(selectedEntity.fields.level) ?? 1}</b></span></div>}
                   </section>

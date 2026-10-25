@@ -15,13 +15,15 @@ Run the full headless and adapter suite with:
 bash scripts/balance/run-next.sh
 ```
 
-The command runs the Enbu scenarios in release mode, emits four adapter request
-fixtures, and compares their native dispatcher results with the compiled
-WebAssembly dispatcher. The adapter cases include a 120-tick public match with
-five opening move actions per side and invalid engine, roster, and ruleset
-requests. They use `include_diagnostics: false`; the public result must omit
-the restricted owner replay and diagnostics. Identical native repeats are
-checked only for reproducibility.
+The command runs the Enbu scenarios in release mode, emits seven adapter
+request fixtures, and compares complete native, repeated-native and compiled
+WebAssembly dispatcher responses. Cases cover a public match, a controlled
+canonical public/owner battle, a full 600-tick owner-local battle above 32 MB,
+and invalid engine, roster and ruleset requests. Public-only requests use
+`include_diagnostics: false` and must omit owner replay and diagnostics. Owner
+requests explicitly authorize attacker-local replay/diagnostics; opponent
+private state remains excluded. Exact CU and full response hashes are checked
+for reproducibility and cross-target agreement.
 
 ## Executable coverage
 
@@ -60,25 +62,42 @@ where needed; public adapter comparisons use only public responses.
 
 ## Observations and limits
 
-The current eight-case strategic set has six draws at the 600-tick time limit
-and two mirrored base-destruction victories: the `2+2+1` attacker defeats the
-`3+2` defender at tick 146, and the swapped `3+2` attacker defeats the `2+2+1`
-defender at tick 143. The base-assault victories verify both outcome
-orientations; the Solo-versus-Quintet and jungle-versus-lane cases still time
-out. The report records each setup's visible event counts, final digest, hero
-state, CU, outcome and termination class. These fixed opening policies do not
-establish a win rate, general balance, or a balance threshold. The repeated
-determinism run is the same input and is not a separate matchup sample.
+The current eight-case strategic set was measured after the normal-bridge
+center-entry fix with mechanics and ruleset version `2.0.0`, package digest
+`31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481` (acceptance
+core commit `42b6919`, normal-assertion confirmation at `6d11298`). Its exact observed outcomes are:
+
+| Scenario | Outcome | Final tick | Termination |
+| --- | --- | ---: | --- |
+| `balanced-solos-vs-quintet` | Draw | 600 | Time limit |
+| `split-2-2-1-vs-3-2-role-mix` | Draw | 600 | Time limit |
+| `jungle-push-vs-lane-defense` | Draw | 600 | Time limit |
+| `mirrored-lane-defense-vs-jungle-push` | Draw | 600 | Time limit |
+| `base-assault-solos-vs-quintet` | Draw | 600 | Time limit |
+| `base-assault-quintet-vs-solos-mirrored` | Attacker victory | 417 | Base destroyed |
+| `base-assault-duos-vs-trio-duo` | Draw | 600 | Time limit |
+| `base-assault-trio-duo-vs-duos-mirrored` | Defender victory | 456 | Base destroyed |
+
+The two base-assault victories destroy the opposing base in opposite
+orientations. The report records each setup's visible event counts, final
+digest, hero state, CU, outcome and termination class. These fixed opening
+policies do not establish a win rate, general balance, or a balance threshold;
+each Draw at tick 600 is only a time-limited observation. The separate
+controlled real-Enbu base assaults verify base destruction by both sides. The
+repeated determinism run is the same input and is not a separate matchup
+sample. `tests/conformance/next-scenario-matrix.json` records these observed
+values and their limits.
 
 The fragile-Hero derivative is a lifecycle fixture, not a canonical tuning
 claim. Camp respawn observes the neutral's HP before and on the configured
 respawn tick; hidden neutral lifecycle fields are not read from the owner
-projection. The six time-limited matches end at 600 ticks, so longer-term
-objectives, broader composition coverage, and victory rates remain unmeasured.
+projection. Longer-term objectives, broader composition coverage, and victory
+rates remain unmeasured.
 
-W9 currently covers minion vision as a movement modifier and checks that the
-initial public fog view does not reveal distant enemies. It does not yet run a
-W9-level observation-boundary or reveal-expiry scenario; those rules have
-separate W2 unit coverage. W9 does not assert tactical value from visible area,
+The suite covers minion vision as a movement modifier and checks that the
+initial public fog view does not reveal distant enemies. Separate actual-Enbu
+integration tests cover hidden-bridge Unknown handling, zero unauthorized
+energy spend, and identical reveal expiry in owner/public replay. The suite
+does not assert tactical value from visible area,
 XP, damage, or a single matchup. Logical Jinrei CU is reported separately from
 physical runtime cost.

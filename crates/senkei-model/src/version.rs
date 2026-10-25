@@ -20,7 +20,7 @@ pub const SHARED_MODEL_VERSION: Version = Version::new(1, 0, 0);
 
 /// Semantic version of Enbu's deterministic simulation contract. This is
 /// independent of the Rust crate's Cargo package version.
-pub const ENBU_ENGINE_VERSION: Version = Version::new(1, 1, 0);
+pub const ENBU_ENGINE_VERSION: Version = Version::new(1, 2, 0);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulesetRef {

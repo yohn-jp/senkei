@@ -16,8 +16,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --workspace --locked
-      - run: cargo test --workspace --locked
+      # Full canonical battles exercise hundreds of ticks, including mirrored
+      # base assaults; use the same optimized core as the WASM/browser build.
+      - run: cargo build --workspace --release --locked
+      - run: cargo test --workspace --release --locked
 
   conformance:
     name: Native and real WebAssembly conformance
@@ -52,6 +54,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
   browser:

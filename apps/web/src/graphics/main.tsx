@@ -66,6 +66,7 @@ function eventLabel(event: Event) {
     destroy: "破壊・損失",
     disappear: "観測終了",
     "match-end": "終局",
+    "facility-state": "施設状態",
   };
   return types[event.type];
 }

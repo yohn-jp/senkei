@@ -162,6 +162,19 @@ pub fn intents(
 
     for (side, intent) in actions {
         let Some(actor_id) = actor_for(intent) else { continue };
+        let Some(actor) = world.entities.get(&actor_id) else { continue };
+        if support::int(actor, "action_lock_until") > i64::from(_tick) { continue; }
+        let mut affected = squad_members(world, *side, &support::string(actor, "squad"));
+        if !affected.contains(&actor_id) { affected.push(actor_id.clone()); }
+        if let Some(target_id) = target_for(intent) {
+            if let Some(target) = world.entities.get(&target_id) {
+                affected.extend(squad_members(world, *side, &support::string(target, "squad")));
+            }
+        }
+        affected.sort(); affected.dedup();
+        if affected.iter().any(|id| world.entities.get(id).is_some_and(|entity| support::int(entity, "action_lock_until") > i64::from(_tick)
+            || crate::next_navigation::forced_transit_in(entity, rules, world))) { continue; }
+        let before = affected.iter().filter_map(|id| world.entities.get(id).map(|entity| (id.clone(), support::string(entity, "squad")))).collect::<Vec<_>>();
         match intent.capability.as_str() {
             "split" => split(world, rules, *side, &actor_id, _tick),
             "merge" | "regroup" => {
@@ -169,6 +182,13 @@ pub fn intents(
                 merge(world, rules, *side, &actor_id, &target_id);
             }
             _ => {}
+        }
+        if before.iter().any(|(id, prior)| world.entities.get(id).is_some_and(|entity| support::string(entity, "squad") != *prior)) {
+            for id in affected {
+                if let Some(entity) = world.entities.get_mut(&id) {
+                    support::set_int(entity, "action_lock_until", support::int(entity, "action_lock_until").max(i64::from(_tick) + 1));
+                }
+            }
         }
     }
 }
@@ -583,8 +603,21 @@ fn merge(
         return;
     }
     let distance = support::param(rules, "squad_merge_distance", 30).max(0);
-    if !cohesive(world, &members, distance) {
+    if !cohesive(world, &members, distance, rules) {
         return;
+    }
+    // A merge must form one spatial subject without teleporting members or
+    // implicitly distributing them across connectors or lateral tracks.
+    for (index, left_id) in members.iter().enumerate() {
+        let left = &world.entities[left_id];
+        for right_id in members.iter().skip(index + 1) {
+            let right = &world.entities[right_id];
+            if support::combat_distance2(left, right, rules).is_none()
+                || support::string(left, "node") != support::string(right, "node")
+                || support::string(left, "edge_to") != support::string(right, "edge_to")
+                || support::string(left, "track") != support::string(right, "track")
+            { return; }
+        }
     }
 
     // The target Hero anchors the merged squad. All members receive its
@@ -657,13 +690,13 @@ fn unique_solo_id(world: &WorldState, side: CombatantSide, source: &str) -> Stri
     unreachable!("a free deterministic squad identifier always exists")
 }
 
-fn cohesive(world: &WorldState, members: &[EntityId], distance: i64) -> bool {
+fn cohesive(world: &WorldState, members: &[EntityId], distance: i64, rules: &NextRules) -> bool {
     let max_distance_squared = i128::from(distance).saturating_mul(i128::from(distance));
     for left_index in 0..members.len() {
         let Some(left) = world.entities.get(&members[left_index]) else { return false };
         for right_id in members.iter().skip(left_index + 1) {
             let Some(right) = world.entities.get(right_id) else { return false };
-            if support::distance2(left, right) > max_distance_squared {
+            if support::world_distance2(left, right, rules).map_or(true, |distance| distance > max_distance_squared) {
                 return false;
             }
         }
@@ -747,7 +780,7 @@ fn advance_maturity(
             }
             continue;
         }
-        if !cohesive(world, &members, distance) {
+        if !cohesive(world, &members, distance, rules) {
             for id in &members {
                 if let Some(entity) = world.entities.get_mut(id) {
                     support::set_int(entity, "maturity", 0);
@@ -879,9 +912,12 @@ mod tests {
             map: BattleMap {
                 id: "test-map".to_owned(),
                 nodes: BTreeMap::from([
-                    ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned() }),
-                    ("home".to_owned(), MapNode { x: 0, y: 0, region: "base".to_owned() }),
-                    ("far".to_owned(), MapNode { x: 500, y: 500, region: "lane".to_owned() }),
+                    ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned(), ..Default::default()
+}),
+                    ("home".to_owned(), MapNode { x: 0, y: 0, region: "base".to_owned(), ..Default::default()
+}),
+                    ("far".to_owned(), MapNode { x: 500, y: 500, region: "lane".to_owned(), ..Default::default()
+}),
                 ]),
                 edges: Vec::new(),
                 lanes: BTreeMap::new(),
@@ -1211,7 +1247,10 @@ mod tests {
             1,
         );
         assert_eq!(first, second);
-        assert_eq!(field_string(&first, &hero_id("h1"), "squad"), "attacker:solo");
+        // The first merge consumes the cohort's action. A second member cannot
+        // move the newly merged subject into another Squad in the same tick.
+        assert_eq!(field_string(&first, &hero_id("h1"), "squad"), "attacker:bravo");
+        assert_eq!(field_int(&first, &hero_id("h2"), "action_lock_until"), 2);
     }
 
     #[test]
@@ -1238,6 +1277,9 @@ mod tests {
         lifecycle(&mut world, &rules, 23);
         assert_eq!(field_int(&world, &hero_id("h1"), "hp"), 100);
         assert_eq!(field_int(&world, &hero_id("h1"), "life_generation"), 1);
+        assert_eq!(field_string(&world, &hero_id("h1"), "track"), "");
+        assert_eq!(field_int(&world, &hero_id("h1"), "ford_active"), 0);
+        assert_eq!(field_int(&world, &hero_id("h1"), "cross_remaining"), 0);
         assert_eq!(field_int(&world, &hero_id("h1"), "passive_generation"), 0);
         assert_eq!(field_string(&world, &hero_id("h1"), "node"), "home");
         assert_eq!(field_int(&world, &hero_id("h1"), "xp"), 77);
@@ -1259,4 +1301,45 @@ mod tests {
         assert_eq!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h2"), "squad"));
         assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
     }
+
+    #[test]
+    fn squad_cohesion_depends_on_logical_positions_instead_of_drawing_coordinates() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        let members = vec![hero_id("h1"), hero_id("h2")];
+        support::set_int(world.entities.get_mut(&members[0]).unwrap(), "x", -1_000_000);
+        support::set_int(world.entities.get_mut(&members[1]).unwrap(), "x", 1_000_000);
+        assert!(cohesive(&world, &members, 30, &rules));
+        support::place(world.entities.get_mut(&members[1]).unwrap(), "far", &rules);
+        let x = support::int(&world.entities[&members[0]], "x");
+        support::set_int(world.entities.get_mut(&members[1]).unwrap(), "x", x);
+        assert!(!cohesive(&world, &members, 30, &rules));
+    }
+
+
+    #[test]
+    fn expanded_bridge_merge_requires_a_shared_track() {
+        let mut rules = rules();
+        rules.map.edges.push(senkei_model::MapEdge {
+            from: "field".into(), to: "home".into(), length: 100,
+            region: "bridge".into(), bridge_site: "TOP".into(), ..Default::default()
+        });
+        let mut world = WorldState::default();
+        initialize(&mut world, &loadout(), CombatantSide::Attacker, &rules).unwrap();
+        for (slot, track) in [("h1", "LEFT"), ("h2", "LEFT"), ("h3", "RIGHT"), ("h4", "RIGHT")] {
+            let entity = world.entities.get_mut(&hero_id(slot)).unwrap();
+            support::set_string(entity, "edge_to", "home");
+            support::set_int(entity, "edge_progress", 20);
+            support::set_string(entity, "track", track);
+        }
+        merge(&mut world, &rules, CombatantSide::Attacker, &hero_id("h1"), &hero_id("h3"));
+        assert_ne!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h3"), "squad"));
+        for slot in ["h3", "h4"] {
+            support::set_string(world.entities.get_mut(&hero_id(slot)).unwrap(), "track", "LEFT");
+        }
+        merge(&mut world, &rules, CombatantSide::Attacker, &hero_id("h1"), &hero_id("h3"));
+        assert_eq!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h3"), "squad"));
+    }
+
 }

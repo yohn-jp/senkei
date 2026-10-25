@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-medic-support",
-  "request_sha256": "cdb52f2f94b1162181f3aa6a80e772cee1d76482b5c71c4029f57c36a555c158",
+  "request_sha256": "01edd08fe66aa24b28a3f282e31d0c4f95664e7c5d3359f0f3988e6b09b32699",
   "response_sha256": "7a4f5ec49945c8c683069e057b8f27a8220085d1b5f889193b1d62c5a1ac28f1",
   "summary": {
     "outcome": "defender_victory",

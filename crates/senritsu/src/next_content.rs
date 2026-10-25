@@ -1,4 +1,4 @@
-//! Provisional finite content for `senkei.next` 1.0.0.
+//! Provisional finite content for `senkei.next` 2.0.0.
 //!
 //! This module owns game data only. The numbers below are initial tuning
 //! values, not engine defaults; see `docs/implementation/NEXT-PARAMETERS.md`.
@@ -9,7 +9,7 @@ use senkei_model::{
 };
 use std::collections::BTreeMap;
 
-/// Builds the initial versioned catalog and world parameters around W1's map.
+/// Builds the initial versioned catalog and world parameters for canonical Battlefield v2.
 pub fn content(map: BattleMap) -> NextRules {
     let heroes = HEROES.iter().map(build_hero).collect();
 
@@ -45,28 +45,14 @@ pub fn content(map: BattleMap) -> NextRules {
     ];
 
     let camps = vec![
-        CampDefinition {
-            id: "camp_nw".into(),
-            node: "jungle_nw".into(),
-            monster: "monster_grove_brute".into(),
-            respawn_ticks: 90,
-        },
-        CampDefinition {
-            id: "camp_center".into(),
-            node: "jungle_center".into(),
-            monster: "monster_iron_warden".into(),
-            respawn_ticks: 120,
-        },
-        CampDefinition {
-            id: "camp_se".into(),
-            node: "jungle_se".into(),
-            monster: "monster_storm_stalker".into(),
-            respawn_ticks: 90,
-        },
+        CampDefinition { id: "camp_a_upper".into(), node: "N.A.UC".into(), monster: "monster_grove_brute".into(), respawn_ticks: 90 },
+        CampDefinition { id: "camp_b_upper".into(), node: "N.B.UC".into(), monster: "monster_iron_warden".into(), respawn_ticks: 120 },
+        CampDefinition { id: "camp_a_lower".into(), node: "N.A.LC".into(), monster: "monster_storm_stalker".into(), respawn_ticks: 90 },
+        CampDefinition { id: "camp_b_lower".into(), node: "N.B.LC".into(), monster: "monster_grove_brute".into(), respawn_ticks: 90 },
     ];
 
     NextRules {
-        mechanics_version: Version::new(1, 0, 0),
+        mechanics_version: Version::new(2, 0, 0),
         map,
         heroes,
         minions,
@@ -82,12 +68,41 @@ fn parameters() -> BTreeMap<String, i64> {
         // the agreed initial movement ratios from WORLD.md and UNITS.md.
         ("terrain_lane_speed_milli".into(), 1_000),
         ("terrain_jungle_speed_milli".into(), 800),
+        ("terrain_forest_speed_milli".into(), 800),
+        ("terrain_wetland_speed_milli".into(), 650),
+        ("terrain_rock_speed_milli".into(), 700),
+        ("terrain_highland_speed_milli".into(), 900),
+        ("terrain_shallow_speed_milli".into(), 600),
         ("minion_vision_speed_milli".into(), 1_200),
         ("squad_1_speed_milli".into(), 1_000),
         ("squad_2_speed_milli".into(), 950),
         ("squad_3_speed_milli".into(), 900),
         ("squad_4_speed_milli".into(), 850),
         ("squad_5_speed_milli".into(), 800),
+        // Battlefield spatial and crossing parameters are versioned with this package.
+        ("lane_track_offset_wu".into(), 20),
+        ("lane_cross_track_ticks".into(), 3),
+        ("track_occupancy_radius_wu".into(), 20),
+        ("track_occupancy_max_ticks".into(), 30),
+        ("ford_extra_ticks".into(), 24),
+        ("ford_received_damage_milli".into(), 1_500),
+        ("bridge_crossing_capacity".into(), 1),
+        ("bridge_known_occupancy_delay_ticks".into(), 24),
+        ("bridge_hp".into(), 500),
+        ("bridge_expand_ticks".into(), 12),
+        ("bridge_rebuild_ticks".into(), 24),
+        ("bridge_destroy_ticks".into(), 8),
+        ("bridge_work_energy".into(), 25),
+        ("generic_squad_terrain_adapt_milli".into(), 900),
+        ("specialist_jungle_adapt_milli".into(), 1_000),
+        ("solo_high_mobility_milli".into(), 1_100),
+        ("mid_observation_radius_wu".into(), 240),
+        ("mid_capture_ticks".into(), 8),
+        // v2 uses shortest-legal-graph distance for vision and no terrain occlusion.
+        ("vision_graph_metric".into(), 1),
+        ("vision_occlusion_enabled".into(), 0),
+        ("attack_preparation_ticks".into(), 0),
+        ("attack_recovery_ticks".into(), 1),
         // Minion cadence and sensor radius are implementation starting points.
         ("minion_spawn_interval".into(), 30),
         ("minion_vision".into(), 180),
@@ -323,11 +338,11 @@ const HEROES: [HeroSpec; 12] = [
         growth: [16, 2, 1, 1, 0, 0, 7],
         branches: [
             BranchSpec {
-                passive: passive("Trail Runner", SkillEffect::Haste, 100),
+                passive: passive("Trail Runner", SkillEffect::JungleSpecialist, 100),
                 active: active("Flare Signal", SkillEffect::Reveal, 1, 4, 260, "enemy", 10, 20),
             },
             BranchSpec {
-                passive: passive("Fieldcraft", SkillEffect::Empower, 2),
+                passive: passive("Fieldcraft", SkillEffect::TerrainAdaptation, 2),
                 active: active("Scout's Pace", SkillEffect::Haste, 150, 3, 220, "ally", 9, 20),
             },
         ],
@@ -384,7 +399,7 @@ const HEROES: [HeroSpec; 12] = [
                 active: active("Horizon Flare", SkillEffect::Reveal, 1, 4, 420, "enemy", 10, 20),
             },
             BranchSpec {
-                passive: passive("Light Footfall", SkillEffect::Haste, 80),
+                passive: passive("Light Footfall", SkillEffect::SoloMobility, 80),
                 active: active("Distant Mark", SkillEffect::Damage, 35, 0, 390, "enemy", 8, 20),
             },
         ],
@@ -534,7 +549,8 @@ mod tests {
                         x: 100,
                         y: 100,
                         region: "jungle".into(),
-                    },
+                    ..Default::default()
+},
                 )
             })
             .collect();
@@ -604,13 +620,34 @@ mod tests {
     }
 
     #[test]
+    fn canonical_skills_offer_generic_specialist_and_solo_movement_adaptation() {
+        let rules = content(crate::next_world::battle_map());
+        let effect = |hero_id: &str, name: &str| {
+            let hero = rules.heroes.iter().find(|hero| hero.id == hero_id).unwrap();
+            hero.skills.iter().find(|skill| skill.name == name).unwrap().effect.clone()
+        };
+        assert_eq!(effect("F06", "Trail Runner"), SkillEffect::JungleSpecialist);
+        assert_eq!(effect("F06", "Fieldcraft"), SkillEffect::TerrainAdaptation);
+        assert_eq!(effect("R03", "Light Footfall"), SkillEffect::SoloMobility);
+    }
+
+    #[test]
     fn world_content_uses_the_fixed_map_camp_nodes_and_finite_parameters() {
         let rules = content(sample_map());
-        assert_eq!(rules.camps.len(), 3);
-        assert_eq!(rules.camps[0].node, "jungle_nw");
-        assert_eq!(rules.camps[1].node, "jungle_center");
-        assert_eq!(rules.camps[2].node, "jungle_se");
+        assert_eq!(rules.camps.len(), 4);
+        assert_eq!(rules.camps.iter().map(|camp| camp.node.as_str()).collect::<std::collections::BTreeSet<_>>(), ["N.A.UC", "N.B.UC", "N.A.LC", "N.B.LC"].into_iter().collect());
         assert_eq!(rules.parameters["terrain_jungle_speed_milli"], 800);
+        for (key, value) in [
+            ("lane_track_offset_wu", 20), ("lane_cross_track_ticks", 3),
+            ("ford_extra_ticks", 24), ("ford_received_damage_milli", 1_500),
+            ("bridge_crossing_capacity", 1), ("bridge_known_occupancy_delay_ticks", 24),
+            ("bridge_expand_ticks", 12), ("bridge_rebuild_ticks", 24),
+            ("bridge_destroy_ticks", 8), ("bridge_work_energy", 25),
+            ("mid_observation_radius_wu", 240), ("mid_capture_ticks", 8),
+            ("vision_graph_metric", 1), ("vision_occlusion_enabled", 0),
+            ("attack_preparation_ticks", 0), ("attack_recovery_ticks", 1),
+        ] { assert_eq!(rules.parameters[key], value, "{key}"); }
+        assert!(!rules.parameters.contains_key("bridge_repair_ticks"));
         assert_eq!(rules.parameters["minion_vision_speed_milli"], 1_200);
         assert_eq!(rules.parameters["squad_5_speed_milli"], 800);
         assert_eq!(rules.parameters["hero_max_level"], 6);

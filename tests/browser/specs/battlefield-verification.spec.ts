@@ -69,9 +69,11 @@ function firstUnobservedBaseSiteTick(replay: JsonRecord, siteId: string, afterTi
   })?.tick ?? null;
 }
 
-function baseSiteSideFromLabel(text: string): "azure" | "vermilion" | null {
-  if (text.startsWith("AZURE BASE")) return "azure";
-  if (text.startsWith("VERMILION BASE")) return "vermilion";
+function baseSiteSideFromLabel(text: string, siteId: string): "azure" | "vermilion" | null {
+  if (siteId === "A.BASE") return "azure";
+  if (siteId === "B.BASE") return "vermilion";
+  if (/^AZURE (?:BASE|FORTRESS)\b/.test(text)) return "azure";
+  if (/^VERMILION (?:BASE|FORTRESS)\b/.test(text)) return "vermilion";
   return null;
 }
 
@@ -82,17 +84,16 @@ async function assertBaseSiteLabelsAtTick(
   tick: number,
 ): Promise<BaseSiteLabelSnapshot[]> {
   await expect(canvas).toHaveAttribute("data-tick", String(tick));
-  const labels = await page.locator(".base-site-label").evaluateAll((elements) => elements.map((element) => {
+  const labels = (await page.locator(".base-site-label").evaluateAll((elements) => elements.map((element) => {
     const label = element as HTMLElement;
     const text = (label.textContent ?? "").replace(/\s+/g, " ").trim();
     return {
       siteId: label.dataset.siteId ?? "",
       siteState: label.dataset.siteState ?? "",
-      side: text.startsWith("AZURE BASE") ? "azure" as const : text.startsWith("VERMILION BASE") ? "vermilion" as const : null,
       text,
       datasetKeys: Object.keys(label.dataset).sort(),
     };
-  }));
+  }))).map((label) => ({ ...label, side: baseSiteSideFromLabel(label.text, label.siteId) }));
   expect(labels, "the map should annotate both public base sites").toHaveLength(2);
   expect(new Set(labels.map((label) => label.siteId)).size).toBe(2);
   for (const label of labels) {
@@ -200,7 +201,12 @@ async function selectVisibleHero(
   return { supported: true, target: option.label, id: option.value, catalogId };
 }
 
-function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarget): { id: string; x: number; z: number; sourceX: number; sourceY: number } | null {
+function replayHeroPosition(
+  replay: JsonRecord,
+  tick: number,
+  target: FollowTarget,
+  ruleset: JsonRecord,
+): { id: string; x: number; z: number; sourceX: number; sourceY: number; laneTrackOffset: { x: number; z: number } } | null {
   const frame = (replay.frames ?? []).find((candidate: JsonRecord) => candidate.tick === tick);
   const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
   if (!entities) return null;
@@ -216,9 +222,59 @@ function replayHeroPosition(replay: JsonRecord, tick: number, target: FollowTarg
   const id = Object.entries(entities).find(([, candidate]) => candidate === entity)?.[0];
   const x = readInteger(entity, "x");
   const z = readInteger(entity, "y");
-  return id && x !== null && z !== null
-    ? { id, x: x / nextWorldUnitsPerRenderUnit, z: z / nextWorldUnitsPerRenderUnit, sourceX: x, sourceY: z }
-    : null;
+  if (!id || x === null || z === null) return null;
+
+  // A Hero on an ordinary lane is rendered on its selected lateral track.
+  // Derive that display-only offset from the actual ruleset returned by WASM,
+  // the authorized replay fields, and the authored static edge orientation.
+  // Crossing, ford, bridge, jungle, and node states remain on their logical
+  // centerline. The replay's integer x/y stays the source of truth.
+  const rawField = (key: string): JsonRecord | undefined => entity.fields?.[key];
+  const stringField = (key: string): string | null => {
+    const field = rawField(key);
+    return (field?.kind === "string" || field?.kind === "enum") && typeof field.value === "string"
+      ? field.value
+      : null;
+  };
+  const integerField = (key: string): number => {
+    const field = rawField(key);
+    return field?.kind === "integer" && Number.isSafeInteger(field.value) ? field.value : 0;
+  };
+  const node = stringField("node");
+  const edgeTo = stringField("edge_to");
+  const track = stringField("track");
+  const crossingActive = integerField("cross_remaining") > 0 || integerField("ford_remaining") > 0 || integerField("ford_active") > 0;
+  const next = ruleset.next as JsonRecord | undefined;
+  const map = next?.map as JsonRecord | undefined;
+  const parameters = next?.parameters as Record<string, number> | undefined;
+  const nodes = map?.nodes as Record<string, { x?: number; y?: number }> | undefined;
+  const edges = map?.edges as { from?: string; to?: string; region?: string; bridge_site?: string }[] | undefined;
+  let laneTrackOffset = { x: 0, z: 0 };
+  if (node && edgeTo && (track === "LEFT" || track === "RIGHT") && !crossingActive) {
+    const edge = edges?.find((candidate) =>
+      (candidate.from === node && candidate.to === edgeTo) ||
+      (candidate.to === node && candidate.from === edgeTo),
+    );
+    const from = edge?.from ? nodes?.[edge.from] : undefined;
+    const to = edge?.to ? nodes?.[edge.to] : undefined;
+    if (edge?.region === "lane" && !edge.bridge_site && from && to &&
+      Number.isFinite(from.x) && Number.isFinite(from.y) && Number.isFinite(to.x) && Number.isFinite(to.y)) {
+      const dx = to.x! - from.x!;
+      const dy = to.y! - from.y!;
+      const length = Math.hypot(dx, dy) || 1;
+      const side = track === "LEFT" ? -1 : 1;
+      const offset = (parameters?.lane_track_offset_wu ?? 20) / nextWorldUnitsPerRenderUnit * side;
+      laneTrackOffset = { x: dy / length * offset, z: -dx / length * offset };
+    }
+  }
+  return {
+    id,
+    x: x / nextWorldUnitsPerRenderUnit + laneTrackOffset.x,
+    z: z / nextWorldUnitsPerRenderUnit + laneTrackOffset.z,
+    sourceX: x,
+    sourceY: z,
+    laneTrackOffset,
+  };
 }
 
 function replayVisibleHeroesAt(replay: JsonRecord, tick: number): {
@@ -501,34 +557,62 @@ function semanticCueExpectationAt(
     : null;
 }
 
-async function assertCueSummaryGeometry(
+async function assertCueGlyphGeometry(
   page: import("@playwright/test").Page,
   tick: number,
-  requireVisible = false,
 ): Promise<void> {
-  const summary = page.locator(`.cue-summary-label[data-tick="${tick}"]`);
-  if (await summary.count() === 0) {
-    expect(requireVisible, `the T${tick} overflow summary should be present`).toBe(false);
-    return;
-  }
-  if (!requireVisible && !(await summary.isVisible())) return;
-  await expect(summary, `the overflow summary should represent the current T${tick} cues`).toHaveCount(1);
-  await expect(summary, `the T${tick} overflow summary should be visible`).toBeVisible();
-  const summaryBox = await summary.boundingBox();
-  expect(summaryBox, `the T${tick} overflow summary should have a rendered box`).not.toBeNull();
-  expect(summaryBox!.height, `the T${tick} summary must remain a compact strip`).toBeLessThan(36);
-
   const visibleCueLocators = await page.locator(`.cue-world-label[data-tick="${tick}"]`).all();
   const visibleCueBoxes = (await Promise.all(visibleCueLocators.map(async (cue) =>
     await cue.isVisible() ? cue.boundingBox() : null,
   ))).filter((box): box is NonNullable<typeof box> => box !== null);
-  const overlapsSummary = visibleCueBoxes.filter((cueBox) =>
-    summaryBox!.x < cueBox.x + cueBox.width &&
-    summaryBox!.x + summaryBox!.width > cueBox.x &&
-    summaryBox!.y < cueBox.y + cueBox.height &&
-    summaryBox!.y + summaryBox!.height > cueBox.y,
-  );
-  expect(overlapsSummary, `the T${tick} overflow summary must not intersect a visible cue label`).toEqual([]);
+  expect(visibleCueBoxes.length, `a semantic cue is visibly rendered for T${tick}`).toBeGreaterThan(0);
+  for (const box of visibleCueBoxes) {
+    expect(box.width, `the T${tick} cue remains a compact glyph`).toBeLessThanOrEqual(32);
+    expect(box.height, `the T${tick} cue remains a compact glyph`).toBeLessThanOrEqual(32);
+  }
+  for (let left = 0; left < visibleCueBoxes.length; left += 1) {
+    for (let right = left + 1; right < visibleCueBoxes.length; right += 1) {
+      const a = visibleCueBoxes[left]!;
+      const b = visibleCueBoxes[right]!;
+      const overlaps = a.x < b.x + b.width && a.x + a.width > b.x
+        && a.y < b.y + b.height && a.y + a.height > b.y;
+      expect(overlaps, `visible T${tick} cue glyphs must not collide`).toBe(false);
+    }
+  }
+}
+
+async function assertEventInReplayTimelineAndDetails(
+  page: import("@playwright/test").Page,
+  tick: number,
+  semantic: "attack" | "hero-death" | "tower-destroy" | "skill",
+  sourceEvent: string,
+): Promise<void> {
+  const eventName = (sourceEvent.split(".").at(-1) ?? sourceEvent).replaceAll("_", " ");
+  const timelineType = semantic === "attack" ? "attack" : semantic === "skill" ? "skill" : "destroy";
+  const tickLabel = `T${String(tick).padStart(2, "0")}`;
+  await page.locator("#next-tab-analysis").click();
+  const analysisRow = page.locator("#next-panel-analysis .next-timeline li")
+    .filter({ hasText: tickLabel })
+    .filter({ hasText: new RegExp(timelineType, "i") });
+  await expect(analysisRow, `${sourceEvent} is represented in the full Timeline at T${tick}`).not.toHaveCount(0);
+  await page.locator("#next-tab-battle").click();
+
+  const mobile = (page.viewportSize()?.width ?? Infinity) <= 700;
+  if (mobile) {
+    await page.getByRole("button", { name: "Timeline view" }).click();
+    const timelineRow = page.locator(`.next-mobile-timeline [data-event-tick="${tick}"]`)
+      .filter({ hasText: new RegExp(timelineType, "i") });
+    await expect(timelineRow, `${sourceEvent} is represented in the mobile Timeline at T${tick}`).not.toHaveCount(0);
+    await page.getByRole("button", { name: "Details view" }).click();
+  } else {
+    await page.getByRole("button", { name: "Battle situation details" }).click();
+  }
+  const eventCard = page.locator(".next-detail-card.next-event-card");
+  await expect(eventCard, `${sourceEvent} details are available at T${tick}`).toBeVisible();
+  const detailsRow = eventCard.locator(".next-event-list li").filter({ hasText: new RegExp(eventName, "i") });
+  await expect(detailsRow, `${sourceEvent} details retain their event identity at T${tick}`).not.toHaveCount(0);
+  if (mobile) await page.getByRole("button", { name: "Battle view" }).click();
+  else await page.getByRole("button", { name: "Battle situation details" }).click();
 }
 
 async function assertSemanticCueAtTick(
@@ -548,12 +632,12 @@ async function assertSemanticCueAtTick(
   await expect(canvas).toHaveAttribute("data-tick", String(tick));
   const cuesAtTick = (): import("@playwright/test").Locator =>
     page.locator(`.cue-world-label[data-tick="${tick}"][data-cue-type="${expected!.type}"]`);
-  const findExpectedCue = async (): Promise<{ locator: import("@playwright/test").Locator; text: string } | null> => {
+  const findExpectedCue = async (): Promise<{ locator: import("@playwright/test").Locator; accessibleLabel: string; glyph: string } | null> => {
     const candidates = await cuesAtTick().all();
     for (const locator of candidates) {
-      const text = (await locator.textContent() ?? "").replace(/\s+/g, " ").trim();
-      if (expected!.fragments.every((fragment) => text.toLowerCase().includes(fragment.toLowerCase()))) {
-        return { locator, text };
+      const accessibleLabel = (await locator.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim();
+      if (expected!.fragments.every((fragment) => accessibleLabel.toLowerCase().includes(fragment.toLowerCase()))) {
+        return { locator, accessibleLabel, glyph: (await locator.textContent() ?? "").trim() };
       }
     }
     return null;
@@ -564,9 +648,11 @@ async function assertSemanticCueAtTick(
     expectedCue!.locator,
     `${expected!.sourceEvent} should render the expected ${expected!.type} cue visibly at T${tick}`,
   ).toBeVisible();
-  const mobileTowerDestroy = semantic === "tower-destroy" && (page.viewportSize()?.width ?? Infinity) <= 700;
-  await assertCueSummaryGeometry(page, tick, mobileTowerDestroy);
-  const texts = await cuesAtTick().allInnerTexts();
+  await expect(expectedCue!.locator).toHaveAttribute("role", "note");
+  expect(Array.from(expectedCue!.glyph).length, "the visible cue is a compact icon while its accessible label retains event meaning").toBeLessThanOrEqual(2);
+  await assertCueGlyphGeometry(page, tick);
+  await assertEventInReplayTimelineAndDetails(page, tick, semantic, expected!.sourceEvent);
+  const accessibleLabels = await Promise.all((await cuesAtTick().all()).map((cue) => cue.getAttribute("aria-label")));
   const staleTickLabels = await page.locator(".cue-world-label").evaluateAll((elements, currentTick) =>
     elements.filter((element) => (element as HTMLElement).dataset.tick !== String(currentTick)).map((element) => ({
       tick: (element as HTMLElement).dataset.tick,
@@ -574,7 +660,7 @@ async function assertSemanticCueAtTick(
     })), tick,
   );
   expect(staleTickLabels, "cue labels from an adjacent replay frame must not linger").toEqual([]);
-  const captured = { ...expected!, tick, texts };
+  const captured = { ...expected!, tick, accessibleLabels };
 
   const adjacentTick = tick < Number(replay.frames.at(-1)?.tick) ? tick + 1 : Math.max(0, tick - 1);
   await seekToTick(page, adjacentTick);
@@ -774,7 +860,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
-        const request = message as { operation?: unknown; payload?: { snapshot?: unknown } } | null;
+        const request = message as { operation?: unknown; request_id?: unknown; payload?: { snapshot?: unknown } } | null;
         let outgoing = message;
         if (request?.operation === "simulate") {
           const target = window as typeof window & {
@@ -814,7 +900,11 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
           return;
         }
         super.addEventListener(type, (event: Event) => {
-          const data = (event as MessageEvent).data as { operation?: unknown; request_id?: unknown } | null;
+          const data = (event as MessageEvent).data as { operation?: unknown; ok?: unknown } | null;
+          if (data?.operation === "next_ruleset" && data.ok === true) {
+            const target = window as typeof window & { __battlefieldRulesetResponse?: unknown };
+            target.__battlefieldRulesetResponse = structuredClone(data);
+          }
           if (data?.operation === "simulate") {
             const target = window as typeof window & { __battlefieldSimResponse?: unknown };
             target.__battlefieldSimResponse = structuredClone(data);
@@ -874,12 +964,14 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     const current = window as typeof window & {
       __battlefieldSimRequest?: JsonRecord;
       __battlefieldSimResponse?: JsonRecord;
+      __battlefieldRulesetResponse?: JsonRecord;
       __battlefieldOriginalSimRequest?: JsonRecord;
       __battlefieldScenarioInjection?: JsonRecord;
     };
     return {
       request: current.__battlefieldSimRequest ?? null,
       response: current.__battlefieldSimResponse ?? null,
+      rulesetResponse: current.__battlefieldRulesetResponse ?? null,
       originalRequest: current.__battlefieldOriginalSimRequest ?? null,
       scenarioInjection: current.__battlefieldScenarioInjection ?? null,
     };
@@ -909,6 +1001,12 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const publicReplay = outcome.presentation_replay as JsonRecord;
   const sourceReplay = (simulation.owner_replay as JsonRecord | undefined) ?? publicReplay;
   const requestSnapshot = captured.request!.payload.snapshot as JsonRecord;
+  expect(captured.rulesetResponse, "the real WASM worker must return the static ruleset used by this battle").not.toBeNull();
+  expect(captured.rulesetResponse!.operation).toBe("next_ruleset");
+  expect(captured.rulesetResponse!.ok).toBe(true);
+  expect(captured.rulesetResponse!.request_id).toBeTruthy();
+  const renderedRuleset = captured.rulesetResponse!.result as JsonRecord;
+  expect(renderedRuleset.ruleset?.digest).toBe(requestSnapshot.context.ruleset.digest);
   const expectBaseSites = process.env.BATTLEFIELD_EXPECT_BASE_SITES === "true";
   const baseSiteChecks: Record<string, JsonRecord> = {};
   let baseSiteIds: string[] = [];
@@ -1056,9 +1154,12 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   const roleFollowCaptures: Record<string, JsonRecord> = {};
   const semanticCueAssertions: Record<string, JsonRecord> = {};
   const clusterInspection: Record<string, JsonRecord> = {};
+  // A Hero may have died/respawned before the follow tick. Select only from
+  // that current authorized frame, rather than retaining a tick-zero identity.
+  await seekToTick(page, followTick);
   const followTarget = await clickFollow(page);
   followSupport.initial = followTarget.supported;
-  const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget);
+  const expectedFollowPosition = replayHeroPosition(sourceReplay, followTick, followTarget, renderedRuleset);
   if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true" && followTarget.supported) {
     expect(expectedFollowPosition, "the followed Hero must exist at the exact replay tick").not.toBeNull();
   }
@@ -1079,8 +1180,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       const clusterTarget = viewport.width > 700 ? await selectVisibleHero(page, "F03") : followTarget;
       expect(clusterTarget.supported, "the current exact replay frame should offer the actual F03 Hero").toBe(true);
       expect(clusterTarget.catalogId).toBe("F03");
+      if (clusterTarget.catalogId === null) throw new Error("The selected F03 Hero is missing its authorized catalog identity.");
       expect(clusterTarget.id).toBeTruthy();
-      const expectedFollow = replayHeroPosition(sourceReplay, tick, clusterTarget);
+      const expectedFollow = replayHeroPosition(sourceReplay, tick, clusterTarget, renderedRuleset);
       expect(expectedFollow, "F03 should resolve to its owner-replay position at the selected tick").not.toBeNull();
 
       let container: import("@playwright/test").Locator;
@@ -1267,7 +1369,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       await seekToTick(page, skillTick);
       const skillFollowTarget = await clickFollow(page);
       expect(skillFollowTarget.catalogId).toBe("F03");
-      const expectedSkillPosition = replayHeroPosition(sourceReplay, skillTick, skillFollowTarget);
+      const expectedSkillPosition = replayHeroPosition(sourceReplay, skillTick, skillFollowTarget, renderedRuleset);
       expect(expectedSkillPosition, "F03 must be visible at the active-skill tick").not.toBeNull();
       await waitForSettledCamera(page);
       const actualSkillCameraTarget = parseCameraTarget(await canvas.getAttribute("data-camera-target"));
@@ -1323,8 +1425,13 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
         followSupport[viewport.name] = false;
       }
     } else if (followTarget.target) {
+      if (followTarget.catalogId) {
+        const currentTarget = await selectVisibleHero(page, followTarget.catalogId);
+        expect(currentTarget.supported, "Follow uses a Hero visible at this exact tick after seeking").toBe(true);
+      }
       const followControl = page.getByRole("button", { name: /^(Follow selected unit|Follow)$/i });
       if (await followControl.count()) {
+        await expect(followControl.first()).toBeEnabled();
         await followControl.first().click();
         followSupport[viewport.name] = true;
       } else {
@@ -1339,8 +1446,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     cameraTargetsByCapture[`${viewport.name}/follow-t${String(followTick).padStart(3, "0")}.png`] = followCameraTarget;
     if (process.env.BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE === "true" && followSupport[viewport.name]) {
       expect(followCameraTarget, "Follow must expose its actual target location on the canvas").not.toBeNull();
-      expect(Math.abs(followCameraTarget!.x - expectedFollowPosition!.x)).toBeLessThan(0.01);
-      expect(Math.abs(followCameraTarget!.z - expectedFollowPosition!.z)).toBeLessThan(0.01);
+      expect(Math.abs(followCameraTarget!.x - expectedFollowPosition!.x), "Follow centers the authoritative position plus its canonical lane-track display offset").toBeLessThan(0.01);
+      expect(Math.abs(followCameraTarget!.z - expectedFollowPosition!.z), "Follow centers the authoritative position plus its canonical lane-track display offset").toBeLessThan(0.01);
     }
     await page.screenshot({ path: join(directory, `follow-t${String(followTick).padStart(3, "0")}.png`), animations: "disabled" });
 

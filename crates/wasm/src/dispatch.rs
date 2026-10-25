@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
-const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_RESPONSE_BYTES: usize = 64_000_000;
 const MAX_REQUEST_ID_BYTES: usize = 128;
 
 #[derive(serde::Deserialize)]
@@ -372,4 +372,36 @@ fn api_error(code: ApiErrorCode, path: Option<&str>, message: impl Into<String>)
     let mut error = ApiError::new(code, message);
     error.path = path.map(str::to_owned);
     error
+}
+
+#[cfg(test)]
+mod response_limit_tests {
+    use super::MAX_RESPONSE_BYTES;
+
+    #[test]
+    fn dispatcher_response_cap_matches_the_versioned_next_output_limit() {
+        assert_eq!(
+            senritsu::next_package().limits.max_output_bytes,
+            MAX_RESPONSE_BYTES as u64,
+            "the local response cap must cover both public and authorized owner replay projections",
+        );
+    }
+
+    #[test]
+    fn dispatcher_encodes_authorized_local_payloads_above_the_previous_32m_cap() {
+        let maximum = senritsu::next_package().limits.max_output_bytes;
+        let payload = serde_json::json!({
+            "result": null,
+            "replay": null,
+            "owner_replay": {
+                "frames": [{ "visible_state": { "entities": { "authorized_hero": "x".repeat(34_202_605) } } }]
+            },
+            "diagnostics": null,
+        });
+        let response = super::encode_success("long-workbench-response".to_owned(), payload, maximum);
+        assert!(response.len() > 32_000_000, "the regression payload must exceed the previous adapter limit");
+        assert!(response.len() <= maximum as usize, "the response remains within the versioned package limit");
+        let envelope: serde_json::Value = serde_json::from_str(&response).expect("accepted response is valid JSON");
+        assert_eq!(envelope["ok"], true, "the dispatcher uses the successful response path");
+    }
 }

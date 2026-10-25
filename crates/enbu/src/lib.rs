@@ -11,6 +11,7 @@ mod next_navigation;
 mod next_vision;
 mod next_combat;
 mod next_tactics;
+mod next_battlefield;
 
 pub use validation::ENGINE_VERSION;
 
@@ -93,6 +94,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
         next_combat::initialize_objectives(&mut world, next);
+        next_battlefield::initialize(&mut world, next);
         next_vision::lifecycle(&mut world, next, 0);
     }
     for collection in plan.world.collections.keys() { world.collections.entry(collection.clone()).or_default(); }
@@ -175,8 +177,14 @@ pub fn simulate<P: TacticalExecutionPort>(
             output.status == senkei_model::TacticalExecutionStatus::BudgetExceeded
         });
         let diagnostic_bound = context.host_limits.max_diagnostic_events as usize;
+        let compact_cost_trace = compact_cost_trace_for_plan(plan);
+        let proposed_output_trace_size = outputs.iter().try_fold(0_usize, |total, (_, output)| {
+            let diagnostics = projected_tactical_diagnostic_count(&output.diagnostics, compact_cost_trace)?;
+            let intent_events = output.intents.len().checked_mul(2)?;
+            total.checked_add(diagnostics)?.checked_add(intent_events)
+        });
         let proposed_trace_size = diagnostics.len()
-            .checked_add(outputs.iter().map(|(_, out)| out.diagnostics.len() + out.intents.len() * 2).sum())
+            .checked_add(proposed_output_trace_size.ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "diagnostic event count overflowed"))?)
             .ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "diagnostic event count overflowed"))?;
         if proposed_trace_size > diagnostic_bound {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
@@ -193,6 +201,7 @@ pub fn simulate<P: TacticalExecutionPort>(
                 tick,
                 *side,
                 &output.diagnostics,
+                compact_cost_trace,
             )?;
             // CU charges are facts about work already performed. For an
             // AbortMatch overrun, retain those records while discarding both
@@ -305,8 +314,16 @@ pub fn simulate<P: TacticalExecutionPort>(
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
             next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            // Resolve legality and attacks from one committed position snapshot.
+            // Preparation reserves an exclusive action without moving anyone.
+            let action_start = world.clone();
+            next_battlefield::prepare(&mut world, &action_start, next, &accepted_by_side, tick);
+            let skill_start = world.clone();
+            next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            let adjudication_start = world.clone();
             next_navigation::advance(&mut world, next, tick);
-            next_events = next_combat::resolve(&mut world, next, &accepted_by_side, tick);
+            next_events = next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick);
+            next_events.extend(next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick));
             next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
@@ -508,12 +525,23 @@ fn charge_tactical_diagnostics(
     tick: u32,
     side: CombatantSide,
     records: &[TacticalDiagnostic],
+    compact_cost_trace: bool,
 ) -> Result<(), ApiError> {
+    let mut cost_by_operation = BTreeMap::<senkei_model::CostOperationId, LogicalCu>::new();
     for record in records {
         if matches!(record, TacticalDiagnostic::IntentProposed { .. } | TacticalDiagnostic::MemoryWritten { .. }) {
             // Enbu records actions from the output list and committed memory
             // only after it has applied execution policy.
             continue;
+        }
+        if compact_cost_trace {
+            if let TacticalDiagnostic::CostCharged { operation, amount } = record {
+                let total = cost_by_operation.entry(operation.clone()).or_default();
+                *total = total.checked_add(*amount).ok_or_else(|| {
+                    api_error(ApiErrorCode::BudgetExceeded, "CU diagnostic total overflowed")
+                })?;
+                continue;
+            }
         }
         let record = match record {
             TacticalDiagnostic::StateEvaluated { state, result } => DiagnosticRecord::StateEvaluated { state: state.clone(), result: *result },
@@ -525,7 +553,42 @@ fn charge_tactical_diagnostics(
         };
         push_diagnostic(events, sequence, tick, side, record)?;
     }
+    for (operation, amount) in cost_by_operation {
+        push_diagnostic(
+            events,
+            sequence,
+            tick,
+            side,
+            DiagnosticRecord::CostCharged { operation, amount },
+        )?;
+    }
     Ok(())
+}
+
+fn compact_cost_trace_for_plan(plan: &RulePlan) -> bool {
+    compact_cost_trace_for_versions(
+        plan.minimum_engine_version,
+        plan.next.as_ref().map(|next| next.mechanics_version),
+    )
+}
+
+fn compact_cost_trace_for_versions(minimum_engine: Version, mechanics: Option<Version>) -> bool {
+    minimum_engine >= Version::new(1, 2, 0)
+        && mechanics == Some(Version::new(2, 0, 0))
+}
+
+fn projected_tactical_diagnostic_count(records: &[TacticalDiagnostic], compact_cost_trace: bool) -> Option<usize> {
+    if !compact_cost_trace {
+        return Some(records.len());
+    }
+    let cost_record_count = records.iter()
+        .filter(|record| matches!(record, TacticalDiagnostic::CostCharged { .. }))
+        .count();
+    let distinct_cost_operation_count = records.iter().filter_map(|record| match record {
+        TacticalDiagnostic::CostCharged { operation, .. } => Some(operation),
+        _ => None,
+    }).collect::<BTreeSet<_>>().len();
+    records.len().checked_sub(cost_record_count)?.checked_add(distinct_cost_operation_count)
 }
 
 #[derive(Clone)]
@@ -1159,5 +1222,83 @@ mod next_projection_tests {
         let id=|n:usize|frames[n].visible_state.as_ref().unwrap().entities.keys().next().unwrap().clone();
         assert_ne!(id(0),id(2));assert_ne!(id(2),id(4));
         assert!(!serde_json::to_string(&frames).unwrap().contains("PRIVATE-SLOT"));
+    }
+}
+
+#[cfg(test)]
+mod tactical_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn battlefield_v2_compacts_cost_charges_by_tick_side_and_operation_only() {
+        assert!(!compact_cost_trace_for_versions(Version::new(1, 1, 0), Some(Version::new(2, 0, 0))));
+        assert!(!compact_cost_trace_for_versions(Version::new(1, 2, 0), Some(Version::new(1, 0, 0))));
+        assert!(!compact_cost_trace_for_versions(Version::new(1, 2, 0), None));
+        assert!(compact_cost_trace_for_versions(Version::new(1, 2, 0), Some(Version::new(2, 0, 0))));
+
+        let operation_a = senkei_model::CostOperationId::from("cost.alpha");
+        let operation_z = senkei_model::CostOperationId::from("cost.zeta");
+        let mut records = vec![
+            TacticalDiagnostic::RuntimeNotice {
+                code: "when_unknown".into(),
+                details: BTreeMap::new(),
+            },
+            TacticalDiagnostic::StateEvaluated { state: "knownness".into(), result: Truth::Unknown },
+        ];
+        // A realistic high-volume raw trace exceeds the Battlefield host cap,
+        // while its compact per-operation projection remains bounded.
+        for index in 0..300_000 {
+            let operation = if index % 2 == 0 { &operation_z } else { &operation_a };
+            records.push(TacticalDiagnostic::CostCharged {
+                operation: operation.clone(),
+                amount: LogicalCu(1),
+            });
+        }
+        assert_eq!(projected_tactical_diagnostic_count(&records, true), Some(4));
+        assert_eq!(projected_tactical_diagnostic_count(&records, false), Some(300_002));
+
+        let mut compacted = Vec::new();
+        let mut sequence = 0;
+        charge_tactical_diagnostics(
+            &mut compacted,
+            &mut sequence,
+            17,
+            CombatantSide::Attacker,
+            &records,
+            true,
+        ).unwrap();
+        assert_eq!(compacted.len(), 4);
+        assert!(matches!(&compacted[0].record, DiagnosticRecord::RuntimeNotice { code, .. } if code.as_str() == "when_unknown"));
+        assert!(matches!(&compacted[1].record, DiagnosticRecord::StateEvaluated { state, result }
+            if state.as_str() == "knownness" && *result == Truth::Unknown));
+        assert!(matches!(&compacted[2].record, DiagnosticRecord::CostCharged { operation, amount }
+            if operation == &operation_a && *amount == LogicalCu(150_000)));
+        assert!(matches!(&compacted[3].record, DiagnosticRecord::CostCharged { operation, amount }
+            if operation == &operation_z && *amount == LogicalCu(150_000)));
+        assert!(compacted.iter().all(|event| event.tick == 17 && event.side == CombatantSide::Attacker));
+
+        let raw_cu = records.iter().map(|record| match record {
+            TacticalDiagnostic::CostCharged { amount, .. } => amount.0,
+            _ => 0,
+        }).sum::<u64>();
+        let compacted_cu = compacted.iter().map(|event| match &event.record {
+            DiagnosticRecord::CostCharged { amount, .. } => amount.0,
+            _ => 0,
+        }).sum::<u64>();
+        assert_eq!(compacted_cu, raw_cu);
+
+        // Non-Battlefield-v2 traces retain their original per-charge events.
+        let mut legacy = Vec::new();
+        let mut legacy_sequence = 0;
+        charge_tactical_diagnostics(
+            &mut legacy,
+            &mut legacy_sequence,
+            17,
+            CombatantSide::Attacker,
+            &records,
+            false,
+        ).unwrap();
+        assert_eq!(legacy.len(), records.len());
+        assert_eq!(legacy.iter().filter(|event| matches!(event.record, DiagnosticRecord::CostCharged { .. })).count(), 300_000);
     }
 }

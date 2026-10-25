@@ -1,7 +1,7 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-first-march",
-  "request_sha256": "546383be9dc236200578d67a8cd123279622dad1a73047a4f14ce10f0259241c",
+  "request_sha256": "a502433c024a50997f044ac90534ee2665ceea02d8bfdab5005c969de2713e8a",
   "response_sha256": "a8eebc6d572589bc27e43fdf36ddafd00efbc5314476950312389a51ed971be2",
   "summary": {
     "outcome": "defender_victory",

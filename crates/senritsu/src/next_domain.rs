@@ -7,8 +7,8 @@
 use senkei_model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-const NEXT_VERSION: Version = Version::new(1, 0, 0);
-const NEXT_ENGINE_VERSION: Version = Version::new(1, 1, 0);
+const NEXT_VERSION: Version = Version::new(2, 0, 0);
+const NEXT_ENGINE_VERSION: Version = Version::new(1, 2, 0);
 const RULESET_ID: &str = "senkei.next";
 const COST_SCHEDULE_ID: &str = "senkei.next.cu";
 const MAX_ENTITIES: u32 = 512;
@@ -51,7 +51,7 @@ pub fn configure(package: &mut RulePackage) {
     package.world_initialization = WorldInitialization {
         entities: Vec::new(),
         global_fields: BTreeMap::new(),
-        collections: ["heroes", "minions", "monsters", "towers", "bases"]
+        collections: ["heroes", "minions", "monsters", "towers", "bases", "bridges", "observations"]
             .into_iter()
             .map(|name| (id(name), Vec::new()))
             .collect(),
@@ -75,7 +75,7 @@ pub fn configure(package: &mut RulePackage) {
     package.limits.max_intents_per_side_per_tick = 32;
     package.limits.max_events = 200_000;
     package.limits.max_diagnostic_events = 250_000;
-    package.limits.max_output_bytes = 32_000_000;
+    package.limits.max_output_bytes = 64_000_000;
     package.limits.max_value_depth = 32;
 }
 
@@ -104,10 +104,11 @@ fn domain_schema(skill_ids: &BTreeSet<FieldId>, max_ticks: u32) -> DomainSchema 
         collections: observation_collections(skill_ids),
         capabilities: capabilities(),
         tactical_memory: BTreeMap::new(),
-        symbol_domains: BTreeMap::from([(
-            id("outcome"),
-            values(&["attacker_victory", "defender_victory", "draw", "aborted"]),
-        )]),
+        symbol_domains: BTreeMap::from([
+            (id("outcome"), values(&["attacker_victory", "defender_victory", "draw", "aborted"])),
+            (id("track"), values(&["LEFT", "RIGHT"])),
+            (id("bridge_operation"), values(&["expand", "rebuild", "destroy"])),
+        ]),
         max_expression_depth: 64,
         max_collection_items: MAX_ENTITIES,
     }
@@ -123,6 +124,8 @@ fn world_schema(skill_ids: &BTreeSet<FieldId>, tower_count: u32) -> WorldSchema 
     ]).collect(), None));
     entity_types.insert(id("tower"), entity_schema(common_fields(), None));
     entity_types.insert(id("base"), entity_schema(common_fields(), None));
+    entity_types.insert(id("bridge"), bridge_entity_schema());
+    entity_types.insert(id("observation"), observation_entity_schema());
 
     WorldSchema {
         entity_types,
@@ -133,6 +136,8 @@ fn world_schema(skill_ids: &BTreeSet<FieldId>, tower_count: u32) -> WorldSchema 
             (id("monsters"), world_collection("monster", MAX_ENTITIES)),
             (id("towers"), world_collection("tower", tower_count)),
             (id("bases"), world_collection("base", 2)),
+            (id("bridges"), world_collection("bridge", 3)),
+            (id("observations"), world_collection("observation", 1)),
         ]),
         max_entities: MAX_ENTITIES,
     }
@@ -141,43 +146,55 @@ fn world_schema(skill_ids: &BTreeSet<FieldId>, tower_count: u32) -> WorldSchema 
 fn common_fields() -> BTreeMap<FieldId, FieldSchema> {
     let mut fields = BTreeMap::new();
     for (name, minimum, maximum) in [
-        ("hp", 0, MAX_INT),
-        ("max_hp", 1, MAX_INT),
-        ("attack", 0, MAX_INT),
-        ("defense", 0, MAX_INT),
-        ("speed", 0, MAX_INT),
-        ("range", 0, MAX_INT),
-        ("attack_interval", 1, MAX_INT),
-        ("vision", 0, MAX_INT),
+        ("hp", 0, MAX_INT), ("max_hp", 1, MAX_INT),
+        ("attack", 0, MAX_INT), ("defense", 0, MAX_INT),
+        ("speed", 0, MAX_INT), ("range", 0, MAX_INT),
+        ("attack_interval", 1, MAX_INT), ("vision", 0, MAX_INT),
         ("attack_ready", 0, i64::from(u32::MAX)),
-        ("x", -MAX_INT, MAX_INT),
-        ("y", -MAX_INT, MAX_INT),
-        ("edge_progress", 0, MAX_INT),
-        ("shield", 0, MAX_INT),
-        ("haste", 0, MAX_INT),
-        ("haste_until", 0, MAX_INT),
-        ("slow", 0, MAX_INT),
-        ("slow_until", 0, MAX_INT),
-        ("empower", 0, MAX_INT),
-        ("empower_until", 0, MAX_INT),
-        ("defense_bonus", 0, MAX_INT),
+        ("x", -MAX_INT, MAX_INT), ("y", -MAX_INT, MAX_INT),
+        ("edge_progress", 0, MAX_INT), ("cross_remaining", 0, MAX_INT),
+        ("ford_remaining", 0, MAX_INT), ("ford_active", 0, 1),
+        ("track_wait_ticks", 0, MAX_INT),
+        ("moved_tick", 0, i64::from(u32::MAX) + 1),
+        ("move_intent_tick", 0, i64::from(u32::MAX) + 1),
+        ("track_intent_tick", 0, i64::from(u32::MAX) + 1),
+        ("action_lock_until", 0, i64::from(u32::MAX) + 1),
+        ("prepared_action_tick", 0, i64::from(u32::MAX) + 1),
+        ("build_remaining", 0, MAX_INT),
+        ("build_started_tick", 0, i64::from(u32::MAX) + 1),
+        ("build_lock_until", 0, i64::from(u32::MAX) + 1),
+        ("capture_progress", 0, MAX_INT), ("retreating", 0, 1),
+        ("shield", 0, MAX_INT), ("haste", 0, MAX_INT),
+        ("haste_until", 0, MAX_INT), ("slow", 0, MAX_INT),
+        ("slow_until", 0, MAX_INT), ("empower", 0, MAX_INT),
+        ("empower_until", 0, MAX_INT), ("defense_bonus", 0, MAX_INT),
         ("defense_until", 0, MAX_INT),
-        ("reveal_attacker_until", 0, MAX_INT),
-        ("reveal_defender_until", 0, MAX_INT),
-        ("reveal_until", 0, MAX_INT),
-        ("xp_reward", 0, MAX_INT),
+        ("reveal_attacker_until", 0, MAX_INT), ("reveal_defender_until", 0, MAX_INT),
+        ("reveal_until", 0, MAX_INT), ("xp_reward", 0, MAX_INT),
         ("death_tick", 0, i64::from(u32::MAX)),
     ] {
         let visibility = match name {
             "attack_ready" => Visibility::OwningSide,
-            "reveal_attacker_until" | "reveal_defender_until" | "reveal_until" | "xp_reward" | "death_tick" => Visibility::Internal,
+            "reveal_attacker_until" | "reveal_defender_until" | "reveal_until"
+            | "xp_reward" | "death_tick" | "prepared_action_tick"
+            | "build_started_tick" | "build_lock_until" | "moved_tick"
+            | "move_intent_tick" | "track_intent_tick" | "track_wait_ticks" => Visibility::Internal,
+            "action_lock_until" | "retreating" => Visibility::OwningSide,
             _ => Visibility::Public,
         };
         fields.insert(id(name), field(int_type(minimum, maximum), visibility, true));
     }
-    for name in ["node", "edge_to", "lane", "catalog_id"] {
+    for name in [
+        "node", "edge_to", "lane", "catalog_id", "track", "track_goal",
+        "site", "bridge_state", "build_kind", "capture_owner", "capture_progress_side",
+        "track_cross_from", "track_cross_to", "builder_side", "builder_squad",
+    ] {
         fields.insert(id(name), field(string_type(MAX_STRING_BYTES), Visibility::Public, name != "catalog_id"));
     }
+    for name in ["track_cross_from", "track_cross_to", "builder_side", "builder_squad"] {
+        fields.insert(id(name), field(string_type(MAX_STRING_BYTES), Visibility::Internal, true));
+    }
+    fields.insert(id("track_goal"), field(string_type(MAX_STRING_BYTES), Visibility::OwningSide, true));
     fields.insert(id("goal"), field(string_type(MAX_STRING_BYTES), Visibility::OwningSide, true));
     fields
 }
@@ -235,18 +252,18 @@ fn observation_collections(skill_ids: &BTreeSet<FieldId>) -> BTreeMap<Collection
         "slot_id", "catalog_id", "squad", "skill_path", "xp", "level", "maturity", "formation",
         "respawn_at", "energy", "skills", "cooldowns", "hp", "max_hp", "attack", "defense", "speed",
         "range", "attack_interval", "vision", "attack_ready", "x", "y", "node", "edge_to", "edge_progress",
-        "lane", "goal", "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until",
+        "lane", "track", "track_goal", "cross_remaining", "ford_remaining", "ford_active", "retreating", "goal", "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until",
         "defense_bonus", "defense_until",
     ];
     let enemy_hero_fields = [
         "catalog_id", "level", "maturity", "formation", "energy", "skills", "hp", "max_hp", "attack", "defense",
-        "speed", "range", "attack_interval", "vision", "x", "y", "node", "edge_to", "edge_progress", "lane",
+        "speed", "range", "attack_interval", "vision", "x", "y", "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active",
         "shield", "haste", "haste_until", "slow", "slow_until", "empower", "empower_until", "defense_bonus",
         "defense_until",
     ];
     let common_public = [
         "catalog_id", "hp", "max_hp", "attack", "defense", "speed", "range", "attack_interval", "vision", "x", "y",
-        "node", "edge_to", "edge_progress", "lane", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
+        "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
         "empower_until", "defense_bonus", "defense_until",
     ];
     let mut result = BTreeMap::new();
@@ -288,11 +305,31 @@ fn observation_collections(skill_ids: &BTreeSet<FieldId>) -> BTreeMap<Collection
         "base", 1, Visibility::EnemyVisible, EntityOwnerSelector::OtherSide,
         current_fields("base", &common_public), &[], false,
     ));
+    result.insert(id("battlefield.bridges"), observed_collection(
+        "bridge", 3, Visibility::EnemyVisible, EntityOwnerSelector::Any,
+        current_fields("bridge", &["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "node", "edge_to", "edge_progress", "x", "y"]), &[], false,
+    ));
+    result.insert(id("battlefield.observations"), observed_collection(
+        "observation", 1, Visibility::EnemyVisible, EntityOwnerSelector::Any,
+        current_fields("observation", &["node", "capture_progress", "capture_owner", "capture_progress_side", "x", "y"]), &[], false,
+    ));
     result
 }
 
+fn bridge_entity_schema() -> EntityTypeSchema {
+    let mut fields = common_fields();
+    fields.insert(id("builder"), field(DomainType::Optional(Box::new(entity_type("hero"))), Visibility::Internal, true));
+    entity_schema(fields, None)
+}
+
+fn observation_entity_schema() -> EntityTypeSchema {
+    entity_schema(common_fields(), None)
+}
+
 fn entity_type_schema(entity: &str, skill_ids: &BTreeSet<FieldId>) -> EntityTypeSchema {
-    if entity == "hero" { hero_entity_schema(skill_ids) }
+    if entity == "bridge" { bridge_entity_schema() }
+    else if entity == "observation" { observation_entity_schema() }
+    else if entity == "hero" { hero_entity_schema(skill_ids) }
     else if entity == "monster" {
         entity_schema(common_fields().into_iter().chain([
             (id("camp"), field(string_type(MAX_STRING_BYTES), Visibility::Public, false)),
@@ -340,16 +377,26 @@ fn capabilities() -> BTreeMap<CapabilityId, CapabilitySchema> {
         Some(0), Some(1), Some("hero"), TargetOwnerConstraint::OwnSide,
         vec![alive(EntitySelector::IntentActor), alive(EntitySelector::IntentTarget)],
     ));
+    result.insert(id("select_track"), capability(
+        vec![parameter("hero", hero()), parameter("track", enum_type("track"))],
+        Some(0), None, None, TargetOwnerConstraint::Any,
+        vec![alive(EntitySelector::IntentActor)],
+    ));
+    result.insert(id("bridge_work"), capability(
+        vec![parameter("hero", hero()), parameter("bridge", entity_type("bridge")), parameter("operation", enum_type("bridge_operation"))],
+        Some(0), Some(1), Some("bridge"), TargetOwnerConstraint::Any,
+        vec![alive(EntitySelector::IntentActor)],
+    ));
     result
 }
 
 fn arbitration(max_intents: u32) -> BTreeMap<CapabilityId, ArbitrationRule> {
-    ["move", "pursue", "retreat", "activate", "split", "merge", "regroup"]
+    ["move", "pursue", "retreat", "activate", "split", "merge", "regroup", "select_track", "bridge_work"]
         .into_iter()
         .map(|name| (
             id(name),
             ArbitrationRule {
-                conflict_keys: vec![IntentKey::Actor],
+                conflict_keys: if name == "bridge_work" { vec![IntentKey::Actor, IntentKey::Target] } else { vec![IntentKey::Actor] },
                 resolution: ArbitrationResolution::SelectOrdered {
                     sort_by: vec![
                         IntentSortTerm { key: IntentKey::Priority, direction: SortDirection::Descending },
@@ -406,13 +453,17 @@ fn cost_schedule() -> CostSchedule {
 fn presentation_policy() -> PresentationPolicy {
     let visible = [
         "catalog_id", "hp", "max_hp", "attack", "defense", "speed", "range", "attack_interval", "vision", "x", "y",
-        "node", "edge_to", "edge_progress", "lane", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
+        "node", "edge_to", "edge_progress", "lane", "track", "cross_remaining", "ford_remaining", "ford_active", "shield", "haste", "haste_until", "slow", "slow_until", "empower",
         "empower_until", "defense_bonus", "defense_until",
     ].into_iter().map(id).collect::<BTreeSet<_>>();
     let mut hero = visible.clone();
     hero.extend(["level", "maturity", "formation", "energy", "skills"].into_iter().map(id));
     let mut monster = visible.clone();
     monster.insert(id("camp"));
+    let bridge = ["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "node", "edge_to", "edge_progress", "x", "y"]
+        .into_iter().map(id).collect::<BTreeSet<_>>();
+    let observation = ["node", "capture_progress", "capture_owner", "capture_progress_side", "x", "y"]
+        .into_iter().map(id).collect::<BTreeSet<_>>();
     PresentationPolicy {
         visible_events: event_schemas(),
         visible_entity_fields: BTreeMap::from([
@@ -421,6 +472,8 @@ fn presentation_policy() -> PresentationPolicy {
             (id("monster"), monster),
             (id("tower"), visible.clone()),
             (id("base"), visible),
+            (id("bridge"), bridge),
+            (id("observation"), observation),
         ]),
         visible_global_fields: BTreeSet::new(),
     }
@@ -449,6 +502,8 @@ fn event_schemas() -> BTreeMap<EventId, EventSchema> {
         (id("next.heal"), event([("amount", amount_type())])),
         (id("next.objective_destroyed"), event([("kind", string_type(MAX_STRING_BYTES))])),
         (id("next.neutral_respawn"), event([])),
+        (id("next.bridge_state"), event([("site", string_type(16)), ("state", string_type(16))])),
+        (id("next.observation_capture"), event([("owner", string_type(16))])),
     ])
 }
 
@@ -547,6 +602,11 @@ fn field_expr(target: EntitySelector, name: &str) -> RuleExpression {
 
 fn int_lit(value: i64) -> RuleExpression {
     RuleExpression::Literal(DomainValue::Integer(value))
+}
+
+fn enum_type(domain: &str) -> DomainType {
+    let allowed = if domain == "track" { values(&["LEFT", "RIGHT"]) } else { values(&["expand", "rebuild", "destroy"]) };
+    DomainType::Enum { domain: id(domain), values: allowed }
 }
 
 fn entity_type(name: &str) -> DomainType {
@@ -657,7 +717,30 @@ mod tests {
         let hero_type = &package.domain.senkei_configuration[&FieldId::from("heroes")].value_type;
         assert!(matches!(hero_type, DomainType::List { max_items: 5, .. }));
         assert!(package.domain.senkei_configuration[&FieldId::from("heroes")].required);
-        assert_eq!(package.domain.capabilities.len(), 7);
+        assert_eq!(package.domain.capabilities.len(), 9);
+        assert!(package.domain.capabilities.contains_key(&CapabilityId::from("select_track")));
+        assert!(package.domain.capabilities.contains_key(&CapabilityId::from("bridge_work")));
+        let track = &package.domain.capabilities[&CapabilityId::from("select_track")];
+        assert!(matches!(track.arguments[1].value_type, DomainType::Enum { ref domain, .. } if domain == &SymbolDomainId::from("track")));
+        let bridge_work = &package.domain.capabilities[&CapabilityId::from("bridge_work")];
+        assert_eq!(bridge_work.target_type.as_ref(), Some(&TypeId::from("bridge")));
+        assert!(matches!(bridge_work.arguments[2].value_type, DomainType::Enum { ref domain, .. } if domain == &SymbolDomainId::from("bridge_operation")));
+        assert!(package.world.entity_types[&TypeId::from("bridge")].fields.contains_key(&FieldId::from("build_remaining")));
+        assert!(package.world.entity_types[&TypeId::from("observation")].fields.contains_key(&FieldId::from("capture_progress_side")));
+        let movement_fields = &package.world.entity_types[&TypeId::from("hero")].fields;
+        assert_eq!(movement_fields[&FieldId::from("ford_active")].visibility, Visibility::Public);
+        assert_eq!(movement_fields[&FieldId::from("track_goal")].visibility, Visibility::OwningSide);
+        assert_eq!(movement_fields[&FieldId::from("retreating")].visibility, Visibility::OwningSide);
+        assert_eq!(movement_fields[&FieldId::from("action_lock_until")].visibility, Visibility::OwningSide);
+        for field in ["moved_tick", "move_intent_tick", "track_intent_tick", "track_wait_ticks"] {
+            assert_eq!(movement_fields[&FieldId::from(field)].visibility, Visibility::Internal);
+        }
+        let bridge_view = &package.domain.collections[&CollectionId::from("battlefield.bridges")];
+        assert!(bridge_view.visible_fields.contains_key(&FieldId::from("edge_progress")));
+        assert!(!bridge_view.visible_fields.contains_key(&FieldId::from("builder")));
+        let observation_view = &package.domain.collections[&CollectionId::from("battlefield.observations")];
+        assert!(observation_view.visible_fields.contains_key(&FieldId::from("capture_progress_side")));
+        assert!(!observation_view.visible_fields.contains_key(&FieldId::from("builder")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("pursue")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("activate")));
         assert!(package.domain.capabilities.contains_key(&CapabilityId::from("split")));

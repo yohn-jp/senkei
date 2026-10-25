@@ -1,0 +1,51 @@
+{
+  "schema": "senkei-battlefield-base-assault-audit/v1",
+  "evidence_kind": "actual native Enbu controlled initial-node assault; not a default full-map march",
+  "engine_logic_commit": "42b6919e89201858883595867b1e9f6f8a9c5928",
+  "dispatcher_sha256": "3dd9088b752bb75064ba30192439bd6dc4cd4a204c15fb98b2d7a480cd7c6fec",
+  "ruleset": {
+    "digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+    "id": "senkei.next",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "result": {
+    "cu_spent": {
+      "attacker": 65688,
+      "defender": 0
+    },
+    "final_state_digest": "4cb1d4ae4bfb7977307d8ab500be30f7269bb3da130d31fd441bb9c584a97dd3",
+    "final_tick": 327,
+    "match_id": "base-node-assault-attacker",
+    "outcome": "attacker_victory",
+    "statistics": {},
+    "termination_reason": "base_destroyed"
+  },
+  "initial_base": {
+    "projection_id": "visible-2",
+    "hp": 2400
+  },
+  "terminal_base": {
+    "projection_id": "visible-215",
+    "hp": 0
+  },
+  "base_destruction_events": [
+    {
+      "tick": 327,
+      "event": {
+        "entity": "visible-215",
+        "event": "next.objective_destroyed",
+        "payload": {
+          "kind": {
+            "kind": "string",
+            "value": "base"
+          }
+        }
+      }
+    }
+  ],
+  "browser_status": "WASM confirmed attacker victory and HP0; screenshot harness used a stale initial projection ID and stopped. The corrected browser assertion and final images remain unverified."
+}

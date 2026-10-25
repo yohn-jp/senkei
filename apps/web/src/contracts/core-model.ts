@@ -714,8 +714,8 @@ export interface NextRules {
 }
 export interface BattleMap {
   readonly id: string;
-  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string }>>;
-  readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean }[];
+  readonly nodes: Readonly<Record<string, { readonly x:number; readonly y:number; readonly region:string; readonly allegiance?:string }>>;
+  readonly edges: readonly { readonly from:string; readonly to:string; readonly length:number; readonly region:string; readonly blocked:boolean; readonly id?:string; readonly bridge_site?:string; readonly ford?:boolean }[];
   readonly lanes: Readonly<Record<string, readonly string[]>>;
   readonly attacker_base:string;
   readonly defender_base:string;
@@ -731,7 +731,7 @@ export interface HeroDefinition {
 export interface SkillDefinition {
   readonly id:string; readonly name:string; readonly passive:boolean; readonly unlock_level:number;
   readonly prerequisites:readonly string[]; readonly cooldown:number; readonly cost:number;
-  readonly range:number; readonly target:string; readonly effect:"area_damage"|"damage"|"heal"|"shield"|"haste"|"slow"|"reveal"|"empower"|"defense";
+  readonly range:number; readonly target:string; readonly effect:"area_damage"|"damage"|"heal"|"shield"|"haste"|"slow"|"reveal"|"empower"|"defense"|"terrain_adaptation"|"jungle_specialist"|"solo_mobility";
   readonly power:number; readonly duration:number;
 }
 export interface UnitDefinition { readonly id:string; readonly stats:UnitStats; readonly xp:number }

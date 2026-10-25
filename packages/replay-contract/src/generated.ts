@@ -13,6 +13,7 @@ export type Event =
       order: number;
       entityId: string;
       position: WorldPoint;
+      logicalPosition?: BattlefieldState;
     }
   | {
       type: "attack";
@@ -61,10 +62,17 @@ export type Event =
       entityId: string;
       targetId: string;
       skillKey: string;
+    }
+  | {
+      type: "facility-state";
+      tick: number;
+      order: number;
+      entityId: string;
+      battlefield: BattlefieldState;
     };
 
 export interface PresentationReplay {
-  schemaVersion: "0.1" | "0.2";
+  schemaVersion: "0.1" | "0.2" | "0.3";
   header: {
     origin: "sample" | "official" | "local";
     title: string;
@@ -127,6 +135,17 @@ export interface PresentationReplay {
             position: WorldPoint;
           }
         ];
+    /**
+     * @maxItems 256
+     */
+    nodes?: MapNode[];
+    /**
+     * @minItems 2
+     * @maxItems 64
+     */
+    river?: [WorldPoint, WorldPoint, ...WorldPoint[]];
+    trackOffset?: number;
+    captureTicks?: number;
   };
   /**
    * @minItems 0
@@ -162,17 +181,39 @@ export interface Route {
    * @maxItems 2
    */
   points: [WorldPoint, WorldPoint];
+  bridgeSite?: "TOP" | "MID" | "BOT";
+  ford?: boolean;
+}
+export interface MapNode {
+  id: string;
+  allegiance: "A" | "B" | "N";
+  position: WorldPoint;
 }
 export interface Entity {
   id: string;
   side: "azure" | "vermilion" | "neutral";
-  kind: "unit" | "tower" | "base";
+  kind: "unit" | "tower" | "base" | "bridge" | "observation";
   archetype: string;
   appearanceKey: string;
   position: WorldPoint;
   hp: number;
   maxHp: number;
   catalogId?: string;
+  battlefield?: BattlefieldState;
+}
+export interface BattlefieldState {
+  node?: string;
+  edgeTo?: string;
+  progress?: number;
+  track?: "LEFT" | "CENTER" | "RIGHT";
+  crossing?: "none" | "track" | "bridge" | "ford";
+  remaining?: number;
+  bridgeSite?: "TOP" | "MID" | "BOT";
+  bridgeState?: "normal" | "expanded" | "destroyed";
+  buildRemaining?: number;
+  captureProgress?: number;
+  facilityOwner?: "azure" | "vermilion" | "neutral";
+  captureSide?: "azure" | "vermilion" | "neutral";
 }
 export interface Result {
   winner: "azure" | "vermilion" | "draw";

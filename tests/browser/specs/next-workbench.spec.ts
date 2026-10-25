@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 test.use({ video: "on" });
 
 test("real WASM Next workbench supports editing, replay, rematch, mobile and offline restore", async ({ page, baseURL }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(600_000);
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
   const evidenceDirectory = resolve(process.env.NEXT_WORKBENCH_OUTPUT_DIR ?? "test-results/next-workbench");
   mkdirSync(evidenceDirectory, { recursive: true });
@@ -44,7 +44,10 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.locator("#next-tab-jinrei").click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const starterSource = await source.inputValue();
-  const editedSource = starterSource.replace("when true,", "when match.tick < 374,");
+  // Keep the persistent-goal guard: repeated explicit MOVE is intentionally
+  // exclusive with attacks in Battlefield v2. This edit tests saved source
+  // revisions while retaining the starter's autonomous battle behavior.
+  const editedSource = starterSource.replace(/when ([^\n]+),/, "when and { $1, match.tick < 374, },");
   const recoverySource = editedSource.replace("match.tick < 374", "match.tick < 338");
   expect(editedSource).not.toBe(starterSource);
   await source.fill(editedSource);
@@ -60,7 +63,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await expect(launch).toBeEnabled();
   await launch.click();
   const confirmedResult = page.getByText(/Confirmed result/i);
-  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 90_000 });
+  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
   await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   const battlefieldCanvas = page.locator(".next-renderer-host canvas");
   await expect(battlefieldCanvas).toHaveAttribute("data-rendered", "true");
@@ -193,8 +196,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const revisedRun = page.getByRole("button", { name: "Run revised battle" });
   await expect(revisedRun).toBeEnabled();
   await revisedRun.click();
-  await expect(launch).toBeEnabled({timeout:90_000});
-  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 90_000 });
+  await expect(launch).toBeEnabled({timeout:180_000});
+  await expect(confirmedResult).toContainText(/Attacker Victory|Defender Victory|Draw/, { timeout: 180_000 });
   await page.locator("#next-tab-formation").click();
   await page.getByRole("button", { name: "Save setup" }).click();
   await expect(page.getByText("matches the current ruleset and can be restored.")).toBeVisible();
@@ -270,7 +273,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
     await page.locator("#next-tab-battle").click();
     await page.getByRole("button", {name:/Launch local battle|New local battle/i}).click();
-    await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, {timeout:90_000});
+    await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, {timeout:180_000});
     await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   } finally {
     await page.context().setOffline(false);

@@ -1,10 +1,52 @@
-# `senkei.next` 1.0.0 provisional parameters
+# `senkei.next` 2.0.0 provisional parameters
 
-This is the W5 record for the initial values returned by
+This is the parameter record for the values returned by
 [`next_content.rs`](../../crates/senritsu/src/next_content.rs). The package
 contains the values; this document records which values are agreed starting
 ratios and which are provisional implementation choices. Changing these
-numbers changes the versioned package data and its digest.
+numbers changes the versioned package data and its digest. The canonical map,
+Battlefield mechanics, and conformance record are in
+[`BATTLEFIELD.md`](../BATTLEFIELD.md) and
+[`BATTLEFIELD-CANONICAL.md`](BATTLEFIELD-CANONICAL.md). Every canonical v2
+parameter listed here is required by Senritsu validation; provisional values
+remain tunable within the bounded deterministic range, while agreed ratios and
+fixed vision/XP semantics are pinned by validation.
+
+## Battlefield v2 mechanics parameters
+
+| Parameter | Value | Meaning |
+| --- | ---: | --- |
+| `lane_track_offset_wu` | 20 | Logical offset from CENTER to LEFT/RIGHT. |
+| `lane_cross_track_ticks` | 3 | Lateral track crossing time, excluding occupancy waits. |
+| `track_occupancy_radius_wu` | 20 | Local spacing radius used by track reservations. |
+| `track_occupancy_max_ticks` | 30 | Maximum reservation wait before a blocked track goal is abandoned. |
+| `terrain_forest_speed_milli` | 800 | Forest movement factor ×0.80. |
+| `terrain_wetland_speed_milli` | 650 | Wetland movement factor ×0.65. |
+| `terrain_rock_speed_milli` | 700 | Rock movement factor ×0.70. |
+| `terrain_highland_speed_milli` | 900 | Highland movement factor ×0.90. |
+| `terrain_shallow_speed_milli` | 600 | Shallow-water movement factor ×0.60. |
+| `ford_extra_ticks` | 24 | Additional time while crossing a fixed river ford or a destroyed bridge. |
+| `ford_received_damage_milli` | 1500 | Damage received while traversing a ford, ×1.50. |
+| `bridge_crossing_capacity` | 1 | Concurrent crossing capacity for each bridge edge. |
+| `bridge_known_occupancy_delay_ticks` | 24 | Route-cost delay for a known occupied bridge; actual capacity is enforced per edge. |
+| `bridge_hp` | 500 | Maximum fixed bridge durability. |
+| `bridge_expand_ticks` | 12 | Time to expand a fixed bridge. |
+| `bridge_rebuild_ticks` | 24 | Time to rebuild a destroyed bridge to normal. |
+| `bridge_destroy_ticks` | 8 | Time to destroy a functioning fixed bridge. |
+| `bridge_work_energy` | 25 | Energy cost shared by bridge expand/rebuild/destroy operations. |
+| `generic_squad_terrain_adapt_milli` | 900 | Generic terrain adaptation factor for the whole Squad. |
+| `specialist_jungle_adapt_milli` | 1000 | Jungle specialist factor for the qualifying Hero only. |
+| `solo_high_mobility_milli` | 1100 | High-mobility factor for a Solo cohort only. |
+| `mid_observation_radius_wu` | 240 | Observation radius of the neutral MID base. |
+| `mid_capture_ticks` | 8 | Continuous uncontested capture time for the MID base. |
+| `attack_preparation_ticks` | 0 | Initial attack preparation period. |
+| `attack_recovery_ticks` | 1 | Action lock after a basic or Skill attack. |
+| `vision_graph_metric` | 1 | v2 uses legal shortest-path graph distance for vision. |
+| `vision_occlusion_enabled` | 0 | v2 vision does not use geometric terrain occlusion. |
+
+Bridge repair has no separate capability in v2: `rebuild` restores a destroyed
+bridge and is governed by `bridge_rebuild_ticks`. No inactive repair parameter
+is included in the canonical package.
 
 ## Agreed movement ratios
 
@@ -31,7 +73,7 @@ measurable.
 | Parameter | Value | Reason for this provisional value |
 | --- | ---: | --- |
 | `minion_spawn_interval` | 30 ticks | Gives each lane repeated, deterministic pressure without requiring Jinrei to spawn units. |
-| `minion_vision` | 180 world units | A sensor radius suited to W1's 250–400 unit lane edges; each unit also stores 180 in its `vision` stat. |
+| `minion_vision` | 180 world units | Provisional sensor radius evaluated by the v2 legal-graph vision metric; each unit also stores 180 in its `vision` stat. |
 | `hero_start_level` | 1 | Keeps every configured Hero at the start of the shared progression curve. |
 | `hero_start_xp` | 0 | Makes the first earned reward the first progression event. |
 | `hero_initial_energy` | 100 | Gives each Hero a common starting pool for active skills. |
@@ -44,11 +86,11 @@ measurable.
 | `hero_respawn_base_ticks` | 20 | Gives a first death a meaningful but short return delay. |
 | `hero_respawn_per_level_ticks` | 5 | Makes later deaths cost more time without removing a Hero for most of a match. |
 | `hero_kill_xp` | 80 | Rewards a Hero takedown between a Minion and a stronger neutral camp. |
-| `xp_eligibility_range` | 250 | Covers the local fight while excluding distant Heroes on W1's map scale. |
+| `xp_eligibility_range` | 250 | Covers a local fight while excluding distant Heroes on the canonical graph scale. |
 | `structure_tower_xp` | 120 | Gives structure pressure a progression reward comparable to a neutral objective. |
 | `structure_base_xp` | 0 | The base ends the match, so no post-victory progression reward is needed. |
 | `squad_maturation_ticks` | 40 | A short, observable delay before a maintained formation reaches full coordination. |
-| `squad_merge_distance` | 30 world units | Requires Heroes to rendezvous closely relative to W1's edge lengths. |
+| `squad_merge_distance` | 30 world units | Requires Heroes to rendezvous closely relative to the canonical map scale. |
 | `formation_spacing` | 8 world units | Starting offset for the five-Hero cardinal formation; its maximum diameter is 16, below the 30-unit merge distance, while making each Hero's position visible. |
 | `squad_shield_per_ally` | 2 shield | At full maturity, each other living Squad member contributes two shield points to a Hero; the contribution scales with the contributor's maturity and `maturity_effect_milli`, then rounds up to a whole shield point. |
 | `max_match_ticks` | 600 | A finite package-level runtime ceiling for the first implementation; it is not a claim that 600 ticks is the ideal match length. |
@@ -76,7 +118,7 @@ on level-up. XP scale is a required versioned semantic rather than a tuning
 choice.
 ## Provisional structure values
 
-The same tower values apply to every W1 tower placement. The base is a
+The same tower values apply to every canonical Battlefield tower placement. The base is a
 stationary victory objective rather than an attacking unit.
 
 | Parameter | Value | Reason |
@@ -84,7 +126,7 @@ stationary victory objective rather than an attacking unit.
 | `structure_tower_hp` | 1200 | Durable enough to require a lane push rather than one ordinary hit. |
 | `structure_tower_attack` | 60 | A tower can punish a lone unit while remaining finite against a wave. |
 | `structure_tower_defense` | 20 | Prevents attacks from treating a structure like an unarmored Minion. |
-| `structure_tower_range` | 200 | Covers nearby lane combat on W1's scale. |
+| `structure_tower_range` | 200 | Covers nearby lane combat on the canonical graph scale. |
 | `structure_tower_attack_interval` | 4 ticks | Provides periodic deterministic pressure. |
 | `structure_tower_vision` | 220 | Slightly exceeds attack range for objective observation. |
 | `structure_base_hp` | 2400 | Makes the final objective last longer than a single tower. |
@@ -128,7 +170,8 @@ target `self`. Active powers are raw HP/attack/defense points except Haste and
 Slow, whose powers use per-mille movement units (`100` means ten percent).
 AreaDamage's serialized enum value is `area_damage`; its power applies per
 eligible enemy in the fixed-radius area. Reveal uses a nonzero marker power and
-the skill's range/duration fields.
+the skill's range/duration fields. Battlefield v2's three typed movement
+passives read their effect values from the versioned parameters above.
 
 | Hero | Path A passive | Path B passive |
 | --- | --- | --- |
@@ -137,10 +180,10 @@ the skill's range/duration fields.
 | F03 | Siegebreaker — Empower +5 attack | Relentless Advance — Haste 100‰ |
 | F04 | Quickstep — Haste 100‰ | Opportunist — Empower +3 attack |
 | F05 | Grounded Stance — Defense +3 | Field Rations — Shield +12 |
-| F06 | Trail Runner — Haste 100‰ | Fieldcraft — Empower +2 attack |
+| F06 | Trail Runner — Jungle specialist (×1.00) | Fieldcraft — Squad terrain adaptation (×0.90) |
 | R01 | Gathering Storm — Empower +4 attack | Eye of the Gale — Defense +2 |
 | R02 | Deadeye — Empower +6 attack | Steady Aim — Haste 80‰ |
-| R03 | Long Sight — Empower +3 attack | Light Footfall — Haste 80‰ |
+| R03 | Long Sight — Empower +3 attack | Light Footfall — Solo high mobility (×1.10) |
 | R04 | Restorative Training — Shield +14 | Protective Drill — Defense +2 |
 | R05 | Clear Orders — Defense +2 | Tempo Keeper — Haste 80‰ |
 | R06 | Rear Guard — Defense +4 | Escape Drill — Haste 80‰ |
@@ -177,10 +220,12 @@ movement, or control. R02 concentrates on long-range damage; F04 can trade
 damage for a chase slow. R01's area hit uses `skill_area_radius=80` world units
 around its explicit legal observed target and deals power 42 to each eligible
 enemy in that radius. F06/R03 invest in scouting range and extend tracking of a
-currently visible target; R04 invests in recovery; F01/R05 improve squad and
-ally support. Reveal is a single-target marker, not an area search or a way to
-target an unseen enemy. These are initial values to compare across deterministic
-scenarios, not claims of balanced win rates.
+currently visible target; F06's path choices offer either Jungle specialist
+adaptation or Squad-wide terrain adaptation, while R03's Light Footfall
+applies only when that Hero acts as a Solo. R04 invests in recovery; F01/R05
+improve squad and ally support. Reveal is a single-target marker, not an area
+search or a way to target an unseen enemy. These are initial values to compare
+across deterministic scenarios, not claims of balanced win rates.
 
 ## Minions, monsters, and camps
 
@@ -193,14 +238,14 @@ one contributes from farther away. Both grant 20 XP when defeated.
 | `minion_melee` | 90 / 18 / 6 / 26 / 45 / 4 / 180 | 20 |
 | `minion_ranged` | 62 / 14 / 3 / 24 / 130 / 5 / 180 | 20 |
 
-Neutral definitions give three camps distinct durability, threat, and reward.
-The map has one camp at each fixed jungle node from W1.
+The three monster definitions provide distinct durability, threat, and reward
+across the four terminal camp branches in Battlefield v2.
 
 | Monster ID | HP / attack / defense / speed / range / attack interval / vision | XP | Camp / node / respawn |
 | --- | --- | ---: | --- |
-| `monster_grove_brute` | 210 / 32 / 12 / 30 / 55 / 4 / 150 | 90 | `camp_nw` / `jungle_nw` / 90 ticks |
-| `monster_iron_warden` | 340 / 38 / 22 / 20 / 65 / 5 / 180 | 150 | `camp_center` / `jungle_center` / 120 ticks |
-| `monster_storm_stalker` | 170 / 44 / 9 / 58 / 95 / 3 / 220 | 110 | `camp_se` / `jungle_se` / 90 ticks |
+| `monster_grove_brute` | 210 / 32 / 12 / 30 / 55 / 4 / 150 | 90 | `camp_a_upper` / `N.A.UC` / 90 ticks; `camp_b_lower` / `N.B.LC` / 90 ticks |
+| `monster_iron_warden` | 340 / 38 / 22 / 20 / 65 / 5 / 180 | 150 | `camp_b_upper` / `N.B.UC` / 120 ticks |
+| `monster_storm_stalker` | 170 / 44 / 9 / 58 / 95 / 3 / 220 | 110 | `camp_a_lower` / `N.A.LC` / 90 ticks |
 
 ## Review limits
 
