@@ -743,6 +743,15 @@ fn strategic_match_case(
             "respawn_at": entity_integer(hero, "respawn_at")
         })
     }).collect::<Vec<_>>();
+    let owner_structures = owner_state_at(&artifact, artifact.result.final_tick).entities.iter()
+        .filter(|(_, entity)| matches!(entity.entity_type.as_str(), "tower" | "base"))
+        .map(|(id, entity)| serde_json::json!({
+            "id": id.as_str(),
+            "kind": entity.entity_type.as_str(),
+            "catalog_id": entity.fields.get(&FieldId::new("catalog_id")),
+            "hp": entity.fields.get(&FieldId::new("hp"))
+        }))
+        .collect::<Vec<_>>();
     let public = artifact.public_response();
     let public_final = public.replay.frames.last().and_then(|frame| frame.visible_state.as_ref());
     let visible_structures = public_final.into_iter().flat_map(|view| view.entities.iter())
@@ -772,6 +781,7 @@ fn strategic_match_case(
         "final_state_digest": artifact.result.final_state_digest.as_str(),
         "hero_actions_by_side": { "attacker": 5, "defender": 5 },
         "attacker_final_heroes": attacker_heroes,
+        "owner_structure_state": owner_structures,
         "visible_structure_state": visible_structures,
         "visible_event_counts": event_counts,
         "cu_by_side": {
@@ -869,25 +879,28 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     let case = |id: &str| cases.iter().find(|case| case["case_id"] == id)
         .unwrap_or_else(|| panic!("strategic case {id} is included"));
     let structure_hp = |case: &serde_json::Value, catalog_id: &str| {
-        case["visible_structure_state"].as_array()
+        case["owner_structure_state"].as_array()
             .and_then(|structures| structures.iter().find(|structure| {
                 structure["catalog_id"]["value"] == catalog_id
             }))
             .and_then(|structure| structure["hp"]["value"].as_i64())
-            .unwrap_or_else(|| panic!("{catalog_id} is visible in the terminal base-destruction frame for {}", case["case_id"]))
+            .unwrap_or_else(|| panic!("{catalog_id} is present in the terminal owner frame for {}", case["case_id"]))
     };
 
-    // Pin the current real-Enbu outcomes as observations for these fixed
-    // inputs. They are regression evidence, not balance or win-rate targets.
+    // Pin the real-Enbu outcomes for these fixed inputs on the current
+    // engine/world package. These are regression observations, not balance
+    // or win-rate targets. Engine 1.3 now executes the canonical World's
+    // bridge identities and crossing intervals; those authored path facts
+    // change stable route ordering and the resulting strategic trajectories.
     let observed = [
         ("balanced-solos-vs-quintet", "Draw", "timeout", "time_limit", 600),
         ("split-2-2-1-vs-3-2-role-mix", "Draw", "timeout", "time_limit", 600),
         ("jungle-push-vs-lane-defense", "Draw", "timeout", "time_limit", 600),
         ("mirrored-lane-defense-vs-jungle-push", "Draw", "timeout", "time_limit", 600),
-        ("base-assault-solos-vs-quintet", "Draw", "timeout", "time_limit", 600),
-        ("base-assault-quintet-vs-solos-mirrored", "AttackerVictory", "victory", "base_destroyed", 417),
-        ("base-assault-duos-vs-trio-duo", "Draw", "timeout", "time_limit", 600),
-        ("base-assault-trio-duo-vs-duos-mirrored", "DefenderVictory", "victory", "base_destroyed", 456),
+        ("base-assault-solos-vs-quintet", "DefenderVictory", "victory", "base_destroyed", 568),
+        ("base-assault-quintet-vs-solos-mirrored", "AttackerVictory", "victory", "base_destroyed", 447),
+        ("base-assault-duos-vs-trio-duo", "AttackerVictory", "victory", "base_destroyed", 593),
+        ("base-assault-trio-duo-vs-duos-mirrored", "Draw", "timeout", "time_limit", 600),
     ];
     for (id, outcome, termination_class, termination_reason, final_tick) in observed {
         let result = case(id);
@@ -903,11 +916,12 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     assert_eq!(structure_hp(attacker_win, "base.defender"), 0);
     assert!(structure_hp(attacker_win, "base.attacker") > 0);
 
-    let defender_win = case("base-assault-trio-duo-vs-duos-mirrored");
+    let defender_win = case("base-assault-solos-vs-quintet");
     assert_eq!(structure_hp(defender_win, "base.attacker"), 0);
+    assert!(structure_hp(defender_win, "base.defender") > 0);
 
     let timeouts = cases.iter().filter(|case| case["termination_class"] == "timeout").collect::<Vec<_>>();
-    assert_eq!(timeouts.len(), 6, "the report retains all six observed time-limited strategic draws");
+    assert_eq!(timeouts.len(), 5, "the report retains all five observed time-limited strategic draws");
     assert!(timeouts.iter().all(|case| {
         case["outcome"] == "Draw"
             && case["termination_reason"] == "time_limit"

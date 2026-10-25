@@ -6,7 +6,7 @@
       "attacker_cu": 0,
       "case_id": "partition-1-1-1-1-1",
       "defender_cu": 0,
-      "final_state_digest": "8824a7033c4baa1264b00c3e8e47cfe60968e268dc0b6289d8302457405dd390",
+      "final_state_digest": "457bee8a79c48883014cace7a5bef021b1e709ab091745cb523c89a623f10a54",
       "final_tick": 1,
       "match_id": "w9-partition-1-1-1-1-1",
       "outcome": "Draw",
@@ -22,7 +22,7 @@
       "attacker_cu": 0,
       "case_id": "partition-2-1-1-1",
       "defender_cu": 0,
-      "final_state_digest": "89c5451e9aa19566e30f901c5f74887a193df254f7d2ee6c1c876394f29e534c",
+      "final_state_digest": "a90ff70593015e3a8c34567d732863feee691cf4f7b208850ded107e6b87a018",
       "final_tick": 1,
       "match_id": "w9-partition-2-1-1-1",
       "outcome": "Draw",
@@ -37,7 +37,7 @@
       "attacker_cu": 0,
       "case_id": "partition-2-2-1",
       "defender_cu": 0,
-      "final_state_digest": "baefea93bbff250e75e79e7d52c5497b749609eb27ccdff9705651a087a7891c",
+      "final_state_digest": "a84f83704eebe3170f6d9c9bda0fc760eebc8fa20d906a86cad678f1f4b10a96",
       "final_tick": 1,
       "match_id": "w9-partition-2-2-1",
       "outcome": "Draw",
@@ -51,7 +51,7 @@
       "attacker_cu": 0,
       "case_id": "partition-3-1-1",
       "defender_cu": 0,
-      "final_state_digest": "c59f369eed26d704432603fdd684ca3a480d043dc7a5a9daf0470be0d0efe204",
+      "final_state_digest": "185518bcefc1b45b3c19177af5a230c3a40bc4a383f1986caa4a64a6d2dd7546",
       "final_tick": 1,
       "match_id": "w9-partition-3-1-1",
       "outcome": "Draw",
@@ -65,7 +65,7 @@
       "attacker_cu": 0,
       "case_id": "partition-3-2",
       "defender_cu": 0,
-      "final_state_digest": "c101d867acae5300a2a71809f799d29876aee2ab26a42839c1f5fc4a03bca3d5",
+      "final_state_digest": "a62166a2309e7bed5388bd6adc9bcc8e620292f5179260060a147870435605ba",
       "final_tick": 1,
       "match_id": "w9-partition-3-2",
       "outcome": "Draw",
@@ -78,7 +78,7 @@
       "attacker_cu": 0,
       "case_id": "partition-4-1",
       "defender_cu": 0,
-      "final_state_digest": "5b58a5c14dd7d3a2b9368a0ed4e424839338db6de5a28d62e37a8b9e7ad7f749",
+      "final_state_digest": "168e391f450ffe72e8cbb052b67d1160af884928a6a7dfc40ce5dcc1128aa5f6",
       "final_tick": 1,
       "match_id": "w9-partition-4-1",
       "outcome": "Draw",
@@ -91,7 +91,7 @@
       "attacker_cu": 0,
       "case_id": "partition-5",
       "defender_cu": 0,
-      "final_state_digest": "47cd47f278d44f093ff601692055fd03dfa9e25c5aa1f1781d654ea9217feff1",
+      "final_state_digest": "8075a1c9897e5443a8211eafea60e03bff466c81d8e9e89e2e9e2a1faac60c53",
       "final_tick": 1,
       "match_id": "w9-partition-5",
       "outcome": "Draw",
@@ -296,7 +296,7 @@
         "F04",
         "F05"
       ],
-      "final_state_digest": "8824a7033c4baa1264b00c3e8e47cfe60968e268dc0b6289d8302457405dd390",
+      "final_state_digest": "457bee8a79c48883014cace7a5bef021b1e709ab091745cb523c89a623f10a54",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -324,7 +324,7 @@
         "F05",
         "F06"
       ],
-      "final_state_digest": "c672fec2462d2ab3dbcc600cf8e9019e27ea4356b4a8b6051c60b0bf88a1b5ae",
+      "final_state_digest": "b1cfdfe236524820e118bcbea544842f802af17a041c7dacd07d6c7eb59ac0bd",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -352,7 +352,7 @@
         "F06",
         "R01"
       ],
-      "final_state_digest": "daa198976200c28d49c096e23eb5fe3f8fffe43f7e3d16ef7a35ea4e50c816ef",
+      "final_state_digest": "4fff75c79602bd22781800555256d7bee6d0228eb70055eb44a271ff191ef12d",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -380,7 +380,7 @@
         "R01",
         "R02"
       ],
-      "final_state_digest": "3949e0d5d0943409af16dca844a912276564e4dd7ad6270e10f48a74c1e86acd",
+      "final_state_digest": "6608f49f3bc3c75e1bbf0836338c454ab61f96e8346a8edf4dfcbd75ff86b483",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -408,7 +408,7 @@
         "R02",
         "R03"
       ],
-      "final_state_digest": "7201a1e7f1b69f2e5a430bc964e690b82ac4b8811519b86ec3c25aea3f2c1137",
+      "final_state_digest": "b38a23a996cbfcf5492dd9cd881e8dc7aa1cba5c0209aa0f9b240b94fe6a61d3",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -436,7 +436,7 @@
         "R03",
         "R04"
       ],
-      "final_state_digest": "ecae0eef4222d874b69197b457573253e763e03f511c021aec46299bc90a11d1",
+      "final_state_digest": "5e87b671886bd276ed0506af3f66b1b88a5eb67df996529f4a073beb01ccf8ba",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -464,7 +464,7 @@
         "R04",
         "R05"
       ],
-      "final_state_digest": "9f75bbddce3e59d935fec2a33844202e099f6fccc79f08dc78266eda4a079360",
+      "final_state_digest": "64924b5eb0540820c19bb6fa040fd7ed9a4f19984f12b6e3dc0e7da584a2ef23",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -492,7 +492,7 @@
         "R05",
         "R06"
       ],
-      "final_state_digest": "e8f14202723f09598dc36d3dd4a612b4d9e4c321211b6c65fe2fc4256bdec77b",
+      "final_state_digest": "2f5783688cebf961dd810f1d7cb6b229bb47ecf61dd20a0d71ee605e0830ce0e",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -520,7 +520,7 @@
         "R06",
         "F01"
       ],
-      "final_state_digest": "8db985ddbd57c5e681430ce689073348205365dfe78b28849c58aab57a2411d0",
+      "final_state_digest": "f0fd706b94a3c10b9b2814c6a5c93c09b1092c47c7a2b20421c735e05a9eb57c",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -548,7 +548,7 @@
         "F01",
         "F02"
       ],
-      "final_state_digest": "06485ae1e9f511392ecafb8c680f6fbe1d14c1ae916620d007ba620cdf28c712",
+      "final_state_digest": "af00c26f0c31644bfabcfcbbaad7cf655f5797cff63b9bf33ab6ffe319e406e5",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -576,7 +576,7 @@
         "F02",
         "F03"
       ],
-      "final_state_digest": "0598ca59ed31c806015a2064e51516b00533c9af9e7430b2cd1b7d1259d23610",
+      "final_state_digest": "d20223561479c15006d85762a3030c1faf25f610357e2fb09e8459a7fb0d62c1",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -604,7 +604,7 @@
         "F03",
         "F04"
       ],
-      "final_state_digest": "fbd57d78cb99cedc194b88d4b2809907135214cc2deff6b73dfcc311a030602c",
+      "final_state_digest": "95d42820ce900ca8c10c9473bae5ee2453be1491707ae9cb62d288cb38a6d5c6",
       "final_tick": 1,
       "outcome": "Draw",
       "partition": [
@@ -703,7 +703,7 @@
     {
       "case_id": "death-departure-solo-respawn",
       "death_tick": 1,
-      "package_digest": "346d9fca3d584d710afe8dda1e36ab2edab193a826564c65e1363ce879347cd8",
+      "package_digest": "73a7966031f4a82b8f0551a3290463c5b3f5ee6a6d9f2c639a2921c34dea63e7",
       "respawn_node": "A.BASE",
       "respawn_squad": "a:solo:cd0b9e0621749ad0",
       "respawn_tick": 21,
@@ -727,43 +727,17 @@
           "catalog_id": "F01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 0,
-          "level": 6,
+          "hp": 212,
+          "level": 5,
           "maturity": 0,
           "node": "B.TOP.T1",
-          "respawn_at": 618,
+          "respawn_at": 0,
           "slot": 1,
-          "squad": "",
-          "xp_scaled": 453600
+          "squad": "attacker:squad-0",
+          "xp_scaled": 218400
         },
         {
           "catalog_id": "R01",
-          "edge_progress": 0,
-          "edge_to": "",
-          "hp": 250,
-          "level": 6,
-          "maturity": 0,
-          "node": "A.BASE",
-          "respawn_at": 0,
-          "slot": 2,
-          "squad": "a:solo:45e10299b79f49d7",
-          "xp_scaled": 831600
-        },
-        {
-          "catalog_id": "F02",
-          "edge_progress": 0,
-          "edge_to": "",
-          "hp": 226,
-          "level": 6,
-          "maturity": 0,
-          "node": "B.BOT.T2",
-          "respawn_at": 0,
-          "slot": 3,
-          "squad": "a:solo:32c516cc36280d36",
-          "xp_scaled": 403200
-        },
-        {
-          "catalog_id": "R02",
           "edge_progress": 0,
           "edge_to": "",
           "hp": 0,
@@ -771,22 +745,48 @@
           "maturity": 0,
           "node": "N.MID.OBS",
           "respawn_at": 645,
-          "slot": 4,
+          "slot": 2,
           "squad": "",
-          "xp_scaled": 25200
+          "xp_scaled": 579600
+        },
+        {
+          "catalog_id": "F02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 131,
+          "level": 6,
+          "maturity": 0,
+          "node": "B.BOT.T1",
+          "respawn_at": 0,
+          "slot": 3,
+          "squad": "a:solo:0cf6e0138c8a46fb",
+          "xp_scaled": 302400
+        },
+        {
+          "catalog_id": "R02",
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 173,
+          "level": 6,
+          "maturity": 0,
+          "node": "B.BASE",
+          "respawn_at": 0,
+          "slot": 4,
+          "squad": "a:solo:73db03b6e9ae42a6",
+          "xp_scaled": 42000
         },
         {
           "catalog_id": "F03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 307,
-          "level": 6,
+          "hp": 104,
+          "level": 5,
           "maturity": 0,
           "node": "B.TOP.T1",
           "respawn_at": 0,
           "slot": 5,
-          "squad": "a:solo:50b8fedca05a8e26",
-          "xp_scaled": 50400
+          "squad": "a:solo:51b17dcc6aa9e8a2",
+          "xp_scaled": 168000
         }
       ],
       "attacker_opening_destinations": [
@@ -805,8 +805,8 @@
       ],
       "case_id": "balanced-solos-vs-quintet",
       "cu_by_side": {
-        "attacker": 120720,
-        "defender": 120336
+        "attacker": 120504,
+        "defender": 120192
       },
       "defender_catalog": [
         "F04",
@@ -825,7 +825,7 @@
       "defender_partition": [
         5
       ],
-      "final_state_digest": "2e5a0d32a35d8629a03418425ab8ad80fbcb2e380999ece2e9d3585c886be00a",
+      "final_state_digest": "d1d44ad965d81b023ed883601dffe643d8b5204b0a8440d383eee10fcd73c89c",
       "final_tick": 600,
       "hero_actions_by_side": {
         "attacker": 5,
@@ -833,16 +833,174 @@
       },
       "max_ticks": 600,
       "outcome": "Draw",
+      "owner_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 2400
+          },
+          "id": "visible-1",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-13",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-14",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-15",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1185
+          },
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1079
+          },
+          "id": "visible-180",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-204",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-250",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-32",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-37",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-447",
+          "kind": "tower"
+        }
+      ],
       "termination_class": "timeout",
       "termination_reason": "time_limit",
       "time_limited": true,
       "visible_event_counts": {
-        "next.attack": 1486,
-        "next.death": 233,
-        "next.level_up": 38,
-        "next.objective_destroyed": 2,
+        "next.attack": 1502,
+        "next.death": 212,
+        "next.level_up": 29,
+        "next.objective_destroyed": 4,
         "next.observation_capture": 1,
-        "next.skill_acquired": 14
+        "next.skill_acquired": 16
       },
       "visible_structure_state": [
         {
@@ -852,7 +1010,7 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 1189
+            "value": 1185
           },
           "id": "visible-11",
           "kind": "tower"
@@ -872,13 +1030,25 @@
         {
           "catalog_id": {
             "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1079
+          },
+          "id": "visible-193",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
             "value": "tower_b_BOT_t2"
           },
           "hp": {
             "kind": "integer",
-            "value": 791
+            "value": 0
           },
-          "id": "visible-499",
+          "id": "visible-222",
           "kind": "tower"
         },
         {
@@ -888,21 +1058,9 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 1200
+            "value": 0
           },
-          "id": "visible-532",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_MID_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-535",
+          "id": "visible-270",
           "kind": "tower"
         },
         {
@@ -914,20 +1072,20 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-570",
+          "id": "visible-30",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "base.defender"
+            "value": "tower_b_MID_t1"
           },
           "hp": {
             "kind": "integer",
-            "value": 2393
+            "value": 1200
           },
-          "id": "visible-576",
-          "kind": "base"
+          "id": "visible-487",
+          "kind": "tower"
         }
       ]
     },
@@ -948,10 +1106,10 @@
           "level": 6,
           "maturity": 0,
           "node": "A.TOP.T1",
-          "respawn_at": 608,
+          "respawn_at": 640,
           "slot": 1,
           "squad": "",
-          "xp_scaled": 504000
+          "xp_scaled": 176400
         },
         {
           "catalog_id": "R02",
@@ -961,49 +1119,49 @@
           "level": 6,
           "maturity": 0,
           "node": "A.TOP.T1",
-          "respawn_at": 620,
+          "respawn_at": 627,
           "slot": 2,
           "squad": "",
-          "xp_scaled": 856800
+          "xp_scaled": 579600
         },
         {
           "catalog_id": "R03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 146,
+          "hp": 240,
           "level": 6,
           "maturity": 0,
           "node": "A.MID.T2",
           "respawn_at": 0,
           "slot": 3,
-          "squad": "a:solo:154edbe170253365",
-          "xp_scaled": 378000
+          "squad": "a:solo:18e094b232822568",
+          "xp_scaled": 504000
         },
         {
           "catalog_id": "R04",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 60,
+          "hp": 20,
           "level": 6,
           "maturity": 0,
           "node": "A.MID.T2",
           "respawn_at": 0,
           "slot": 4,
-          "squad": "a:solo:eb4c56c3db0721d5",
-          "xp_scaled": 1688400
+          "squad": "attacker:squad-1",
+          "xp_scaled": 1209600
         },
         {
           "catalog_id": "R05",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 246,
+          "hp": 78,
           "level": 6,
           "maturity": 0,
           "node": "A.BOT.T2",
           "respawn_at": 0,
           "slot": 5,
           "squad": "attacker:squad-2",
-          "xp_scaled": 453600
+          "xp_scaled": 856800
         }
       ],
       "attacker_opening_destinations": [
@@ -1020,8 +1178,8 @@
       ],
       "case_id": "split-2-2-1-vs-3-2-role-mix",
       "cu_by_side": {
-        "attacker": 120624,
-        "defender": 120672
+        "attacker": 120648,
+        "defender": 120576
       },
       "defender_catalog": [
         "F01",
@@ -1041,7 +1199,7 @@
         3,
         2
       ],
-      "final_state_digest": "6ee91ea7fd8e562c2ae6ec719005b9e44e6dec0910ace0bba7ad017893b433bc",
+      "final_state_digest": "34059af7fc0fffae3a601af1eb890da3878505afda200459ecb06bdfd5f4178f",
       "final_tick": 600,
       "hero_actions_by_side": {
         "attacker": 5,
@@ -1049,41 +1207,7 @@
       },
       "max_ticks": 600,
       "outcome": "Draw",
-      "termination_class": "timeout",
-      "termination_reason": "time_limit",
-      "time_limited": true,
-      "visible_event_counts": {
-        "next.attack": 1720,
-        "next.death": 257,
-        "next.level_up": 39,
-        "next.objective_destroyed": 2,
-        "next.skill_acquired": 18
-      },
-      "visible_structure_state": [
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_TOP_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 0
-          },
-          "id": "visible-190",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_TOP_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 0
-          },
-          "id": "visible-204",
-          "kind": "tower"
-        },
+      "owner_structure_state": [
         {
           "catalog_id": {
             "kind": "string",
@@ -1091,33 +1215,33 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 2395
+            "value": 2381
           },
-          "id": "visible-263",
+          "id": "visible-1",
           "kind": "base"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_MID_t2"
+            "value": "tower_a_BOT_t1"
           },
           "hp": {
             "kind": "integer",
-            "value": 1121
+            "value": 1200
           },
-          "id": "visible-363",
+          "id": "visible-13",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_b_BOT_t2"
+            "value": "tower_a_BOT_t2"
           },
           "hp": {
             "kind": "integer",
-            "value": 1191
+            "value": 1200
           },
-          "id": "visible-364",
+          "id": "visible-14",
           "kind": "tower"
         },
         {
@@ -1129,19 +1253,139 @@
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-383",
+          "id": "visible-15",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_BOT_t1"
+            "value": "tower_a_MID_t2"
           },
           "hp": {
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-453",
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-360",
+          "kind": "tower"
+        }
+      ],
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 1651,
+        "next.death": 248,
+        "next.level_up": 37,
+        "next.objective_destroyed": 2,
+        "next.skill_acquired": 17
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-140",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-158",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 2381
+          },
+          "id": "visible-208",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-366",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-435",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-440",
           "kind": "tower"
         }
       ]
@@ -1211,14 +1455,14 @@
           "catalog_id": "R01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 215,
+          "hp": 250,
           "level": 6,
           "maturity": 0,
           "node": "N.MID.OBS",
           "respawn_at": 0,
           "slot": 5,
           "squad": "attacker:squad-1",
-          "xp_scaled": 655200
+          "xp_scaled": 756000
         }
       ],
       "attacker_opening_destinations": [
@@ -1256,7 +1500,7 @@
         2,
         1
       ],
-      "final_state_digest": "d6ef2436f3deb68ec6aa48943d828f922f9da0b4cf95cdb8c3151c56b288de2d",
+      "final_state_digest": "fa9e894e9d215029b99b520502bd993ee629122193893875308b4f194f21481b",
       "final_tick": 600,
       "hero_actions_by_side": {
         "attacker": 5,
@@ -1264,13 +1508,111 @@
       },
       "max_ticks": 600,
       "outcome": "Draw",
+      "owner_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 2400
+          },
+          "id": "visible-1",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-13",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1058
+          },
+          "id": "visible-14",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-15",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1188
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1183
+          },
+          "id": "visible-22",
+          "kind": "tower"
+        }
+      ],
       "termination_class": "timeout",
       "termination_reason": "time_limit",
       "time_limited": true,
       "visible_event_counts": {
-        "next.attack": 1542,
-        "next.death": 206,
-        "next.level_up": 10,
+        "next.attack": 1438,
+        "next.death": 201,
+        "next.level_up": 9,
         "next.observation_capture": 1,
         "next.skill_acquired": 4
       },
@@ -1284,19 +1626,7 @@
             "kind": "integer",
             "value": 1188
           },
-          "id": "visible-277",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_BOT_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1075
-          },
-          "id": "visible-396",
+          "id": "visible-300",
           "kind": "tower"
         },
         {
@@ -1306,9 +1636,21 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 1189
+            "value": 1183
           },
           "id": "visible-4",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1058
+          },
+          "id": "visible-432",
           "kind": "tower"
         }
       ]
@@ -1324,16 +1666,16 @@
       "attacker_final_heroes": [
         {
           "catalog_id": "F05",
-          "edge_progress": 104,
-          "edge_to": "A.MID.T2",
-          "hp": 300,
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 234,
           "level": 5,
           "maturity": 0,
-          "node": "A.MID.T1",
+          "node": "B.TOP.T2",
           "respawn_at": 0,
           "slot": 1,
-          "squad": "a:solo:45e10399b79f4b8a",
-          "xp_scaled": 50400
+          "squad": "a:solo:2bf82a1625c29ff4",
+          "xp_scaled": 100800
         },
         {
           "catalog_id": "R02",
@@ -1346,40 +1688,40 @@
           "respawn_at": 0,
           "slot": 2,
           "squad": "a:solo:4154b4bbd2eb6ce2",
-          "xp_scaled": 50400
+          "xp_scaled": 100800
         },
         {
           "catalog_id": "F06",
           "edge_progress": 0,
           "edge_to": "",
           "hp": 0,
-          "level": 6,
+          "level": 5,
           "maturity": 0,
           "node": "A.MID.T2",
-          "respawn_at": 622,
+          "respawn_at": 620,
           "slot": 3,
           "squad": "",
-          "xp_scaled": 252000
+          "xp_scaled": 226800
         },
         {
           "catalog_id": "R03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 48,
+          "hp": 50,
           "level": 6,
           "maturity": 0,
           "node": "B.BOT.T2",
           "respawn_at": 0,
           "slot": 4,
           "squad": "a:solo:b18f266c73b1cdec",
-          "xp_scaled": 75600
+          "xp_scaled": 100800
         },
         {
           "catalog_id": "R04",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 206,
-          "level": 2,
+          "hp": 234,
+          "level": 4,
           "maturity": 0,
           "node": "A.BOT.T2",
           "respawn_at": 0,
@@ -1402,8 +1744,8 @@
       ],
       "case_id": "mirrored-lane-defense-vs-jungle-push",
       "cu_by_side": {
-        "attacker": 120672,
-        "defender": 120192
+        "attacker": 120696,
+        "defender": 120216
       },
       "defender_catalog": [
         "F01",
@@ -1423,7 +1765,7 @@
         4,
         1
       ],
-      "final_state_digest": "4953a0844b056a3d06ee8f84c7264f054712c5ed0a9089f3f8a9fd0977663ad5",
+      "final_state_digest": "dd5c48165892643fe5d7502054fe39b0312a4882aa86987396465dd7b03f6706",
       "final_tick": 600,
       "hero_actions_by_side": {
         "attacker": 5,
@@ -1431,27 +1773,41 @@
       },
       "max_ticks": 600,
       "outcome": "Draw",
-      "termination_class": "timeout",
-      "termination_reason": "time_limit",
-      "time_limited": true,
-      "visible_event_counts": {
-        "next.attack": 1473,
-        "next.death": 212,
-        "next.level_up": 22,
-        "next.objective_destroyed": 1,
-        "next.skill_acquired": 8
-      },
-      "visible_structure_state": [
+      "owner_structure_state": [
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_MID_t2"
+            "value": "base.attacker"
           },
           "hp": {
             "kind": "integer",
-            "value": 0
+            "value": 2400
           },
-          "id": "visible-33",
+          "id": "visible-1",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-13",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-14",
           "kind": "tower"
         },
         {
@@ -1461,9 +1817,57 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 1192
+            "value": 1200
           },
-          "id": "visible-49",
+          "id": "visible-15",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 151
+          },
+          "id": "visible-391",
           "kind": "tower"
         },
         {
@@ -1473,9 +1877,9 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 602
+            "value": 791
           },
-          "id": "visible-533",
+          "id": "visible-411",
           "kind": "tower"
         },
         {
@@ -1487,19 +1891,19 @@
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-549",
+          "id": "visible-426",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_b_TOP_t2"
+            "value": "tower_b_TOP_t1"
           },
           "hp": {
             "kind": "integer",
-            "value": 135
+            "value": 1200
           },
-          "id": "visible-561",
+          "id": "visible-433",
           "kind": "tower"
         },
         {
@@ -1511,7 +1915,103 @@
             "kind": "integer",
             "value": 2400
           },
-          "id": "visible-566",
+          "id": "visible-444",
+          "kind": "base"
+        }
+      ],
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 1600,
+        "next.death": 225,
+        "next.level_up": 20,
+        "next.objective_destroyed": 1,
+        "next.skill_acquired": 9
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-43",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 151
+          },
+          "id": "visible-443",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 791
+          },
+          "id": "visible-469",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-483",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-493",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 2400
+          },
+          "id": "visible-500",
           "kind": "base"
         }
       ]
@@ -1529,66 +2029,66 @@
           "catalog_id": "F01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 51,
-          "level": 6,
+          "hp": 273,
+          "level": 4,
           "maturity": 0,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 1,
-          "squad": "a:solo:d84cd15920923979",
-          "xp_scaled": 848400
+          "squad": "a:solo:bb3b415cf8463894",
+          "xp_scaled": 61320
         },
         {
           "catalog_id": "F03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 34,
+          "hp": 236,
           "level": 6,
           "maturity": 0,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 2,
-          "squad": "a:solo:ee862b58893f5eec",
-          "xp_scaled": 1335600
+          "squad": "a:solo:847c260d1e1b03ab",
+          "xp_scaled": 1254120
         },
         {
           "catalog_id": "F06",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 0,
+          "hp": 152,
           "level": 4,
           "maturity": 0,
-          "node": "B.BOT.T2",
-          "respawn_at": 607,
+          "node": "B.BASE",
+          "respawn_at": 0,
           "slot": 3,
-          "squad": "",
-          "xp_scaled": 84000
+          "squad": "a:solo:b6b5422aa91bd75a",
+          "xp_scaled": 178920
         },
         {
           "catalog_id": "R02",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 230,
-          "level": 6,
+          "hp": 217,
+          "level": 5,
           "maturity": 0,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 4,
-          "squad": "a:solo:dc10fd3ac909d058",
-          "xp_scaled": 394800
+          "squad": "a:solo:3ab46d173e5bd58b",
+          "xp_scaled": 157920
         },
         {
           "catalog_id": "R04",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 238,
-          "level": 4,
+          "hp": 121,
+          "level": 5,
           "maturity": 0,
-          "node": "A.BOT.T1",
+          "node": "B.BASE",
           "respawn_at": 0,
           "slot": 5,
-          "squad": "a:solo:b180b58f81bbb71f",
-          "xp_scaled": 109200
+          "squad": "a:solo:cd3f07827d8e09e7",
+          "xp_scaled": 61320
         }
       ],
       "attacker_opening_destinations": [
@@ -1607,8 +2107,8 @@
       ],
       "case_id": "base-assault-solos-vs-quintet",
       "cu_by_side": {
-        "attacker": 120912,
-        "defender": 120624
+        "attacker": 114248,
+        "defender": 114080
       },
       "defender_catalog": [
         "F02",
@@ -1627,72 +2127,26 @@
       "defender_partition": [
         5
       ],
-      "final_state_digest": "42bad6c6ee19996ecfda30136f15ad45b8ecf050d147d7fb8ff05459cde0bb75",
-      "final_tick": 600,
+      "final_state_digest": "36cd81597e8ab706bf193065a11e64e6dc8559b3f7db57f7ceaf47193ba3007f",
+      "final_tick": 568,
       "hero_actions_by_side": {
         "attacker": 5,
         "defender": 5
       },
       "max_ticks": 600,
-      "outcome": "Draw",
-      "termination_class": "timeout",
-      "termination_reason": "time_limit",
-      "time_limited": true,
-      "visible_event_counts": {
-        "next.attack": 1777,
-        "next.death": 241,
-        "next.level_up": 30,
-        "next.objective_destroyed": 3,
-        "next.skill_acquired": 13
-      },
-      "visible_structure_state": [
+      "outcome": "DefenderVictory",
+      "owner_structure_state": [
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_TOP_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1188
-          },
-          "id": "visible-420",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_MID_t1"
+            "value": "base.attacker"
           },
           "hp": {
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-558",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "base.defender"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1881
-          },
-          "id": "visible-563",
+          "id": "visible-1",
           "kind": "base"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_BOT_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 0
-          },
-          "id": "visible-606",
-          "kind": "tower"
         },
         {
           "catalog_id": {
@@ -1701,9 +2155,81 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 828
+            "value": 1200
           },
-          "id": "visible-612",
+          "id": "visible-13",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 241
+          },
+          "id": "visible-14",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-15",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1198
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-259",
           "kind": "tower"
         },
         {
@@ -1713,9 +2239,33 @@
           },
           "hp": {
             "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-262",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 209
+          },
+          "id": "visible-327",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
             "value": 1200
           },
-          "id": "visible-615",
+          "id": "visible-342",
           "kind": "tower"
         },
         {
@@ -1727,7 +2277,79 @@
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-616",
+          "id": "visible-343",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 396
+          },
+          "id": "visible-391",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1190
+          },
+          "id": "visible-392",
+          "kind": "tower"
+        }
+      ],
+      "termination_class": "victory",
+      "termination_reason": "base_destroyed",
+      "time_limited": false,
+      "visible_event_counts": {
+        "next.attack": 1824,
+        "next.death": 203,
+        "next.level_up": 33,
+        "next.objective_destroyed": 5,
+        "next.skill_acquired": 15
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-304",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-314",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-337",
           "kind": "tower"
         },
         {
@@ -1737,10 +2359,70 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 2400
+            "value": 0
           },
-          "id": "visible-618",
+          "id": "visible-373",
           "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 209
+          },
+          "id": "visible-399",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-417",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-418",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-427",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-428",
+          "kind": "tower"
         },
         {
           "catalog_id": {
@@ -1749,9 +2431,33 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 0
+            "value": 396
           },
-          "id": "visible-619",
+          "id": "visible-498",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1190
+          },
+          "id": "visible-499",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 241
+          },
+          "id": "visible-543",
           "kind": "tower"
         }
       ]
@@ -1769,66 +2475,66 @@
           "catalog_id": "F02",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 98,
-          "level": 3,
+          "hp": 85,
+          "level": 4,
           "maturity": 40,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 1,
           "squad": "attacker:squad-0",
-          "xp_scaled": 226800
+          "xp_scaled": 113400
         },
         {
           "catalog_id": "F04",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 225,
-          "level": 3,
+          "hp": 240,
+          "level": 4,
           "maturity": 40,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 2,
           "squad": "attacker:squad-0",
-          "xp_scaled": 226800
+          "xp_scaled": 113400
         },
         {
           "catalog_id": "R01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 208,
-          "level": 3,
+          "hp": 222,
+          "level": 4,
           "maturity": 40,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 3,
           "squad": "attacker:squad-0",
-          "xp_scaled": 226800
+          "xp_scaled": 113400
         },
         {
           "catalog_id": "R03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 198,
-          "level": 3,
+          "hp": 212,
+          "level": 4,
           "maturity": 40,
           "node": "B.BASE",
           "respawn_at": 0,
           "slot": 4,
           "squad": "attacker:squad-0",
-          "xp_scaled": 226800
+          "xp_scaled": 113400
         },
         {
           "catalog_id": "R05",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 190,
+          "hp": 210,
           "level": 3,
           "maturity": 0,
-          "node": "A.BOT.T2",
+          "node": "A.BOT.BANK",
           "respawn_at": 0,
           "slot": 5,
-          "squad": "a:solo:d394ec6eb2163407",
-          "xp_scaled": 0
+          "squad": "a:solo:e0d785400c95eb72",
+          "xp_scaled": 50400
         }
       ],
       "attacker_opening_destinations": [
@@ -1843,8 +2549,8 @@
       ],
       "case_id": "base-assault-quintet-vs-solos-mirrored",
       "cu_by_side": {
-        "attacker": 83640,
-        "defender": 83832
+        "attacker": 89616,
+        "defender": 89880
       },
       "defender_catalog": [
         "F01",
@@ -1867,25 +2573,27 @@
         1,
         1
       ],
-      "final_state_digest": "138db86db8385002288fcd4863b087ffdc74218377a2bf7781d251fe68155264",
-      "final_tick": 417,
+      "final_state_digest": "bb6b0a8afed83b57569064b6d9591306091b386c49060f3f0609900773c1d2b0",
+      "final_tick": 447,
       "hero_actions_by_side": {
         "attacker": 5,
         "defender": 5
       },
       "max_ticks": 600,
       "outcome": "AttackerVictory",
-      "termination_class": "victory",
-      "termination_reason": "base_destroyed",
-      "time_limited": false,
-      "visible_event_counts": {
-        "next.attack": 1639,
-        "next.death": 111,
-        "next.level_up": 10,
-        "next.objective_destroyed": 5,
-        "next.skill_acquired": 9
-      },
-      "visible_structure_state": [
+      "owner_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 497
+          },
+          "id": "visible-1",
+          "kind": "base"
+        },
         {
           "catalog_id": {
             "kind": "string",
@@ -1895,7 +2603,7 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-101",
+          "id": "visible-100",
           "kind": "tower"
         },
         {
@@ -1907,68 +2615,8 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-105",
+          "id": "visible-117",
           "kind": "base"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_MID_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-213",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_TOP_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-214",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "base.attacker"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1258
-          },
-          "id": "visible-239",
-          "kind": "base"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_MID_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-291",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_TOP_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1084
-          },
-          "id": "visible-292",
-          "kind": "tower"
         },
         {
           "catalog_id": {
@@ -1979,19 +2627,7 @@
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-353",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_TOP_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-354",
+          "id": "visible-13",
           "kind": "tower"
         },
         {
@@ -2001,9 +2637,21 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 781
+            "value": 1200
           },
-          "id": "visible-402",
+          "id": "visible-14",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-15",
           "kind": "tower"
         },
         {
@@ -2015,7 +2663,223 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-403",
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 803
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-233",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-234",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-301",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1176
+          },
+          "id": "visible-302",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-68",
+          "kind": "tower"
+        }
+      ],
+      "termination_class": "victory",
+      "termination_reason": "base_destroyed",
+      "time_limited": false,
+      "visible_event_counts": {
+        "next.attack": 1627,
+        "next.death": 133,
+        "next.level_up": 15,
+        "next.objective_destroyed": 5,
+        "next.skill_acquired": 12
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-118",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-138",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-272",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-273",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 497
+          },
+          "id": "visible-287",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-373",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1176
+          },
+          "id": "visible-374",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-378",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-379",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-436",
           "kind": "tower"
         },
         {
@@ -2039,7 +2903,7 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-92",
+          "id": "visible-86",
           "kind": "tower"
         }
       ]
@@ -2057,66 +2921,66 @@
           "catalog_id": "F03",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 310,
+          "hp": 69,
           "level": 6,
           "maturity": 0,
-          "node": "B.MID.BANK",
+          "node": "B.BASE",
           "respawn_at": 0,
           "slot": 1,
-          "squad": "a:solo:dc02905dd713c057",
-          "xp_scaled": 896280
+          "squad": "a:solo:f533f07a071be6b0",
+          "xp_scaled": 478800
         },
         {
           "catalog_id": "F04",
-          "edge_progress": 96,
-          "edge_to": "B.BOT.T1",
-          "hp": 22,
+          "edge_progress": 0,
+          "edge_to": "",
+          "hp": 223,
           "level": 6,
           "maturity": 0,
-          "node": "B.BOT.T2",
+          "node": "A.BOT.T2",
           "respawn_at": 0,
           "slot": 2,
-          "squad": "a:solo:8356160ad95dff2c",
-          "xp_scaled": 1039080
+          "squad": "a:solo:bc5f1ed5a64bf57d",
+          "xp_scaled": 1234800
         },
         {
           "catalog_id": "R01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 236,
-          "level": 5,
+          "hp": 250,
+          "level": 6,
           "maturity": 0,
-          "node": "A.BASE",
+          "node": "B.BASE",
           "respawn_at": 0,
           "slot": 3,
-          "squad": "a:solo:c57eef2909413a4d",
-          "xp_scaled": 64680
+          "squad": "a:solo:40edf3498ef8b0aa",
+          "xp_scaled": 327600
         },
         {
           "catalog_id": "R02",
-          "edge_progress": 54,
-          "edge_to": "B.BOT.T1",
+          "edge_progress": 0,
+          "edge_to": "",
           "hp": 0,
           "level": 6,
           "maturity": 0,
-          "node": "B.BOT.T2",
-          "respawn_at": 612,
+          "node": "A.BOT.T2",
+          "respawn_at": 622,
           "slot": 4,
           "squad": "",
-          "xp_scaled": 152880
+          "xp_scaled": 352800
         },
         {
           "catalog_id": "R05",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 225,
-          "level": 4,
+          "hp": 0,
+          "level": 6,
           "maturity": 0,
-          "node": "A.MID.T2",
-          "respawn_at": 0,
+          "node": "A.BOT.T2",
+          "respawn_at": 606,
           "slot": 5,
-          "squad": "a:solo:217f12a25891e3f5",
-          "xp_scaled": 165480
+          "squad": "",
+          "xp_scaled": 25200
         }
       ],
       "attacker_opening_destinations": [
@@ -2133,8 +2997,8 @@
       ],
       "case_id": "base-assault-duos-vs-trio-duo",
       "cu_by_side": {
-        "attacker": 120720,
-        "defender": 120624
+        "attacker": 119248,
+        "defender": 119224
       },
       "defender_catalog": [
         "F01",
@@ -2154,47 +3018,61 @@
         3,
         2
       ],
-      "final_state_digest": "2dfab2dc0c4a2c03519fc676c90a8b36ce4017ca3b324962599d82bd00239b55",
-      "final_tick": 600,
+      "final_state_digest": "18047012d11a2ce4ba653ed7188f12314b7c90a9c3a56e0bc6998b33af8c4d5a",
+      "final_tick": 593,
       "hero_actions_by_side": {
         "attacker": 5,
         "defender": 5
       },
       "max_ticks": 600,
-      "outcome": "Draw",
-      "termination_class": "timeout",
-      "termination_reason": "time_limit",
-      "time_limited": true,
-      "visible_event_counts": {
-        "next.attack": 2018,
-        "next.death": 247,
-        "next.level_up": 39,
-        "next.objective_destroyed": 1,
-        "next.skill_acquired": 14
-      },
-      "visible_structure_state": [
+      "outcome": "AttackerVictory",
+      "owner_structure_state": [
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_b_BOT_t2"
+            "value": "base.attacker"
           },
           "hp": {
             "kind": "integer",
-            "value": 0
+            "value": 2400
           },
-          "id": "visible-345",
+          "id": "visible-1",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-13",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_b_BOT_t1"
+            "value": "tower_a_BOT_t2"
           },
           "hp": {
             "kind": "integer",
-            "value": 159
+            "value": 808
           },
-          "id": "visible-390",
+          "id": "visible-14",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-15",
           "kind": "tower"
         },
         {
@@ -2204,21 +3082,45 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 486
+            "value": 896
           },
-          "id": "visible-503",
+          "id": "visible-16",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_b_TOP_t2"
+            "value": "tower_a_TOP_t1"
           },
           "hp": {
             "kind": "integer",
-            "value": 1199
+            "value": 1200
           },
-          "id": "visible-506",
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1189
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-335",
           "kind": "tower"
         },
         {
@@ -2228,10 +3130,46 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 2400
+            "value": 0
           },
-          "id": "visible-513",
+          "id": "visible-340",
           "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-366",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-367",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1062
+          },
+          "id": "visible-393",
+          "kind": "tower"
         },
         {
           "catalog_id": {
@@ -2240,9 +3178,130 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 598
+            "value": 0
           },
-          "id": "visible-541",
+          "id": "visible-429",
+          "kind": "tower"
+        }
+      ],
+      "termination_class": "victory",
+      "termination_reason": "base_destroyed",
+      "time_limited": false,
+      "visible_event_counts": {
+        "next.attack": 1920,
+        "next.death": 237,
+        "next.level_up": 43,
+        "next.objective_destroyed": 3,
+        "next.observation_capture": 1,
+        "next.skill_acquired": 17
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 896
+          },
+          "id": "visible-243",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 808
+          },
+          "id": "visible-381",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-388",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-394",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.defender"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-400",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-436",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-437",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1062
+          },
+          "id": "visible-469",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-504",
           "kind": "tower"
         }
       ]
@@ -2260,27 +3319,27 @@
           "catalog_id": "F01",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 223,
-          "level": 3,
+          "hp": 0,
+          "level": 6,
           "maturity": 0,
-          "node": "B.BOT.T2",
-          "respawn_at": 0,
+          "node": "B.TOP.T2",
+          "respawn_at": 632,
           "slot": 1,
-          "squad": "a:solo:85f83f5b6eea6c30",
-          "xp_scaled": 190680
+          "squad": "",
+          "xp_scaled": 260400
         },
         {
           "catalog_id": "F02",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 143,
+          "hp": 142,
           "level": 6,
           "maturity": 0,
           "node": "B.BOT.T2",
           "respawn_at": 0,
           "slot": 2,
-          "squad": "a:solo:8b8b27957f9a36ef",
-          "xp_scaled": 425880
+          "squad": "a:solo:b68f5e8edac6537f",
+          "xp_scaled": 109200
         },
         {
           "catalog_id": "F05",
@@ -2289,37 +3348,37 @@
           "hp": 301,
           "level": 5,
           "maturity": 0,
-          "node": "B.BOT.T2",
+          "node": "A.BOT.T2",
           "respawn_at": 0,
           "slot": 3,
-          "squad": "a:solo:cd5be93c617a3781",
-          "xp_scaled": 10080
+          "squad": "a:solo:217f0ca25891d9c3",
+          "xp_scaled": 235200
         },
         {
           "catalog_id": "R04",
           "edge_progress": 0,
           "edge_to": "",
-          "hp": 21,
-          "level": 3,
+          "hp": 0,
+          "level": 6,
           "maturity": 0,
-          "node": "B.BOT.T2",
-          "respawn_at": 0,
+          "node": "A.MID.T1",
+          "respawn_at": 608,
           "slot": 4,
-          "squad": "a:solo:435f79215afd49f4",
-          "xp_scaled": 64680
+          "squad": "",
+          "xp_scaled": 8400
         },
         {
           "catalog_id": "R06",
           "edge_progress": 0,
           "edge_to": "",
           "hp": 0,
-          "level": 4,
+          "level": 6,
           "maturity": 0,
           "node": "B.BOT.T2",
-          "respawn_at": 476,
+          "respawn_at": 630,
           "slot": 5,
           "squad": "",
-          "xp_scaled": 165480
+          "xp_scaled": 798000
         }
       ],
       "attacker_opening_destinations": [
@@ -2335,8 +3394,8 @@
       ],
       "case_id": "base-assault-trio-duo-vs-duos-mirrored",
       "cu_by_side": {
-        "attacker": 91704,
-        "defender": 91584
+        "attacker": 120648,
+        "defender": 120576
       },
       "defender_catalog": [
         "F03",
@@ -2357,61 +3416,15 @@
         2,
         1
       ],
-      "final_state_digest": "d7543e6ead56637ead9d9de2e4c8b9459f8d15ad17146962e0dc921bee0ad75e",
-      "final_tick": 456,
+      "final_state_digest": "03aa3b1051cf4eaf5c0b7a314858d30c8bf8f55ef079b1f37d0818ddb16ec65c",
+      "final_tick": 600,
       "hero_actions_by_side": {
         "attacker": 5,
         "defender": 5
       },
       "max_ticks": 600,
-      "outcome": "DefenderVictory",
-      "termination_class": "victory",
-      "termination_reason": "base_destroyed",
-      "time_limited": false,
-      "visible_event_counts": {
-        "next.attack": 1439,
-        "next.death": 175,
-        "next.level_up": 28,
-        "next.objective_destroyed": 3,
-        "next.skill_acquired": 15
-      },
-      "visible_structure_state": [
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_BOT_t2"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 551
-          },
-          "id": "visible-199",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_b_BOT_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 1200
-          },
-          "id": "visible-202",
-          "kind": "tower"
-        },
-        {
-          "catalog_id": {
-            "kind": "string",
-            "value": "tower_a_MID_t1"
-          },
-          "hp": {
-            "kind": "integer",
-            "value": 0
-          },
-          "id": "visible-255",
-          "kind": "tower"
-        },
+      "outcome": "Draw",
+      "owner_structure_state": [
         {
           "catalog_id": {
             "kind": "string",
@@ -2419,9 +3432,9 @@
           },
           "hp": {
             "kind": "integer",
-            "value": 0
+            "value": 1260
           },
-          "id": "visible-301",
+          "id": "visible-1",
           "kind": "base"
         },
         {
@@ -2433,31 +3446,31 @@
             "kind": "integer",
             "value": 1200
           },
-          "id": "visible-352",
+          "id": "visible-13",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_TOP_t1"
+            "value": "tower_a_BOT_t2"
           },
           "hp": {
             "kind": "integer",
-            "value": 1200
+            "value": 858
           },
-          "id": "visible-353",
+          "id": "visible-14",
           "kind": "tower"
         },
         {
           "catalog_id": {
             "kind": "string",
-            "value": "tower_a_TOP_t2"
+            "value": "tower_a_MID_t1"
           },
           "hp": {
             "kind": "integer",
-            "value": 1183
+            "value": 0
           },
-          "id": "visible-361",
+          "id": "visible-15",
           "kind": "tower"
         },
         {
@@ -2469,32 +3482,193 @@
             "kind": "integer",
             "value": 0
           },
-          "id": "visible-390",
+          "id": "visible-16",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-17",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1041
+          },
+          "id": "visible-18",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 839
+          },
+          "id": "visible-299",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-306",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1078
+          },
+          "id": "visible-83",
+          "kind": "tower"
+        }
+      ],
+      "termination_class": "timeout",
+      "termination_reason": "time_limit",
+      "time_limited": true,
+      "visible_event_counts": {
+        "next.attack": 1898,
+        "next.death": 246,
+        "next.level_up": 45,
+        "next.objective_destroyed": 2,
+        "next.observation_capture": 1,
+        "next.skill_acquired": 18
+      },
+      "visible_structure_state": [
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-307",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 839
+          },
+          "id": "visible-361",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-372",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "base.attacker"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1260
+          },
+          "id": "visible-397",
+          "kind": "base"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_BOT_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-474",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t1"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1200
+          },
+          "id": "visible-475",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 0
+          },
+          "id": "visible-502",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_a_TOP_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1041
+          },
+          "id": "visible-504",
+          "kind": "tower"
+        },
+        {
+          "catalog_id": {
+            "kind": "string",
+            "value": "tower_b_MID_t2"
+          },
+          "hp": {
+            "kind": "integer",
+            "value": 1078
+          },
+          "id": "visible-79",
           "kind": "tower"
         }
       ]
     }
   ],
-  "limits": [
-    "The seven initial partition cases run for one tick; eight lineup and objective cases run to the 600-tick ruleset cap or base destruction with five opening move intents per side.",
-    "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
-    "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
-    "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
-    "The eight full-length strategic cases report their observed outcomes; 600-tick draws are time-limited observations. A separate controlled real-Enbu test verifies base destruction in both orientations."
-  ],
-  "mechanics_version": {
-    "major": 2,
-    "minor": 0,
-    "patch": 0
-  },
-  "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
-  "ruleset_id": "senkei.next",
-  "ruleset_version": {
-    "major": 2,
-    "minor": 0,
-    "patch": 0
-  },
-  "schema": "senkei-next-balance-report/v1",
   "fixed_regression": {
     "case_ids": [
       "partition-1-1-1-1-1",
@@ -2546,9 +3720,29 @@
       "jungle-camp-respawn",
       "death-departure-solo-respawn"
     ],
-    "same_input_repeat_equal": true,
-    "purpose": "Pinned behavior and determinism regression evidence; repeated identical runs do not add matchup samples."
+    "purpose": "Pinned behavior and determinism regression evidence; repeated identical runs do not add matchup samples.",
+    "same_input_repeat_equal": true
   },
+  "limits": [
+    "The seven initial partition cases run for one tick; eight lineup and objective cases run to the 600-tick ruleset cap or base destruction with five opening move intents per side.",
+    "The same deterministic setup is repeated only for a reproducibility assertion; it is not an additional balance sample.",
+    "The report is a mechanical and scenario observation set, not a win-rate or general balance estimate.",
+    "The death test uses a versioned test-only package derivative with one fragile Hero; it does not describe canonical combat tuning.",
+    "The eight full-length strategic cases report their observed outcomes; 600-tick draws are time-limited observations. A separate controlled real-Enbu test verifies base destruction in both orientations."
+  ],
+  "mechanics_version": {
+    "major": 2,
+    "minor": 0,
+    "patch": 0
+  },
+  "package_digest": "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f",
+  "ruleset_id": "senkei.next",
+  "ruleset_version": {
+    "major": 2,
+    "minor": 0,
+    "patch": 0
+  },
+  "schema": "senkei-next-balance-report/v1",
   "tactical_effectiveness_matrix": {
     "case_count": 8,
     "cases": [
@@ -2565,43 +3759,17 @@
             "catalog_id": "F01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 0,
-            "level": 6,
+            "hp": 212,
+            "level": 5,
             "maturity": 0,
             "node": "B.TOP.T1",
-            "respawn_at": 618,
+            "respawn_at": 0,
             "slot": 1,
-            "squad": "",
-            "xp_scaled": 453600
+            "squad": "attacker:squad-0",
+            "xp_scaled": 218400
           },
           {
             "catalog_id": "R01",
-            "edge_progress": 0,
-            "edge_to": "",
-            "hp": 250,
-            "level": 6,
-            "maturity": 0,
-            "node": "A.BASE",
-            "respawn_at": 0,
-            "slot": 2,
-            "squad": "a:solo:45e10299b79f49d7",
-            "xp_scaled": 831600
-          },
-          {
-            "catalog_id": "F02",
-            "edge_progress": 0,
-            "edge_to": "",
-            "hp": 226,
-            "level": 6,
-            "maturity": 0,
-            "node": "B.BOT.T2",
-            "respawn_at": 0,
-            "slot": 3,
-            "squad": "a:solo:32c516cc36280d36",
-            "xp_scaled": 403200
-          },
-          {
-            "catalog_id": "R02",
             "edge_progress": 0,
             "edge_to": "",
             "hp": 0,
@@ -2609,22 +3777,48 @@
             "maturity": 0,
             "node": "N.MID.OBS",
             "respawn_at": 645,
-            "slot": 4,
+            "slot": 2,
             "squad": "",
-            "xp_scaled": 25200
+            "xp_scaled": 579600
+          },
+          {
+            "catalog_id": "F02",
+            "edge_progress": 0,
+            "edge_to": "",
+            "hp": 131,
+            "level": 6,
+            "maturity": 0,
+            "node": "B.BOT.T1",
+            "respawn_at": 0,
+            "slot": 3,
+            "squad": "a:solo:0cf6e0138c8a46fb",
+            "xp_scaled": 302400
+          },
+          {
+            "catalog_id": "R02",
+            "edge_progress": 0,
+            "edge_to": "",
+            "hp": 173,
+            "level": 6,
+            "maturity": 0,
+            "node": "B.BASE",
+            "respawn_at": 0,
+            "slot": 4,
+            "squad": "a:solo:73db03b6e9ae42a6",
+            "xp_scaled": 42000
           },
           {
             "catalog_id": "F03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 307,
-            "level": 6,
+            "hp": 104,
+            "level": 5,
             "maturity": 0,
             "node": "B.TOP.T1",
             "respawn_at": 0,
             "slot": 5,
-            "squad": "a:solo:50b8fedca05a8e26",
-            "xp_scaled": 50400
+            "squad": "a:solo:51b17dcc6aa9e8a2",
+            "xp_scaled": 168000
           }
         ],
         "attacker_opening_destinations": [
@@ -2643,8 +3837,8 @@
         ],
         "case_id": "balanced-solos-vs-quintet",
         "cu_by_side": {
-          "attacker": 120720,
-          "defender": 120336
+          "attacker": 120504,
+          "defender": 120192
         },
         "defender_catalog": [
           "F04",
@@ -2663,7 +3857,7 @@
         "defender_partition": [
           5
         ],
-        "final_state_digest": "2e5a0d32a35d8629a03418425ab8ad80fbcb2e380999ece2e9d3585c886be00a",
+        "final_state_digest": "d1d44ad965d81b023ed883601dffe643d8b5204b0a8440d383eee10fcd73c89c",
         "final_tick": 600,
         "hero_actions_by_side": {
           "attacker": 5,
@@ -2671,16 +3865,174 @@
         },
         "max_ticks": 600,
         "outcome": "Draw",
+        "owner_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 2400
+            },
+            "id": "visible-1",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-13",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-14",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-15",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1185
+            },
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1079
+            },
+            "id": "visible-180",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-204",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-250",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-32",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-37",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-447",
+            "kind": "tower"
+          }
+        ],
         "termination_class": "timeout",
         "termination_reason": "time_limit",
         "time_limited": true,
         "visible_event_counts": {
-          "next.attack": 1486,
-          "next.death": 233,
-          "next.level_up": 38,
-          "next.objective_destroyed": 2,
+          "next.attack": 1502,
+          "next.death": 212,
+          "next.level_up": 29,
+          "next.objective_destroyed": 4,
           "next.observation_capture": 1,
-          "next.skill_acquired": 14
+          "next.skill_acquired": 16
         },
         "visible_structure_state": [
           {
@@ -2690,7 +4042,7 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 1189
+              "value": 1185
             },
             "id": "visible-11",
             "kind": "tower"
@@ -2710,13 +4062,25 @@
           {
             "catalog_id": {
               "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1079
+            },
+            "id": "visible-193",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
               "value": "tower_b_BOT_t2"
             },
             "hp": {
               "kind": "integer",
-              "value": 791
+              "value": 0
             },
-            "id": "visible-499",
+            "id": "visible-222",
             "kind": "tower"
           },
           {
@@ -2726,21 +4090,9 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 1200
+              "value": 0
             },
-            "id": "visible-532",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_MID_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-535",
+            "id": "visible-270",
             "kind": "tower"
           },
           {
@@ -2752,20 +4104,20 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-570",
+            "id": "visible-30",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "base.defender"
+              "value": "tower_b_MID_t1"
             },
             "hp": {
               "kind": "integer",
-              "value": 2393
+              "value": 1200
             },
-            "id": "visible-576",
-            "kind": "base"
+            "id": "visible-487",
+            "kind": "tower"
           }
         ]
       },
@@ -2786,10 +4138,10 @@
             "level": 6,
             "maturity": 0,
             "node": "A.TOP.T1",
-            "respawn_at": 608,
+            "respawn_at": 640,
             "slot": 1,
             "squad": "",
-            "xp_scaled": 504000
+            "xp_scaled": 176400
           },
           {
             "catalog_id": "R02",
@@ -2799,49 +4151,49 @@
             "level": 6,
             "maturity": 0,
             "node": "A.TOP.T1",
-            "respawn_at": 620,
+            "respawn_at": 627,
             "slot": 2,
             "squad": "",
-            "xp_scaled": 856800
+            "xp_scaled": 579600
           },
           {
             "catalog_id": "R03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 146,
+            "hp": 240,
             "level": 6,
             "maturity": 0,
             "node": "A.MID.T2",
             "respawn_at": 0,
             "slot": 3,
-            "squad": "a:solo:154edbe170253365",
-            "xp_scaled": 378000
+            "squad": "a:solo:18e094b232822568",
+            "xp_scaled": 504000
           },
           {
             "catalog_id": "R04",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 60,
+            "hp": 20,
             "level": 6,
             "maturity": 0,
             "node": "A.MID.T2",
             "respawn_at": 0,
             "slot": 4,
-            "squad": "a:solo:eb4c56c3db0721d5",
-            "xp_scaled": 1688400
+            "squad": "attacker:squad-1",
+            "xp_scaled": 1209600
           },
           {
             "catalog_id": "R05",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 246,
+            "hp": 78,
             "level": 6,
             "maturity": 0,
             "node": "A.BOT.T2",
             "respawn_at": 0,
             "slot": 5,
             "squad": "attacker:squad-2",
-            "xp_scaled": 453600
+            "xp_scaled": 856800
           }
         ],
         "attacker_opening_destinations": [
@@ -2858,8 +4210,8 @@
         ],
         "case_id": "split-2-2-1-vs-3-2-role-mix",
         "cu_by_side": {
-          "attacker": 120624,
-          "defender": 120672
+          "attacker": 120648,
+          "defender": 120576
         },
         "defender_catalog": [
           "F01",
@@ -2879,7 +4231,7 @@
           3,
           2
         ],
-        "final_state_digest": "6ee91ea7fd8e562c2ae6ec719005b9e44e6dec0910ace0bba7ad017893b433bc",
+        "final_state_digest": "34059af7fc0fffae3a601af1eb890da3878505afda200459ecb06bdfd5f4178f",
         "final_tick": 600,
         "hero_actions_by_side": {
           "attacker": 5,
@@ -2887,41 +4239,7 @@
         },
         "max_ticks": 600,
         "outcome": "Draw",
-        "termination_class": "timeout",
-        "termination_reason": "time_limit",
-        "time_limited": true,
-        "visible_event_counts": {
-          "next.attack": 1720,
-          "next.death": 257,
-          "next.level_up": 39,
-          "next.objective_destroyed": 2,
-          "next.skill_acquired": 18
-        },
-        "visible_structure_state": [
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_TOP_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 0
-            },
-            "id": "visible-190",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_TOP_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 0
-            },
-            "id": "visible-204",
-            "kind": "tower"
-          },
+        "owner_structure_state": [
           {
             "catalog_id": {
               "kind": "string",
@@ -2929,33 +4247,33 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 2395
+              "value": 2381
             },
-            "id": "visible-263",
+            "id": "visible-1",
             "kind": "base"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_MID_t2"
+              "value": "tower_a_BOT_t1"
             },
             "hp": {
               "kind": "integer",
-              "value": 1121
+              "value": 1200
             },
-            "id": "visible-363",
+            "id": "visible-13",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_b_BOT_t2"
+              "value": "tower_a_BOT_t2"
             },
             "hp": {
               "kind": "integer",
-              "value": 1191
+              "value": 1200
             },
-            "id": "visible-364",
+            "id": "visible-14",
             "kind": "tower"
           },
           {
@@ -2967,19 +4285,139 @@
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-383",
+            "id": "visible-15",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_BOT_t1"
+              "value": "tower_a_MID_t2"
             },
             "hp": {
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-453",
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-360",
+            "kind": "tower"
+          }
+        ],
+        "termination_class": "timeout",
+        "termination_reason": "time_limit",
+        "time_limited": true,
+        "visible_event_counts": {
+          "next.attack": 1651,
+          "next.death": 248,
+          "next.level_up": 37,
+          "next.objective_destroyed": 2,
+          "next.skill_acquired": 17
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-140",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-158",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 2381
+            },
+            "id": "visible-208",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-366",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-435",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-440",
             "kind": "tower"
           }
         ]
@@ -3049,14 +4487,14 @@
             "catalog_id": "R01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 215,
+            "hp": 250,
             "level": 6,
             "maturity": 0,
             "node": "N.MID.OBS",
             "respawn_at": 0,
             "slot": 5,
             "squad": "attacker:squad-1",
-            "xp_scaled": 655200
+            "xp_scaled": 756000
           }
         ],
         "attacker_opening_destinations": [
@@ -3094,7 +4532,7 @@
           2,
           1
         ],
-        "final_state_digest": "d6ef2436f3deb68ec6aa48943d828f922f9da0b4cf95cdb8c3151c56b288de2d",
+        "final_state_digest": "fa9e894e9d215029b99b520502bd993ee629122193893875308b4f194f21481b",
         "final_tick": 600,
         "hero_actions_by_side": {
           "attacker": 5,
@@ -3102,13 +4540,111 @@
         },
         "max_ticks": 600,
         "outcome": "Draw",
+        "owner_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 2400
+            },
+            "id": "visible-1",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-13",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1058
+            },
+            "id": "visible-14",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-15",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1188
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1183
+            },
+            "id": "visible-22",
+            "kind": "tower"
+          }
+        ],
         "termination_class": "timeout",
         "termination_reason": "time_limit",
         "time_limited": true,
         "visible_event_counts": {
-          "next.attack": 1542,
-          "next.death": 206,
-          "next.level_up": 10,
+          "next.attack": 1438,
+          "next.death": 201,
+          "next.level_up": 9,
           "next.observation_capture": 1,
           "next.skill_acquired": 4
         },
@@ -3122,19 +4658,7 @@
               "kind": "integer",
               "value": 1188
             },
-            "id": "visible-277",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_BOT_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1075
-            },
-            "id": "visible-396",
+            "id": "visible-300",
             "kind": "tower"
           },
           {
@@ -3144,9 +4668,21 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 1189
+              "value": 1183
             },
             "id": "visible-4",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1058
+            },
+            "id": "visible-432",
             "kind": "tower"
           }
         ]
@@ -3162,16 +4698,16 @@
         "attacker_final_heroes": [
           {
             "catalog_id": "F05",
-            "edge_progress": 104,
-            "edge_to": "A.MID.T2",
-            "hp": 300,
+            "edge_progress": 0,
+            "edge_to": "",
+            "hp": 234,
             "level": 5,
             "maturity": 0,
-            "node": "A.MID.T1",
+            "node": "B.TOP.T2",
             "respawn_at": 0,
             "slot": 1,
-            "squad": "a:solo:45e10399b79f4b8a",
-            "xp_scaled": 50400
+            "squad": "a:solo:2bf82a1625c29ff4",
+            "xp_scaled": 100800
           },
           {
             "catalog_id": "R02",
@@ -3184,40 +4720,40 @@
             "respawn_at": 0,
             "slot": 2,
             "squad": "a:solo:4154b4bbd2eb6ce2",
-            "xp_scaled": 50400
+            "xp_scaled": 100800
           },
           {
             "catalog_id": "F06",
             "edge_progress": 0,
             "edge_to": "",
             "hp": 0,
-            "level": 6,
+            "level": 5,
             "maturity": 0,
             "node": "A.MID.T2",
-            "respawn_at": 622,
+            "respawn_at": 620,
             "slot": 3,
             "squad": "",
-            "xp_scaled": 252000
+            "xp_scaled": 226800
           },
           {
             "catalog_id": "R03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 48,
+            "hp": 50,
             "level": 6,
             "maturity": 0,
             "node": "B.BOT.T2",
             "respawn_at": 0,
             "slot": 4,
             "squad": "a:solo:b18f266c73b1cdec",
-            "xp_scaled": 75600
+            "xp_scaled": 100800
           },
           {
             "catalog_id": "R04",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 206,
-            "level": 2,
+            "hp": 234,
+            "level": 4,
             "maturity": 0,
             "node": "A.BOT.T2",
             "respawn_at": 0,
@@ -3240,8 +4776,8 @@
         ],
         "case_id": "mirrored-lane-defense-vs-jungle-push",
         "cu_by_side": {
-          "attacker": 120672,
-          "defender": 120192
+          "attacker": 120696,
+          "defender": 120216
         },
         "defender_catalog": [
           "F01",
@@ -3261,7 +4797,7 @@
           4,
           1
         ],
-        "final_state_digest": "4953a0844b056a3d06ee8f84c7264f054712c5ed0a9089f3f8a9fd0977663ad5",
+        "final_state_digest": "dd5c48165892643fe5d7502054fe39b0312a4882aa86987396465dd7b03f6706",
         "final_tick": 600,
         "hero_actions_by_side": {
           "attacker": 5,
@@ -3269,27 +4805,41 @@
         },
         "max_ticks": 600,
         "outcome": "Draw",
-        "termination_class": "timeout",
-        "termination_reason": "time_limit",
-        "time_limited": true,
-        "visible_event_counts": {
-          "next.attack": 1473,
-          "next.death": 212,
-          "next.level_up": 22,
-          "next.objective_destroyed": 1,
-          "next.skill_acquired": 8
-        },
-        "visible_structure_state": [
+        "owner_structure_state": [
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_MID_t2"
+              "value": "base.attacker"
             },
             "hp": {
               "kind": "integer",
-              "value": 0
+              "value": 2400
             },
-            "id": "visible-33",
+            "id": "visible-1",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-13",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-14",
             "kind": "tower"
           },
           {
@@ -3299,9 +4849,57 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 1192
+              "value": 1200
             },
-            "id": "visible-49",
+            "id": "visible-15",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 151
+            },
+            "id": "visible-391",
             "kind": "tower"
           },
           {
@@ -3311,9 +4909,9 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 602
+              "value": 791
             },
-            "id": "visible-533",
+            "id": "visible-411",
             "kind": "tower"
           },
           {
@@ -3325,19 +4923,19 @@
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-549",
+            "id": "visible-426",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_b_TOP_t2"
+              "value": "tower_b_TOP_t1"
             },
             "hp": {
               "kind": "integer",
-              "value": 135
+              "value": 1200
             },
-            "id": "visible-561",
+            "id": "visible-433",
             "kind": "tower"
           },
           {
@@ -3349,7 +4947,103 @@
               "kind": "integer",
               "value": 2400
             },
-            "id": "visible-566",
+            "id": "visible-444",
+            "kind": "base"
+          }
+        ],
+        "termination_class": "timeout",
+        "termination_reason": "time_limit",
+        "time_limited": true,
+        "visible_event_counts": {
+          "next.attack": 1600,
+          "next.death": 225,
+          "next.level_up": 20,
+          "next.objective_destroyed": 1,
+          "next.skill_acquired": 9
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-43",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 151
+            },
+            "id": "visible-443",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 791
+            },
+            "id": "visible-469",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-483",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-493",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 2400
+            },
+            "id": "visible-500",
             "kind": "base"
           }
         ]
@@ -3367,66 +5061,66 @@
             "catalog_id": "F01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 51,
-            "level": 6,
+            "hp": 273,
+            "level": 4,
             "maturity": 0,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 1,
-            "squad": "a:solo:d84cd15920923979",
-            "xp_scaled": 848400
+            "squad": "a:solo:bb3b415cf8463894",
+            "xp_scaled": 61320
           },
           {
             "catalog_id": "F03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 34,
+            "hp": 236,
             "level": 6,
             "maturity": 0,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 2,
-            "squad": "a:solo:ee862b58893f5eec",
-            "xp_scaled": 1335600
+            "squad": "a:solo:847c260d1e1b03ab",
+            "xp_scaled": 1254120
           },
           {
             "catalog_id": "F06",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 0,
+            "hp": 152,
             "level": 4,
             "maturity": 0,
-            "node": "B.BOT.T2",
-            "respawn_at": 607,
+            "node": "B.BASE",
+            "respawn_at": 0,
             "slot": 3,
-            "squad": "",
-            "xp_scaled": 84000
+            "squad": "a:solo:b6b5422aa91bd75a",
+            "xp_scaled": 178920
           },
           {
             "catalog_id": "R02",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 230,
-            "level": 6,
+            "hp": 217,
+            "level": 5,
             "maturity": 0,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 4,
-            "squad": "a:solo:dc10fd3ac909d058",
-            "xp_scaled": 394800
+            "squad": "a:solo:3ab46d173e5bd58b",
+            "xp_scaled": 157920
           },
           {
             "catalog_id": "R04",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 238,
-            "level": 4,
+            "hp": 121,
+            "level": 5,
             "maturity": 0,
-            "node": "A.BOT.T1",
+            "node": "B.BASE",
             "respawn_at": 0,
             "slot": 5,
-            "squad": "a:solo:b180b58f81bbb71f",
-            "xp_scaled": 109200
+            "squad": "a:solo:cd3f07827d8e09e7",
+            "xp_scaled": 61320
           }
         ],
         "attacker_opening_destinations": [
@@ -3445,8 +5139,8 @@
         ],
         "case_id": "base-assault-solos-vs-quintet",
         "cu_by_side": {
-          "attacker": 120912,
-          "defender": 120624
+          "attacker": 114248,
+          "defender": 114080
         },
         "defender_catalog": [
           "F02",
@@ -3465,72 +5159,26 @@
         "defender_partition": [
           5
         ],
-        "final_state_digest": "42bad6c6ee19996ecfda30136f15ad45b8ecf050d147d7fb8ff05459cde0bb75",
-        "final_tick": 600,
+        "final_state_digest": "36cd81597e8ab706bf193065a11e64e6dc8559b3f7db57f7ceaf47193ba3007f",
+        "final_tick": 568,
         "hero_actions_by_side": {
           "attacker": 5,
           "defender": 5
         },
         "max_ticks": 600,
-        "outcome": "Draw",
-        "termination_class": "timeout",
-        "termination_reason": "time_limit",
-        "time_limited": true,
-        "visible_event_counts": {
-          "next.attack": 1777,
-          "next.death": 241,
-          "next.level_up": 30,
-          "next.objective_destroyed": 3,
-          "next.skill_acquired": 13
-        },
-        "visible_structure_state": [
+        "outcome": "DefenderVictory",
+        "owner_structure_state": [
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_TOP_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1188
-            },
-            "id": "visible-420",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_MID_t1"
+              "value": "base.attacker"
             },
             "hp": {
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-558",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "base.defender"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1881
-            },
-            "id": "visible-563",
+            "id": "visible-1",
             "kind": "base"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_BOT_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 0
-            },
-            "id": "visible-606",
-            "kind": "tower"
           },
           {
             "catalog_id": {
@@ -3539,9 +5187,81 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 828
+              "value": 1200
             },
-            "id": "visible-612",
+            "id": "visible-13",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 241
+            },
+            "id": "visible-14",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-15",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1198
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-259",
             "kind": "tower"
           },
           {
@@ -3551,9 +5271,33 @@
             },
             "hp": {
               "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-262",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 209
+            },
+            "id": "visible-327",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
               "value": 1200
             },
-            "id": "visible-615",
+            "id": "visible-342",
             "kind": "tower"
           },
           {
@@ -3565,7 +5309,79 @@
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-616",
+            "id": "visible-343",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 396
+            },
+            "id": "visible-391",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1190
+            },
+            "id": "visible-392",
+            "kind": "tower"
+          }
+        ],
+        "termination_class": "victory",
+        "termination_reason": "base_destroyed",
+        "time_limited": false,
+        "visible_event_counts": {
+          "next.attack": 1824,
+          "next.death": 203,
+          "next.level_up": 33,
+          "next.objective_destroyed": 5,
+          "next.skill_acquired": 15
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-304",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-314",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-337",
             "kind": "tower"
           },
           {
@@ -3575,10 +5391,70 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 2400
+              "value": 0
             },
-            "id": "visible-618",
+            "id": "visible-373",
             "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 209
+            },
+            "id": "visible-399",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-417",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-418",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-427",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-428",
+            "kind": "tower"
           },
           {
             "catalog_id": {
@@ -3587,9 +5463,33 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 0
+              "value": 396
             },
-            "id": "visible-619",
+            "id": "visible-498",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1190
+            },
+            "id": "visible-499",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 241
+            },
+            "id": "visible-543",
             "kind": "tower"
           }
         ]
@@ -3607,66 +5507,66 @@
             "catalog_id": "F02",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 98,
-            "level": 3,
+            "hp": 85,
+            "level": 4,
             "maturity": 40,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 1,
             "squad": "attacker:squad-0",
-            "xp_scaled": 226800
+            "xp_scaled": 113400
           },
           {
             "catalog_id": "F04",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 225,
-            "level": 3,
+            "hp": 240,
+            "level": 4,
             "maturity": 40,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 2,
             "squad": "attacker:squad-0",
-            "xp_scaled": 226800
+            "xp_scaled": 113400
           },
           {
             "catalog_id": "R01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 208,
-            "level": 3,
+            "hp": 222,
+            "level": 4,
             "maturity": 40,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 3,
             "squad": "attacker:squad-0",
-            "xp_scaled": 226800
+            "xp_scaled": 113400
           },
           {
             "catalog_id": "R03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 198,
-            "level": 3,
+            "hp": 212,
+            "level": 4,
             "maturity": 40,
             "node": "B.BASE",
             "respawn_at": 0,
             "slot": 4,
             "squad": "attacker:squad-0",
-            "xp_scaled": 226800
+            "xp_scaled": 113400
           },
           {
             "catalog_id": "R05",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 190,
+            "hp": 210,
             "level": 3,
             "maturity": 0,
-            "node": "A.BOT.T2",
+            "node": "A.BOT.BANK",
             "respawn_at": 0,
             "slot": 5,
-            "squad": "a:solo:d394ec6eb2163407",
-            "xp_scaled": 0
+            "squad": "a:solo:e0d785400c95eb72",
+            "xp_scaled": 50400
           }
         ],
         "attacker_opening_destinations": [
@@ -3681,8 +5581,8 @@
         ],
         "case_id": "base-assault-quintet-vs-solos-mirrored",
         "cu_by_side": {
-          "attacker": 83640,
-          "defender": 83832
+          "attacker": 89616,
+          "defender": 89880
         },
         "defender_catalog": [
           "F01",
@@ -3705,25 +5605,27 @@
           1,
           1
         ],
-        "final_state_digest": "138db86db8385002288fcd4863b087ffdc74218377a2bf7781d251fe68155264",
-        "final_tick": 417,
+        "final_state_digest": "bb6b0a8afed83b57569064b6d9591306091b386c49060f3f0609900773c1d2b0",
+        "final_tick": 447,
         "hero_actions_by_side": {
           "attacker": 5,
           "defender": 5
         },
         "max_ticks": 600,
         "outcome": "AttackerVictory",
-        "termination_class": "victory",
-        "termination_reason": "base_destroyed",
-        "time_limited": false,
-        "visible_event_counts": {
-          "next.attack": 1639,
-          "next.death": 111,
-          "next.level_up": 10,
-          "next.objective_destroyed": 5,
-          "next.skill_acquired": 9
-        },
-        "visible_structure_state": [
+        "owner_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 497
+            },
+            "id": "visible-1",
+            "kind": "base"
+          },
           {
             "catalog_id": {
               "kind": "string",
@@ -3733,7 +5635,7 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-101",
+            "id": "visible-100",
             "kind": "tower"
           },
           {
@@ -3745,68 +5647,8 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-105",
+            "id": "visible-117",
             "kind": "base"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_MID_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-213",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_TOP_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-214",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "base.attacker"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1258
-            },
-            "id": "visible-239",
-            "kind": "base"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_MID_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-291",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_TOP_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1084
-            },
-            "id": "visible-292",
-            "kind": "tower"
           },
           {
             "catalog_id": {
@@ -3817,19 +5659,7 @@
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-353",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_TOP_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-354",
+            "id": "visible-13",
             "kind": "tower"
           },
           {
@@ -3839,9 +5669,21 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 781
+              "value": 1200
             },
-            "id": "visible-402",
+            "id": "visible-14",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-15",
             "kind": "tower"
           },
           {
@@ -3853,7 +5695,223 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-403",
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 803
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-233",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-234",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-301",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1176
+            },
+            "id": "visible-302",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-68",
+            "kind": "tower"
+          }
+        ],
+        "termination_class": "victory",
+        "termination_reason": "base_destroyed",
+        "time_limited": false,
+        "visible_event_counts": {
+          "next.attack": 1627,
+          "next.death": 133,
+          "next.level_up": 15,
+          "next.objective_destroyed": 5,
+          "next.skill_acquired": 12
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-118",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-138",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-272",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-273",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 497
+            },
+            "id": "visible-287",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-373",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1176
+            },
+            "id": "visible-374",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-378",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-379",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-436",
             "kind": "tower"
           },
           {
@@ -3877,7 +5935,7 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-92",
+            "id": "visible-86",
             "kind": "tower"
           }
         ]
@@ -3895,66 +5953,66 @@
             "catalog_id": "F03",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 310,
+            "hp": 69,
             "level": 6,
             "maturity": 0,
-            "node": "B.MID.BANK",
+            "node": "B.BASE",
             "respawn_at": 0,
             "slot": 1,
-            "squad": "a:solo:dc02905dd713c057",
-            "xp_scaled": 896280
+            "squad": "a:solo:f533f07a071be6b0",
+            "xp_scaled": 478800
           },
           {
             "catalog_id": "F04",
-            "edge_progress": 96,
-            "edge_to": "B.BOT.T1",
-            "hp": 22,
+            "edge_progress": 0,
+            "edge_to": "",
+            "hp": 223,
             "level": 6,
             "maturity": 0,
-            "node": "B.BOT.T2",
+            "node": "A.BOT.T2",
             "respawn_at": 0,
             "slot": 2,
-            "squad": "a:solo:8356160ad95dff2c",
-            "xp_scaled": 1039080
+            "squad": "a:solo:bc5f1ed5a64bf57d",
+            "xp_scaled": 1234800
           },
           {
             "catalog_id": "R01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 236,
-            "level": 5,
+            "hp": 250,
+            "level": 6,
             "maturity": 0,
-            "node": "A.BASE",
+            "node": "B.BASE",
             "respawn_at": 0,
             "slot": 3,
-            "squad": "a:solo:c57eef2909413a4d",
-            "xp_scaled": 64680
+            "squad": "a:solo:40edf3498ef8b0aa",
+            "xp_scaled": 327600
           },
           {
             "catalog_id": "R02",
-            "edge_progress": 54,
-            "edge_to": "B.BOT.T1",
+            "edge_progress": 0,
+            "edge_to": "",
             "hp": 0,
             "level": 6,
             "maturity": 0,
-            "node": "B.BOT.T2",
-            "respawn_at": 612,
+            "node": "A.BOT.T2",
+            "respawn_at": 622,
             "slot": 4,
             "squad": "",
-            "xp_scaled": 152880
+            "xp_scaled": 352800
           },
           {
             "catalog_id": "R05",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 225,
-            "level": 4,
+            "hp": 0,
+            "level": 6,
             "maturity": 0,
-            "node": "A.MID.T2",
-            "respawn_at": 0,
+            "node": "A.BOT.T2",
+            "respawn_at": 606,
             "slot": 5,
-            "squad": "a:solo:217f12a25891e3f5",
-            "xp_scaled": 165480
+            "squad": "",
+            "xp_scaled": 25200
           }
         ],
         "attacker_opening_destinations": [
@@ -3971,8 +6029,8 @@
         ],
         "case_id": "base-assault-duos-vs-trio-duo",
         "cu_by_side": {
-          "attacker": 120720,
-          "defender": 120624
+          "attacker": 119248,
+          "defender": 119224
         },
         "defender_catalog": [
           "F01",
@@ -3992,47 +6050,61 @@
           3,
           2
         ],
-        "final_state_digest": "2dfab2dc0c4a2c03519fc676c90a8b36ce4017ca3b324962599d82bd00239b55",
-        "final_tick": 600,
+        "final_state_digest": "18047012d11a2ce4ba653ed7188f12314b7c90a9c3a56e0bc6998b33af8c4d5a",
+        "final_tick": 593,
         "hero_actions_by_side": {
           "attacker": 5,
           "defender": 5
         },
         "max_ticks": 600,
-        "outcome": "Draw",
-        "termination_class": "timeout",
-        "termination_reason": "time_limit",
-        "time_limited": true,
-        "visible_event_counts": {
-          "next.attack": 2018,
-          "next.death": 247,
-          "next.level_up": 39,
-          "next.objective_destroyed": 1,
-          "next.skill_acquired": 14
-        },
-        "visible_structure_state": [
+        "outcome": "AttackerVictory",
+        "owner_structure_state": [
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_b_BOT_t2"
+              "value": "base.attacker"
             },
             "hp": {
               "kind": "integer",
-              "value": 0
+              "value": 2400
             },
-            "id": "visible-345",
+            "id": "visible-1",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-13",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_b_BOT_t1"
+              "value": "tower_a_BOT_t2"
             },
             "hp": {
               "kind": "integer",
-              "value": 159
+              "value": 808
             },
-            "id": "visible-390",
+            "id": "visible-14",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-15",
             "kind": "tower"
           },
           {
@@ -4042,21 +6114,45 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 486
+              "value": 896
             },
-            "id": "visible-503",
+            "id": "visible-16",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_b_TOP_t2"
+              "value": "tower_a_TOP_t1"
             },
             "hp": {
               "kind": "integer",
-              "value": 1199
+              "value": 1200
             },
-            "id": "visible-506",
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1189
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-335",
             "kind": "tower"
           },
           {
@@ -4066,10 +6162,46 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 2400
+              "value": 0
             },
-            "id": "visible-513",
+            "id": "visible-340",
             "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-366",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-367",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1062
+            },
+            "id": "visible-393",
+            "kind": "tower"
           },
           {
             "catalog_id": {
@@ -4078,9 +6210,130 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 598
+              "value": 0
             },
-            "id": "visible-541",
+            "id": "visible-429",
+            "kind": "tower"
+          }
+        ],
+        "termination_class": "victory",
+        "termination_reason": "base_destroyed",
+        "time_limited": false,
+        "visible_event_counts": {
+          "next.attack": 1920,
+          "next.death": 237,
+          "next.level_up": 43,
+          "next.objective_destroyed": 3,
+          "next.observation_capture": 1,
+          "next.skill_acquired": 17
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 896
+            },
+            "id": "visible-243",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 808
+            },
+            "id": "visible-381",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-388",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-394",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.defender"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-400",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-436",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-437",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1062
+            },
+            "id": "visible-469",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-504",
             "kind": "tower"
           }
         ]
@@ -4098,27 +6351,27 @@
             "catalog_id": "F01",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 223,
-            "level": 3,
+            "hp": 0,
+            "level": 6,
             "maturity": 0,
-            "node": "B.BOT.T2",
-            "respawn_at": 0,
+            "node": "B.TOP.T2",
+            "respawn_at": 632,
             "slot": 1,
-            "squad": "a:solo:85f83f5b6eea6c30",
-            "xp_scaled": 190680
+            "squad": "",
+            "xp_scaled": 260400
           },
           {
             "catalog_id": "F02",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 143,
+            "hp": 142,
             "level": 6,
             "maturity": 0,
             "node": "B.BOT.T2",
             "respawn_at": 0,
             "slot": 2,
-            "squad": "a:solo:8b8b27957f9a36ef",
-            "xp_scaled": 425880
+            "squad": "a:solo:b68f5e8edac6537f",
+            "xp_scaled": 109200
           },
           {
             "catalog_id": "F05",
@@ -4127,37 +6380,37 @@
             "hp": 301,
             "level": 5,
             "maturity": 0,
-            "node": "B.BOT.T2",
+            "node": "A.BOT.T2",
             "respawn_at": 0,
             "slot": 3,
-            "squad": "a:solo:cd5be93c617a3781",
-            "xp_scaled": 10080
+            "squad": "a:solo:217f0ca25891d9c3",
+            "xp_scaled": 235200
           },
           {
             "catalog_id": "R04",
             "edge_progress": 0,
             "edge_to": "",
-            "hp": 21,
-            "level": 3,
+            "hp": 0,
+            "level": 6,
             "maturity": 0,
-            "node": "B.BOT.T2",
-            "respawn_at": 0,
+            "node": "A.MID.T1",
+            "respawn_at": 608,
             "slot": 4,
-            "squad": "a:solo:435f79215afd49f4",
-            "xp_scaled": 64680
+            "squad": "",
+            "xp_scaled": 8400
           },
           {
             "catalog_id": "R06",
             "edge_progress": 0,
             "edge_to": "",
             "hp": 0,
-            "level": 4,
+            "level": 6,
             "maturity": 0,
             "node": "B.BOT.T2",
-            "respawn_at": 476,
+            "respawn_at": 630,
             "slot": 5,
             "squad": "",
-            "xp_scaled": 165480
+            "xp_scaled": 798000
           }
         ],
         "attacker_opening_destinations": [
@@ -4173,8 +6426,8 @@
         ],
         "case_id": "base-assault-trio-duo-vs-duos-mirrored",
         "cu_by_side": {
-          "attacker": 91704,
-          "defender": 91584
+          "attacker": 120648,
+          "defender": 120576
         },
         "defender_catalog": [
           "F03",
@@ -4195,61 +6448,15 @@
           2,
           1
         ],
-        "final_state_digest": "d7543e6ead56637ead9d9de2e4c8b9459f8d15ad17146962e0dc921bee0ad75e",
-        "final_tick": 456,
+        "final_state_digest": "03aa3b1051cf4eaf5c0b7a314858d30c8bf8f55ef079b1f37d0818ddb16ec65c",
+        "final_tick": 600,
         "hero_actions_by_side": {
           "attacker": 5,
           "defender": 5
         },
         "max_ticks": 600,
-        "outcome": "DefenderVictory",
-        "termination_class": "victory",
-        "termination_reason": "base_destroyed",
-        "time_limited": false,
-        "visible_event_counts": {
-          "next.attack": 1439,
-          "next.death": 175,
-          "next.level_up": 28,
-          "next.objective_destroyed": 3,
-          "next.skill_acquired": 15
-        },
-        "visible_structure_state": [
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_BOT_t2"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 551
-            },
-            "id": "visible-199",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_b_BOT_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 1200
-            },
-            "id": "visible-202",
-            "kind": "tower"
-          },
-          {
-            "catalog_id": {
-              "kind": "string",
-              "value": "tower_a_MID_t1"
-            },
-            "hp": {
-              "kind": "integer",
-              "value": 0
-            },
-            "id": "visible-255",
-            "kind": "tower"
-          },
+        "outcome": "Draw",
+        "owner_structure_state": [
           {
             "catalog_id": {
               "kind": "string",
@@ -4257,9 +6464,9 @@
             },
             "hp": {
               "kind": "integer",
-              "value": 0
+              "value": 1260
             },
-            "id": "visible-301",
+            "id": "visible-1",
             "kind": "base"
           },
           {
@@ -4271,31 +6478,31 @@
               "kind": "integer",
               "value": 1200
             },
-            "id": "visible-352",
+            "id": "visible-13",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_TOP_t1"
+              "value": "tower_a_BOT_t2"
             },
             "hp": {
               "kind": "integer",
-              "value": 1200
+              "value": 858
             },
-            "id": "visible-353",
+            "id": "visible-14",
             "kind": "tower"
           },
           {
             "catalog_id": {
               "kind": "string",
-              "value": "tower_a_TOP_t2"
+              "value": "tower_a_MID_t1"
             },
             "hp": {
               "kind": "integer",
-              "value": 1183
+              "value": 0
             },
-            "id": "visible-361",
+            "id": "visible-15",
             "kind": "tower"
           },
           {
@@ -4307,7 +6514,188 @@
               "kind": "integer",
               "value": 0
             },
-            "id": "visible-390",
+            "id": "visible-16",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-17",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1041
+            },
+            "id": "visible-18",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 839
+            },
+            "id": "visible-299",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-306",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1078
+            },
+            "id": "visible-83",
+            "kind": "tower"
+          }
+        ],
+        "termination_class": "timeout",
+        "termination_reason": "time_limit",
+        "time_limited": true,
+        "visible_event_counts": {
+          "next.attack": 1898,
+          "next.death": 246,
+          "next.level_up": 45,
+          "next.objective_destroyed": 2,
+          "next.observation_capture": 1,
+          "next.skill_acquired": 18
+        },
+        "visible_structure_state": [
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-307",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 839
+            },
+            "id": "visible-361",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-372",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "base.attacker"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1260
+            },
+            "id": "visible-397",
+            "kind": "base"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_BOT_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-474",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t1"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1200
+            },
+            "id": "visible-475",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 0
+            },
+            "id": "visible-502",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_a_TOP_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1041
+            },
+            "id": "visible-504",
+            "kind": "tower"
+          },
+          {
+            "catalog_id": {
+              "kind": "string",
+              "value": "tower_b_MID_t2"
+            },
+            "hp": {
+              "kind": "integer",
+              "value": 1078
+            },
+            "id": "visible-79",
             "kind": "tower"
           }
         ]
@@ -4323,62 +6711,6 @@
       "hero progression",
       "logical CU"
     ],
-    "purpose": "Different authored tactical inputs compare their measured Enbu consequences; results are observations, not thresholds or a win-rate estimate."
-  },
-  "authored_campaign_clear": {
-    "schema": "senkei-next-campaign-clear/v1",
-    "ruleset_id": "senkei.next",
-    "ruleset_version": "2.0.0",
-    "mechanics_version": "2.0.0",
-    "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
-    "scenario_id": "first-march",
-    "match_id": "campaign-first-march-clear",
-    "max_ticks": 600,
-    "attacker": {
-      "roster": [
-        "F02",
-        "F04",
-        "R01",
-        "R03",
-        "R05"
-      ],
-      "squad_sizes": [
-        5
-      ],
-      "start_node": "A.BASE",
-      "target": "B.BASE",
-      "tactic": "persistent per-Hero move orders toward the opposing base"
-    },
-    "defender_npc": {
-      "roster": [
-        "F01",
-        "F03",
-        "F06",
-        "R02",
-        "R04"
-      ],
-      "squad_sizes": [
-        1,
-        1,
-        1,
-        1,
-        1
-      ],
-      "start_node": "B.BASE",
-      "target": "A.BASE",
-      "tactic": "five persistent per-Hero move orders toward the opposing base"
-    },
-    "result": {
-      "outcome": "AttackerVictory",
-      "termination_reason": "base_destroyed",
-      "final_tick": 417,
-      "npc_accepted_move_intents": 18,
-      "attacker_logical_cu": 83640,
-      "defender_logical_cu": 83832
-    },
-    "limits": [
-      "This is one deterministic clear input, not a win-rate sample or a balance threshold.",
-      "Progression unlocks only from the actual Enbu attacker victory and base_destroyed termination."
-    ]
+    "purpose": "Different authored inputs compare their measured Enbu consequences; results are observations, not thresholds or a win-rate estimate."
   }
 }

@@ -65,10 +65,20 @@ where needed; public adapter comparisons use only public responses.
 
 ## Observations and limits
 
-The current eight-case tactical comparison set was measured after the normal-bridge
-center-entry fix with mechanics and ruleset version `2.0.0`, package digest
-`31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481` (acceptance
-core commit `42b6919`, normal-assertion confirmation at `6d11298`). Its exact observed outcomes are:
+The current eight-case tactical comparison set was measured with mechanics and
+ruleset version `2.0.0`, package digest
+`c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f` (Engine
+1.3 compatibility, required by `6e7354e`). The prior outcome pins were stale
+after the canonical World alignment in `8ee22e7`: battlefield observations now
+use World bridge site IDs (`bridge.top`, `bridge.mid`, `bridge.bot`) and the
+Jungle ford delay starts at the World-projected crossing interval. This changes
+route selection and fixed-input match trajectories through stable ordering; no
+combat, damage, economy, or duration values were retuned. The measurements are
+rerun against the package above, and the exact observed outcomes are:
+The authored source World is
+[`initial-battlefield.json`](../../crates/senkei-world/fixtures/initial-battlefield.json);
+the matching runtime projection is covered by
+[`BATTLEFIELD-CANONICAL.md`](BATTLEFIELD-CANONICAL.md).
 
 | Scenario | Outcome | Final tick | Termination |
 | --- | --- | ---: | --- |
@@ -76,13 +86,15 @@ core commit `42b6919`, normal-assertion confirmation at `6d11298`). Its exact ob
 | `split-2-2-1-vs-3-2-role-mix` | Draw | 600 | Time limit |
 | `jungle-push-vs-lane-defense` | Draw | 600 | Time limit |
 | `mirrored-lane-defense-vs-jungle-push` | Draw | 600 | Time limit |
-| `base-assault-solos-vs-quintet` | Draw | 600 | Time limit |
-| `base-assault-quintet-vs-solos-mirrored` | Attacker victory | 417 | Base destroyed |
-| `base-assault-duos-vs-trio-duo` | Draw | 600 | Time limit |
-| `base-assault-trio-duo-vs-duos-mirrored` | Defender victory | 456 | Base destroyed |
+| `base-assault-solos-vs-quintet` | Defender victory | 568 | Base destroyed |
+| `base-assault-quintet-vs-solos-mirrored` | Attacker victory | 447 | Base destroyed |
+| `base-assault-duos-vs-trio-duo` | Attacker victory | 593 | Base destroyed |
+| `base-assault-trio-duo-vs-duos-mirrored` | Draw | 600 | Time limit |
 
-The two base-assault victories destroy the opposing base in opposite
-orientations. The report records each setup's visible event counts, final
+The base-assault cases include base destruction in both orientations. Each
+terminal owner-frame structure snapshot asserts the destroyed base HP is zero
+and the surviving base remains positive; the public structure snapshot remains
+separately recorded under fog. The report records each setup's visible event counts, final
 digest, hero state, CU, outcome and termination class. These fixed opening
 policies do not establish a win rate, general balance, or a balance threshold;
 each Draw at tick 600 is only a time-limited observation. The separate
@@ -103,9 +115,10 @@ rates remain unmeasured.
 ## Authored campaign clear
 
 The first authored NPC was also run through the production `senkei-runner` and
-Enbu path with a distinct, valid quintet base assault. On the same package
-digest above, the player destroyed the opposing base at tick 417
-(`AttackerVictory`, `base_destroyed`); the NPC accepted 18 movement intents.
+Enbu path with a distinct, valid quintet base assault from the normal default
+player start. On the same package digest above, the player destroyed the
+opposing base at tick 447 (`AttackerVictory`, `base_destroyed`); the NPC
+accepted 20 movement intents.
 This fixed clear proves that the first progression step can unlock within the
 600-tick package limit. It is one tested input, not a win-rate estimate.
 [`campaign-clear.json`](../../docs/evidence/next/campaign-clear.json) records

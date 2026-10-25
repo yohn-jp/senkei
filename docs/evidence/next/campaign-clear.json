@@ -3,7 +3,7 @@
   "ruleset_id": "senkei.next",
   "ruleset_version": "2.0.0",
   "mechanics_version": "2.0.0",
-  "package_digest": "31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481",
+  "package_digest": "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f",
   "scenario_id": "first-march",
   "match_id": "campaign-first-march-clear",
   "max_ticks": 600,
@@ -24,10 +24,10 @@
   "result": {
     "outcome": "AttackerVictory",
     "termination_reason": "base_destroyed",
-    "final_tick": 417,
-    "npc_accepted_move_intents": 18,
-    "attacker_logical_cu": 83640,
-    "defender_logical_cu": 83832
+    "final_tick": 447,
+    "npc_accepted_move_intents": 20,
+    "attacker_logical_cu": 89616,
+    "defender_logical_cu": 89880
   },
   "limits": [
     "This is one deterministic clear input, not a win-rate sample or a balance threshold.",
