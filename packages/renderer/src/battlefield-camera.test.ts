@@ -48,7 +48,7 @@ function projectBounds(
   const relative = { x: point.x - center.x, y: point.y - center.y, z: point.z - center.z };
   const scale = viewport.height / (2 * halfHeight);
   return {
-    x: viewport.width / 2 - dot(relative, right) * scale,
+    x: viewport.width / 2 + dot(relative, right) * scale,
     y: viewport.height / 2 - dot(relative, up) * scale,
   };
 }
@@ -108,6 +108,37 @@ describe("fitBattlefieldCameraFrame", () => {
     });
     expect(frame.requiredHalfHeight).toBeGreaterThan(frame.halfHeight);
     expect(frame.fits).toBe(false);
+  });
+
+  it("centers the map in asymmetric left and right overlays at wide aspect ratios", () => {
+    const viewport = {
+      width: 1280,
+      height: 800,
+      insets: { top: 20, right: 24, bottom: 20, left: 240 },
+    };
+    const center = { x: 0, y: 0, z: 0 };
+    const cameraOffset = { x: 42, y: 68, z: 42 };
+    const frame = fitBattlefieldCameraFrame({
+      center,
+      points: wideWorld,
+      cameraOffset,
+      viewport,
+      verticalExtents: [-1, 5],
+      fitScale: 1.02,
+      padding: 0.35,
+    });
+    const direction = normalized({ x: -cameraOffset.x, y: -cameraOffset.y, z: -cameraOffset.z });
+    const right = normalized(cross(direction, { x: 0, y: 1, z: 0 }));
+    const up = normalized(cross(right, direction));
+    for (const point of wideWorld) {
+      for (const y of [-1, 5]) {
+        const projected = projectBounds({ ...point, y }, frame.center, right, up, viewport, frame.halfHeight);
+        expect(projected.x).toBeGreaterThanOrEqual(239.5);
+        expect(projected.x).toBeLessThanOrEqual(1256.5);
+        expect(projected.y).toBeGreaterThanOrEqual(19.5);
+        expect(projected.y).toBeLessThanOrEqual(780.5);
+      }
+    }
   });
 
   it("uses the center point as a stable frame for empty visible samples", () => {

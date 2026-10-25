@@ -143,7 +143,7 @@ export function fitBattlefieldCameraFrame(
   const pixelsToWorld = (2 * halfHeight) / height;
   // Moving the camera target opposite the desired image offset moves the
   // geography toward the unobscured rectangle.
-  const shiftRight = ((width / 2 - safeCenterX) * pixelsToWorld) / aspect;
+  const shiftRight = (width / 2 - safeCenterX) * pixelsToWorld;
   const shiftUp = ((safeCenterY - height / 2) * pixelsToWorld);
   const fittedCenter = addScaled(addScaled(center, screenRight, shiftRight), screenUp, shiftUp);
 
