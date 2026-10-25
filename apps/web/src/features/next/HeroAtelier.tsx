@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { HeroDefinition, NextRules, SkillDefinition } from "../../contracts";
 import { HeroModelPreview } from "./HeroModelPreview";
@@ -87,6 +87,8 @@ export function HeroAtelier({
   const [impact, setImpact] = useState<string[]>([]);
   const [mobileSquadStage, setMobileSquadStage] = useState<"split" | "assign" | "deploy">("split");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const screenRef = useRef<HTMLElement>(null);
+  const keepTabFocus = useRef(false);
   const currentSlot = slots[activeSlot] ?? null;
   const currentHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
@@ -103,6 +105,11 @@ export function HeroAtelier({
     if (index !== activeSlot) setSelectedSkillId(null);
     onActiveSlotChange(index);
   };
+  useEffect(() => {
+    if (!keepTabFocus.current) screenRef.current?.querySelector<HTMLElement>(".ha-header h3")?.focus({ preventScroll: true });
+    keepTabFocus.current = false;
+    screenRef.current?.scrollIntoView({ block: "start" });
+  }, [screen]);
   const changeHero = (hero: HeroDefinition): void => {
     if (!currentSlot || hero.id === currentSlot.catalog_id) return;
     const oldHero = findHero(nextRules, currentSlot.catalog_id);
@@ -142,9 +149,9 @@ export function HeroAtelier({
     </article>;
   };
 
-  return <section className="hero-atelier" aria-label="Hero Atelier">
+  return <section ref={screenRef} className="hero-atelier" aria-label="Hero Atelier">
     <header className="ha-header">
-      <div><span className="next-eyebrow">HERO ATELIER · {chosenScreen.hint}</span><h3>{chosenScreen.title}</h3><p>{chosenScreen.description}</p></div>
+      <div><span className="next-eyebrow">HERO ATELIER · {chosenScreen.hint}</span><h3 tabIndex={-1}>{chosenScreen.title}</h3><p>{chosenScreen.description}</p></div>
       <span className="ha-count" aria-label={slots.length + " of 5 heroes selected"}>{String(slots.length).padStart(2, "0")} <small>/ 05</small></span>
     </header>
     <nav className="ha-nav" aria-label="Hero Atelier" role="tablist">
@@ -156,6 +163,7 @@ export function HeroAtelier({
           if (nextIndex < 0) return;
           event.preventDefault();
           const target = SCREENS[nextIndex]!;
+          keepTabFocus.current = true;
           onScreenChange(target.id);
           document.getElementById("next-atelier-" + target.id)?.focus();
         }} role="tab" tabIndex={screen === item.id ? 0 : -1} type="button">

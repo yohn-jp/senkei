@@ -3,7 +3,7 @@ import type { ChangeEvent, ReactElement } from "react";
 import type { RulesetRef, SenkeiDraft } from "../../contracts";
 import "./next-library.css";
 
-export type NextLibraryView = "library" | "recovery" | "legacy";
+export type NextLibraryView = "library" | "recovery";
 
 export interface NextLibrarySlot {
   readonly slot_id: string;
@@ -63,8 +63,6 @@ export interface NextLibraryProps {
   readonly onRetryCore: AsyncAction;
   readonly onReady: AsyncAction;
   readonly onBack: AsyncAction;
-  readonly onLegacyLibrary: AsyncAction;
-  readonly onG1Samples: AsyncAction;
 }
 
 function formatDate(value: string): string {
@@ -103,6 +101,10 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
   const [notice, setNotice] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     if (!confirmation) return;
     const previous = document.activeElement;
@@ -166,9 +168,9 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
     <section className="next-library" aria-label="Next Library and recovery" data-testid="next-library">
       <header className="next-library-header">
         <div>
-          <span className="next-library-eyebrow">S14–S16 · LOCAL SETUPS</span>
-          <h2>{activeView === "library" ? <>Setup <em>Library</em></> : activeView === "recovery" ? <>Recovery <em>desk</em></> : <>Legacy &amp; <em>samples</em></>}</h2>
-          <p>{activeView === "legacy" ? "Open the existing Legacy Library or Graphics G1 samples in their own format." : "Pinned setups and unsaved recovery copies stay in their existing Next storage."}</p>
+          <span className="next-library-eyebrow">S14–S15 · LOCAL SETUPS</span>
+          <h2 ref={titleRef} tabIndex={-1}>{activeView === "library" ? <>Setup <em>Library</em></> : <>Recovery <em>desk</em></>}</h2>
+          <p>Pinned setups and unsaved recovery copies stay in their existing Next storage.</p>
         </div>
         <div className="next-library-header-actions">
           <button type="button" onClick={() => void perform(props.onBack, "Returned to the previous screen.")}>Back</button>
@@ -180,13 +182,23 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
         {([
           ["library", "S14 · Library"],
           ["recovery", "S15 · Recovery"],
-          ["legacy", "S16 · Legacy / G1"],
         ] as const).map(([view, label]) => (
-          <button aria-selected={activeView === view} className={activeView === view ? "is-active" : ""} id={`next-library-tab-${view}`} key={view} onClick={() => props.onViewChange(view)} role="tab" type="button">{label}</button>
+          <button aria-selected={activeView === view} className={activeView === view ? "is-active" : ""} id={`next-library-tab-${view}`} key={view} onClick={() => props.onViewChange(view)} onKeyDown={(event) => {
+            const views = ["library", "recovery"] as const;
+            const current = views.indexOf(view);
+            const next = event.key === "ArrowRight" || event.key === "ArrowDown" ? (current + 1) % views.length
+              : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (current + views.length - 1) % views.length
+                : event.key === "Home" ? 0 : event.key === "End" ? views.length - 1 : -1;
+            if (next < 0) return;
+            event.preventDefault();
+            const target = views[next]!;
+            props.onViewChange(target);
+            document.getElementById(`next-library-tab-${target}`)?.focus();
+          }} role="tab" tabIndex={activeView === view ? 0 : -1} type="button">{label}</button>
         ))}
       </nav>
 
-      {!props.loaded && activeView !== "legacy" && <div className="next-library-message" role="status"><strong>Checking local setup storage…</strong><p>Existing values stay untouched until their format and ruleset identity are read.</p></div>}
+      {!props.loaded && <div className="next-library-message" role="status"><strong>Checking local setup storage…</strong><p>Existing values stay untouched until their format and ruleset identity are read.</p></div>}
       {(visibleError || props.message || notice) && <div className={`next-library-message${visibleError ? " is-error" : ""}`} role={visibleError ? "alert" : "status"}>
         <div><strong>{visibleError ? "Recovery needs attention" : "Library status"}</strong><p>{visibleError ?? props.message ?? notice}</p></div>
         {visibleError && <div className="next-library-message-actions"><button disabled={busy} onClick={() => void perform(props.onRetryStorage, "Storage was checked again.")} type="button">Retry storage</button><button disabled={busy} onClick={() => void perform(props.onRetryCore, "Core and Catalog reload requested.")} type="button">Retry Core / Catalog</button></div>}
@@ -197,7 +209,7 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
           <div className="next-library-list-title"><span>ON THIS DEVICE</span><small>Next · LocalStorage</small></div>
           <button aria-pressed={activeView === "library"} className={`next-library-source${activeView === "library" ? " is-selected" : ""}`} onClick={() => props.onViewChange("library")} type="button"><span className="next-library-source-mark">P</span><span><strong>Pinned setup</strong><small>{props.saved ? formatDate(props.saved.saved_at) : props.savedError ? "Unreadable data preserved" : "No pinned setup"}</small></span><b>↗</b></button>
           <button className="next-library-source" onClick={() => props.onViewChange("recovery")} type="button"><span className="next-library-source-mark is-recovery">R</span><span><strong>Recovery copy</strong><small>{props.recovery ? formatDate(props.recovery.saved_at) : props.recoveryError ? "Unreadable data preserved" : "No recovery copy"}</small></span><b>↗</b></button>
-          <div className="next-library-source-note"><strong>Legacy Library</strong><p>IndexedDB documents stay in the Legacy area. They are not converted into Next setups.</p><button onClick={() => props.onViewChange("legacy")} type="button">Open S16 · Legacy / G1</button></div>
+          <div className="next-library-source-note"><strong>Other local data stays separate</strong><p>Legacy IndexedDB documents and Graphics G1 fixtures use different formats. They are not converted into or loaded as Next setups.</p></div>
         </aside>
 
         <div className="next-library-detail">
@@ -236,12 +248,6 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
           </div>
         </section>
         <section className="next-library-card next-library-recovery-help"><span className="next-library-eyebrow">RECOVERY CHECKS</span><h3>When recovery is unavailable</h3><p>Storage errors offer retry. A format or ruleset mismatch keeps the original bytes available to export. Loading a compatible RulePackage is required before the normal restore action appears.</p><div className="next-library-actions"><button disabled={busy} onClick={() => void perform(props.onRetryStorage, "Storage was checked again.")} type="button">Retry storage</button><button disabled={busy} onClick={() => void perform(props.onRetryCore, "Core and Catalog reload requested.")} type="button">Retry Core / Catalog</button></div></section>
-      </div>}
-
-      {activeView === "legacy" && <div className="next-library-legacy" role="tabpanel" aria-labelledby="next-library-tab-legacy">
-        <section className="next-library-card"><span className="next-library-eyebrow">S16 · LEGACY / SAMPLE ENTRY</span><h3>Choose a separate library</h3><p>Legacy Tactics documents use the existing IndexedDB repository. Next setups use their existing LocalStorage format. G1 samples are fixtures. These sources have different contracts and stay separate until an explicit validated converter exists.</p>
-          <div className="next-library-legacy-options"><article><span>INDEXEDDB · LEGACY</span><h4>Legacy Library</h4><p>Open the existing saved-document list and its revision history.</p><button disabled={busy} onClick={() => void perform(props.onLegacyLibrary, "Opened the Legacy Library.")} type="button">Open Legacy Library</button></article><article><span>GRAPHICS G1 · FIXTURES</span><h4>Graphics samples</h4><p>Inspect the existing renderer samples without loading them as Next match setups.</p><button disabled={busy} onClick={() => void perform(props.onG1Samples, "Opened Graphics G1 samples.")} type="button">Open G1 samples</button></article></div>
-        </section>
       </div>}
 
       {confirmation && <section ref={confirmationRef} className="next-library-confirm" aria-label="Confirm Library change" role="alertdialog" aria-modal="false" aria-labelledby="next-library-confirm-title">

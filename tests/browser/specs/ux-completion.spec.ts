@@ -92,10 +92,6 @@ for (const viewport of viewports) test(`Custom, Coverage, Library and recovery a
   await capture(page, viewport.width, "S14");
   await library.getByRole("tab", { name: "S15 · Recovery", exact: true }).click();
   await capture(page, viewport.width, "S15");
-  await library.getByRole("tab", { name: "S16 · Legacy / G1", exact: true }).click();
-  await expect(library.getByRole("button", { name: "Open Legacy Library", exact: true })).toBeEnabled();
-  await expect(library.getByRole("button", { name: "Open G1 samples", exact: true })).toBeEnabled();
-  await capture(page, viewport.width, "S16");
   await library.getByRole("tab", { name: "S14 · Library", exact: true }).click();
   await library.getByRole("button", { name: "Restore pinned setup", exact: true }).click();
   await expect(page.getByTestId("journey-ready")).toBeVisible();
@@ -114,21 +110,13 @@ for (const viewport of viewports) test(`Custom, Coverage, Library and recovery a
   const bytes = await page.evaluate(() => localStorage.getItem("senkei.next-workspace.v1"));
   expect(JSON.parse(bytes!).draft.program_input.source).toBe(validSource);
   await page.getByTestId("nav-library").click();
-  await library.getByRole("tab", { name: "S16 · Legacy / G1", exact: true }).click();
-  await library.getByRole("button", { name: "Open Legacy Library", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Local document library" })).toBeVisible();
-  await page.getByTestId("nav-library").click();
-  await library.getByRole("tab", { name: "S16 · Legacy / G1", exact: true }).click();
-  await library.getByRole("button", { name: "Open G1 samples", exact: true }).click();
-  await expect(page).toHaveURL(/\/graphics\//);
-  await expect(page.locator("canvas")).toHaveAttribute("data-rendered", "true");
   await page.goto("/");
   await page.getByTestId("nav-next").click();
   await page.locator("#next-tab-jinrei").click();
   await textMode(page);
   await expect(source).toHaveValue(recoverySource);
   expect(pageErrors).toEqual([]);
-  writeFileSync(resolve(evidence, `${viewport.width}-journey.json`), JSON.stringify({ viewport, result: "passed", screens: ["S04", "S05", "S06", "S07", "S08", "S09", "S14", "S15", "S16"], checks: ["seven partitions", "keyboard tabs", "No-code/Text conversion", "real compiler reject/repair", "coverage evidence boundary", "catalog scope", "save/export", "restore/reload", "pinned/recovery separation"], verifiedAt: new Date().toISOString() }, null, 2));
+  writeFileSync(resolve(evidence, `${viewport.width}-journey.json`), JSON.stringify({ viewport, result: "passed", screens: ["S04", "S05", "S06", "S07", "S08", "S09", "S14", "S15"], checks: ["seven partitions", "keyboard tabs", "No-code/Text conversion", "real compiler reject/repair", "coverage evidence boundary", "catalog scope", "save/export", "restore/reload", "pinned/recovery separation"], verifiedAt: new Date().toISOString() }, null, 2));
   await context.close();
 });
 

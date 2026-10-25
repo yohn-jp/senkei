@@ -6,7 +6,9 @@
   --ha-accent: #bded95;
   color: var(--ha-ink);
   min-width: 0;
+  scroll-margin-top: 12px;
 }
+.ha-header h3:focus { outline: none; }
 .hero-atelier button, .hero-atelier select, .hero-atelier input { font: inherit; }
 .hero-atelier button:focus-visible, .hero-atelier select:focus-visible, .hero-atelier input:focus-visible { outline: 2px solid var(--ha-accent); outline-offset: 3px; }
 .ha-header { align-items: center; border-bottom: 1px solid var(--ha-line); display: flex; gap: 16px; justify-content: space-between; margin-bottom: 13px; padding-bottom: 14px; }
@@ -165,10 +167,11 @@
 .ha-rules-note { color: #71827b; display: block; font-size: 7px; line-height: 1.5; margin-top: 7px; }
 
 @media (max-width: 760px) {
+  .hero-atelier button, .hero-atelier select { min-height: 44px; }
   .ha-header { align-items: flex-start; }
   .ha-header p { font-size: 9px; }
   .ha-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ha-nav button { min-height: 44px; }
+  .ha-nav button { min-height: 48px; }
   .ha-selected-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ha-selected-slots button:last-child { grid-column: 2; }
   .ha-filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -185,7 +188,7 @@
   .ha-dossier .next-hero-model-canvas { height: 300px; }
   .ha-skill-catalog, .ha-branches, .ha-membership-grid, .ha-group-grid { grid-template-columns: 1fr; }
   .ha-mobile-stages { display: grid; gap: 5px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ha-mobile-stages button { background: rgba(8,15,19,.35); border: 1px solid var(--ha-line); border-radius: 3px; color: #99a9a0; cursor: pointer; font-size: 8px; min-height: 39px; padding: 5px; }
+  .ha-mobile-stages button { background: rgba(8,15,19,.35); border: 1px solid var(--ha-line); border-radius: 3px; color: #99a9a0; cursor: pointer; font-size: 8px; min-height: 44px; padding: 5px; }
   .ha-mobile-stages button.is-active { background: rgba(189,237,149,.08); border-color: rgba(189,237,149,.3); color: #dfead8; }
   .ha-squads.ha-squad-stage-split .ha-squad-step-assign, .ha-squads.ha-squad-stage-split .ha-squad-step-deploy,
   .ha-squads.ha-squad-stage-assign .ha-squad-step-split, .ha-squads.ha-squad-stage-assign .ha-squad-step-deploy,
