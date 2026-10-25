@@ -69,9 +69,11 @@ function firstUnobservedBaseSiteTick(replay: JsonRecord, siteId: string, afterTi
   })?.tick ?? null;
 }
 
-function baseSiteSideFromLabel(text: string): "azure" | "vermilion" | null {
-  if (text.startsWith("AZURE BASE")) return "azure";
-  if (text.startsWith("VERMILION BASE")) return "vermilion";
+function baseSiteSideFromLabel(text: string, siteId: string): "azure" | "vermilion" | null {
+  if (siteId === "A.BASE") return "azure";
+  if (siteId === "B.BASE") return "vermilion";
+  if (/^AZURE (?:BASE|FORTRESS)\b/.test(text)) return "azure";
+  if (/^VERMILION (?:BASE|FORTRESS)\b/.test(text)) return "vermilion";
   return null;
 }
 
@@ -82,17 +84,16 @@ async function assertBaseSiteLabelsAtTick(
   tick: number,
 ): Promise<BaseSiteLabelSnapshot[]> {
   await expect(canvas).toHaveAttribute("data-tick", String(tick));
-  const labels = await page.locator(".base-site-label").evaluateAll((elements) => elements.map((element) => {
+  const labels = (await page.locator(".base-site-label").evaluateAll((elements) => elements.map((element) => {
     const label = element as HTMLElement;
     const text = (label.textContent ?? "").replace(/\s+/g, " ").trim();
     return {
       siteId: label.dataset.siteId ?? "",
       siteState: label.dataset.siteState ?? "",
-      side: text.startsWith("AZURE BASE") ? "azure" as const : text.startsWith("VERMILION BASE") ? "vermilion" as const : null,
       text,
       datasetKeys: Object.keys(label.dataset).sort(),
     };
-  }));
+  }))).map((label) => ({ ...label, side: baseSiteSideFromLabel(label.text, label.siteId) }));
   expect(labels, "the map should annotate both public base sites").toHaveLength(2);
   expect(new Set(labels.map((label) => label.siteId)).size).toBe(2);
   for (const label of labels) {
