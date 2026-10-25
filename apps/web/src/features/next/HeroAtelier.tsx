@@ -148,12 +148,21 @@ export function HeroAtelier({
       <span className="ha-count" aria-label={slots.length + " of 5 heroes selected"}>{String(slots.length).padStart(2, "0")} <small>/ 05</small></span>
     </header>
     <nav className="ha-nav" aria-label="Hero Atelier" role="tablist">
-      {SCREENS.map((item) => <button aria-selected={screen === item.id} className={screen === item.id ? "is-active" : ""}
-        id={"next-atelier-" + item.id} key={item.id} onClick={() => onScreenChange(item.id)} role="tab" type="button">
+      {SCREENS.map((item, index) => <button aria-controls={"hero-atelier-panel-" + item.id} aria-selected={screen === item.id} className={screen === item.id ? "is-active" : ""}
+        id={"next-atelier-" + item.id} key={item.id} onClick={() => onScreenChange(item.id)} onKeyDown={(event) => {
+          const nextIndex = event.key === "ArrowRight" ? (index + 1) % SCREENS.length
+            : event.key === "ArrowLeft" ? (index + SCREENS.length - 1) % SCREENS.length
+              : event.key === "Home" ? 0 : event.key === "End" ? SCREENS.length - 1 : -1;
+          if (nextIndex < 0) return;
+          event.preventDefault();
+          const target = SCREENS[nextIndex]!;
+          onScreenChange(target.id);
+          document.getElementById("next-atelier-" + target.id)?.focus();
+        }} role="tab" tabIndex={screen === item.id ? 0 : -1} type="button">
         {item.label}<small>{item.hint}</small>
       </button>)}
     </nav>
-    {screen === "collection" && <div className="ha-collection">
+    {screen === "collection" && <div className="ha-collection" id="hero-atelier-panel-collection" aria-labelledby="next-atelier-collection" role="tabpanel">
       <section className="ha-selection" aria-label="Five selected Hero slots" role="group">
         <div className="ha-section-heading"><div><span className="next-eyebrow">CURRENT BATTLE DRAFT</span><h4>Five Hero slots</h4></div><span>{slots.length} / 5 selected</span></div>
         <div className="ha-selected-slots">{slots.map((slot, index) => {
@@ -192,7 +201,7 @@ export function HeroAtelier({
       {impact.length > 0 && <aside className="ha-impact" aria-live="polite" aria-label="Hero change impact"><strong>Change impact</strong><ul>{impact.map((item) => <li key={item}>{item}</li>)}</ul></aside>}
       <footer className="ha-footer"><span>Hero choice, skill path and squad values are shared with the current Ready check and battle draft.</span><div><button className="next-secondary-button" onClick={() => onScreenChange("detail")} type="button">Inspect selected Hero <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
     </div>}
-    {screen === "detail" && <div className="ha-detail">
+    {screen === "detail" && <div className="ha-detail" id="hero-atelier-panel-detail" aria-labelledby="next-atelier-detail" role="tabpanel">
       {slotPicker("Choose a Hero for detail")}
       {currentHero && currentSlot ? <article className="ha-dossier">
         <header className={"ha-dossier-heading " + currentHero.placement}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Shared 3D identity used by the battlefield renderer.</small></div><span aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
@@ -207,7 +216,7 @@ export function HeroAtelier({
         <footer className="ha-footer"><span>Catalog values only. No unprovided attributes or abilities are inferred.</span><div><button className="next-secondary-button" onClick={() => onScreenChange("collection")} type="button">Back to Collection</button><button className="next-secondary-button" onClick={() => onScreenChange("skills")} type="button">Plan this Hero's skills <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
       </article> : <div className="ha-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
     </div>}
-    {screen === "skills" && <div className="ha-skills">
+    {screen === "skills" && <div className="ha-skills" id="hero-atelier-panel-skills" aria-labelledby="next-atelier-skills" role="tabpanel">
       {slotPicker("Choose a Hero skill tree", true)}
       {currentHero && currentSlot ? <div className="ha-tree">
         <header className="ha-tree-heading"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>These are acquisition plans. Enbu awards skills only when the Hero reaches each unlock level in battle.</p></div><span className="ha-planned-path">CURRENT · {formatId(currentSlot.skill_path)}</span></header>
@@ -241,7 +250,7 @@ export function HeroAtelier({
         <footer className="ha-footer"><span>Selected path: {selectedSkills(currentHero, currentSlot.skill_path)}</span><div><button className="next-secondary-button" onClick={() => onScreenChange("collection")} type="button">Collection</button><button className="next-secondary-button" onClick={() => onScreenChange("squads")} type="button">Arrange Squads <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
       </div> : <div className="ha-empty">Select a populated Hero slot to plan its skill tree.</div>}
     </div>}
-    {screen === "squads" && <div className={"ha-squads ha-squad-stage-" + mobileSquadStage}>
+    {screen === "squads" && <div className={"ha-squads ha-squad-stage-" + mobileSquadStage} id="hero-atelier-panel-squads" aria-labelledby="next-atelier-squads" role="tabpanel">
       <header className="ha-squad-heading"><div><span className="next-eyebrow">SENRITSU · FIVE HEROES · SEVEN PARTITIONS</span><h4>Set the initial chain of command</h4><p>Choose a legal partition, assign each Hero to one Squad, then set a shared starting node for each group.</p></div><span className="ha-count">{currentSplit || "—"}</span></header>
       <nav className="ha-mobile-stages" aria-label="Squad assembly steps">{([["split", "1 · Split"], ["assign", "2 · Assign"], ["deploy", "3 · Start nodes"]] as const).map(([stage, label]) => <button aria-current={mobileSquadStage === stage ? "step" : undefined} className={mobileSquadStage === stage ? "is-active" : ""} key={stage} onClick={() => setMobileSquadStage(stage)} type="button">{label}</button>)}</nav>
       <section className="ha-squad-step ha-squad-step-split" aria-label="Legal five Hero Squad partitions">

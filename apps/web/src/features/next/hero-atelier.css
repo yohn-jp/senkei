@@ -78,7 +78,7 @@
 .ha-dossier .next-hero-model-canvas { height: clamp(280px, 38vw, 480px); }
 .ha-data-card, .ha-capability { background: var(--ha-panel); border: 1px solid var(--ha-line); border-radius: 4px; min-width: 0; padding: 11px; }
 .ha-stat-table { border: 1px solid rgba(214,225,218,.08); border-radius: 3px; display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(70px, .6fr)); overflow: hidden; }
-.ha-stat-table > div { align-items: center; border-bottom: 1px solid rgba(214,225,218,.06); display: grid; gap: 8px; grid-column: 1/-1; grid-template-columns: subgrid; min-height: 31px; padding: 0 9px; }
+.ha-stat-table > div { align-items: center; border-bottom: 1px solid rgba(214,225,218,.06); display: grid; gap: 8px; grid-column: 1/-1; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(70px, .6fr)); min-height: 31px; padding: 0 9px; }
 .ha-stat-table > div:first-child { background: rgba(189,237,149,.04); color: #aabd9d; font: 7px "DM Mono", monospace; letter-spacing: .08em; }
 .ha-stat-table > div:last-child { border-bottom: 0; }
 .ha-stat-table > div > span { color: #b3c0b6; font: 9px "DM Mono", monospace; }
@@ -178,7 +178,7 @@
   .ha-catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ha-footer { align-items: stretch; }
   .ha-footer > div { justify-content: stretch; }
-  .ha-footer > div > button { flex: 1 1 auto; }
+  .ha-footer > div > button { flex: 1 1 100%; }
   .ha-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ha-roster button:last-child { grid-column: 2; }
   .ha-dossier .next-hero-model-preview { min-height: 300px; }
