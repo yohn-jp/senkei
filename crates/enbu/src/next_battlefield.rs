@@ -85,6 +85,23 @@ pub fn prepare(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) {
+    let movement_cohorts = accepted.iter().filter_map(|(side, intent)| {
+        if !matches!(intent.capability.as_str(), "move" | "retreat" | "pursue" | "select_track") {
+            return None;
+        }
+        let actor_id = intent.arguments.first().and_then(entity_value)
+            .or_else(|| intent.actor.clone())?;
+        let actor = snapshot.entities.get(&actor_id)?;
+        if actor.entity_type.as_str() != HERO || actor.owner != Some(*side) || !support::alive(actor) {
+            return None;
+        }
+        let squad = support::string(actor, "squad");
+        Some(if squad.is_empty() {
+            format!("{}:solo:{actor_id}", support::side_name(*side))
+        } else {
+            format!("{}:{squad}", support::side_name(*side))
+        })
+    }).collect::<BTreeSet<_>>();
     let mut candidates = accepted.iter().filter_map(|(side, intent)| {
         if intent.capability.as_str() != "bridge_work" { return None; }
         let actor_id = intent.arguments.first().and_then(entity_value)?;
@@ -138,6 +155,12 @@ pub fn prepare(
         } else {
             format!("{}:{squad}", support::side_name(side))
         };
+        let cohort_key = if squad.is_empty() {
+            format!("{}:{cohort}", support::side_name(side))
+        } else {
+            cohort.clone()
+        };
+        if movement_cohorts.contains(&cohort_key) { continue; }
         let member_ids = snapshot.entities.iter().filter_map(|(member_id, member)| {
             (member.entity_type.as_str() == HERO && member.owner == Some(side)
                 && support::alive(member)
@@ -523,6 +546,46 @@ mod tests {
         assert!(matches!(bridge.fields.get(&FieldId::from("builder")), Some(DomainValue::Null)));
         assert_eq!(support::int(&world.entities[&actor_id], "energy"), spent_energy);
         assert_eq!(support::int(&world.entities[&actor_id], "action_lock_until"), 0);
+    }
+
+    #[test]
+    fn accepted_squad_retreat_prevents_bridge_work_without_cost_or_lock() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, &rules);
+        let builder_id = EntityId::from("a.builder");
+        let retreating_id = EntityId::from("a.retreating");
+        let mut builder = hero(&rules, CombatantSide::Attacker, "a_bank");
+        let mut retreating = hero(&rules, CombatantSide::Attacker, "a_bank");
+        support::set_string(&mut builder, "squad", "alpha");
+        support::set_string(&mut retreating, "squad", "alpha");
+        world.entities.insert(builder_id.clone(), builder);
+        world.entities.insert(retreating_id.clone(), retreating);
+        let snapshot = world.clone();
+        let work = Intent {
+            action_id: "work".into(), capability: "bridge_work".into(), actor: Some(builder_id.clone()),
+            target: Some("bridge.TOP".into()),
+            arguments: vec![DomainValue::Entity(builder_id.clone()), DomainValue::Entity("bridge.TOP".into()), DomainValue::Enum("expand".into())],
+            priority: None,
+        };
+        let retreat = Intent {
+            action_id: "retreat".into(), capability: "retreat".into(), actor: Some(retreating_id.clone()),
+            target: None,
+            arguments: vec![DomainValue::Entity(retreating_id.clone())],
+            priority: None,
+        };
+        prepare(&mut world, &snapshot, &rules, &[
+            (CombatantSide::Attacker, work),
+            (CombatantSide::Attacker, retreat),
+        ], 0);
+
+        let bridge = &world.entities[&EntityId::from("bridge.TOP")];
+        assert_eq!(support::int(bridge, "build_remaining"), 0);
+        assert_eq!(support::string(bridge, "build_kind"), "");
+        assert_eq!(support::int(&world.entities[&builder_id], "energy"), 100);
+        assert_eq!(support::int(&world.entities[&retreating_id], "energy"), 100);
+        assert_eq!(support::int(&world.entities[&builder_id], "action_lock_until"), 0);
+        assert_eq!(support::int(&world.entities[&retreating_id], "action_lock_until"), 0);
     }
 
     #[test]
