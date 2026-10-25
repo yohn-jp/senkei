@@ -115,6 +115,16 @@ function observationAt(replay: JsonRecord, tick: number): JsonRecord | undefined
   );
 }
 
+function frameHasHeroAttack(frame: JsonRecord): boolean {
+  const entities = frame.visible_state?.entities ?? {};
+  return (frame.events ?? []).some((event: JsonRecord) => {
+    if (event.event !== "next.attack") return false;
+    const source = event.payload?.source;
+    const sourceId = source?.kind === "entity" ? source.value : event.entity;
+    return typeof sourceId === "string" && entities[sourceId]?.entity_type === "hero";
+  });
+}
+
 function heroAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord | undefined {
   return entitiesAt(replay, tick).map(([, entity]) => entity).find((entity) =>
     entity.entity_type === "hero" && field(entity, "catalog_id") === catalogId,
@@ -638,9 +648,10 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     expect(defaultRun.result.outcome).toBe("attacker_victory");
     expect(defaultRun.result.termination_reason).toBe("base_destroyed");
     const clashTick = defaultRun.publicReplay.frames.find((frame: JsonRecord) =>
-      frame.events.some((event: JsonRecord) => event.event === "next.attack"),
+      frameHasHeroAttack(frame),
     )?.tick as number | undefined;
-    expect(clashTick, "the real default match presents a confirmed attack tick").toBeDefined();
+    expect(clashTick, "the real default match presents a confirmed Hero attack tick").toBeDefined();
+    expect(clashTick, "the visual baseline uses the same initial Hero clash tick").toBe(16);
     for (const viewport of viewports) {
       await ensureViewport(defaultPage, viewport);
       await seekToTick(defaultPage, clashTick!);
@@ -701,8 +712,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       commit: beforeCommit,
       desktop: beforeImages.desktop,
       mobile: beforeImages.mobile,
-      afterDesktop: "canonical-real-battle/1440x900/initial-t000-tactical.png",
-      afterMobile: "canonical-real-battle/390x844/initial-t000-tactical.png",
+      afterDesktop: "canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png",
+      afterMobile: `default-enbu-victory/390x844/first-node-clash-t${String(defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame))?.tick ?? 0).padStart(3, "0")}-tactical.png`,
     },
     viewports,
     viewportChecks,
@@ -743,7 +754,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         terminationReason: defaultRun.result.termination_reason,
         finalTick: defaultRun.result.final_tick,
         finalStateDigest: defaultRun.result.final_state_digest,
-        firstNodeFightTick: defaultRun.publicReplay.frames.find((frame: JsonRecord) => frame.events.some((event: JsonRecord) => event.event === "next.attack"))?.tick,
+        firstHeroAttackTick: defaultRun.publicReplay.frames.find((frame: JsonRecord) => frameHasHeroAttack(frame))?.tick,
         publicReplayDigest: defaultRun.publicReplay.result_digest,
         ownerReplayDigest: defaultRun.ownerReplay.result_digest,
         workerRequestId: defaultRun.request.request_id,
@@ -774,8 +785,8 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     "",
     "| Scene | Before | After | Evidence |",
     "| --- | --- | --- | --- |",
-    `| Desktop battlefield and destroyed crossing | [6fa8296 baseline](${beforeImages.desktop}) | [real initial battlefield](canonical-real-battle/1440x900/initial-t000-tactical.png) | 1440×900, T0, Tactical |`,
-    `| Mobile battlefield | [6fa8296 baseline](${beforeImages.mobile}) | [real initial battlefield](canonical-real-battle/390x844/initial-t000-tactical.png) | 390×844, T0, Tactical |`,
+    `| Desktop battlefield and destroyed crossing | [6fa8296 baseline](${beforeImages.desktop}) | [real destroyed crossing](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png) | 1440×900, T23, Tactical |`,
+    `| Mobile battlefield and first Hero clash | [6fa8296 baseline](${beforeImages.mobile}) | [real Hero clash](default-enbu-victory/390x844/first-node-clash-t016-tactical.png) | 390×844, T16, Tactical |`,
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
     `| MID capture and victory | — | [capture progress](real-mid-capture/1440x900/capture-progress-t007-tactical.png), [T420 victory](default-enbu-victory/1440x900/base-destruction-end-t420-tactical.png) | actual simulation state |`,
