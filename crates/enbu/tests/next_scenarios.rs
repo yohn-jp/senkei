@@ -186,6 +186,22 @@ fn movement_tactics(assignments: &[(String, String)]) -> String {
     format!("senkei w9_movement {{ {actions} }}")
 }
 
+fn persistent_movement_tactics(assignments: &[(String, String)]) -> String {
+    let actions = assignments
+        .iter()
+        .enumerate()
+        .map(|(index, (slot, destination))| {
+            let selector = hero_selector(slot);
+            format!(
+                "action advance_slot_{} {{ when any hero in allies.heroes {{ hero.slot_id == \"{slot}\", hero.goal == \"\", hero.hp > 0, }}, do move({selector}, \"{destination}\"), }}",
+                index + 1
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("senkei w9_persistent_movement {{ {actions} }}")
+}
+
 fn hero_selector(slot: &str) -> String {
     format!(
         "argmin hero in filter hero in allies.heroes {{ hero.slot_id == \"{slot}\", }} by hero.hp then hero.id"
@@ -609,9 +625,9 @@ fn strategic_match_case(
         .zip(defender_destinations.iter())
         .map(|(slot, destination)| (format!("slot-{slot}"), (*destination).to_owned()))
         .collect::<Vec<_>>();
-    let attacker_program = compile(&movement_tactics(&attacker_assignments), rules)
+    let attacker_program = compile(&persistent_movement_tactics(&attacker_assignments), rules)
         .unwrap_or_else(|error| panic!("{case_id} attacker policy compiles: {error:?}"));
-    let defender_program = compile(&movement_tactics(&defender_assignments), rules)
+    let defender_program = compile(&persistent_movement_tactics(&defender_assignments), rules)
         .unwrap_or_else(|error| panic!("{case_id} defender policy compiles: {error:?}"));
     let mut attacker = configured_snapshot(rules, CombatantSide::Attacker, attacker_partition, attacker_program.program, None);
     let mut defender = configured_snapshot(rules, CombatantSide::Defender, defender_partition, defender_program.program, None);
