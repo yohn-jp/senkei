@@ -903,8 +903,9 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
 
     const lateralHero = heroAt(canonical.ownerReplay, 3, "F01");
     const lateralCrossRemaining = integerField(lateralHero, "cross_remaining");
+    if (lateralCrossRemaining === null) throw new Error("The authorized replay must expose F01's lateral crossing timer at T3.");
     expect(lateralCrossRemaining, "F01 is in the real three-tick LEFT-to-RIGHT transit at T3").toBeGreaterThan(0);
-    expect(field(lateralHero, "track"), "lateral crossing occupies the CENTER track").toBe("CENTER");
+    expect(field(lateralHero, "track"), "the authorized replay retains the selected LEFT track as the transition origin").toBe("LEFT");
     const lateralTarget = await followHero(page, viewport, canonical.ownerReplay, 3, "F01", "Azure");
     await saveCapture(page, "canonical-real-battle", "lateral-crossing-follow", 3, viewport, "Follow", {
       catalogId: lateralTarget.catalogId,
@@ -913,7 +914,9 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       node: field(lateralHero, "node"),
       edgeTo: field(lateralHero, "edge_to"),
       edgeProgress: integerField(lateralHero, "edge_progress"),
-      track: field(lateralHero, "track"),
+      selectedTrack: field(lateralHero, "track"),
+      effectiveTrack: lateralCrossRemaining > 0 ? "CENTER" : field(lateralHero, "track"),
+      effectiveTrackReason: lateralCrossRemaining > 0 ? "cross_remaining > 0" : "no lateral crossing",
       crossRemaining: lateralCrossRemaining,
     }, captures);
 
