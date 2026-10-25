@@ -807,6 +807,18 @@ async function assertPausedUnitPose(
   return { paused: true, rendererEntityId, pose: renderedPose, sample, hit: hit ?? null };
 }
 
+async function renderedBridgeRoles(page: Page): Promise<JsonRecord[]> {
+  const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
+  const wasOpen = await toggle.getAttribute("aria-expanded") === "true";
+  if (!wasOpen) await toggle.click();
+  const roles = await page.locator('[data-testid="battle-map-route"][data-bridge-site]').evaluateAll((routes) => routes.map((route) => {
+    const element = route as SVGElement;
+    return { bridgeSite: element.dataset.bridgeSite, bridgeKind: element.dataset.bridgeKind };
+  }));
+  if (!wasOpen) await toggle.click();
+  return roles;
+}
+
 async function followBridgeSite(
   page: Page,
   viewport: Viewport,
@@ -820,7 +832,7 @@ async function followBridgeSite(
   const [ownerReplayEntityId, bridge] = bridgeEntry!;
   const siteId = bridgeSiteIds[site];
   const bridgeKind = bridgeKindFor(site);
-  const routeRoles = (publicReplay.scene.routes as JsonRecord[]).filter((route) => route.bridgeSite === siteId);
+  const routeRoles = (await renderedBridgeRoles(page)).filter((route) => route.bridgeSite === siteId);
   expect(routeRoles.length, `${site} has a route in the real replay`).toBeGreaterThan(0);
   expect(routeRoles.every((route) => route.bridgeKind === bridgeKind), `${siteId} keeps its typed ${bridgeKind} bridge role`).toBe(true);
   const bridgeState = field(bridge, "bridge_state");
@@ -909,7 +921,7 @@ async function followBridgeSite(
   return { id: rendererEntityId, site, bridgeSite: siteId, bridgeKind, bridgeState, ownerReplayEntityId };
 }
 
-async function assertMapContract(page: Page, publicReplay: JsonRecord): Promise<void> {
+async function assertMapContract(page: Page): Promise<void> {
   const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
   if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
   const nodes = page.getByTestId("battle-map-node");
@@ -921,7 +933,7 @@ async function assertMapContract(page: Page, publicReplay: JsonRecord): Promise<
   expect(await page.locator('[data-testid="battle-map-route"][data-bridge-site]').count()).toBe(4);
   expect(await page.locator('[data-testid="battle-map-route"][data-ford="true"]').count()).toBe(2);
   expect(nodeIds).toContain("N.MID.OBS");
-  const bridgeRoles = (publicReplay.scene.routes as JsonRecord[])
+  const bridgeRoles = (await renderedBridgeRoles(page))
     .filter((route) => route.bridgeSite)
     .map((route) => [route.bridgeSite, route.bridgeKind]);
   bridgeRoles.sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
@@ -1205,7 +1217,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
   expect(integerField(fordTransitHero, "ford_active")).toBe(1);
   expect(integerField(fordTransitHero, "ford_remaining")).toBe(0);
   expect(integerField(fordTransitHero, "edge_progress")).toBeGreaterThan(0);
-  const bridgeRoles = (canonical.publicReplay.scene.routes as JsonRecord[])
+  const bridgeRoles = (await renderedBridgeRoles(page))
     .filter((route) => route.bridgeSite)
     .map((route) => [route.bridgeSite, route.bridgeKind])
     .sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
@@ -1228,7 +1240,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     .toBeGreaterThan(49);
   expect(fixedBridgeTransit!.tick).toBeLessThanOrEqual(canonical.result.final_tick);
 
-  await assertMapContract(page, canonical.publicReplay);
+  await assertMapContract(page);
   for (const [tick, site, state] of [
     [0, "TOP", "normal"], [11, "MID", "destroyed"], [13, "TOP", "expanded"],
     [23, "TOP", "destroyed"], [49, "TOP", "normal"],

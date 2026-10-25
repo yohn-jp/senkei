@@ -2096,7 +2096,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                     {(run.graphicsReplay.scene.routes ?? []).map((route) => {
                       const points = route.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");
                       const facility = route.bridgeSite ? Object.values(displayState?.entities ?? {}).find((entity) => entity.battlefield?.bridgeSite === route.bridgeSite) : undefined;
-                      return <polyline className={`next-minimap-route region-${route.region}${route.bridgeSite ? " is-bridge-route" : ""}${route.ford ? " is-ford-route" : ""}`} data-testid="battle-map-route" data-edge-id={route.id} data-bridge-site={route.bridgeSite} data-bridge-state={route.bridgeSite ? facility?.battlefield?.bridgeState ?? "unknown" : undefined} data-ford={route.ford ? "true" : undefined} key={route.id} points={points} />;
+                      return <polyline className={`next-minimap-route region-${route.region}${route.bridgeSite ? " is-bridge-route" : ""}${route.ford ? " is-ford-route" : ""}`} data-testid="battle-map-route" data-edge-id={route.id} data-bridge-site={route.bridgeSite} data-bridge-kind={route.bridgeKind} data-bridge-state={route.bridgeSite ? facility?.battlefield?.bridgeState ?? "unknown" : undefined} data-ford={route.ford ? "true" : undefined} key={route.id} points={points} />;
                     })}
                     {run.graphicsReplay.scene.lanes.map((lane) => {
                       const points = lane.points.map(miniMapPoint).map((point) => `${point.x},${point.y}`).join(" ");

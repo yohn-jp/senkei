@@ -238,10 +238,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.TOP}"]`).count()).toBe(1);
   expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.MID}"]`).count()).toBe(2);
   expect(await page.locator(`[data-bridge-site="${bridgeSiteIds.BOT}"]`).count()).toBe(1);
-  const publicScene = requiredRecord(publicReplay.scene, "public map scene");
-  const routeMetadata = publicScene.routes as JsonRecord[];
-  const bridgeRoles = routeMetadata.filter((route) => route.bridgeSite).map((route) => [route.bridgeSite, route.bridgeKind])
-    .sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
+  const bridgeRoles = (await bridgeRoutes.evaluateAll((routes) => routes.map((route) => {
+    const element = route as SVGElement;
+    return [element.dataset.bridgeSite, element.dataset.bridgeKind];
+  }))).sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`));
   expect(bridgeRoles).toEqual([
     [bridgeSiteIds.TOP, "lane"],
     [bridgeSiteIds.MID, "facility"],
