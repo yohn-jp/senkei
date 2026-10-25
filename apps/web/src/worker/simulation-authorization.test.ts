@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { simulationAuthorizationError } from "./simulation-authorization";
+
+const authorized = () => ({
+  authorized_side: "attacker",
+  owner_replays: { attacker: { perspective: "attacker" } },
+  diagnostics: { events: [{ side: "attacker" }], cu_by_side: { attacker: 3 }, final_memory_by_side: { attacker: {} } },
+});
+
+describe("simulation owner authorization", () => {
+  it("accepts the requested side and public responses without restricted channels", () => {
+    expect(simulationAuthorizationError(authorized(), "attacker")).toBeNull();
+    expect(simulationAuthorizationError({ owner_replays: {}, diagnostics: null }, null)).toBeNull();
+  });
+  it("rejects a forged map key around a different perspective", () => {
+    const response = authorized();
+    response.owner_replays.attacker.perspective = "defender";
+    expect(simulationAuthorizationError(response, "attacker")).toMatch(/unauthorized owner replay/);
+    expect(simulationAuthorizationError(authorized(), "defender")).toMatch(/authorization/);
+  });
+  it("rejects private events and memory for the opposing side", () => {
+    const eventLeak = authorized();
+    eventLeak.diagnostics.events.push({ side: "defender" });
+    expect(simulationAuthorizationError(eventLeak, "attacker")).toMatch(/unauthorized diagnostic events/);
+    const memoryLeak = authorized();
+    Object.assign(memoryLeak.diagnostics.final_memory_by_side, { defender: { secret: 1 } });
+    expect(simulationAuthorizationError(memoryLeak, "attacker")).toMatch(/unauthorized diagnostic state/);
+  });
+  it("rejects owner channels in a public-only response", () => {
+    expect(simulationAuthorizationError(authorized(), null)).toMatch(/restricted channel/);
+    expect(simulationAuthorizationError({ owner_replays: { defender: {} }, diagnostics: null }, null)).toMatch(/restricted channel/);
+    expect(simulationAuthorizationError({ replay: { perspective: "attacker" }, diagnostics: null }, null)).toMatch(/public replay channel/);
+  });
+});

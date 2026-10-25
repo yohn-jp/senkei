@@ -116,11 +116,12 @@ export class WorkerCoreClient implements CoreClient {
 
   simulate(
     snapshot: SimulationSnapshot,
-    options: { readonly include_diagnostics?: boolean } = {},
+    options: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("../contracts/core-model").CombatantSide } = {},
   ): Promise<SimulationResponse> {
     return this.request("simulate", {
       snapshot,
       include_diagnostics: options.include_diagnostics ?? false,
+      ...(options.include_diagnostics ? { diagnostics_side: options.diagnostics_side ?? "attacker" } : {}),
     }) as Promise<SimulationResponse>;
   }
 

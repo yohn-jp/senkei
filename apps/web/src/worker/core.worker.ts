@@ -1,3 +1,4 @@
+import { simulationAuthorizationError } from "./simulation-authorization";
 import { CORE_API_VERSION, WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts/core";
 import { WasmRuntime } from "./wasm-runtime";
@@ -204,6 +205,9 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
     case "simulate":
       requireRecord(payload.snapshot, "simulate.snapshot");
       requireBoolean(payload.include_diagnostics, "simulate.include_diagnostics");
+      if (payload.diagnostics_side !== undefined && payload.diagnostics_side !== "attacker" && payload.diagnostics_side !== "defender") {
+        throw new RequestFailure("invalid_request", "simulate.diagnostics_side must identify one owner side.");
+      }
       validateSnapshot(payload.snapshot, "simulate.snapshot");
       return;
     case "preflight":
@@ -294,11 +298,13 @@ async function runSimulation(
 ): Promise<unknown> {
   const snapshot = requireRecord(payload.snapshot, "simulate.snapshot");
   const includeDiagnostics = payload.include_diagnostics === true;
+  const diagnosticsSide = payload.diagnostics_side ?? "attacker";
   const coreResult = await callCore("simulate", {
     attacker: snapshot.attacker,
     defender: snapshot.defender,
     context: snapshot.context,
     include_diagnostics: includeDiagnostics,
+    ...(includeDiagnostics ? { diagnostics_side: diagnosticsSide } : {}),
   }, webRequestId);
   const local = requireRecord(coreResult, "core.simulate.result");
   const result = requireRecord(local.result, "core.simulate.result.result");
@@ -323,8 +329,13 @@ async function runSimulation(
     );
   }
 
+  const authorizationError = simulationAuthorizationError(local, includeDiagnostics
+    ? diagnosticsSide as "attacker" | "defender" : null);
+  if (authorizationError !== null) throw new RequestFailure("core_error", authorizationError);
+
   return {
     outcome: { result, presentation_replay: replay },
+    ...(includeDiagnostics ? { authorized_side: diagnosticsSide } : {}),
     ...(includeDiagnostics && asRecord(local.owner_replays) ? { owner_replays: local.owner_replays } : {}),
     ...(includeDiagnostics && asRecord(local.owner_replay) ? { owner_replay: local.owner_replay } : {}),
     ...(includeDiagnostics && diagnostics !== null
