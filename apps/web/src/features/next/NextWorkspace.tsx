@@ -4,7 +4,9 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
-import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize } from "../persistence/repository";
+import { validateNextExperimentReplay } from "./experiment-restoration";
+import { matchesPresentedEntity } from "./battle-entity-identity";
+import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer, BattlefieldInformationLayers } from "@senkei/renderer";
@@ -187,24 +189,6 @@ function reviseDraft(previous: SenkeiDraft | null, next: SenkeiDraft): SenkeiDra
   return stableKey(previousContent) === stableKey(nextContent)
     ? next
     : { ...next, revision: incrementRevision(previous.revision) };
-}
-
-function polylineMidpoint(points: readonly WorldPoint[]): WorldPoint | null {
-  if (points.length === 0) return null;
-  const lengths = points.slice(1).map((point, index) => Math.hypot(point.x - points[index].x, point.y - points[index].y));
-  const total = lengths.reduce((sum, length) => sum + length, 0);
-  if (total === 0) return points[0];
-  let target = total / 2;
-  for (let index = 0; index < lengths.length; index += 1) {
-    const length = lengths[index];
-    if (target <= length) {
-      const from = points[index], to = points[index + 1];
-      const t = length === 0 ? 0 : target / length;
-      return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-    }
-    target -= length;
-  }
-  return points[points.length - 1];
 }
 
 function nearestPolylineTangent(points: readonly WorldPoint[], point: WorldPoint, travel: WorldPoint): WorldPoint | null {
@@ -726,9 +710,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
               !sourceReplay.ruleset || !sameRulesetRef(sourceReplay.ruleset, packageValue.ruleset)) {
             throw new Error(`Experiment ${item.id} Ruleset identity does not match the current package.`);
           }
-          if (sourceReplay.match_id !== item.match_id || sourceReplay.result_digest !== result.final_state_digest ||
-              (sourceReplay.perspective !== undefined && sourceReplay.perspective !== "attacker")) {
-            throw new Error(`Experiment ${item.id} replay does not match its immutable result or attacker perspective.`);
+          try { await validateNextExperimentReplay(sourceReplay, result, item.match_id); }
+          catch (cause) {
+            throw new Error(`Experiment ${item.id} replay does not match its immutable result or attacker perspective: ${cause instanceof Error ? cause.message : String(cause)}`);
           }
           if (stableKey(item.snapshot.context.versions) !== stableKey(probe.versions)) {
             throw new Error(`Experiment ${item.id} compiler, engine or mechanics versions differ from this runtime.`);
@@ -1146,15 +1130,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     for (const entity of Object.values(ownerFrame.visible_state.entities)) {
       if (entity.owner !== "attacker" || entity.entity_type !== "hero") continue;
       const squad = fieldString(entity.fields.squad);
-      const x = fieldInteger(entity.fields.x);
-      const y = fieldInteger(entity.fields.y);
       const catalogId = fieldString(entity.fields.catalog_id);
-      if (!squad || x === null || y === null) continue;
-      const location = { x: x / NEXT_WORLD_UNITS_PER_RENDER_UNIT, y: y / NEXT_WORLD_UNITS_PER_RENDER_UNIT };
+      if (!squad) continue;
       const matches = Object.values(displayState.entities)
-        .filter((candidate) => !candidate.destroyed && candidate.hp > 0 && candidate.side === "azure" &&
-          candidate.archetype === entity.entity_type && (!catalogId || candidate.catalogId === catalogId) &&
-          candidate.position.x === location.x && candidate.position.y === location.y);
+        .filter((candidate) => !candidate.destroyed && candidate.hp > 0 && (!catalogId || candidate.catalogId === catalogId) &&
+          matchesPresentedEntity(entity, candidate, nextRules?.map.edges));
       // Squad membership is private owner-replay data; camera IDs must still
       // come from one unambiguous visible graphics entity at this exact tick.
       // Matching by nearest position could assign a duplicate Hero to a
@@ -1171,23 +1151,17 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       })
       .filter((group) => group.memberIds.length > 0)
       .sort((left, right) => left.id.localeCompare(right.id));
-  }, [displayState, ownerFrame, ownerReplay]);
+  }, [displayState, nextRules, ownerFrame, ownerReplay]);
   const followedSquadMembers = visibleSquadTargets.find((target) => target.id === followedSquadId)?.memberIds ?? [];
   const followedSquadMemberKey = followedSquadMembers.join("|");
   const selectedDisplayEntity = selectedEntityId ? displayState?.entities[selectedEntityId] ?? null : null;
   const selectedEntity = useMemo(() => {
     if (!selectedDisplayEntity) return null;
-    const owner = selectedDisplayEntity.side === "azure" ? "attacker" : selectedDisplayEntity.side === "vermilion" ? "defender" : null;
-    const catalogId = selectedDisplayEntity.catalogId;
-    const position = selectedDisplayEntity.position;
-    const matches = Object.values(publicEntities)
-      .filter((entity) => entity.entity_type === selectedDisplayEntity.archetype && entity.owner === owner &&
-        (!catalogId || fieldString(entity.fields.catalog_id) === catalogId) &&
-        fieldInteger(entity.fields.x) !== null && fieldInteger(entity.fields.y) !== null &&
-        fieldInteger(entity.fields.x)! / NEXT_WORLD_UNITS_PER_RENDER_UNIT === position.x &&
-        fieldInteger(entity.fields.y)! / NEXT_WORLD_UNITS_PER_RENDER_UNIT === position.y);
+    const tickEntities = ownerFrame?.visible_state?.entities ?? publicEntities;
+    const matches = Object.values(tickEntities)
+      .filter((entity) => matchesPresentedEntity(entity, selectedDisplayEntity, nextRules?.map.edges));
     return matches.length === 1 ? matches[0] : null;
-  }, [publicEntities, selectedDisplayEntity]);
+  }, [nextRules, ownerFrame, publicEntities, selectedDisplayEntity]);
   const selectBattleEntity = useCallback((id: string): void => {
     setSelectedEntityId(id);
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches) {
@@ -1802,10 +1776,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const offset = (run?.graphicsReplay.scene.trackOffset ?? 0.8) * direction;
     return miniMapPoint({ x: point.x + tangent.y * offset, y: point.y - tangent.x * offset });
   };
-  const miniMapBases = nextRules ? [
-    { id: "attacker", label: "A", node: nextRules.map.nodes[nextRules.map.attacker_base] },
-    { id: "defender", label: "D", node: nextRules.map.nodes[nextRules.map.defender_base] },
-  ].filter((base) => Boolean(base.node)) : [];
+  const miniMapBases = (run?.graphicsReplay.scene.baseSites ?? []).map((base) => ({
+    id: base.side === "azure" ? "attacker" : "defender",
+    label: base.side === "azure" ? "A" : "D",
+    position: base.position,
+  }));
   const setBattleView = (view: BattlefieldMobileView): void => {
     setBattleMobileView(view);
     if (view === "timeline") player?.pause();
@@ -1917,7 +1892,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     onExportExperiments={() => {
       if (!experimentStore) throw new Error("There are no stored Next experiments to export.");
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(new Blob([JSON.stringify(experimentStore, null, 2)], { type: "application/json" }));
+      link.href = URL.createObjectURL(new Blob([serializeNextExperimentStore(experimentStore)], { type: "application/json" }));
       link.download = `senkei-next-experiments-${experimentStore.ruleset_digest.slice(0, 12)}.json`;
       link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
     }}
@@ -2107,16 +2082,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                     {displayState?.fog?.state.facilities.map((contact) => {
                       const route = run.graphicsReplay.scene.routes?.find(route => route.bridgeSite === contact.site);
                       const site = contact.kind === "bridge"
-                        ? contact.site === "MID" ? run.graphicsReplay.scene.nodes?.find(node => node.id === "N.MID.OBS")?.position
-                          : route ? polylineMidpoint(route.points) ?? undefined : undefined
+                        ? route?.bridgePosition
                         : run.graphicsReplay.scene.nodes?.find(node => node.id === contact.site)?.position;
                       if (!site) return null;
                       const point = miniMapPoint(site);
                       return <circle key={contact.id} data-testid="battle-map-last-known" cx={point.x} cy={point.y} r="2" fill="none" stroke="#d5bc88" strokeDasharray="1 0.7"><title>Last observed {contact.kind} {contact.facility_state?.bridge_state ?? ""} · Tick {contact.last_seen_tick} · Current state unknown</title></circle>;
                     })}
-                    {miniMapBases.map(({ id, label, node }) => {
-                      if (!node) return null;
-                      const point = miniMapPoint({ x: node.x / NEXT_WORLD_UNITS_PER_RENDER_UNIT, y: node.y / NEXT_WORLD_UNITS_PER_RENDER_UNIT });
+                    {miniMapBases.map(({ id, label, position }) => {
+                      const point = miniMapPoint(position);
                       return <g className={`next-minimap-base base-${id}`} key={id}><rect height="5" width="5" x={point.x - 2.5} y={point.y - 2.5} /><text x={point.x + 3.5} y={point.y + 2}>{label}</text></g>;
                     })}
                     {Object.values(displayState?.entities ?? {}).filter((entity) => !entity.destroyed && entity.hp > 0).map((entity) => {

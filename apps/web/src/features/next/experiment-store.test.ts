@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NEXT_EXPERIMENT_STORE_MAX_BYTES, assertNextExperimentImportSize, parseNextExperimentStore } from "../persistence/repository";
+import type { LocalNextExperimentStore } from "../../contracts";
+import { NEXT_EXPERIMENT_STORE_MAX_BYTES, assertNextExperimentImportSize, parseNextExperimentStore, serializeNextExperimentStore } from "../persistence/repository";
 
 function countJsonValues(value: unknown): number {
   if (Array.isArray(value)) return 1 + value.reduce((sum, item) => sum + countJsonValues(item), 0);
@@ -67,6 +68,9 @@ describe("Next experiment store bounds", () => {
     expect(storeBytes).toBeGreaterThan(64 * 1024 * 1024);
     expect(storeBytes).toBeLessThanOrEqual(NEXT_EXPERIMENT_STORE_MAX_BYTES);
     expect(parseNextExperimentStore(store).experiments).toHaveLength(2);
+    const exportJson = serializeNextExperimentStore(store as unknown as LocalNextExperimentStore);
+    expect(new TextEncoder().encode(exportJson).byteLength).toBeLessThanOrEqual(NEXT_EXPERIMENT_STORE_MAX_BYTES);
+    expect(exportJson).not.toContain("\n  ");
   }, resourceBoundaryTimeout);
 
   it("rejects a single record over the 64 MiB per-experiment byte cap", () => {

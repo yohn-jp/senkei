@@ -1329,6 +1329,16 @@ export function parseNextExperimentStore(value: unknown): LocalNextExperimentSto
   return copied;
 }
 
+/** Emits compact JSON that obeys the exact paired-store import and persistence limits. */
+export function serializeNextExperimentStore(value: LocalNextExperimentStore): string {
+  const copied = parseNextExperimentStore(value);
+  const serialized = JSON.stringify(copied);
+  if (utf8ByteLength(serialized) > NEXT_EXPERIMENT_STORE_MAX_BYTES) {
+    throw new PersistenceError("too_large", "Next experiment export exceeds the 128 MiB paired-store limit.");
+  }
+  return serialized;
+}
+
 /** Enforces the same byte bound before reading a portable experiment file into memory. */
 export function assertNextExperimentImportSize(byteLength: number): void {
   if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
