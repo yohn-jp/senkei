@@ -177,7 +177,7 @@ fn advance_entity(
             }
         }
     }
-    let forced_transit = is_forced_transit(entity, &rules.map);
+    let forced_transit = forced_transit(entity, rules);
     if forced_transit {
         mark_moved(entity, tick);
     }
@@ -498,8 +498,14 @@ fn should_hold_for_attack(
     })
 }
 
-fn is_forced_transit(entity: &EntityState, map: &BattleMap) -> bool {
-    if int(entity, "cross_remaining") > 0 || int(entity, "ford_active") > 0 {
+/// Whether a unit is committed to transit and must not be stranded by an
+/// action lock. Action and Squad-operation selection can call this helper
+/// before reserving an action that would prevent the next movement update.
+pub(crate) fn forced_transit(entity: &EntityState, rules: &NextRules) -> bool {
+    if int(entity, "cross_remaining") > 0
+        || int(entity, "ford_active") > 0
+        || int(entity, "ford_remaining") > 0
+    {
         return true;
     }
     let from = string(entity, "node");
@@ -507,7 +513,7 @@ fn is_forced_transit(entity: &EntityState, map: &BattleMap) -> bool {
     if to.is_empty() {
         return false;
     }
-    let Some(edge) = edge_for_nodes(map, &from, &to) else {
+    let Some(edge) = edge_for_nodes(&rules.map, &from, &to) else {
         return false;
     };
     edge.ford || (is_bridge(edge) && string(entity, "track") == "CENTER")
@@ -1287,6 +1293,10 @@ fn known_bridge_queue(
             matches!(entity.entity_type.as_str(), "hero" | "minion")
                 && entity
                     .fields
+                    .get(&"hp".into())
+                    .is_some_and(|value| matches!(value, DomainValue::Integer(hp) if *hp > 0))
+                && entity
+                    .fields
                     .get(&"node".into())
                     .and_then(|v| match v {
                         DomainValue::String(v) => Some(v.as_str()),
@@ -2018,6 +2028,55 @@ mod tests {
     }
 
     #[test]
+    fn dead_bridge_occupant_does_not_change_weighted_route() {
+        let mut bridge = edge("a", "b", 50, "lane", false);
+        bridge.id = "bridge.top".into();
+        bridge.bridge_site = "TOP".into();
+        let map = test_map(vec![
+            bridge,
+            edge("b", "c", 50, "lane", false),
+            edge("a", "d", 55, "lane", false),
+            edge("d", "c", 55, "lane", false),
+        ]);
+        let mut config = rules(map.clone());
+        config
+            .parameters
+            .insert("bridge_known_occupancy_delay_ticks".into(), 24);
+        for (index, occupant_kind) in ["hero", "minion"].into_iter().enumerate() {
+            let actor = entity("hero", Some(CombatantSide::Attacker), 100, "a", "c");
+            let mut dead_occupant =
+                entity(occupant_kind, Some(CombatantSide::Attacker), 100, "a", "b");
+            set_string(
+                &mut dead_occupant,
+                "squad",
+                &format!("dead-{occupant_kind}"),
+            );
+            set_string(&mut dead_occupant, "edge_to", "b");
+            set_int(&mut dead_occupant, "edge_progress", 25);
+            set_string(&mut dead_occupant, "track", "CENTER");
+            set_int(&mut dead_occupant, "hp", 0);
+            let actor_id = EntityId::from(format!("actor-{index}"));
+            let occupant_id = EntityId::from(format!("occupant-{index}"));
+            let mut world = WorldState::default();
+            world.entities.insert(actor_id.clone(), actor.clone());
+            world.entities.insert(occupant_id.clone(), dead_occupant);
+
+            let movement = movement_intent(&actor_id, &actor, &world, &config, 0);
+            let route =
+                route_for_entity(&actor, &map, "a", "c", &world, &movement, &config, 0).unwrap();
+            assert_eq!(route, vec!["a", "b", "c"]);
+
+            // A living observed occupant applies the queue delay, confirming
+            // that the dead Hero and Minion cases are consequential.
+            set_int(world.entities.get_mut(&occupant_id).unwrap(), "hp", 10);
+            let movement = movement_intent(&actor_id, &actor, &world, &config, 0);
+            let live_route =
+                route_for_entity(&actor, &map, "a", "c", &world, &movement, &config, 0).unwrap();
+            assert_eq!(live_route, vec!["a", "d", "c"]);
+        }
+    }
+
+    #[test]
     fn generic_adaptation_applies_to_the_whole_cohort_but_specialist_stays_individual() {
         let jungle_map = test_map(vec![edge("a", "b", 1_000, "jungle_camp", false)]);
         let mut config = rules(jungle_map);
@@ -2401,5 +2460,25 @@ mod tests {
             1
         );
         assert_eq!(int(&cross_world.entities[&id("mover")], "moved_tick"), 2);
+    }
+
+    #[test]
+    fn forced_transit_covers_bridge_center_crossing_and_ford_states() {
+        let mut bridge = edge("a", "b", 100, "lane", false);
+        bridge.bridge_site = "TOP".into();
+        let config = rules(test_map(vec![bridge]));
+        let mut hero = entity("hero", Some(CombatantSide::Attacker), 100, "a", "b");
+        set_string(&mut hero, "edge_to", "b");
+        set_string(&mut hero, "track", "CENTER");
+        assert!(forced_transit(&hero, &config));
+
+        set_string(&mut hero, "track", "LEFT");
+        assert!(!forced_transit(&hero, &config));
+        set_string(&mut hero, "edge_to", "");
+        set_int(&mut hero, "cross_remaining", 1);
+        assert!(forced_transit(&hero, &config));
+        set_int(&mut hero, "cross_remaining", 0);
+        set_int(&mut hero, "ford_remaining", 1);
+        assert!(forced_transit(&hero, &config));
     }
 }
