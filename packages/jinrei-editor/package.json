@@ -1,0 +1,11 @@
+{
+  "name": "@senkei/jinrei-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4182 --strictPort",
+    "test:browser": "playwright test --config ./playwright.config.ts"
+  }
+}

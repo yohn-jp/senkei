@@ -127,6 +127,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "senkei-editor-adapter"
+version = "0.1.0"
+dependencies = [
+ "jinrei",
+ "senkei-model",
+ "senritsu",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "senkei-model"
 version = "0.1.0"
 dependencies = [
