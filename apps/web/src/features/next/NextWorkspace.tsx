@@ -2053,9 +2053,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                 <button aria-pressed={presentationMode === "cinematic"} onClick={() => setPresentationMode("cinematic")} type="button">Cinematic</button>
               </div>
               <div className="next-battle-layer-control" role="group" aria-label="Information layers">
-                <label><input checked={informationLayers.vision} onChange={(event) => setInformationLayers((layers) => ({ ...layers, vision: event.currentTarget.checked }))} type="checkbox" /> Vision</label>
-                <label><input checked={informationLayers.lanes} onChange={(event) => setInformationLayers((layers) => ({ ...layers, lanes: event.currentTarget.checked }))} type="checkbox" /> Lanes</label>
-                <label><input checked={informationLayers.engagements} onChange={(event) => setInformationLayers((layers) => ({ ...layers, engagements: event.currentTarget.checked }))} type="checkbox" /> Engagements</label>
+                <label><input checked={informationLayers.vision} onChange={(event) => { const checked = event.currentTarget.checked; setInformationLayers((layers) => ({ ...layers, vision: checked })); }} type="checkbox" /> Vision</label>
+                <label><input checked={informationLayers.lanes} onChange={(event) => { const checked = event.currentTarget.checked; setInformationLayers((layers) => ({ ...layers, lanes: checked })); }} type="checkbox" /> Lanes</label>
+                <label><input checked={informationLayers.engagements} onChange={(event) => { const checked = event.currentTarget.checked; setInformationLayers((layers) => ({ ...layers, engagements: checked })); }} type="checkbox" /> Engagements</label>
               </div>
               <small>All display modes use the same observed information.</small>
             </div>
