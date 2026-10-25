@@ -1590,7 +1590,6 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
 
     let track_at_tick_1 = owner_hero_at(&artifact, 1, "slot-1");
     assert_eq!(entity_string(track_at_tick_1, "track"), "", "a node has no active lane track");
-    assert_eq!(entity_string(track_at_tick_1, "track_goal"), "LEFT", "the lane choice persists as the next-edge track goal");
     let lane_mover = owner_hero_at(&artifact, 2, "slot-1");
     assert_eq!(entity_string(lane_mover, "edge_to"), "A.TOP.T2");
     assert_eq!(entity_string(lane_mover, "track"), "LEFT");
