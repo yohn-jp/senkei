@@ -4,6 +4,10 @@ pub fn next_package() -> RulePackage {
     let mut package = crate::initial_package();
     package.ruleset.id = "senkei.next".into();
     package.next = Some(crate::next_content::content(crate::next_world::battle_map()));
+    package.next.as_mut().unwrap().world_identity = package
+        .next
+        .as_ref()
+        .and_then(|next| next.map.world_identity.clone());
     crate::next_domain::configure(&mut package);
     package.ruleset.version = Version::new(2, 0, 0);
     package.minimum_engine_version = Version::new(1, 2, 0);

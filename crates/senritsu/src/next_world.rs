@@ -17,6 +17,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const BATTLEFIELD_MAP_ID: &str = "senkei-battlefield-v2";
 
+/// The immutable authored World used by the v2 Battlefield package.
+pub fn compiled_authored_world() -> VerifiedWorld {
+    senkei_world::compile_json(include_bytes!(
+        "../../senkei-world/fixtures/initial-battlefield.json"
+    ))
+    .expect("checked-in World Definition compiles")
+}
+
 /// Lane routes, bases, and tower sites are currently absent from World Definition.
 /// A caller must provide these values explicitly from an owned source when
 /// projecting a compiled World into the older `BattleMap` shape.
@@ -294,6 +302,7 @@ pub(crate) fn adapt_verified_world(
             // Preserve the authored stable identity; never rename a fixture to
             // make it look like the production v2 map.
             id: identity.world_id.clone(),
+            world_identity: Some(identity.to_model_ref()),
             nodes,
             edges,
             lanes: metadata.lanes.clone(),
@@ -1085,6 +1094,7 @@ pub fn battle_map() -> BattleMap {
         .collect();
     BattleMap {
         id: BATTLEFIELD_MAP_ID.into(),
+        world_identity: Some(compiled_authored_world().identity().to_model_ref()),
         nodes,
         edges,
         lanes,
@@ -1109,13 +1119,6 @@ mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
 
-    fn compiled_authored_world() -> VerifiedWorld {
-        senkei_world::compile_json(include_bytes!(
-            "../../senkei-world/fixtures/initial-battlefield.json"
-        ))
-        .expect("checked-in World Definition compiles")
-    }
-
     fn authored_world_definition() -> senkei_world::WorldDefinition {
         serde_json::from_str(include_str!(
             "../../senkei-world/fixtures/initial-battlefield.json"
@@ -1125,6 +1128,9 @@ mod tests {
 
     fn rules_projection(map: &BattleMap) -> BattleMap {
         let mut projection = map.clone();
+        // Identity includes the paired presentation digest, so strip it when
+        // comparing simulation-only map semantics.
+        projection.world_identity = None;
         for node in projection.nodes.values_mut() {
             // `BattleMap` combines presentation coordinates with logic. Zero
             // those fields to compare only the runtime rule projection.
@@ -1249,13 +1255,9 @@ mod tests {
             changed_adapter.presentation_world().materials["mat.node"].color
         );
         assert_eq!(
-            first_adapter.candidate_map, changed_adapter.candidate_map,
-            "presentation color and lighting edits do not alter BattleMap rules"
-        );
-        assert_eq!(
             rules_projection(&first_adapter.candidate_map),
             rules_projection(&changed_adapter.candidate_map),
-            "the BattleMap rule projection excludes presentation coordinates"
+            "the BattleMap rule projection excludes presentation identity and coordinates"
         );
         assert_eq!(
             first_adapter.compatibility_report(&runtime),

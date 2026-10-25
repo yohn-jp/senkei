@@ -100,6 +100,8 @@ pub struct MatchContext {
     pub schema_version: Version,
     pub match_id: crate::MatchId,
     pub ruleset: RulesetRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_identity: Option<crate::WorldIdentityRef>,
     pub versions: ComponentVersions,
     pub initial_world: WorldState,
     pub max_ticks: u32,
@@ -143,6 +145,9 @@ pub struct PresentationReplay {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perspective: Option<CombatantSide>,
     pub schema_version: Version,
+    /// Paired World artifact identity used to interpret static scene and replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_identity: Option<crate::WorldIdentityRef>,
     pub match_id: crate::MatchId,
     pub result_digest: ContentDigest,
     pub frames: Vec<ReplayFrame>,
@@ -197,7 +202,10 @@ pub struct ReproductionContext {
 /// `diagnostics`; there is no blanket public serialization for this container.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimulationArtifact {
+    /// Legacy attacker-only alias retained during owner-channel migration.
     pub owner_replay: Option<PresentationReplay>,
+    /// Authenticated owner-only projections keyed by perspective.
+    pub owner_replays: BTreeMap<CombatantSide, PresentationReplay>,
     pub result: MatchResult,
     pub replay: PresentationReplay,
     pub diagnostics: crate::RestrictedDiagnostics,
@@ -215,6 +223,7 @@ impl SimulationArtifact {
     pub fn diagnostic_response(&self) -> crate::LocalSimulationResponse {
         crate::LocalSimulationResponse {
             owner_replay: self.owner_replay.clone(),
+            owner_replays: self.owner_replays.clone(),
             result: self.result.clone(),
             replay: self.replay.clone(),
             diagnostics: Some(self.diagnostics.clone()),

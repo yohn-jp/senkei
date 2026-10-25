@@ -9,6 +9,21 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             issues.push(ValidationIssue::new("invalid_next_rules", path, message));
         }
     };
+    let paired_world_matches = match (&r.world_identity, &r.map.world_identity) {
+        (Some(package_world), Some(map_world)) => {
+            let profile_complete = package_world.validation_profile_id.is_some()
+                == package_world.validation_profile_version.is_some();
+            check(!package_world.world_id.trim().is_empty(), "next.world_identity.world_id", "World ID cannot be empty");
+            check(package_world.logic_digest.has_sha256_shape(), "next.world_identity.logic_digest", "World logic digest must be lowercase SHA-256");
+            check(package_world.presentation_digest.has_sha256_shape(), "next.world_identity.presentation_digest", "World presentation digest must be lowercase SHA-256");
+            check(profile_complete, "next.world_identity.validation_profile", "validation profile ID and version must be supplied together");
+            package_world == map_world
+        }
+        _ => false,
+    };
+    check(r.world_identity.is_some(), "next.world_identity", "next RulePackage must bind the exact paired identity of its compiled World");
+    check(r.map.world_identity.is_some(), "next.map.world_identity", "runtime BattleMap projection must carry its source World identity");
+    check(paired_world_matches, "next.map.world_identity", "RulePackage and BattleMap must refer to the exact same paired World identity");
     let mut supported = package.clone();
     crate::next_domain::configure(&mut supported);
     check(

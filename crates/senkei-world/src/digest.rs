@@ -59,3 +59,20 @@ pub struct WorldIdentity {
     pub logic_digest: WorldLogicDigest,
     pub presentation_digest: WorldPresentationDigest,
 }
+
+impl WorldIdentity {
+    /// Copy the immutable paired identity into the shared runtime model.
+    pub fn to_model_ref(&self) -> senkei_model::WorldIdentityRef {
+        let version = |value: crate::Version| senkei_model::Version::new(value.major, value.minor, value.patch);
+        senkei_model::WorldIdentityRef {
+            world_id: self.world_id.clone(),
+            schema_version: version(self.schema_version),
+            minimum_compiler: version(self.compatibility.minimum_compiler),
+            maximum_compiler_exclusive: self.compatibility.maximum_compiler_exclusive.map(version),
+            validation_profile_id: self.validation_profile.as_ref().map(|p| p.id.clone()),
+            validation_profile_version: self.validation_profile.as_ref().map(|p| version(p.version)),
+            logic_digest: senkei_model::ContentDigest::new(self.logic_digest.as_str()),
+            presentation_digest: senkei_model::ContentDigest::new(self.presentation_digest.as_str()),
+        }
+    }
+}

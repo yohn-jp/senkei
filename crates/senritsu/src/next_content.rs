@@ -53,6 +53,7 @@ pub fn content(map: BattleMap) -> NextRules {
 
     NextRules {
         mechanics_version: Version::new(2, 0, 0),
+        world_identity: None,
         map,
         heroes,
         minions,
@@ -556,6 +557,7 @@ mod tests {
             .collect();
         BattleMap {
             id: "test-map".into(),
+            world_identity: None,
             nodes,
             edges: vec![],
             lanes: BTreeMap::new(),

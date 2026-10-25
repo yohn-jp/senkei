@@ -6,6 +6,10 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NextRules {
     pub mechanics_version: Version,
+    /// Exact paired World artifact used to compile this ruleset. Required for
+    /// verified next packages; `None` is retained only for legacy wire data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_identity: Option<WorldIdentityRef>,
     pub map: BattleMap,
     pub heroes: Vec<HeroDefinition>,
     pub minions: Vec<UnitDefinition>,
@@ -13,9 +17,27 @@ pub struct NextRules {
     pub camps: Vec<CampDefinition>,
     pub parameters: BTreeMap<String, i64>,
 }
+
+/// Paired content identity copied from the sealed World compiler artifact.
+/// The presentation digest identifies the matching scene; it is never a
+/// simulation input. Digests alone do not replace the remaining identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorldIdentityRef {
+    pub world_id: String,
+    pub schema_version: Version,
+    pub minimum_compiler: Version,
+    pub maximum_compiler_exclusive: Option<Version>,
+    pub validation_profile_id: Option<String>,
+    pub validation_profile_version: Option<Version>,
+    pub logic_digest: crate::ContentDigest,
+    pub presentation_digest: crate::ContentDigest,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BattleMap {
     pub id: String,
+    /// Identity of the paired source World for a projected map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_identity: Option<WorldIdentityRef>,
     pub nodes: BTreeMap<String, MapNode>,
     pub edges: Vec<MapEdge>,
     /// Ordered attacker-to-defender node identifiers.

@@ -54,6 +54,11 @@ impl VerifiedRulePlan {
         &self.ruleset
     }
 
+    /// Exact paired World identity declared by this package, when present.
+    pub fn world_identity(&self) -> Option<&crate::WorldIdentityRef> {
+        self.plan.next.as_ref()?.world_identity.as_ref()
+    }
+
     pub fn package_digest(&self) -> &crate::ContentDigest {
         &self.package_digest
     }

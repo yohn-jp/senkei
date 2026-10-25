@@ -680,8 +680,10 @@ mod tests {
         };
         NextRules {
             mechanics_version: NEXT_VERSION,
+            world_identity: None,
             map: BattleMap {
                 id: "test".into(),
+                world_identity: None,
                 nodes: BTreeMap::new(),
                 edges: Vec::new(),
                 lanes: BTreeMap::new(),

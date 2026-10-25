@@ -177,6 +177,7 @@ dependencies = [
 name = "senkei-world"
 version = "0.1.0"
 dependencies = [
+ "senkei-model",
  "serde",
  "serde_json",
  "sha2",
