@@ -27,10 +27,11 @@ const rawCatalog = readFileSync(new URL("./fixtures/next-domain-catalog.json", i
 const rawProfileCatalog = readFileSync(new URL("./fixtures/next-domain-catalog-with-profile.json", import.meta.url), "utf8");
 const compiledByJinrei = readFileSync(new URL("./fixtures/next-compile-reply.json", import.meta.url), "utf8");
 const rejectedByJinrei = readFileSync(new URL("./fixtures/next-compile-rejected.json", import.meta.url), "utf8");
+const fixtureIdentity = (JSON.parse(rawCatalog) as DomainCatalogDocument).identity;
 const expected = {
-  rulesetId: "senkei.next",
-  rulesetVersion: { major: 1, minor: 0, patch: 0 },
-  rulesetDigest: "19c7b44ec5649f739bb9727bc220f70e030045651190c1d774b5392f319e4a75",
+  rulesetId: fixtureIdentity.rulesetId,
+  rulesetVersion: fixtureIdentity.rulesetVersion,
+  rulesetDigest: fixtureIdentity.rulesetDigest,
 };
 
 async function catalog(): Promise<DomainCatalogDocument> { return loadDomainCatalog(rawCatalog, expected); }

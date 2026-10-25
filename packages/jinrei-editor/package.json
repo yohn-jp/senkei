@@ -6,6 +6,8 @@
   "exports": "./src/index.ts",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4182 --strictPort",
-    "test:browser": "playwright test --config ./playwright.config.ts"
+    "test:browser": "playwright test --config ./playwright.config.ts",
+    "fixtures:generate": "bash ../../scripts/jinrei-editor-fixtures.sh --write",
+    "fixtures:check": "bash ../../scripts/jinrei-editor-fixtures.sh --check"
   }
 }
