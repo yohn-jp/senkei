@@ -4,8 +4,19 @@
 mod initial;
 mod validate;
 mod next_validate;
+pub mod catalog;
 
 pub use initial::{initial_engine_compatibility, initial_package};
+pub use catalog::{
+    AggregationPolicy, BehaviorFieldDefinition, BehaviorOverridePolicy, BehaviorProfileMetadata,
+    BehaviorScope, CapabilityContractMetadata, CapabilityDefinition, CapabilityLifetime,
+    CatalogCompatibilityKey, CatalogIdentity, CatalogMetadataExtension, CatalogSymbol,
+    CollectionAggregates, CollectionDefinition, CollectionOperations, CostScheduleDefinition,
+    DomainCatalog, DomainCatalogError, DomainCatalogIssue, DomainOperator, EntityControlScope,
+    EntityTypeDefinition, KnownnessContract, MetadataStatus, NamedBehaviorPreset,
+    ObservationDefinition, ObservationScope, OrderingContract, ProfileLayer, ReadPermission,
+    RejectionMetadata, Scope, SymbolCategory, SymbolKey, DOMAIN_CATALOG_SCHEMA_VERSION,
+};
 pub use validate::{canonical_digest, validate};
 
 mod next_content;

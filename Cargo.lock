@@ -161,7 +161,9 @@ dependencies = [
 name = "senritsu"
 version = "0.1.0"
 dependencies = [
+ "jinrei",
  "senkei-model",
+ "serde",
  "serde_json",
  "sha2",
 ]
