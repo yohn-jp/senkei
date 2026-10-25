@@ -1,9 +1,10 @@
 import type { Replay, WorldPoint } from "@senkei/replay-contract";
 
 /**
- * Continue the authored river beyond the scenic ground. Crossing positions
- * remain exactly those in Replay; these tails contain no traversable edges.
- * Terrain and water share this course so neither stops as a band on dry land.
+ * Continue the explicit Presentation World river beyond the scenic ground.
+ * Replay order is preserved exactly: crossings are never re-sorted from their
+ * coordinates. These tails contain no traversable edges. Terrain and water
+ * share this course so neither stops as a band on dry land.
  */
 export function scenicRiverCourse(replay: Replay): readonly WorldPoint[] {
   const river = replay.scene.river;

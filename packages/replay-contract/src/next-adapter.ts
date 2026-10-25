@@ -3,6 +3,38 @@ import type { PresentationReplay as CoreReplay, RulePackage, MatchResult, Entity
 
 export const NEXT_WORLD_UNITS_PER_RENDER_UNIT = 25;
 type StaticEdge = NonNullable<RulePackage["next"]>["map"]["edges"][number];
+type StaticMap = NonNullable<RulePackage["next"]>["map"];
+
+export type PresentationRiverAnchor =
+  | { readonly kind: "bridge-site"; readonly site: "TOP" | "MID" | "BOT" }
+  | { readonly kind: "edge-midpoint"; readonly edgeId: string }
+  | { readonly kind: "node"; readonly nodeId: string };
+
+/** Ordered, presentation-only river centerline anchors for a World. */
+export interface NextPresentationWorldDefinition {
+  readonly river: {
+    readonly anchors: readonly PresentationRiverAnchor[];
+    readonly terminalExtension: number;
+  };
+}
+
+/**
+ * The authored diagonal course runs from the TOP bridge to the BOT bridge.
+ * The two jungle fords and the MID island are explicit intervening landmarks;
+ * their order is part of World presentation and never inferred from positions.
+ */
+export const NEXT_BATTLEFIELD_PRESENTATION_WORLD: NextPresentationWorldDefinition = {
+  river: {
+    anchors: [
+      { kind: "bridge-site", site: "TOP" },
+      { kind: "edge-midpoint", edgeId: "ford.jungle.upper" },
+      { kind: "bridge-site", site: "MID" },
+      { kind: "edge-midpoint", edgeId: "ford.jungle.lower" },
+      { kind: "bridge-site", site: "BOT" },
+    ],
+    terminalExtension: 8,
+  },
+};
 
 const scalar = (v: DomainValue | undefined): string | number | null =>
   v?.kind === "integer" || v?.kind === "string" || v?.kind === "enum" ? v.value : null;
@@ -66,7 +98,13 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
 }
 
 /** Explicit public-only projection. Internal identities never become render IDs. */
-export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage, match: MatchResult, engineVersion = ruleset.minimum_engine_version): Replay {
+export function presentationToGraphics(
+  source: CoreReplay,
+  ruleset: RulePackage,
+  match: MatchResult,
+  engineVersion = ruleset.minimum_engine_version,
+  presentationWorld: NextPresentationWorldDefinition = NEXT_BATTLEFIELD_PRESENTATION_WORLD,
+): Replay {
   if (source.schema_version.major !== 1 || source.schema_version.minor !== 0 || source.schema_version.patch !== 0)
     throw new ReplayError("Unsupported core replay version");
   if (source.match_id !== match.match_id || !ruleset.next) throw new ReplayError("Replay context mismatch");
@@ -104,23 +142,7 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
   };
   const result: Result = { tick: match.final_tick, reason: match.termination_reason,
     winner: match.outcome === "attacker_victory" ? "azure" : match.outcome === "defender_victory" ? "vermilion" : "draw" };
-  const riverCrossings = new Map<string, { x: number; y: number }>();
-  for (const edge of next.map.edges) {
-    if (edge.bridge_site) {
-      const key = `bridge:${edge.bridge_site}`;
-      if (riverCrossings.has(key)) continue;
-      const observationNode = edge.bridge_site === "MID"
-        ? Object.values(next.map.nodes).find(node => node.region === "observation")
-        : undefined;
-      const from = next.map.nodes[edge.from], to = next.map.nodes[edge.to];
-      const center = observationNode ?? { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-      riverCrossings.set(key, { x: center.x / scale, y: center.y / scale });
-    } else if (edge.ford) {
-      const from = next.map.nodes[edge.from], to = next.map.nodes[edge.to];
-      riverCrossings.set(`ford:${edge.id || `${edge.from}-${edge.to}`}`, { x: (from.x + to.x) / (2 * scale), y: (from.y + to.y) / (2 * scale) });
-    }
-  }
-  const river = riverLine([...riverCrossings.values()]);
+  const river = presentationRiver(next.map, presentationWorld, scale);
   const extent = [
     ...nodes.map(node => ({ x: node.x / scale, y: node.y / scale })),
     ...river,
@@ -191,17 +213,59 @@ export function presentationToGraphics(source: CoreReplay, ruleset: RulePackage,
       routes:next.map.edges.flatMap(edge=>edge.blocked?[]:[{id:edge.id || `${edge.from}-${edge.to}`,region:edge.region,points:[nodePoint(edge.from),nodePoint(edge.to)],...(edge.bridge_site?{bridgeSite:edge.bridge_site as "TOP"|"MID"|"BOT"}:{}),...(edge.ford?{ford:true}:{})}]) },initialView,timeline,result });
 }
 
-function riverLine(points: readonly {x:number;y:number}[]): {x:number;y:number}[] {
-  const ordered = [...points]
-    .sort((left, right) => left.y - right.y || left.x - right.x)
-    .filter((point, index, values) => index === 0 || Math.hypot(point.x - values[index-1].x, point.y - values[index-1].y) > 0.05);
+function presentationRiver(
+  map: StaticMap,
+  presentationWorld: NextPresentationWorldDefinition,
+  scale: number,
+): { x: number; y: number }[] {
+  const anchors = presentationWorld.river.anchors.map(anchor => {
+    switch (anchor.kind) {
+      case "node": {
+        const node = map.nodes[anchor.nodeId];
+        return node ? { x: node.x / scale, y: node.y / scale } : undefined;
+      }
+      case "edge-midpoint": {
+        const edge = map.edges.find(item => item.id === anchor.edgeId);
+        if (!edge) return undefined;
+        const from = map.nodes[edge.from], to = map.nodes[edge.to];
+        if (!from || !to) return undefined;
+        return { x: (from.x + to.x) / (2 * scale), y: (from.y + to.y) / (2 * scale) };
+      }
+      case "bridge-site": {
+        const edges = map.edges.filter(edge => edge.bridge_site === anchor.site);
+        if (!edges.length) return undefined;
+        const observation = anchor.site === "MID"
+          ? Object.values(map.nodes).find(node => node.region === "observation")
+          : undefined;
+        if (observation) return { x: observation.x / scale, y: observation.y / scale };
+        const endpoints = [...new Set(edges.flatMap(edge => [edge.from, edge.to]))]
+          .map(id => map.nodes[id])
+          .filter((node): node is NonNullable<typeof node> => node !== undefined);
+        if (!endpoints.length) return undefined;
+        return {
+          x: endpoints.reduce((sum, node) => sum + node.x, 0) / (endpoints.length * scale),
+          y: endpoints.reduce((sum, node) => sum + node.y, 0) / (endpoints.length * scale),
+        };
+      }
+    }
+  });
+  // Generic/older maps without this complete presentation path remain valid and
+  // simply have no river. A partial path is never reordered or guessed.
+  if (anchors.length < 2 || anchors.some(anchor => anchor === undefined)) return [];
+  return riverLine(anchors as { x: number; y: number }[], presentationWorld.river.terminalExtension);
+}
+
+function riverLine(points: readonly {x:number;y:number}[], terminalExtension: number): {x:number;y:number}[] {
+  const ordered = points.filter((point, index) =>
+    index === 0 || Math.hypot(point.x - points[index - 1]!.x, point.y - points[index - 1]!.y) > 0.05,
+  );
   if (ordered.length < 2) return ordered;
   const extend = (from: {x:number;y:number}, toward: {x:number;y:number}, distance: number): {x:number;y:number} => {
     const dx = toward.x - from.x, dy = toward.y - from.y;
     const length = Math.hypot(dx, dy) || 1;
     return { x: from.x + dx / length * distance, y: from.y + dy / length * distance };
   };
-  const first = extend(ordered[0], ordered[1], -8);
-  const last = extend(ordered[ordered.length - 1], ordered[ordered.length - 2], -8);
+  const first = extend(ordered[0]!, ordered[1]!, -terminalExtension);
+  const last = extend(ordered[ordered.length - 1]!, ordered[ordered.length - 2]!, -terminalExtension);
   return [first, ...ordered, last];
 }

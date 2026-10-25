@@ -4,7 +4,11 @@ import type {
   PresentationReplay as CoreReplay,
   RulePackage,
 } from "../../../apps/web/src/contracts/core-model";
-import { presentationToGraphics } from "./next-adapter";
+import {
+  NEXT_BATTLEFIELD_PRESENTATION_WORLD,
+  presentationToGraphics,
+  type NextPresentationWorldDefinition,
+} from "./next-adapter";
 import { decodeReplay, type PresentationReplay } from "./index";
 
 function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; ford?:boolean }[] = [
@@ -14,7 +18,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
   attacker: { x: 0, y: 0, region: "base" },
   camp: { x: 250, y: 125, region: "jungle" },
   defender: { x: 500, y: 250, region: "base" },
-}) {
+}, presentationWorld: NextPresentationWorldDefinition = NEXT_BATTLEFIELD_PRESENTATION_WORLD) {
   const ruleset = {
     ruleset: { id: "senkei.next", digest: "a".repeat(64) },
     minimum_engine_version: { major: 1, minor: 2, patch: 0 },
@@ -45,7 +49,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
     cu_spent: { attacker: 0, defender: 0 },
     final_state_digest: "c".repeat(64),
   } as unknown as MatchResult;
-  return presentationToGraphics(replay, ruleset, result);
+  return presentationToGraphics(replay, ruleset, result, ruleset.minimum_engine_version, presentationWorld);
 }
 
 describe("Next map graph projection", () => {
@@ -80,21 +84,23 @@ describe("Next map graph projection", () => {
     ])).toThrow("Missing public map node: absent");
   });
 
-  it("projects one ordered river centerline through each canonical bridge site and ford", () => {
+  it("projects the explicit river presentation order instead of sorting crossing positions", () => {
     const edges = [
-      { id: "bridge.TOP", from: "top-a", to: "top-b", length: 100, region: "bridge", blocked: false, bridge_site: "TOP" },
-      { id: "ford.upper", from: "upper-a", to: "upper-b", length: 100, region: "river_ford", blocked: false, ford: true },
-      { id: "bridge.MID.A", from: "mid-a", to: "observation", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
-      { id: "bridge.MID.B", from: "observation", to: "mid-b", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
-      { id: "ford.lower", from: "lower-a", to: "lower-b", length: 100, region: "river_ford", blocked: false, ford: true },
       { id: "bridge.BOT", from: "bot-a", to: "bot-b", length: 100, region: "bridge", blocked: false, bridge_site: "BOT" },
+      { id: "ford.jungle.lower", from: "lower-a", to: "lower-b", length: 100, region: "river_ford", blocked: false, ford: true },
+      { id: "bridge.MID.B", from: "observation", to: "mid-b", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
+      { id: "bridge.TOP", from: "top-a", to: "top-b", length: 100, region: "bridge", blocked: false, bridge_site: "TOP" },
+      { id: "ford.jungle.upper", from: "upper-a", to: "upper-b", length: 100, region: "river_ford", blocked: false, ford: true },
+      { id: "bridge.MID.A", from: "mid-a", to: "observation", length: 50, region: "bridge", blocked: false, bridge_site: "MID" },
     ];
     const nodes = {
       attacker: { x: 0, y: 0, region: "base" },
       camp: { x: 100, y: 100, region: "jungle" },
       defender: { x: 500, y: 500, region: "base" },
-      "top-a": { x: 80, y: -20, region: "riverbank" },
-      "top-b": { x: 120, y: 20, region: "riverbank" },
+      // TOP appears below the upper ford in y coordinates, so coordinate sort
+      // would reverse the authored river order.
+      "top-a": { x: 80, y: 180, region: "riverbank" },
+      "top-b": { x: 120, y: 220, region: "riverbank" },
       "upper-a": { x: 130, y: 80, region: "jungle" },
       "upper-b": { x: 170, y: 120, region: "jungle" },
       "mid-a": { x: 180, y: 180, region: "riverbank" },
@@ -108,10 +114,27 @@ describe("Next map graph projection", () => {
     const river = project(edges, [], nodes).scene.river!;
     expect(river).toHaveLength(7);
     expect(river.slice(1, -1)).toEqual([
-      { x: 4, y: 0 }, { x: 6, y: 4 }, { x: 8, y: 8 }, { x: 10, y: 12 }, { x: 12, y: 16 },
+      { x: 4, y: 8 }, { x: 6, y: 4 }, { x: 8, y: 8 }, { x: 10, y: 12 }, { x: 12, y: 16 },
     ]);
-    expect(river[0]!.y).toBeLessThan(river[1]!.y);
+    expect(river[0]!.x).toBeLessThan(river[1]!.x);
     expect(river.at(-1)!.y).toBeGreaterThan(river.at(-2)!.y);
+  });
+
+  it("omits a river when an older map has only some of the authored landmarks", () => {
+    const edges = [
+      { id: "bridge.TOP", from: "top-a", to: "top-b", length: 100, region: "bridge", blocked: false, bridge_site: "TOP" },
+      { id: "ford.jungle.upper", from: "upper-a", to: "upper-b", length: 100, region: "river_ford", blocked: false, ford: true },
+    ];
+    const nodes = {
+      attacker: { x: 0, y: 0, region: "base" },
+      camp: { x: 100, y: 100, region: "jungle" },
+      defender: { x: 500, y: 500, region: "base" },
+      "top-a": { x: 80, y: -20, region: "riverbank" },
+      "top-b": { x: 120, y: 20, region: "riverbank" },
+      "upper-a": { x: 130, y: 80, region: "jungle" },
+      "upper-b": { x: 170, y: 120, region: "jungle" },
+    };
+    expect(project(edges, [], nodes).scene.river).toBeUndefined();
   });
 
   it("projects only authorized logical position and facility changes, including destroyed bridges", () => {
@@ -150,7 +173,9 @@ describe("Next map graph projection", () => {
     expect(replay.scene.routes?.map(route => [route.id, route.bridgeSite, route.ford])).toEqual([
       ["edge_top", "TOP", undefined], ["edge_ford", undefined, true],
     ]);
-    expect(replay.scene.river).toHaveLength(4);
+    // A partial topology lacks the authored river landmarks, so the adapter
+    // does not invent a course by sorting whatever crossings happen to exist.
+    expect(replay.scene.river).toBeUndefined();
     const move = replay.timeline.find(event => event.type === "move");
     expect(move).toMatchObject({ type: "move", logicalPosition: { node: "attacker", edgeTo: "camp", progress: 10, track: "LEFT" } });
     const bridgeState = replay.timeline.find(event => event.type === "facility-state" && event.battlefield.bridgeSite === "TOP");
