@@ -264,3 +264,6 @@
   .next-coverage-table th,
   .next-coverage-table td { grid-template-columns: minmax(6rem, 34%) minmax(0, 1fr); }
 }
+
+.next-jinrei-hero-context { align-items: center; display: flex; flex-wrap: wrap; gap: .6rem; color: #c4c9d1; font-size: .8rem; }
+.next-jinrei-hero-context select { max-width: 100%; min-height: 44px; }

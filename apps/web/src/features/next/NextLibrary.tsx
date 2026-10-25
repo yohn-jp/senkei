@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import type { RulesetRef, SenkeiDraft } from "../../contracts";
 import "./next-library.css";
@@ -42,6 +42,7 @@ export interface NextLibraryProps {
   readonly recoveryRaw?: string | null;
   readonly savedError: string | null;
   readonly recoveryError: string | null;
+  readonly runtimeError?: string | null;
   readonly savedMismatch: string | null;
   readonly recoveryMismatch: string | null;
   readonly message: string | null;
@@ -101,6 +102,14 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
   const [localError, setLocalError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const confirmationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!confirmation) return;
+    const previous = document.activeElement;
+    confirmationRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    confirmationRef.current?.scrollIntoView({ block: "nearest" });
+    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true }); };
+  }, [confirmation]);
 
   const perform = async (action: AsyncAction, success: string): Promise<void> => {
     if (busy) return;
@@ -150,7 +159,7 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
     else if (action === "recovery") void perform(props.onClearRecovery, "Recovery copy cleared.");
   };
 
-  const visibleError = localError ?? props.savedError ?? props.recoveryError;
+  const visibleError = localError ?? props.runtimeError ?? props.savedError ?? props.recoveryError;
   const activeView = props.view;
 
   return (
@@ -179,7 +188,7 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
 
       {!props.loaded && activeView !== "legacy" && <div className="next-library-message" role="status"><strong>Checking local setup storage…</strong><p>Existing values stay untouched until their format and ruleset identity are read.</p></div>}
       {(visibleError || props.message || notice) && <div className={`next-library-message${visibleError ? " is-error" : ""}`} role={visibleError ? "alert" : "status"}>
-        <div><strong>{visibleError ? "Storage needs attention" : "Library status"}</strong><p>{visibleError ?? props.message ?? notice}</p></div>
+        <div><strong>{visibleError ? "Recovery needs attention" : "Library status"}</strong><p>{visibleError ?? props.message ?? notice}</p></div>
         {visibleError && <div className="next-library-message-actions"><button disabled={busy} onClick={() => void perform(props.onRetryStorage, "Storage was checked again.")} type="button">Retry storage</button><button disabled={busy} onClick={() => void perform(props.onRetryCore, "Core and Catalog reload requested.")} type="button">Retry Core / Catalog</button></div>}
       </div>}
 
@@ -235,7 +244,7 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
         </section>
       </div>}
 
-      {confirmation && <section className="next-library-confirm" aria-label="Confirm Library change" role="alertdialog" aria-modal="false" aria-labelledby="next-library-confirm-title">
+      {confirmation && <section ref={confirmationRef} className="next-library-confirm" aria-label="Confirm Library change" role="alertdialog" aria-modal="false" aria-labelledby="next-library-confirm-title">
         <div><span className="next-library-eyebrow">EXPLICIT CONFIRMATION</span><h3 id="next-library-confirm-title">{confirmation === "saved" ? "Clear the pinned setup?" : confirmation === "recovery" ? "Clear the recovery copy?" : confirmation === "import-saved" ? "Replace the pinned setup with this import?" : "Replace the pinned setup with the current draft?"}</h3><p>{confirmation === "saved" ? "The local pinned setup will be removed. Export preserved bytes first if you need a copy." : confirmation === "recovery" ? "The local recovery copy will be removed. The current editing draft remains open." : confirmation === "import-saved" ? "The existing pinned setup remains until the imported JSON passes validation and is accepted by the storage handler." : "The saved data does not match the loaded ruleset or could not be parsed. Export it first if you need to keep the original bytes."}</p></div>
         <div className="next-library-actions"><button onClick={() => { setConfirmation(null); setPendingImport(null); }} type="button">Keep existing data</button><button className="is-danger" disabled={busy || (confirmation === "import-saved" && !pendingImport)} onClick={confirm} type="button">{confirmation === "saved" || confirmation === "recovery" ? "Confirm clear" : confirmation === "import-saved" ? "Validate and replace" : "Confirm replacement"}</button></div>
       </section>}

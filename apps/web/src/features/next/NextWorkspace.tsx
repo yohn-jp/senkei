@@ -1,7 +1,10 @@
 import { CoreClientError } from "../../worker";
 import { JourneyScreens } from "./JourneyScreens";
-import { HeroModelPreview } from "./HeroModelPreview";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NextLibrary } from "./NextLibrary";
+import { HeroAtelier } from "./HeroAtelier";
+import { JinreiWorkbench } from "./JinreiWorkbench";
+import { BattleAnalysis } from "./BattleAnalysis";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer } from "@senkei/renderer";
 import { Battlefield } from "@senkei/renderer";
@@ -14,13 +17,11 @@ import {
   type CoreVersion,
   type CompileOutcome,
   type DomainValue,
-  type HeroDefinition,
   type MatchResult,
   type NextRules,
-  type PresentationEvent,
   type PresentationReplay,
+  type PresentationEvent,
   type ReplayFrame,
-  type RestrictedDiagnostics,
   type RulePackage,
   type SenkeiSnapshot,
   type SimulationOutcome,
@@ -31,8 +32,6 @@ import {
   type RulesetRef,
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
-import { EditorFeature } from "../editor";
-import { JinreiDomainPanel } from "./JinreiDomainPanel";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
 import "./next-workspace.css";
 
@@ -57,7 +56,6 @@ const VISIBLE_ENTITY_CLUSTER_RADIUS = 0.8;
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
 type AtelierScreen = "collection" | "detail" | "skills" | "squads";
 type Side = "attacker" | "defender";
-type HeroFilter = "placement" | "role" | "trait_id";
 type FormationShape = "single" | "three-lane" | "wings" | "custom";
 type BattlefieldMobileView = "battle" | "overview" | "follow" | "timeline" | "details";
 type BattlefieldCameraMode = "tactical" | "overview";
@@ -106,6 +104,9 @@ interface BattleRun {
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
   readonly graphicsReplay: Replay;
+  readonly setup: SavedNextSetup;
+  readonly includeDiagnostics: boolean;
+  readonly estimatedCU: number;
 }
 
 interface SavedNextSetup {
@@ -123,10 +124,12 @@ interface SavedNextSetup {
 
 interface WorkspaceProps {
   readonly active: boolean;
-  readonly entry: { readonly screen: "home" | "workspace"; readonly request: number };
+  readonly entry: { readonly screen: "home" | "workspace" | "resume"; readonly request: number };
   readonly core: CoreClient | null;
   readonly ruleset: RulePackage | null;
   readonly rulesetError: string | null;
+  readonly onRetryCore: () => void;
+  readonly onLegacyLibrary: () => void;
 }
 
 const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readonly number: string }[] = [
@@ -134,23 +137,6 @@ const TABS: readonly { readonly id: WorkspaceTab; readonly label: string; readon
   { id: "jinrei", label: "Jinrei", number: "02" },
   { id: "battle", label: "Battle", number: "03" },
   { id: "analysis", label: "Analysis", number: "04" },
-];
-
-const ATELIER_SCREENS: readonly { readonly id: AtelierScreen; readonly label: string; readonly hint: string }[] = [
-  { id: "collection", label: "Hero Collection", hint: "01 / CHOOSE FIVE" },
-  { id: "detail", label: "Hero Detail", hint: "02 / CATALOG DATA" },
-  { id: "skills", label: "Skill Tree", hint: "03 / PLAN LEVEL UPS" },
-  { id: "squads", label: "Squad Assembly", hint: "04 / FORM SQUADS" },
-];
-
-const SQUAD_PATTERNS: readonly { readonly id: string; readonly sizes: readonly number[] }[] = [
-  { id: "1+1+1+1+1", sizes: [1, 1, 1, 1, 1] },
-  { id: "2+1+1+1", sizes: [2, 1, 1, 1] },
-  { id: "2+2+1", sizes: [2, 2, 1] },
-  { id: "3+1+1", sizes: [3, 1, 1] },
-  { id: "3+2", sizes: [3, 2] },
-  { id: "4+1", sizes: [4, 1] },
-  { id: "5", sizes: [5] },
 ];
 
 function stableKey(value: unknown): string {
@@ -262,7 +248,7 @@ function savedSetupMismatch(setup: SavedNextSetup, packageValue: RulePackage | n
       stableKey(setup.mechanics_version) !== stableKey(rules.mechanics_version)) {
     return "The saved schema or mechanics version differs from the current Next ruleset.";
   }
-  if (setup.draft.ruleset.digest !== packageValue.ruleset.digest ||
+  if (stableKey(setup.draft.ruleset) !== stableKey(packageValue.ruleset) ||
       stableKey(setup.draft.schema_version) !== stableKey(packageValue.model_version)) {
     return "The saved Jinrei draft belongs to a different package or model schema.";
   }
@@ -325,32 +311,6 @@ function defaultSlots(rules: NextRules, side: Side, catalogIds: readonly string[
   });
 }
 
-function firstLaneNode(rules: NextRules, lane: string, side: Side): string {
-  const nodes = rules.map.lanes[lane];
-  if (!nodes?.length) return side === "attacker" ? rules.map.attacker_base : rules.map.defender_base;
-  const laneNodes = nodes.filter((node) => node !== rules.map.attacker_base && node !== rules.map.defender_base);
-  if (laneNodes.length === 0) return side === "attacker" ? rules.map.attacker_base : rules.map.defender_base;
-  return side === "attacker" ? laneNodes[0] : laneNodes[laneNodes.length - 1];
-}
-
-function makeFormation(
-  rules: NextRules,
-  current: readonly FormationSlot[],
-  side: Side,
-  shape: "single" | "three-lane" | "wings",
-): FormationSlot[] {
-  const base = side === "attacker" ? rules.map.attacker_base : rules.map.defender_base;
-  return current.map((slot, index) => {
-    if (shape === "single") return { ...slot, squad: "alpha", node: base };
-    if (shape === "three-lane") {
-      const lane = (["top", "mid", "bot", "top", "bot"] as const)[index] ?? "mid";
-      return { ...slot, squad: lane, node: firstLaneNode(rules, lane, side) };
-    }
-    const lane = index === 2 ? "mid" : index < 2 ? "top" : "bot";
-    return { ...slot, squad: index < 2 ? "north" : index === 2 ? "center" : "south", node: firstLaneNode(rules, lane, side) };
-  });
-}
-
 function formatId(value: string): string {
   return value.replaceAll("_", " ").replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
@@ -368,38 +328,6 @@ function formatExperience(value: number, rules: NextRules | null): string {
   if (!Number.isFinite(scale) || !scale || scale <= 0) return String(value);
   const experience = value / scale;
   return Number.isInteger(experience) ? String(experience) : experience.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-}
-
-function findHero(rules: NextRules, catalogId: string): HeroDefinition | null {
-  return rules.heroes.find((hero) => hero.id === catalogId) ?? null;
-}
-
-function skillNames(hero: HeroDefinition | null, pathName: string): string[] {
-  if (!hero) return [];
-  const path = hero.skill_paths[pathName] ?? [];
-  return path.map((id) => hero.skills.find((skill) => skill.id === id)?.name ?? id);
-}
-
-function formationGroupsPattern(slots: readonly FormationSlot[]): string {
-  const counts = new Map<string, number>();
-  for (const slot of slots) counts.set(slot.squad, (counts.get(slot.squad) ?? 0) + 1);
-  return [...counts.values()].sort((left, right) => right - left).join("+");
-}
-
-function skillPathPrerequisiteIssues(hero: HeroDefinition, path: string): readonly string[] {
-  const ids = hero.skill_paths[path] ?? [];
-  return ids.flatMap((id, index) => {
-    const skill = hero.skills.find((item) => item.id === id);
-    if (!skill) return [`The selected path references missing skill ${id}.`];
-    return skill.prerequisites.flatMap((prerequisiteId) => {
-      const prerequisite = hero.skills.find((item) => item.id === prerequisiteId);
-      const prerequisiteIndex = ids.indexOf(prerequisiteId);
-      if (!prerequisite) return [`${skill.name} requires unknown skill ${prerequisiteId}.`];
-      if (prerequisiteIndex < 0) return [`${skill.name} requires ${prerequisite.name}, which is not in this path.`];
-      if (prerequisiteIndex >= index) return [`${prerequisite.name} must appear before ${skill.name}.`];
-      return [];
-    });
-  });
 }
 
 function createTacticDraft(packageValue: RulePackage, rules: NextRules, side: Side): SenkeiDraft {
@@ -529,11 +457,6 @@ function domainLabel(value: DomainValue): string {
   return Object.entries(value.value).map(([key, item]) => `${key}: ${domainLabel(item)}`).join(" · ");
 }
 
-function signed(value: number): string {
-  if (value === 0) return "0";
-  return value > 0 ? `+${value}` : `−${Math.abs(value)}`;
-}
-
 function latestFrame(frames: readonly ReplayFrame[], tick: number): ReplayFrame | null {
   for (let index = frames.length - 1; index >= 0; index -= 1) {
     if (frames[index].tick <= tick) return frames[index];
@@ -549,28 +472,30 @@ function eventDetails(event: PresentationEvent): string {
   return Object.entries(event.payload).map(([key, value]) => `${formatId(key)} ${domainLabel(value)}`).join(" · ");
 }
 
-function diagnosticDetails(diagnostics: RestrictedDiagnostics): readonly { tick: number; side: Side; text: string }[] {
-  return diagnostics.events.map((event) => {
-    const record = event.record;
-    if (record.kind === "intent_proposed" || record.kind === "intent_accepted" || record.kind === "intent_rejected") {
-      return { tick: event.tick, side: event.side, text: `${record.kind.replaceAll("_", " ")}: ${record.value.intent.capability}${record.value.intent.actor ? ` · ${record.value.intent.actor}` : ""}${"reason" in record.value ? ` · ${record.value.reason}` : ""}` };
-    }
-    if (record.kind === "cost_charged") return { tick: event.tick, side: event.side, text: `CU ${record.value.operation}: ${record.value.amount}` };
-    if (record.kind === "state_evaluated") return { tick: event.tick, side: event.side, text: `State ${record.value.state}: ${record.value.result}` };
-    if (record.kind === "runtime_notice") return { tick: event.tick, side: event.side, text: `${record.value.code}${Object.keys(record.value.details).length ? ` · ${Object.values(record.value.details).join(" · ")}` : ""}` };
-    return { tick: event.tick, side: event.side, text: record.kind.replaceAll("_", " ") };
-  });
-}
-
-export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError }: WorkspaceProps): ReactElement {
+export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError, onRetryCore, onLegacyLibrary }: WorkspaceProps): ReactElement {
   const nextRules = packageValue?.next ?? null;
   const [screen, setScreen] = useState<"home" | "conditions" | "preset" | "ready" | "workspace" | "resume" | "running">("home");
+  const [libraryView, setLibraryView] = useState<"library" | "recovery" | "legacy">("library");
+  const [libraryReturn, setLibraryReturn] = useState<typeof screen>("home");
+  const [jinreiScreen, setJinreiScreen] = useState<"workbench" | "coverage">("workbench");
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const [storageAttempt, setStorageAttempt] = useState(0);
+  const [savedRaw, setSavedRaw] = useState<string | null>(null);
+  const [recoveryRaw, setRecoveryRaw] = useState<string | null>(null);
+  const [exactRun, setExactRun] = useState<BattleRun | null>(null);
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "review">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; message: string; status: "invalid" | "unverified" | "failed" } | null>(null);
   const operationInFlight = useRef(false);
-  useEffect(() => { if (!operationInFlight.current) setScreen(entry.screen); }, [entry]);
+  useEffect(() => {
+    if (operationInFlight.current) return;
+    setScreen(entry.screen);
+    if (entry.screen === "resume") {
+      setLibraryView("library");
+      if (screen !== "resume") setLibraryReturn(screen);
+    }
+  }, [entry]);
   const [tab, setTab] = useState<WorkspaceTab>("formation");
   const [atelierScreen, setAtelierScreen] = useState<AtelierScreen>("collection");
   const [saveDetailsOpen, setSaveDetailsOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 761px)").matches);
@@ -578,13 +503,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [rivalSlots, setRivalSlots] = useState<FormationSlot[]>([]);
   const [formationShape, setFormationShape] = useState<FormationShape>("single");
   const [activeSlot, setActiveSlot] = useState(0);
-  const [filters, setFilters] = useState<Record<HeroFilter, string>>({ placement: "all", role: "all", trait_id: "all" });
-  const [minHp, setMinHp] = useState(0);
   const [draft, setDraft] = useState<SenkeiDraft | null>(null);
   const draftRef = useRef<SenkeiDraft | null>(null);
   const [editorCatalog, setEditorCatalog] = useState<DomainCatalogDocument | null>(null);
   const [editorCatalogError, setEditorCatalogError] = useState<string | null>(null);
-  const [editorCatalogLoading, setEditorCatalogLoading] = useState(false);
+  const [, setEditorCatalogLoading] = useState(false);
   const editorCompileRevision = useRef(0);
   const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
@@ -592,6 +515,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [busy, setBusy] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeFailure, setRuntimeFailure] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [battleMobileView, setBattleMobileView] = useState<BattlefieldMobileView>("battle");
   const [battleInspectorOpen, setBattleInspectorOpen] = useState(false);
@@ -624,6 +548,37 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const mobileVisibleClustersRef = useRef<HTMLDivElement>(null);
   const desktopVisibleClustersRef = useRef<HTMLDivElement>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
+
+  const workspaceHost = useRef<HTMLElement>(null);
+  const scrollPositions = useRef(new Map<string, number>());
+  const viewKey = `${screen}:${tab}:${tab === "formation" ? atelierScreen : tab === "jinrei" ? jinreiScreen : libraryView}`;
+  useLayoutEffect(() => {
+    if (!active) return;
+    const frame = requestAnimationFrame(() => {
+      const heading = [...(workspaceHost.current?.querySelectorAll<HTMLElement>("h2,h3,h4") ?? [])]
+        .find(element => element.getClientRects().length > 0);
+      if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+      window.scrollTo(0, scrollPositions.current.get(viewKey) ?? 0);
+    });
+    return () => { cancelAnimationFrame(frame); scrollPositions.current.set(viewKey, window.scrollY); };
+  }, [active, viewKey]);
+
+  const tabKeys = (event: import("react").KeyboardEvent<HTMLElement>): void => {
+    const target = event.target as HTMLElement;
+    if (event.defaultPrevented || target.getAttribute("role") !== "tab" || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const list = target.closest('[role="tablist"]');
+    if (!list) return;
+    const tabs = [...list.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const index = tabs.indexOf(target as HTMLButtonElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    event.preventDefault(); tabs[next]?.focus(); tabs[next]?.click();
+  };
+
+  useEffect(() => {
+    setPrepared(null);
+    setPreflightFailure(null);
+    setCompilation(null);
+  }, [core]);
 
   useEffect(() => {
     if (!active || !core || !packageValue?.next) {
@@ -659,6 +614,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, [
     active,
     core,
+    catalogAttempt,
     packageValue?.ruleset.id,
     packageValue?.ruleset.version.major,
     packageValue?.ruleset.version.minor,
@@ -669,11 +625,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   useEffect(() => {
     try {
       const serialized = window.localStorage.getItem(NEXT_STORAGE_KEY);
+      setSavedRaw(serialized);
+      setSavedSetup(null);
+      setSavedSetupError(null);
       if (serialized !== null) {
         const parsed = parseSavedNextSetup(JSON.parse(serialized) as unknown);
         if (parsed) setSavedSetup(parsed);
         else setSavedSetupError("A saved Next setup is present, but its format cannot be read. Import a valid JSON setup or clear this copy explicitly.");
-      }
+      } else setSavedSetup(null);
     } catch (cause) {
       setSavedSetupError(cause instanceof Error
         ? `The saved Next setup could not be read: ${cause.message}`
@@ -681,7 +640,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     } finally {
       setSavedSetupLoaded(true);
     }
-  }, []);
+  }, [storageAttempt]);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 761px)");
@@ -693,6 +652,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   useEffect(() => {
     try {
       const serialized = window.localStorage.getItem(NEXT_RECOVERY_KEY);
+      setRecoveryRaw(serialized);
+      setRecoveryLoadError(null);
       if (serialized !== null) {
         const parsed = parseSavedNextSetup(JSON.parse(serialized) as unknown);
         if (parsed) {
@@ -702,7 +663,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         } else {
           setRecoveryLoadError("An unsaved Next recovery copy is present, but its format cannot be read. It has been preserved; clear it explicitly to start a new recovery copy.");
         }
-      }
+      } else { setRecoverySetup(null); recoverySetupRef.current = null; }
     } catch (cause) {
       setRecoveryLoadError(cause instanceof Error
         ? `The unsaved Next recovery copy could not be read: ${cause.message}. It has been preserved.`
@@ -710,7 +671,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     } finally {
       setRecoverySetupLoaded(true);
     }
-  }, []);
+  }, [storageAttempt]);
 
   useEffect(() => {
     if (!packageValue || !nextRules || !recoverySetupLoaded) return;
@@ -773,17 +734,16 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       draft: savedSetup.draft, slots: savedSetup.slots, rivalSlots: savedSetup.rival_slots, formationShape: savedSetup.formation_shape,
     }));
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
-  const runIsCurrent = Boolean(run && activeCompilation &&
-    run.snapshot.attacker.program.content_digest === activeCompilation.program.content_digest &&
-    stableKey(run.snapshot.attacker.configuration.heroes) === stableKey(heroConfiguration(slots)));
-  const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset });
+  const runIsCurrent = Boolean(run && draft &&
+    stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
+      draft: run.setup.draft, slots: run.setup.slots, rivalSlots: run.setup.rival_slots,
+      formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics,
+    }));
+  const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot });
   const launchKeyRef = useRef(launchKey);
   launchKeyRef.current = launchKey;
-  const readySnapshot = prepared?.key === launchKey && activeCompilation ? prepared.snapshot : null;
+  const readySnapshot = prepared?.key === launchKey && (exactRun || activeCompilation) ? prepared.snapshot : null;
   const currentPreflightError = preflightFailure?.key === launchKey ? preflightFailure : null;
-  const activeSlotValue = slots[activeSlot] ?? null;
-  const currentHero = activeSlotValue && nextRules ? findHero(nextRules, activeSlotValue.catalog_id) : null;
-  const heroes = nextRules?.heroes ?? [];
   const visibleCameraTargets = useMemo<VisibleBattleTarget[]>(() => Object.values(displayState?.entities ?? {})
     .filter((entity) => !entity.destroyed && (entity.hp > 0 || entity.kind === "bridge" || entity.kind === "observation"))
     .sort((left, right) => {
@@ -859,21 +819,6 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     });
     return () => cancelAnimationFrame(frame);
   }, [battleMobileView, battleRosterOpen, expandedVisibleClusterId]);
-  const visibleHeroes = useMemo(() => heroes.filter((hero) =>
-    (filters.placement === "all" || hero.placement === filters.placement) &&
-    (filters.role === "all" || hero.role === filters.role) &&
-    (filters.trait_id === "all" || hero.trait_id === filters.trait_id) &&
-    hero.stats.hp >= minHp), [filters.placement, filters.role, filters.trait_id, heroes, minHp]);
-  const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
-  const formationGroups = useMemo(() => {
-    const groups = new Map<string, FormationSlot[]>();
-    for (const slot of slots) groups.set(slot.squad, [...(groups.get(slot.squad) ?? []), slot]);
-    return [...groups.entries()].map(([id, members]) => ({ id, members: members.sort((a,b) => {
-      const rank = (slot: FormationSlot) => nextRules?.heroes.find(h => h.id === slot.catalog_id)?.placement === "backline" ? 1 : 0;
-      return rank(a)-rank(b) || a.slot_id.localeCompare(b.slot_id);
-    }) }));
-  }, [slots,nextRules]);
-  const currentSquadPattern = formationGroupsPattern(slots);
   const selectedFrame = run && displayState ? latestFrame(run.sourceReplay.frames, displayState.tick) : null;
   const publicEntities = selectedFrame?.visible_state?.entities ?? {};
   const ownerReplay = run?.response.owner_replay?.perspective === "attacker" ? run.response.owner_replay : null;
@@ -928,16 +873,6 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         fieldInteger(entity.fields.y)! / NEXT_WORLD_UNITS_PER_RENDER_UNIT === position.y);
     return matches.length === 1 ? matches[0] : null;
   }, [publicEntities, selectedDisplayEntity]);
-  const diagnostics = run?.response.restricted_diagnostics ?? null;
-  const abilityEvents = useMemo(() => {
-    const frames = run?.sourceReplay.frames ?? [];
-    return frames.flatMap((frame) => frame.events
-      .filter((event) => /ability|skill|activate|level|xp/i.test(event.event))
-      .map((event, index) => ({ tick: frame.tick, event, key: `${frame.tick}-${index}-${event.event}` })));
-  }, [run]);
-  const diagnosticRows = useMemo(() => diagnostics
-    ? diagnosticDetails(diagnostics).filter((row) => row.side === "attacker")
-    : [], [diagnostics]);
   const selectBattleEntity = useCallback((id: string): void => {
     setSelectedEntityId(id);
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches) {
@@ -971,8 +906,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const setup = buildSavedSetup();
     if (!setup) return;
     try {
-      window.localStorage.setItem(NEXT_RECOVERY_KEY, JSON.stringify(setup));
+      const serialized = JSON.stringify(setup);
+      window.localStorage.setItem(NEXT_RECOVERY_KEY, serialized);
       recoverySetupRef.current = setup;
+      setRecoverySetup(setup);
+      setRecoveryRaw(serialized);
       setRecoveryAvailable(true);
     } catch (cause) {
       setRecoveryLoadError(cause instanceof Error
@@ -981,21 +919,27 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     }
   }, [buildSavedSetup, draft, recoveryLoadError, recoveryMismatchReason, recoverySetupLoaded, savedSetupLoaded, slots.length]);
 
-  const saveSetup = useCallback((): void => {
+  const saveSetup = useCallback((replacePreserved = false): void => {
     const setup = buildSavedSetup();
     if (!setup || !savedSetupLoaded) {
       setSaveMessage("Wait for the current local draft to finish loading before saving.");
       return;
     }
     try {
-      window.localStorage.setItem(NEXT_STORAGE_KEY, JSON.stringify(setup));
+      if (!replacePreserved && ((savedRaw && !savedSetup) || savedSetupMismatchReason)) {
+        setSavedSetupError("The existing saved data is unreadable or incompatible. Export it and explicitly clear it before saving a replacement.");
+        return;
+      }
+      const serialized = JSON.stringify(setup);
+      window.localStorage.setItem(NEXT_STORAGE_KEY, serialized);
+      setSavedRaw(serialized);
       setSavedSetup(setup);
       setSavedSetupError(null);
       setSaveMessage("Saved this Next setup in this browser. Legacy Senkei strategies remain separate.");
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The Next setup could not be saved: ${cause.message}` : "The Next setup could not be saved in this browser.");
     }
-  }, [buildSavedSetup, savedSetupLoaded]);
+  }, [buildSavedSetup, savedSetupLoaded, savedRaw, savedSetup, savedSetupMismatchReason]);
 
   const restoreSetup = useCallback((): void => {
     if (!savedSetup || savedSetupMismatchReason) return;
@@ -1006,6 +950,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setFormationShape(savedSetup.formation_shape);
     setActiveSlot(0);
     setCompilation(null);
+    setPrepared(null);
+    setExactRun(null);
     setSelectedEntityId(null);
     setTab("formation");
     setError(null);
@@ -1015,6 +961,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const clearSavedSetup = useCallback((): void => {
     try {
       window.localStorage.removeItem(NEXT_STORAGE_KEY);
+      setSavedRaw(null);
       setSavedSetup(null);
       setSavedSetupError(null);
       setSaveMessage("Cleared the local Next setup copy.");
@@ -1026,6 +973,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const clearRecoveryCopy = useCallback((): void => {
     try {
       window.localStorage.removeItem(NEXT_RECOVERY_KEY);
+      setRecoveryRaw(null);
       recoverySetupRef.current = null;
       setRecoverySetup(null);
       setRecoveryLoadError(null);
@@ -1065,15 +1013,46 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setSaveMessage("Exported the saved Next setup as JSON.");
   }, [exportSetup, savedSetup]);
 
-  const importSetupFile = useCallback(async (file: File): Promise<void> => {
+  const exportRawSetup = useCallback((kind: "saved" | "recovery"): void => {
+    const raw = kind === "saved" ? savedRaw : recoveryRaw;
+    if (raw === null) return;
+    const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `senkei-next-${kind}-preserved.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setSaveMessage(`Exported the preserved ${kind} data without changing it.`);
+  }, [savedRaw, recoveryRaw]);
+
+  const restoreRecovery = useCallback((): void => {
+    if (!recoverySetup || recoveryMismatchReason) return;
+    draftRef.current = recoverySetup.draft;
+    setDraft(recoverySetup.draft);
+    setSlots([...recoverySetup.slots]);
+    setRivalSlots([...recoverySetup.rival_slots]);
+    setFormationShape(recoverySetup.formation_shape);
+    setCompilation(null);
+    setPrepared(null);
+    setExactRun(null);
+    setRecoveryRestored(true);
+    setScreen("ready");
+    setError(null);
+    setSaveMessage("Recovered this unsaved draft. Recompile and validate before launch.");
+  }, [recoverySetup, recoveryMismatchReason]);
+
+  const importSetupFile = useCallback(async (file: File, confirmed = false): Promise<void> => {
     try {
       const parsed = parseSavedNextSetup(JSON.parse(await file.text()) as unknown);
       if (!parsed) throw new Error("This file is not a supported Next setup.");
+      if (!confirmed && savedRaw !== null && !window.confirm("Import replaces the pinned Next restore point. Export the existing copy first if needed. Continue?")) return;
       setSavedSetup(parsed);
       setSavedSetupError(null);
       setSaveMessage("Imported a Next setup. Check its ruleset status, then restore it when compatible.");
       try {
-        window.localStorage.setItem(NEXT_STORAGE_KEY, JSON.stringify(parsed));
+        const serialized = JSON.stringify(parsed);
+        window.localStorage.setItem(NEXT_STORAGE_KEY, serialized);
+        setSavedRaw(serialized);
       } catch (cause) {
         setSavedSetupError(cause instanceof Error
           ? `The setup is imported for this session, but browser storage failed: ${cause.message}`
@@ -1082,7 +1061,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The setup file could not be imported: ${cause.message}` : "The setup file could not be imported.");
     }
-  }, []);
+  }, [savedRaw]);
 
   const refreshStarterTactics = useCallback((before: readonly FormationSlot[], after: readonly FormationSlot[]): void => {
     const currentDraft = draftRef.current;
@@ -1289,6 +1268,15 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
     }
     const key = launchKey;
+    if (exactRun) {
+      if (stableKey(exactRun.snapshot.attacker.ruleset) !== stableKey(packageValue.ruleset)) {
+        throw new PreflightProblem("The original match RulePackage differs from the current package. Preserve/export the draft and use a compatible package.", "invalid");
+      }
+      await core.preflight(exactRun.snapshot);
+      if (launchKeyRef.current !== key) throw new PreflightProblem("再戦対象が変更されました。再検証してください。", "unverified");
+      setPrepared({ key, snapshot: exactRun.snapshot });
+      return exactRun.snapshot;
+    }
     const playerCompilation = activeCompilation ?? await compileTactics(draft.program_input.kind === "text"
       ? { kind: "text", source: draft.program_input.source, ruleset_ref: draft.ruleset }
       : { kind: "structured_ast", ast: draft.program_input.ast, ruleset_ref: draft.ruleset });
@@ -1331,11 +1319,17 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setRendererError(null);
     try {
       const snapshot = readySnapshot;
-      const response = await core.simulate(snapshot, { include_diagnostics: includeDiagnostics });
+      const setup = exactRun?.setup ?? buildSavedSetup();
+      if (!setup) throw new Error("The launch draft is unavailable. Return to Ready and validate again.");
+      const diagnosticsRequested = exactRun?.includeDiagnostics ?? includeDiagnostics;
+      const estimatedCU = exactRun?.estimatedCU ?? activeCompilation?.estimated_cu;
+      if (estimatedCU === undefined) throw new Error("The original compile estimate is unavailable. Validate the current Draft before launch.");
+      const response = await core.simulate(snapshot, { include_diagnostics: diagnosticsRequested });
       const sourceReplay = response.owner_replay ?? response.outcome.presentation_replay;
       const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
       setBaselineRun(run);
-      setRun({ snapshot, response, sourceReplay, graphicsReplay });
+      setRun({ snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
+      setExactRun(null);
       setSelectedEntityId(null);
       setCameraMode("tactical");
       setFollowedEntityId(null);
@@ -1351,15 +1345,20 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     } finally { operationInFlight.current = false; setBusy(false); }
   };
 
-  const rematch = (): void => { if (run) setScreen("ready"); };
+  const rematch = (): void => { setExactRun(null); if (run) setScreen("ready"); };
 
-  const chooseFormation = (shape: "single" | "three-lane" | "wings") => {
-    if (!nextRules) return;
-    setFormationShape(shape);
-    const nextSlots = makeFormation(nextRules, slots, "attacker", shape);
-    refreshStarterTactics(slots, nextSlots);
-    setSlots(nextSlots);
-    setError(null);
+  const editScreen = (target: AtelierScreen | "jinrei"): void => {
+    setExactRun(null);
+    setScreen("workspace");
+    setTab(target === "jinrei" ? "jinrei" : "formation");
+    if (target === "jinrei") setJinreiScreen("workbench");
+    else setAtelierScreen(target);
+  };
+
+  const openLibrary = (view: "library" | "recovery" | "legacy" = "library"): void => {
+    if (screen !== "resume") setLibraryReturn(screen);
+    setLibraryView(view);
+    setScreen("resume");
   };
 
   const applySquadPattern = useCallback((sizes: readonly number[]): void => {
@@ -1520,43 +1519,62 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     </div>
   );
 
+  const library = <NextLibrary view={libraryView} onViewChange={setLibraryView}
+    saved={savedSetup} recovery={recoverySetup} savedRaw={savedRaw} recoveryRaw={recoveryRaw}
+    savedError={savedSetupError} recoveryError={recoveryLoadError}
+    runtimeError={rulesetError ?? editorCatalogError ?? rendererError ?? error ?? runtimeFailure ?? currentPreflightError?.message}
+    savedMismatch={savedSetupMismatchReason} recoveryMismatch={recoveryMismatchReason}
+    message={saveMessage} loaded={savedSetupLoaded && recoverySetupLoaded} canSave={Boolean(draft && packageValue)}
+    onSave={() => saveSetup(true)} onRestoreSaved={() => { restoreSetup(); setScreen("ready"); }} onRestoreRecovery={restoreRecovery}
+    onExportCurrent={exportCurrentSetup} onExportSaved={exportSavedSetup}
+    onExportRecovery={() => { if (recoverySetup) exportSetup(recoverySetup, "senkei-next-recovery.json"); }}
+    onExportRawSaved={() => exportRawSetup("saved")} onExportRawRecovery={() => exportRawSetup("recovery")}
+    onImport={file => importSetupFile(file, true)} onClearSaved={clearSavedSetup} onClearRecovery={clearRecoveryCopy}
+    onRetryStorage={() => setStorageAttempt(attempt => attempt + 1)}
+    onRetryCore={() => { setRuntimeFailure(null); setError(null); onRetryCore(); setCatalogAttempt(attempt => attempt + 1); }}
+    onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)}
+    onLegacyLibrary={onLegacyLibrary} onG1Samples={() => window.location.assign("/graphics/")} />;
+
+  if (screen === "resume" && (!packageValue || !nextRules)) return <section ref={workspaceHost} onKeyDown={tabKeys} className="next-workspace" data-screen={libraryView === "library" ? "S14" : libraryView === "recovery" ? "S15" : "S16"}>{library}</section>;
+
   if (!packageValue || !nextRules) {
     return (
-      <section className="next-workspace" aria-label="Next local battle workshop">
+      <section ref={workspaceHost} className="next-workspace" aria-label="Next local battle workshop" data-screen="S00">
         <header className="next-heading">
           <div><span className="next-eyebrow">NEXT · LOCAL RULESET</span><h2>Battle <em>workbench</em></h2><p>Five heroes, authored Jinrei and a deterministic local replay.</p></div>
           <span className="next-heading-mark" aria-hidden="true">兵</span>
         </header>
         <div className={`next-load-state${rulesetError ? " is-error" : ""}`} role={rulesetError ? "alert" : "status"}>
           <span className="next-load-mark">{rulesetError ? "!" : "◌"}</span>
-          <div><strong>{rulesetError ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p><button type="button" onClick={() => window.location.reload()}>読込を再試行</button></div>
+          <div><strong>{rulesetError ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p><button type="button" onClick={onRetryCore}>読込を再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>
         </div>
       </section>
     );
   }
 
   return (
-    <section className={`next-workspace${tab === "battle" && screen === "workspace" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
-      <header className="next-heading">
+    <section ref={workspaceHost} onKeyDown={tabKeys} data-screen={screen === "resume" ? libraryView === "library" ? "S14" : libraryView === "recovery" ? "S15" : "S16" : screen === "home" ? "S01" : screen === "conditions" ? "S02" : screen === "preset" ? "S03" : screen === "ready" ? "S10" : screen === "running" ? "S11" : tab === "formation" ? ({ collection: "S04", detail: "S05", skills: "S06", squads: "S07" }[atelierScreen]) : tab === "jinrei" ? jinreiScreen === "coverage" ? "S09" : "S08" : tab === "battle" ? "S12" : "S13"} className={`next-workspace${tab === "battle" && screen === "workspace" ? " is-battle-workspace" : ""}`} aria-label="Next local battle workshop">
+      {screen === "resume" && library}
+      <header className="next-heading" hidden={screen === "resume"}>
         <div><span className="next-eyebrow">NEXT · {packageValue.ruleset.id} · LOCAL ENBU</span><h2>{screen === "workspace" ? <>Battle <em>workbench</em></> : <>Senkei <em>始める</em></>}</h2><p>5 Heroの戦型を準備し、ローカルPvEを実行する。</p></div>
         <div className="next-heading-status"><span className="next-live-dot" />REAL LOCAL SIMULATION<span className="next-heading-mark" aria-hidden="true">兵</span></div>
       </header>
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
-      {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => window.location.reload()}>読込を再試行</button><button type="button" onClick={() => setScreen("resume")}>保存・復旧へ</button></div>}
+      {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => setCatalogAttempt(attempt => attempt + 1)}>Catalogを再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError} Playback is paused at the current tick.</span><button type="button" onClick={retryRenderer}>Retry battlefield renderer</button></div>}
 
-      <details className="next-save-disclosure" hidden={screen !== "workspace" && screen !== "resume"} open={screen === "resume" || saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
+      <details className="next-save-disclosure" hidden={screen !== "workspace"} open={saveDetailsOpen} onToggle={(event) => setSaveDetailsOpen(event.currentTarget.open)}>
       <summary><strong>Save and recovery</strong><small>{recoveryLoadError ? "Recovery needs attention" : savedSetup ? "Pinned setup available" : "No pinned setup"} · opens local setup controls</small></summary>
       <section aria-label="Next setup save and restore" className="next-save-bar">
         <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Saved setup and recovery copy</strong><small>Save setup pins a restore point; current edits are recovered separately after reload.</small></div>
         <div className="next-save-actions">
-          <button disabled={!draft || !packageValue || !savedSetupLoaded} onClick={saveSetup} type="button">Save setup</button>
+          <button disabled={!draft || !packageValue || !savedSetupLoaded} onClick={() => saveSetup()} type="button">Save setup</button>
           <button disabled={!canRestoreSavedSetup} onClick={restoreSetup} type="button">Restore saved</button>
           <button disabled={!draft || !packageValue} onClick={exportCurrentSetup} type="button">Export JSON</button>
           <button onClick={() => importFileInput.current?.click()} type="button">Import JSON</button>
           {savedSetup && <button onClick={exportSavedSetup} type="button">Export saved</button>}
-          {(savedSetup || savedSetupError) && <button onClick={clearSavedSetup} type="button">Clear saved</button>}
+          {(savedSetup || savedSetupError) && <button onClick={() => { if (window.confirm("Clear the pinned Next setup? Export it first if needed.")) clearSavedSetup(); }} type="button">Clear saved</button>}
           <input accept="application/json,.json" aria-label="Import a Next setup JSON file" hidden onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
@@ -1564,8 +1582,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           }} ref={importFileInput} type="file" />
         </div>
         {savedSetupError && <p className="next-save-message is-error" role="alert">{savedSetupError}</p>}
-        {recoveryLoadError && <div className="next-save-message is-error" role="alert">{recoveryLoadError} <button className="next-inline-action" onClick={clearRecoveryCopy} type="button">Clear recovery copy</button></div>}
-        {recoverySetupLoaded && recoveryMismatchReason && !recoveryLoadError && <div className="next-save-message is-error" role="alert">Unsaved recovery from {recoverySetup ? new Date(recoverySetup.saved_at).toLocaleString() : "a prior session"} belongs to a different ruleset or schema. It is preserved and not loaded. {recoveryMismatchReason} <button className="next-inline-action" onClick={clearRecoveryCopy} type="button">Discard incompatible recovery</button></div>}
+        {recoveryLoadError && <div className="next-save-message is-error" role="alert">{recoveryLoadError} <button className="next-inline-action" onClick={() => { if (window.confirm("Clear the preserved recovery copy? The current Draft remains open.")) clearRecoveryCopy(); }} type="button">Clear recovery copy</button></div>}
+        {recoverySetupLoaded && recoveryMismatchReason && !recoveryLoadError && <div className="next-save-message is-error" role="alert">Unsaved recovery from {recoverySetup ? new Date(recoverySetup.saved_at).toLocaleString() : "a prior session"} belongs to a different ruleset or schema. It is preserved and not loaded. {recoveryMismatchReason} <button className="next-inline-action" onClick={() => { if (window.confirm("Clear the preserved recovery copy? The current Draft remains open.")) clearRecoveryCopy(); }} type="button">Discard incompatible recovery</button></div>}
         {!recoveryLoadError && !recoveryMismatchReason && recoveryAvailable && <p className="next-save-message" role="status">{recoveryRestored ? "Recovered this unsaved draft after reload; further edits continue to auto-save." : "Unsaved edits are automatically saved as a separate local recovery copy."}</p>}
         {savedSetup && <div className={`next-save-message${savedSetupMismatchReason ? " is-error" : ""}`} role={savedSetupMismatchReason ? "alert" : "status"}>
           {savedSetupMismatchReason
@@ -1578,15 +1596,16 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       </section>
       </details>
 
+      {exactRun && screen === "ready" && <div className="next-exact-rematch" role="status"><strong>同条件再戦 · 元Runの確定Snapshot</strong><p>表示中の編成と戦術は元の試合のものです。編集中Draftは保持されています。</p><button type="button" onClick={() => setExactRun(null)}>現在のDraftで準備する</button></div>}
       <p className="journey-draft-status" hidden={screen === "workspace" && tab === "battle"}>{draft?.id} · {draftIsSaved ? "保存済み" : savedSetup ? "未保存の変更あり" : "未保存Draft"} · {activeCompilation ? "Compiled" : compilation ? "Compile失効" : "未コンパイル"}</p>
-      <JourneyScreens screen={screen} setScreen={setScreen} entryMode={entryMode} setEntryMode={setEntryMode}
-        slots={slots} rivalSlots={rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={draft}
+      <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={entryMode} setEntryMode={setEntryMode}
+        slots={exactRun?.setup.slots ?? slots} rivalSlots={exactRun?.setup.rival_slots ?? rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={exactRun?.setup.draft ?? draft}
         ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
-        compiled={Boolean(activeCompilation)} compilationCU={activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
+        compiled={Boolean(exactRun || activeCompilation)} compilationCU={exactRun?.estimatedCU ?? activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
         coreReady={Boolean(core && editorCatalogMatchesRuleset(editorCatalog, packageValue))}
-        includeDiagnostics={includeDiagnostics} setIncludeDiagnostics={setIncludeDiagnostics}
+        includeDiagnostics={exactRun?.includeDiagnostics ?? includeDiagnostics} setIncludeDiagnostics={value => { setExactRun(null); setIncludeDiagnostics(value); }}
         check={() => void checkReadiness()} launch={() => void launchBattle()}
-        edit={(target) => { setScreen("workspace"); setTab(target === "jinrei" ? "jinrei" : "formation"); if (target !== "jinrei") setAtelierScreen(target); }}
+        edit={editScreen}
         recoveryRestored={recoveryRestored} saved={canRestoreSavedSetup}
         newPreset={() => {
           if (!nextRules || !packageValue) return;
@@ -1596,7 +1615,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           setPrepared(null); setPreflightFailure(null); setScreen("preset");
         }} />
       <div className="journey-workspace" hidden={screen !== "workspace"}>
-      <div className="journey-toolbar" hidden={tab === "battle"}><button type="button" onClick={() => setScreen("home")}>Homeへ戻る</button><span>Hero / Jinrei / Replay / Analysis</span><button type="button" onClick={() => setScreen("ready")}>準備確認へ</button></div>
+      <div className="journey-toolbar" hidden={tab === "battle"}><button type="button" onClick={() => setScreen("home")}>Homeへ戻る</button><button type="button" onClick={() => openLibrary()}>Library</button><span>Hero / Jinrei / Replay / Analysis</span><button hidden={tab === "jinrei"} type="button" onClick={() => { setExactRun(null); setScreen("ready"); }}>準備確認へ</button></div>
       <div className="next-layout">
         <nav className="next-tabs" aria-label="Next workbench" role="tablist">
           <div className="next-tabs-title"><span className="next-eyebrow">LOCAL WORKSPACE</span><strong>FIELD CONSOLE</strong></div>
@@ -1617,113 +1636,26 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
-            <div className="next-panel-header">
-              <div><span className="next-eyebrow">HERO ATELIER · {ATELIER_SCREENS.find((screen) => screen.id === atelierScreen)?.hint}</span><h3>{atelierScreen === "collection" ? <>Choose your <em>heroes</em></> : atelierScreen === "detail" ? <>Hero <em>detail</em></> : atelierScreen === "skills" ? <>Plan a skill <em>tree</em></> : <>Assemble your <em>squads</em></>}</h3><p>{atelierScreen === "collection" ? "Select exactly five entries from the bundled Senritsu Catalog." : atelierScreen === "detail" ? "Inspect the selected Catalog identity, attributes, real stats and growth." : atelierScreen === "skills" ? "Choose a real branch and review its level, prerequisite and effect before battle." : "Divide the same five Heroes into legal Squads and set one shared starting node per unit."}</p></div>
-              <span className="next-slot-counter">{String(slots.length).padStart(2, "0")} <small>/ 05</small></span>
-            </div>
-
-            <nav className="next-atelier-nav" aria-label="Hero Atelier" role="tablist">
-              {ATELIER_SCREENS.map((screen) => <button aria-selected={atelierScreen === screen.id} className={atelierScreen === screen.id ? "is-active" : ""} id={`next-atelier-${screen.id}`} key={screen.id} onClick={() => setAtelierScreen(screen.id)} role="tab" type="button">{screen.label}<small>{screen.hint}</small></button>)}
-            </nav>
-
-            {atelierScreen === "collection" && <>
-            <div className="next-collection-summary" aria-label="Five selected Hero slots" role="group">
-              {slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-label={`Choose hero for slot ${index + 1}`} aria-pressed={activeSlot === index} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id ?? slot.slot_id} · {hero ? formatId(hero.placement) : "EMPTY"}</small></button>; })}
-            </div>
-            <div className="next-formation-tools">
-              <label className="next-field next-shape-field"><span>Initial formation</span><select value={formationShape} onChange={(event) => {
-                const shape = event.target.value as "single" | "three-lane" | "wings" | "custom";
-                if (shape !== "custom") chooseFormation(shape);
-              }}>
-                {formationShape === "custom" && <option value="custom">Custom arrangement</option>}<option value="single">Single squad · own base</option><option value="three-lane">Three-lane spread</option><option value="wings">Twin wings</option>
-              </select></label>
-              <div className="next-filter-block"><span className="next-filter-label">FILTER CATALOG</span>
-                <label className="next-field"><span>Placement</span><select aria-label="Filter heroes by placement" value={filters.placement} onChange={(event) => setFilters((previous) => ({ ...previous, placement: event.target.value }))}><option value="all">All</option>{[...new Set(heroes.map((hero) => hero.placement))].map((value) => <option key={value} value={value}>{formatId(value)}</option>)}</select></label>
-                <label className="next-field"><span>Role</span><select aria-label="Filter heroes by role" value={filters.role} onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}><option value="all">All</option>{[...new Set(heroes.map((hero) => hero.role))].map((value) => <option key={value} value={value}>{formatId(value)}</option>)}</select></label>
-                <label className="next-field"><span>Trait</span><select aria-label="Filter heroes by trait" value={filters.trait_id} onChange={(event) => setFilters((previous) => ({ ...previous, trait_id: event.target.value }))}><option value="all">All</option>{[...new Set(heroes.map((hero) => hero.trait_id))].map((value) => <option key={value} value={value}>{formatId(value)}</option>)}</select></label>
-                <label className="next-field next-min-hp"><span>Minimum HP · {minHp}</span><input aria-label="Minimum hero HP" max={Math.max(...heroes.map((hero) => hero.stats.hp), 0)} min="0" onChange={(event) => setMinHp(Number(event.target.value))} step="10" type="range" value={minHp} /></label>
-              </div>
-            </div>
-
-            <section className="next-catalog" aria-label="Filtered hero catalog">
-              <div className="next-catalog-heading"><div><span className="next-eyebrow">CATALOG · {visibleHeroes.length} AVAILABLE</span><h4>Choose a Hero for slot {String(activeSlot + 1).padStart(2, "0")}</h4></div><small>12 Senritsu identities · filter by the three Catalog axes</small></div>
-              <div className="next-catalog-grid">
-                {visibleHeroes.map((hero) => <button aria-pressed={activeSlotValue?.catalog_id === hero.id} className={`next-catalog-card${activeSlotValue?.catalog_id === hero.id ? " is-selected" : ""}`} key={hero.id} onClick={() => {
-                  const path = hero.skill_paths[activeSlotValue?.skill_path ?? "path_a"] ? (activeSlotValue?.skill_path ?? "path_a") : Object.keys(hero.skill_paths)[0] ?? "";
-                  changeSlot(activeSlot, { catalog_id: hero.id, skill_path: path });
-                }} type="button">
-                  <div className="next-catalog-card-top"><span className="next-catalog-id">{hero.id}</span><span className="next-hero-sigil">{hero.placement === "backline" ? "⌁" : "◆"}</span></div>
-                  <strong>{hero.name}</strong><small>{formatId(hero.placement)} · {formatId(hero.role)} · {formatId(hero.trait_id)}</small>
-                  <div className="next-catalog-stats"><span>HP <b>{hero.stats.hp}</b></span><span>ATK <b>{hero.stats.attack}</b></span><span>DEF <b>{hero.stats.defense}</b></span></div>
-                </button>)}
-                {visibleHeroes.length === 0 && <div className="next-catalog-empty">No heroes match these attribute filters. Clear one filter to continue.</div>}
-              </div>
-            </section>
-            <div className="next-panel-footer"><span>Selected {slots.length} of 5 catalog slots. Hero selection is shared with Detail, Skill Tree, Squads and the battle draft.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("detail")} type="button">Inspect selected Hero <b>→</b></button></div>
-            </>}
-
-            {atelierScreen === "detail" && <div className="next-atelier-detail">
-              <div className="next-atelier-roster" aria-label="Choose a Hero for detail" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} aria-label={`Slot ${index + 1}: ${hero?.name ?? "Choose a hero"}, ${hero?.id ?? slot.slot_id}`} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id}</small></button>; })}</div>
-              {currentHero && activeSlotValue ? <article className="next-hero-dossier">
-                <header className={`next-hero-dossier-head ${currentHero.placement}`}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Catalog identity: {currentHero.appearance_key}. Shared 3D appearance for Hero Detail and the battlefield.</small></div><span className="next-hero-dossier-mark" aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
-                {tab === "formation" && <HeroModelPreview catalogId={currentHero.id} appearanceKey={currentHero.appearance_key} name={currentHero.name} />}
-                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div><div className="next-stat-matrix"><span>STAT</span><span>BASE</span><span>PER LEVEL</span>{(["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const).map((stat) => <Fragment key={stat}><strong>{formatId(stat)}</strong><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></Fragment>)}</div></section>
-                <aside className="next-capability-map"><strong>Jinrei capability mapping</strong>{packageValue.domain.capabilities.activate ? <p>Active skills are issued through <code>activate</code> with the ruleset’s typed arguments: {packageValue.domain.capabilities.activate.arguments.map((argument) => `${formatId(argument.id)} (${argument.value_type.kind})`).join(" · ")}. Passive skills are granted automatically at their unlock level.</p> : <p role="alert">This ruleset has no <code>activate</code> capability, so its active skills cannot be ordered from Jinrei.</p>}</aside>
-                <section className="next-hero-stat-block"><div className="next-card-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span className="next-owner-tag">PLANNED · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-skill-catalog">{currentHero.skills.map((skill) => <article className={currentHero.skill_paths[activeSlotValue.skill_path]?.includes(skill.id) ? "is-planned" : ""} key={skill.id}><div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}</small></div><span>{formatId(skill.effect)}</span><p>{skill.passive ? "Granted automatically when its level requirement is met." : `${formatId(skill.target)} target · range ${skill.range} · cost ${skill.cost} energy · cooldown ${skill.cooldown} ticks · Jinrei activate capability`} · power {skill.power}{skill.duration > 0 ? ` · duration ${skill.duration} ticks` : ""}</p></article>)}</div></section>
-                <div className="next-panel-footer"><span>Numbers and skill identity come from the bundled ruleset. The 3D preview shares its appearance with the battlefield.</span><button className="next-secondary-button" onClick={() => setAtelierScreen("skills")} type="button">Plan this Hero’s skills <b>→</b></button></div>
-              </article> : <div className="next-catalog-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
-            </div>}
-
-            {atelierScreen === "skills" && <div className="next-skill-tree-screen">
-              <div className="next-atelier-roster" aria-label="Choose a Hero skill tree" role="group">{slots.map((slot, index) => { const hero = findHero(nextRules, slot.catalog_id); return <button aria-current={activeSlot === index ? "true" : undefined} aria-label={`Slot ${index + 1}: ${hero?.name ?? "Choose a hero"}, ${hero?.id ?? slot.slot_id}; ${formatId(slot.skill_path)}`} className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => setActiveSlot(index)} type="button"><span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id ?? formatId(slot.skill_path)}</small></button>; })}</div>
-              {currentHero && activeSlotValue ? <div className="next-skill-tree-content"><div className="next-skill-tree-title"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>Acquisition is planned here. Enbu awards skills only when the Hero reaches each unlock level.</p></div><span className="next-owner-tag">CURRENT · {formatId(activeSlotValue.skill_path)}</span></div><div className="next-capability-map"><strong>Active skill command</strong><p>{packageValue.domain.capabilities.activate ? <>An active skill uses Jinrei <code>activate</code> ({packageValue.domain.capabilities.activate.arguments.map((argument) => formatId(argument.id)).join(", ")}). A prerequisite must be acquired before the dependent node becomes available.</> : <>No <code>activate</code> capability is defined by this ruleset; active skill plans are unavailable.</>}</p></div><div className="next-skill-branches">{pathNames.map((path) => { const selected = activeSlotValue.skill_path === path; const pathSkills = (currentHero.skill_paths[path] ?? []).map((id) => currentHero.skills.find((skill) => skill.id === id)).filter((skill) => skill !== undefined); const prerequisiteIssues = skillPathPrerequisiteIssues(currentHero, path); const hasActiveSkill = pathSkills.some((skill) => !skill.passive); const canChoose = prerequisiteIssues.length === 0 && (!hasActiveSkill || Boolean(packageValue.domain.capabilities.activate)); return <article className={`next-skill-branch${selected ? " is-selected" : ""}${canChoose ? "" : " is-unavailable"}`} key={path}><header><div><span className="next-eyebrow">{formatId(path)} · {pathSkills.length} PLANNED NODES</span><h5>{pathSkills[0]?.name ?? formatId(path)} <span>→</span> {pathSkills[pathSkills.length - 1]?.name ?? ""}</h5></div><button aria-pressed={selected} aria-label={`Choose ${formatId(path)} for ${activeSlotValue.slot_id}`} className="next-secondary-button" disabled={!canChoose} onClick={() => changeSlot(activeSlot, { skill_path: path })} type="button">{selected ? "Selected" : "Choose path"}</button></header>{prerequisiteIssues.length > 0 && <p className="next-skill-path-error" role="alert">Unavailable: {prerequisiteIssues.join(" ")}</p>}{!packageValue.domain.capabilities.activate && hasActiveSkill && <p className="next-skill-path-error" role="alert">Unavailable: this ruleset has no activate capability for active skills.</p>}<ol>{pathSkills.map((skill, index) => { const prerequisites = skill.prerequisites.map((id) => currentHero.skills.find((item) => item.id === id)).filter((item) => item !== undefined); return <li key={skill.id}><span className="next-skill-level">LV {skill.unlock_level}</span><div className="next-skill-node"><span className="next-skill-node-mark">{skill.passive ? "◇" : "✦"}</span><div><strong>{skill.name}</strong><small>{skill.passive ? "Passive · acquired at unlock level" : `Active · ${formatId(skill.effect)} · ${formatId(skill.target)} target · activate capability`}</small><p>{skill.passive ? "Granted automatically when its level requirement is met." : `Power ${skill.power} · range ${skill.range} · energy ${skill.cost} · cooldown ${skill.cooldown}${skill.duration > 0 ? ` · duration ${skill.duration}` : ""}`}</p>{prerequisites.length > 0 && <small>Requires {prerequisites.map((item) => `${item.name} (LV ${item.unlock_level})`).join(", ")} · locked until prerequisites are acquired</small>}</div><span className="next-skill-plan-state">{selected ? `PLANNED · UNLOCKS LV ${skill.unlock_level}` : "NOT SELECTED"}</span></div>{index < pathSkills.length - 1 && <span className="next-skill-connector" aria-hidden="true" />}</li>; })}</ol></article>; })}</div><p className="next-skill-tree-note">The chosen branch is saved in the same five-slot setup and passed into the real Enbu Hero configuration. This screen does not mark future skills as already acquired.</p><div className="next-panel-footer"><span>Selected path: {skillNames(currentHero, activeSlotValue.skill_path).join(" → ")}</span><button className="next-secondary-button" onClick={() => setAtelierScreen("squads")} type="button">Arrange Squads <b>→</b></button></div></div> : <div className="next-catalog-empty">Select a populated Hero slot to plan its skill tree.</div>}
-            </div>}
-
-            {atelierScreen === "squads" && <div className="next-assembly-screen">
-              <div className="next-assembly-intro"><div><span className="next-eyebrow">SENRITSU · FIVE HEROES · SEVEN PARTITIONS</span><h4>Set the initial chain of command</h4><p>Choose a five-Hero partition, then select one shared starting node for each Squad.</p></div><span className="next-slot-counter">{currentSquadPattern || "—"}</span></div>
-              <div className="next-pattern-picker" aria-label="Legal five Hero Squad partitions">{SQUAD_PATTERNS.map((pattern) => <button aria-label={`Use squad split ${pattern.id}`} aria-pressed={currentSquadPattern === pattern.id} className={currentSquadPattern === pattern.id ? "is-active" : ""} key={pattern.id} onClick={() => applySquadPattern(pattern.sizes)} type="button"><strong>{pattern.id}</strong><small>{pattern.sizes.length} Squads</small></button>)}</div>
-              <section aria-label="Squad formation preview" className="next-assembly-groups"><div className="next-assembly-preview-label"><span className="next-eyebrow">FORMATION PREVIEW · {currentSquadPattern}</span><small>All five Hero identities remain assigned exactly once</small></div>{formationGroups.map(({ id, members }) => { const movement = nextRules.parameters[`squad_${members.length}_speed_milli`]; const starts = [...new Set(members.map((member) => member.node))]; return <article className="next-assembly-group" key={id}><header><div><span className="next-eyebrow">{formatId(id)} · {members.length} {members.length === 1 ? "HERO" : "HEROES"}</span><h5>{["Solo", "Duo", "Trio", "Quartet", "Quintet"][members.length - 1]} <small>· {members.length}-member Squad</small></h5></div><span className="next-speed-badge">MOVE ×{Number.isFinite(movement) ? (movement / 1000).toFixed(2) : "—"}</span></header><label className="next-field next-squad-node"><span>Shared starting node</span><select aria-label={`Starting node for ${formatId(id)}`} value={starts.length === 1 ? starts[0] : ""} onChange={(event) => moveSquad(id, event.target.value)}><option disabled value="">Resolve member node mismatch</option>{Object.keys(nextRules.map.nodes).map((node) => <option key={node} value={node}>{formatId(node)}{Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ? ` · ${formatId(Object.entries(nextRules.map.lanes).find(([, nodes]) => nodes.includes(node))?.[0] ?? "")}` : ""}</option>)}</select></label><ol>{members.map((member) => { const index = slots.findIndex((slot) => slot.slot_id === member.slot_id); const hero = findHero(nextRules, member.catalog_id); return <li key={member.slot_id}><span className="next-hero-sigil">{hero?.placement === "backline" ? "⌁" : "◆"}</span><div><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id} · {formatId(hero?.placement ?? "unknown")}</small></div><label className="next-field"><span>Squad</span><select aria-label={`Squad for ${hero?.name ?? member.slot_id}`} value={member.squad} onChange={(event) => changeSlot(index, { squad: event.target.value })}>{[...new Set([...formationGroups.map((group) => group.id), `squad-${formationGroups.length + 1}`])].map((squad) => <option key={squad} value={squad}>{formatId(squad)}</option>)}</select></label></li>; })}</ol>{starts.length > 1 && <p className="next-assembly-error" role="alert">This Squad has multiple starting nodes. Choose a shared node to make its starting formation valid.</p>}<small className="next-assembly-rule">Movement ×{Number.isFinite(movement) ? (movement / 1000).toFixed(2) : "—"} · maturation {nextRules.parameters.squad_maturation_ticks} ticks</small></article>; })}</section>
-              <div className="next-assembly-note"><strong>One membership per Hero</strong><p>Each slot has one Squad ID. The seven presets cover every partition of five; changing a member’s Squad can create a custom grouping. A battle cannot start while members of one Squad have different initial nodes.</p></div>
-              <div className="next-panel-footer"><span>These membership and node values are the same values stored in the current Senkei draft.</span><button className="next-secondary-button" onClick={() => { setTab("jinrei"); }} type="button">Continue to Jinrei <b>→</b></button></div>
-            </div>}
+            <HeroAtelier nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
+              onActiveSlotChange={setActiveSlot} onScreenChange={setAtelierScreen} onSlotChange={changeSlot}
+              onSquadPattern={applySquadPattern} onMoveSquad={moveSquad}
+              onReady={() => { setExactRun(null); setScreen("ready"); }} onJinrei={() => editScreen("jinrei")}
+              canActivate={Boolean(packageValue.domain.capabilities.activate)}
+              activateArgumentIds={packageValue.domain.capabilities.activate?.arguments.map(argument => argument.id) ?? []} />
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
-            <div className="next-panel-header"><div><span className="next-eyebrow">02 · JINREI TACTICS</span><h3>Edit the <em>orders</em></h3><p>This draft compiles through the local Jinrei core against the selected Next ruleset.</p></div><span className={`next-compile-state${activeCompilation ? " is-ready" : ""}`}>{activeCompilation ? "COMPILED" : "COMPILE REQUIRED"}</span></div>
-            {draft && <EditorFeature
-              ruleset={tacticsRuleset}
-              draft={draft}
-              compilation={activeCompilation}
-              onDraftChange={updateDraft}
-              onParse={(source, rulesetRef) => core ? core.parseText(source, rulesetRef) : Promise.reject(new Error("The local Rust core is still loading."))}
-              onFormat={(ast, rulesetRef) => core ? core.formatAst(ast, rulesetRef) : Promise.reject(new Error("The local Rust core is still loading."))}
-              onCompile={async (input) => { await compileTactics(input); }}
-            />}
-            {draft && core && editorCatalogMatchesRuleset(editorCatalog, packageValue) ? (
-              <JinreiDomainPanel
-                catalog={editorCatalog}
-                core={core}
-                draftKey={compilerContextKey ?? stableKey({ draft, slots, catalog: catalogStamp(editorCatalog) })}
-                onCompiled={onCatalogCompile}
-                onSourceChange={updateFoundationSource}
-                slot={activeSlotValue ? {
-                  slotId: activeSlotValue.slot_id,
-                  squadId: activeSlotValue.squad,
-                  heroCatalogId: activeSlotValue.catalog_id,
-                } : null}
-                source={draft.program_input.kind === "text" ? draft.program_input.source : ""}
-              />
-            ) : (
-              <section className="next-domain-catalog-state" aria-live="polite" role={editorCatalogError ? "alert" : "status"}>
-                <span className="next-eyebrow">SENRITSU DOMAIN CATALOG</span>
-                <strong>{editorCatalogLoading ? "Loading the verified Catalog…" : "Catalog-bound editing is unavailable"}</strong>
-                <p>{editorCatalogError
-                  ?? (editorCatalog ? "The Catalog identity does not match the selected RulePackage. Reload the workspace after the package and compiler are aligned."
-                    : "The Domain Catalog is required before compile results can be used for a battle.")}</p>
-                <small>The draft remains editable and can still be saved. Jinrei compile and local battle launch require the matching Catalog identity.</small>
-              </section>
-            )}
-            <div className="next-jinrei-note"><span>LOCAL DRAFT</span><p>Starter orders move each slot and target path-selected skills only when their unlock level, energy, cooldown and target conditions are met. This draft stays separate from saved initial Senkei strategies.</p></div>
+            <JinreiWorkbench active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
+              catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
+              catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
+              compilation={activeCompilation} slots={slots} activeSlot={activeSlot}
+              screen={jinreiScreen} onScreenChange={setJinreiScreen} onActiveSlotChange={setActiveSlot}
+              onDraftChange={updateDraft} onSourceChange={updateFoundationSource}
+              onCompile={async input => {
+                try { const result = await compileTactics(input); setRuntimeFailure(null); return result; }
+                catch (cause) { setRuntimeFailure(cause instanceof Error ? cause.message : String(cause)); throw cause; }
+              }} onCompiled={onCatalogCompile}
+              onReady={() => { setExactRun(null); setScreen("ready"); }} onFormation={() => editScreen("squads")} />
           </section>
 
           <section aria-labelledby="next-tab-battle" className="next-panel next-battle-panel" hidden={tab !== "battle" || screen !== "workspace"} id="next-panel-battle" role="tabpanel">
@@ -1822,20 +1754,12 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
-            <div className="next-panel-header"><div><span className="next-eyebrow">04 · REPLAY AND ABILITY TRACE</span><h3>Read the <em>result</em></h3><p>Select a public event to return the battlefield to that exact replay tick.</p></div>{run && <button className="next-secondary-button" onClick={() => setTab("battle")} type="button">Back to battle <b>↗</b></button>}</div>
-            {!run ? <div className="next-empty-battle"><span className="next-empty-glyph">⌁</span><strong>No local battle yet</strong><p>Run a Next battle to populate its public event timeline and optional local diagnostics.</p><button className="next-secondary-button" onClick={() => setTab("jinrei")} type="button">Edit Jinrei <b>→</b></button></div> : <div className="next-analysis-grid">
-              <div className="next-analysis-column"><section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">{run.graphicsReplay.header.view === "attacker" ? "LOCAL OWNER REPLAY" : "PUBLIC PRESENTATION REPLAY"}</span><h4>Visible battle events <small>{contextualTimelineEvents.length} shown · {timelineEvents.length} total</small></h4></div><span className={run.graphicsReplay.header.view === "attacker" ? "next-local-tag" : "next-public-tag"}>{run.graphicsReplay.header.view === "attacker" ? "YOUR VIEW" : "PUBLIC"}</span></div>
-                {contextualTimelineEvents.length ? <ol className="next-timeline">{contextualTimelineEvents.map((event, index) => <li key={`${event.tick}-${event.order}-${index}`}><button className={displayState?.tick === event.tick ? "is-current" : ""} onClick={() => inspectReplayEvent(event)} type="button"><span className="next-timeline-tick">T{String(event.tick).padStart(2, "0")}</span><span className={`next-timeline-mark mark-${event.type}`}>{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="next-timeline-copy"><strong>{formatId(event.type)}</strong><small>{"entityId" in event ? event.entityId : event.type === "spawn" ? event.entity.id : event.type === "match-end" ? event.result.reason : "System event"}{event.type === "match-end" ? ` · ${formatId(event.result.winner)}` : ""}</small></span><span className="next-timeline-open">↗</span></button></li>)}</ol> : <p className="next-empty-detail">This replay has no public timeline events.</p>}
-              </section></div>
-              <div className="next-analysis-column"><section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">XP AND ABILITY EVENTS</span><h4>Hero progression</h4></div><span className="next-event-count">{abilityEvents.length}</span></div>
-                {abilityEvents.length ? <ol className="next-diagnostic-list">{abilityEvents.map(({ tick, event, key }) => <li key={key}><span>T{String(tick).padStart(2, "0")}</span><div><strong>{eventTitle(event)}</strong><small>{eventDetails(event) || event.entity || "Visible ability or progression event"}</small></div><button onClick={() => { player?.pause(); player?.seek(tick); setTab("battle"); }} type="button">View ↗</button></li>)}</ol> : <p className="next-empty-detail">No XP or ability event has been emitted in this replay yet. Choose a skill path and add an `activate` order in Jinrei to inspect its effect.</p>}
-              </section>
-              <section className="next-detail-card"><div className="next-card-heading"><div><span className="next-eyebrow">RESTRICTED LOCAL CHANNEL</span><h4>Jinrei diagnostics</h4></div><span className="next-local-tag">LOCAL ONLY</span></div>
-                {diagnostics ? <><div className="next-cu-strip"><span><small>YOUR CU</small><strong>{diagnostics.cu_by_side.attacker}</strong></span><span><small>YOUR TRACE EVENTS</small><strong>{diagnosticRows.length}</strong></span></div>{diagnosticRows.length ? <ol className="next-diagnostic-list next-trace-list">{diagnosticRows.slice(-90).map((row, index) => <li key={`${row.tick}-${index}`}><span>T{String(row.tick).padStart(2, "0")}</span><div><strong>YOUR STRATEGY</strong><small>{row.text}</small></div></li>)}</ol> : <p className="next-empty-detail">Diagnostics were requested, but no local Jinrei trace events were emitted.</p>}</> : <p className="next-empty-detail">Local owner replay and diagnostics were not included. Enable the local option before launch to inspect your heroes, intents, abilities and CU charges.</p>}
-              </section></div>
-            </div>}
-            {runResult && <div className="next-analysis-result"><span className="next-result-mark">{runResult.outcome === "attacker_victory" ? "勝" : runResult.outcome === "defender_victory" ? "敗" : "―"}</span><div><span className="next-eyebrow">FINAL RESULT</span><strong>{formatId(runResult.outcome)}</strong><small>{formatId(runResult.termination_reason)} · tick {runResult.final_tick}</small></div><div className="next-result-digest"><span>FINAL STATE DIGEST</span><code>{runResult.final_state_digest}</code></div><button className="next-secondary-button" disabled={busy || !activeCompilation} onClick={rematch} type="button">{runIsCurrent ? "Rematch this setup" : "Run revised setup"} <b>↻</b></button></div>}
-            {baselineRun && runResult && run && <div className="next-run-comparison"><div className="next-comparison-heading"><div><span className="next-eyebrow">LAST RUN · CURRENT RUN</span><strong>{stableKey(baselineRun.snapshot) === stableKey(run.snapshot) ? "Exact deterministic rematch" : "Result after revision"}</strong></div><span>BEFORE / CURRENT</span></div><div className="next-comparison-values"><div><small>BEFORE</small><strong>{formatId(baselineRun.response.outcome.result.outcome)}</strong><span>{baselineRun.response.outcome.result.final_tick} ticks · {baselineRun.response.outcome.result.cu_spent.attacker} CU</span></div><span className="next-comparison-arrow">→</span><div><small>CURRENT</small><strong>{formatId(runResult.outcome)}</strong><span>{runResult.final_tick} ticks · {runResult.cu_spent.attacker} CU</span></div><div className="next-comparison-delta"><small>CHANGE</small><strong>{signed(runResult.final_tick - baselineRun.response.outcome.result.final_tick)} ticks</strong><span>{signed(runResult.cu_spent.attacker - baselineRun.response.outcome.result.cu_spent.attacker)} attacker CU</span></div></div></div>}
+            <BattleAnalysis run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy}
+              onReplayEvent={inspectReplayEvent}
+              onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}
+              onBattle={() => setTab("battle")} onEdit={editScreen}
+              onExactRematch={() => { if (run) { setExactRun(run); setPrepared(null); setScreen("ready"); } }}
+              onRevisedRematch={rematch} />
           </section>
         </div>
       </div>

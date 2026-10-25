@@ -182,7 +182,7 @@ function summarizeBenchmark(
 
 function App() {
   const [view, setView] = useState<AppView>("next");
-  const [nextEntry, setNextEntry] = useState({ screen: "home" as "home" | "workspace", request: 0 });
+  const [nextEntry, setNextEntry] = useState({ screen: "home" as "home" | "workspace" | "resume", request: 0 });
   const [legacyMenuOpen, setLegacyMenuOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 761px)");
@@ -196,6 +196,7 @@ function App() {
   const [nextRulesetError, setNextRulesetError] = useState<string | null>(null);
   const rulesetRef = useRef<RulePackage | null>(null);
   const [coreError, setCoreError] = useState<string | null>(null);
+  const [coreAttempt, setCoreAttempt] = useState(0);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<readonly LocalPveScenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
@@ -273,7 +274,7 @@ function App() {
       current = false;
       client.dispose();
     };
-  }, []);
+  }, [coreAttempt]);
 
   useEffect(() => {
     let current = true;
@@ -638,6 +639,7 @@ function App() {
         <nav className="primary-nav" aria-label="Workspace" data-testid="workspace-nav">
           <button className="nav-item" data-testid="nav-home" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "home", request: value.request + 1 })); }} type="button">Home<span>開始・再開</span></button>
           <button aria-current={view === "next" ? "page" : undefined} className={`nav-item${view === "next" ? " is-active" : ""}`} data-testid="nav-next" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "workspace", request: value.request + 1 })); }} type="button"><span className="nav-number">02</span><span>Next</span><span className="nav-arrow">↗</span></button>
+          <button className="nav-item" data-testid="nav-library" onClick={() => { setView("next"); setNextEntry(value => ({ screen: "resume", request: value.request + 1 })); }} type="button"><span className="nav-number">03</span><span>Library</span><span className="nav-arrow">↗</span></button>
           <details className="legacy-navigation" open={legacyMenuOpen} onToggle={event => setLegacyMenuOpen(event.currentTarget.open)}>
           <summary>旧版・サンプル</summary>
           <div className="legacy-navigation-items">
@@ -696,6 +698,8 @@ function App() {
               core={core}
               ruleset={nextRuleset}
               rulesetError={nextRulesetError}
+              onRetryCore={() => setCoreAttempt(attempt => attempt + 1)}
+              onLegacyLibrary={() => { setLegacyMenuOpen(true); setView("persistence"); }}
             />
           </div>
           {view !== "next" && (

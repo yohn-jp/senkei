@@ -6,6 +6,7 @@ import type { CompileOutcome, CoreClient, RulePackage, SenkeiDraft, TacticalInpu
 import { EditorFeature } from "../editor";
 import { JinreiDomainPanel } from "./JinreiDomainPanel";
 import "./jinrei-workbench.css";
+import { compilerTextOffset } from "./compiler-location";
 
 export interface JinreiWorkbenchSlot {
   readonly slot_id: string;
@@ -55,7 +56,7 @@ function actorForScope(
 }
 
 function diagnosticPath(message: string): string | null {
-  return message.match(/(?: at |path\s+)(\/[^\s:]+)/i)?.[1] ?? null;
+  return message.match(/\bsource@\d+\b/)?.[0] ?? message.match(/(?: at |path\s+)(\/[^\s:]+)/i)?.[1] ?? null;
 }
 
 export function JinreiWorkbench({
@@ -102,7 +103,7 @@ export function JinreiWorkbench({
   const compileState = compilation
     ? "COMPILED"
     : "COMPILE REQUIRED";
-  const compileStateDetail = !compilation && lastCompiledDraftKey && lastCompiledDraftKey !== draftKey
+  const compileStateDetail = compilation ? `Current Draft compiled · estimate ${compilation.estimated_cu} CU.` : lastCompiledDraftKey && lastCompiledDraftKey !== draftKey
     ? "The previous compile expired after an edit."
     : "The current Draft needs a Jinrei compile.";
 
@@ -200,7 +201,9 @@ export function JinreiWorkbench({
     }
     editor?.focus();
     editor?.scrollIntoView({ block: "center" });
-    if (path) setCompileError(`Editing location: ${path}. The compiler path is shown here; text offsets are not supplied by the compiler.`);
+    const offset = editor ? compilerTextOffset(editor.value, path) : null;
+    if (editor && offset !== null) editor.setSelectionRange(offset, Math.min(editor.value.length, offset + 1));
+    if (path) setCompileError(offset !== null ? `Compiler location: ${path}. The editor selection marks this source location.` : `Compiler location: ${path}. This diagnostic does not include a source byte offset.`);
   };
 
   const diagnosticRows = compilation?.diagnostics ?? [];
@@ -216,6 +219,10 @@ export function JinreiWorkbench({
         <button aria-selected={screen === "workbench"} onClick={() => onScreenChange("workbench")} role="tab" type="button"><span>08</span><strong>Jinrei Workbench</strong><small>EDIT · CATALOG</small></button>
         <button aria-selected={screen === "coverage"} onClick={() => onScreenChange("coverage")} role="tab" type="button"><span>09</span><strong>Behavior Coverage</strong><small>HERO · SQUAD · ARMY</small></button>
       </nav>
+
+      <label className="next-jinrei-hero-context"><span>Editing Hero</span><select value={activeSlot} onChange={event => onActiveSlotChange(Number(event.currentTarget.value))}>
+        {slots.map((slot, index) => <option key={slot.slot_id} value={index}>{index + 1} · {slot.catalog_id} · {slot.squad}</option>)}
+      </select></label>
 
       <section className="next-jinrei-screen" hidden={screen !== "workbench"} aria-label="Jinrei editor and Domain Catalog">
         <nav className="next-jinrei-view-nav" aria-label="Workbench view" role="tablist">
