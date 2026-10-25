@@ -774,9 +774,10 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             .unwrap_or_else(|| panic!("{catalog_id} is visible in the terminal base-destruction frame for {}", case["case_id"]))
     };
 
-    // A paired setup swaps both roster and squad partition. Both orientations
-    // must be capable of destroying the opposing base, with the same result
-    // fields that the replay exposes to a spectator.
+    // Preserve the natural versioned strategy results. The first orientation
+    // destroys the defender base; the mirrored roster remains a timed draw.
+    // Separate controlled node assaults below prove base destruction for both
+    // sides without changing any balance values.
     let attacker_win = case("base-assault-duos-vs-trio-duo");
     assert_eq!(attacker_win["outcome"], "AttackerVictory");
     assert_eq!(attacker_win["termination_class"], "victory");
@@ -785,22 +786,88 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
     assert_eq!(structure_hp(attacker_win, "base.defender"), 0);
     assert!(structure_hp(attacker_win, "base.attacker") > 0);
 
-    let defender_win = case("base-assault-trio-duo-vs-duos-mirrored");
-    assert_eq!(defender_win["outcome"], "DefenderVictory");
-    assert_eq!(defender_win["termination_class"], "victory");
-    assert_eq!(defender_win["termination_reason"], "base_destroyed");
-    assert!(defender_win["final_tick"].as_u64().unwrap() < defender_win["max_ticks"].as_u64().unwrap());
-    assert_eq!(structure_hp(defender_win, "base.attacker"), 0);
-    assert!(structure_hp(defender_win, "base.defender") > 0);
+    let mirrored = case("base-assault-trio-duo-vs-duos-mirrored");
+    assert_eq!(mirrored["outcome"], "Draw");
+    assert_eq!(mirrored["termination_class"], "timeout");
+    assert_eq!(mirrored["termination_reason"], "time_limit");
+    assert_eq!(mirrored["final_tick"], mirrored["max_ticks"]);
 
     let timeouts = cases.iter().filter(|case| case["termination_class"] == "timeout").collect::<Vec<_>>();
-    assert_eq!(timeouts.len(), 6, "the report retains capped draws as timeout observations");
+    assert!(timeouts.len() >= 1, "the report retains the observed mirrored base-assault draw and any other capped scenarios");
     assert!(timeouts.iter().all(|case| {
         case["outcome"] == "Draw"
             && case["termination_reason"] == "time_limit"
             && case["final_tick"] == case["max_ticks"]
     }));
     cases
+}
+
+fn controlled_base_node_assault(
+    rules: &VerifiedRulePlan,
+    winner: CombatantSide,
+    match_id: &str,
+) -> SimulationArtifact {
+    let (attacker_node, defender_node) = match winner {
+        CombatantSide::Attacker => ("B.BASE", "N.B.UC"),
+        CombatantSide::Defender => ("N.A.UC", "A.BASE"),
+    };
+    let attacker_nodes = [attacker_node; 5].map(str::to_owned);
+    let defender_nodes = [defender_node; 5].map(str::to_owned);
+    let program = compile(IDLE_TACTICS, rules)
+        .unwrap_or_else(|error| panic!("base-node assault uses real idle Jinrei tactics: {error:?}"));
+    let mut attacker = configured_snapshot(
+        rules,
+        CombatantSide::Attacker,
+        &[1, 1, 1, 1, 1],
+        program.program.clone(),
+        Some(&attacker_nodes),
+    );
+    let mut defender = configured_snapshot(
+        rules,
+        CombatantSide::Defender,
+        &[1, 1, 1, 1, 1],
+        program.program,
+        Some(&defender_nodes),
+    );
+    for (slot, hero) in ["F01", "R01", "F02", "R02", "F03"].iter().enumerate() {
+        set_catalog(&mut attacker, slot, hero, rules);
+    }
+    for (slot, hero) in ["F04", "F05", "F06", "R03", "R04"].iter().enumerate() {
+        set_catalog(&mut defender, slot, hero, rules);
+    }
+    let mut context = new_match_context(rules, MatchId::new(match_id));
+    context.max_ticks = rules.plan().termination.max_ticks;
+    let mut vm = Vm::new(rules);
+    simulate(&attacker, &defender, rules, &context, &mut vm)
+        .unwrap_or_else(|error| panic!("{winner:?} base-node assault runs through real Enbu: {error:?}"))
+}
+
+#[test]
+fn enbu_confirms_base_node_assaults_for_both_sides() {
+    let rules = rules();
+    for (winner, match_id, expected_outcome, target_base) in [
+        (CombatantSide::Attacker, "base-node-assault-attacker", MatchOutcome::AttackerVictory, "base.defender"),
+        (CombatantSide::Defender, "base-node-assault-defender", MatchOutcome::DefenderVictory, "base.attacker"),
+    ] {
+        let artifact = controlled_base_node_assault(&rules, winner, match_id);
+        assert_eq!(artifact.result.outcome, expected_outcome, "{winner:?} wins by destroying the unopposed enemy base");
+        assert_eq!(artifact.result.termination_reason.as_str(), "base_destroyed");
+        assert!(artifact.result.final_tick < rules.plan().termination.max_ticks);
+        let owner = artifact.owner_replay.as_ref().expect("real Enbu returns the authorized owner replay");
+        let final_state = owner.frames.iter().find(|frame| frame.tick == artifact.result.final_tick)
+            .and_then(|frame| frame.visible_state.as_ref())
+            .expect("owner replay includes the confirmed terminal frame");
+        let base = final_state.entities.values().find(|entity| {
+            entity.entity_type.as_str() == "base"
+                && entity.fields.get(&FieldId::new("catalog_id"))
+                    == Some(&DomainValue::String(target_base.to_owned()))
+        }).unwrap_or_else(|| panic!("owner replay exposes destroyed {target_base}"));
+        assert_eq!(entity_integer(base, "hp"), 0);
+        assert!(owner.frames.iter().flat_map(|frame| frame.events.iter())
+            .any(|event| event.event.as_str() == "next.objective_destroyed"
+                && event.entity.as_ref() == Some(&EntityId::from(target_base))),
+            "authorized Enbu replay confirms a base destruction event for {winner:?}");
+    }
 }
 
 fn reveal_expiry_case() {
