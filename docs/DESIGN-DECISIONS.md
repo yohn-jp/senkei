@@ -19,7 +19,7 @@
 | V01 | 方向性採用 | Tactical（可読性）とCinematic（鑑賞）を同じRendererの表示モードとし、情報レイヤーを使い分ける |
 | V02 | 方向性採用 | Faceted Low-Poly共通のGenerator／部品／材質＋各Hero固有のシルエット |
 | V03 | 方向性採用 | 距離と画面上の占有サイズに応じたLOD。描画と戦闘決定性を分離 |
-| A01 | 実装基盤あり | Canonical WorldがBattleMapのsourceとなり、versioned projectionとexact resolver validationを使う。Enbu crossing interval消費の適合検証は残る |
+| A01 | 実装基盤あり | Canonical WorldがBattleMapのsourceとなり、versioned projectionとexact resolver validationを使う。Enbuはsource crossing intervalを消費し、Native／WASM適合検証で照合する |
 | A02 | 実装基盤あり | Worldはcontent-addressed参照。semantic Behavior extensionはRulePackage digestに束縛し、Presentationは別digest、Replay DTOはpaired World／Ruleset identityを持つ |
 | A03 | 方向性採用 | Enbu側でPublic／Owner／Restrictedを分離し、認可済みProjectionを各Consumerに渡す。UIで隠すだけは禁止 |
 | A04 | 方向性採用 | 共通Draft／Compiled／Preflight／Frozen Match Snapshotの状態と失効を統一 |

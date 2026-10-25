@@ -44,6 +44,8 @@ Quick→実Enbu→Replay→Tick選択→認可済み分析→Jinrei修正→再C
 
 ## 現行の保存境界
 
-Next LibraryのPinned setup／Recovery copyは編集中Draftを保持する。Completed Experimentは同じIndexedDB内の専用storeへ、最新の完了試合と一つの比較基準をDraftと独立に保存する。各recordは不変snapshot、認可された応答、Ruleset／paired World／program／component identityを持ち、restore時に現在のruntimeと完全照合する。64 MiBの上限またはstorage errorは表示し、保存済みrecordを黙って失わせない。
+Next LibraryのPinned setup／Recovery copyは編集中Draftを保持する。Completed Experimentは同じIndexedDB内の専用storeへ、最新の完了試合と直前の比較対象をDraftと独立に保存する。各recordは不変snapshot、認可された応答、Ruleset／paired World／program／component identityを持ち、restore時に現在のruntimeと完全照合する。各recordは64 MiB／400万JSON値まで、2件のstoreは128 MiB＋4 KiBのenvelope／800万＋16値までに制限する。上限またはstorage errorは表示し、保存済みrecordを黙って失わせない。
 
 Experiment JSONはLibraryでexport／確認付きimportできる。欠落・不一致のartifactを現在の試合として開かず、元データをexport可能なまま保持する。表示モード・情報レイヤーは同じ認可済みReplayへ作用し、Match Snapshotや勝敗を変更しない。実施した検証と未確認の実機受入は[G2 completion ledger](implementation/G2-COMPLETION-LEDGER.md)で区別する。
+
+復元時はMatchResult全体のRust互換SHA-256をReplayのresult digestと照合する。最終状態だけのdigestとは区別する。Owner表示を保存したExperimentは、同じ陣営のOwner Replayと診断channelの両方を必須とし、欠落時にPublicへ黙って切り替えない。
