@@ -1341,6 +1341,26 @@ fn report_fixture_path() -> Option<String> {
     })
 }
 
+fn is_tactical_effectiveness_case(case: &serde_json::Value) -> bool {
+    case.get("case_id")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|id| id.contains("-vs-"))
+}
+
+#[test]
+fn report_groups_regression_repeats_separately_from_distinct_tactical_inputs() {
+    let cases = vec![
+        serde_json::json!({ "case_id": "partition-2-2-1" }),
+        serde_json::json!({ "case_id": "jungle-push-vs-lane-defense" }),
+        serde_json::json!({ "case_id": "same-input-repeat" }),
+    ];
+    let matrix = cases.iter().filter(|case| is_tactical_effectiveness_case(case)).collect::<Vec<_>>();
+    let regressions = cases.iter().filter(|case| !is_tactical_effectiveness_case(case)).collect::<Vec<_>>();
+    assert_eq!(matrix.len(), 1, "only a distinct matchup belongs in effectiveness evidence");
+    assert_eq!(matrix[0]["case_id"], "jungle-push-vs-lane-defense");
+    assert_eq!(regressions.len(), 2, "fixed cases and repeats remain regression-only evidence");
+}
+
 #[test]
 fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inputs() {
     let rules = rules();
@@ -1411,6 +1431,16 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
     write_next_adapter_fixtures(&rules);
 
     if let Some(path) = report_path() {
+        let fixed_regression_ids = results
+            .iter()
+            .filter_map(|case| case.get("case_id").and_then(serde_json::Value::as_str))
+            .filter(|id| !id.contains("-vs-"))
+            .collect::<Vec<_>>();
+        let tactical_effectiveness_cases = results
+            .iter()
+            .filter(|case| is_tactical_effectiveness_case(case))
+            .cloned()
+            .collect::<Vec<_>>();
         write_report(&path, &serde_json::json!({
             "schema": "senkei-next-balance-report/v1",
             "ruleset_id": rules.ruleset().id.as_str(),
@@ -1418,6 +1448,17 @@ fn headless_next_scenario_suite_runs_real_enbu_partitions_and_reports_exact_inpu
             "mechanics_version": next_version,
             "package_digest": package_digest,
             "case_count": results.len(),
+            "fixed_regression": {
+                "case_ids": fixed_regression_ids,
+                "same_input_repeat_equal": true,
+                "purpose": "Pinned behavior and determinism regression evidence; repeated identical runs do not add matchup samples."
+            },
+            "tactical_effectiveness_matrix": {
+                "case_count": tactical_effectiveness_cases.len(),
+                "cases": tactical_effectiveness_cases,
+                "indicators": ["composition and role mix", "initial squad partition", "route targets", "base outcome", "termination tick", "visible event counts", "hero progression", "logical CU"],
+                "purpose": "Different authored inputs compare their measured Enbu consequences; results are observations, not thresholds or a win-rate estimate."
+            },
             "cases": results,
             "adapter_fixture_dir": report_fixture_path(),
             "limits": [

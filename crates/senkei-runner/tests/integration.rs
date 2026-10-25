@@ -261,6 +261,21 @@ fn the_seven_bundled_npc_recipes_compile_against_real_initial_senritsu() {
     }
 }
 
+#[test]
+fn authored_next_campaign_recipes_compile_against_real_next_senritsu() {
+    let package = senritsu::next_package();
+    let rules = senritsu::validate(package, &senritsu::next_engine_compatibility())
+        .expect("bundled Next package validates before campaign recipe compilation");
+    let sources = load_next_npc_sources();
+    assert_eq!(sources.len(), 6, "Next progression has six authored NPC recipes");
+
+    for (recipe_id, source) in &sources {
+        compile(source, &rules).unwrap_or_else(|error| {
+            panic!("Next NPC recipe {recipe_id} failed real Jinrei compilation: {error:?}\\n{source}")
+        });
+    }
+}
+
 fn load_npc_sources() -> Vec<(String, String)> {
     use std::path::Path;
 
@@ -280,6 +295,31 @@ fn load_npc_sources() -> Vec<(String, String)> {
     let json = std::fs::read(&fixture_path).expect("campaign source fixture is readable");
     let records: Vec<RecipeSource> =
         serde_json::from_slice(&json).expect("campaign source fixture is valid JSON");
+    records
+        .into_iter()
+        .map(|record| (record.id, record.source))
+        .collect()
+}
+
+fn load_next_npc_sources() -> Vec<(String, String)> {
+    use std::path::Path;
+
+    #[derive(serde::Deserialize)]
+    struct RecipeSource {
+        id: String,
+        source: String,
+    }
+
+    let fixture_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scenarios/next/source-fixtures.json");
+    assert!(
+        fixture_path.is_file(),
+        "evaluated Next campaign source fixture is required at {}",
+        fixture_path.display()
+    );
+    let json = std::fs::read(&fixture_path).expect("Next campaign source fixture is readable");
+    let records: Vec<RecipeSource> =
+        serde_json::from_slice(&json).expect("Next campaign source fixture is valid JSON");
     records
         .into_iter()
         .map(|record| (record.id, record.source))

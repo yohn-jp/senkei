@@ -11,7 +11,7 @@ inspection. Progression is gated only on the actual player victory recorded by
 Enbu (`attacker_victory` with `base_destroyed`); a challenge never replaces
 base destruction with a local objective check. `getNextCampaignRunFeedback`
 formats the measured outcome, final tick, and termination reason, including a
-clear draw message when the base condition was not met.
+clear draw message without assuming which state produced the draw.
 
 The authored sequence covers a first lane advance, central scouting and
 visibility, split lane pressure, a neutral camp commitment, a quintet at a

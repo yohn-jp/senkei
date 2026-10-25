@@ -56,7 +56,7 @@ describe("Next authored PvE campaign", () => {
     });
     expect(getNextCampaignRunFeedback(result("draw", "time_limit"))).toMatchObject({
       status: "draw",
-      headline: "Draw: neither side destroyed a base.",
+      headline: "Draw: neither side won the match.",
       final_tick: 42,
     });
     expect(getNextCampaignRunFeedback(result("defender_victory", "base_destroyed")).status).toBe("defeat");

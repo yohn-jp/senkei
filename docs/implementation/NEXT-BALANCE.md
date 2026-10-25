@@ -1,13 +1,16 @@
-# Next balance and conformance report
+# Next tactical measurements and conformance report
 
 ## What the suite measures
 
-The W9 suite consumes `senritsu::next_package()` and
+The suite consumes `senritsu::next_package()` and
 `next_engine_compatibility()`, validates that package, and runs matches through
 Enbu's published simulation loop. It does not implement a second simulator.
 The exact package version and canonical digest, cases, outcomes, termination
 ticks, visible combat events, and per-side logical CU are written to
-`target/next-balance/latest.json`.
+`target/next-balance/latest.json`. The JSON separates `fixed_regression`
+evidence from a `tactical_effectiveness_matrix` of distinct long-run lineups.
+A repeated identical input remains a regression check, never another matchup
+sample.
 
 Run the full headless and adapter suite with:
 
@@ -62,7 +65,7 @@ where needed; public adapter comparisons use only public responses.
 
 ## Observations and limits
 
-The current eight-case strategic set was measured after the normal-bridge
+The current eight-case tactical comparison set was measured after the normal-bridge
 center-entry fix with mechanics and ruleset version `2.0.0`, package digest
 `31ce86db9492354e339ed4172ca19b4a5f92b076ea73fe36e0d8be1ce97eb481` (acceptance
 core commit `42b6919`, normal-assertion confirmation at `6d11298`). Its exact observed outcomes are:
@@ -86,7 +89,10 @@ each Draw at tick 600 is only a time-limited observation. The separate
 controlled real-Enbu base assaults verify base destruction by both sides. The
 repeated determinism run is the same input and is not a separate matchup
 sample. `tests/conformance/next-scenario-matrix.json` records these observed
-values and their limits.
+values and their limits. The generated report's `fixed_regression` section
+contains catalog, partition, movement, lifecycle, XP, adapter, and invariant
+cases; `tactical_effectiveness_matrix` contains the eight distinct long-run
+lineups. Neither group claims a representative win rate.
 
 The fragile-Hero derivative is a lifecycle fixture, not a canonical tuning
 claim. Camp respawn observes the neutral's HP before and on the configured

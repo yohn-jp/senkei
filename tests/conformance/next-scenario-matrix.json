@@ -5,8 +5,37 @@
     "Cases are deterministic inputs and invariant checks, not repeated samples for a win-rate estimate.",
     "The runner must record the ruleset version and package digest with every result.",
     "Values left unresolved by the Next design docs are reported as observations, not pass thresholds.",
-    "Compare public native and WASM envelopes structurally, preserving ordered arrays; do not require adapter-specific JSON serialization bytes."
+    "Compare public native and WASM envelopes structurally, preserving ordered arrays; do not require adapter-specific JSON serialization bytes.",
+    "Q01 evidence is separated into fixed regression and tactical effectiveness groups: repeat/fixed cases verify the same contract, while distinct authored tactical inputs supply comparisons."
   ],
+  "evidence_groups": {
+    "fixed_regression_case_ids": [
+      "catalog-roster",
+      "hero-roster-validation",
+      "partition-1-1-1-1-1",
+      "partition-2-1-1-1",
+      "partition-2-2-1",
+      "partition-3-1-1",
+      "partition-3-2",
+      "partition-4-1",
+      "partition-5",
+      "movement-factorial",
+      "maturation-and-reformation",
+      "vision-unknown-and-reveal",
+      "xp-solo-versus-shared",
+      "death-respawn-and-regroup",
+      "invalid-regroup-and-skill",
+      "unsupported-next-versions",
+      "public-replay-confidentiality",
+      "deterministic-native-and-wasm-parity",
+      "battlefield-canonical-topology",
+      "battlefield-real-jinrei-integration"
+    ],
+    "tactical_effectiveness_case_ids": [
+      "natural-strategic-match-observations"
+    ],
+    "comparison_limit": "The eight natural strategic match inputs are observations across authored compositions and routes, not a representative win-rate estimate."
+  },
   "cases": [
     {
       "id": "catalog-roster",

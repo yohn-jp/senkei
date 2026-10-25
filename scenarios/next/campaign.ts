@@ -147,7 +147,7 @@ export interface NextCampaignRunFeedback {
 
 /** Describe the measured match result without claiming unmeasured objectives. */
 export function getNextCampaignRunFeedback(result: MatchResult): NextCampaignRunFeedback {
-  if (result.outcome === "attacker_victory") {
+  if (result.outcome === "attacker_victory" && result.termination_reason === "base_destroyed") {
     return {
       status: "victory",
       headline: "Victory: the opposing base was destroyed.",
@@ -156,7 +156,7 @@ export function getNextCampaignRunFeedback(result: MatchResult): NextCampaignRun
       termination_reason: result.termination_reason,
     };
   }
-  if (result.outcome === "defender_victory") {
+  if (result.outcome === "defender_victory" && result.termination_reason === "base_destroyed") {
     return {
       status: "defeat",
       headline: "Defeat: your base was destroyed.",
@@ -168,8 +168,8 @@ export function getNextCampaignRunFeedback(result: MatchResult): NextCampaignRun
   if (result.outcome === "draw") {
     return {
       status: "draw",
-      headline: "Draw: neither side destroyed a base.",
-      detail: `The match ended at tick ${result.final_tick} (${result.termination_reason}). Inspect lane pressure, objective control, and remaining base health in the replay.`,
+      headline: "Draw: neither side won the match.",
+      detail: `The match ended at tick ${result.final_tick} (${result.termination_reason}). Inspect lane pressure, objective control, and base health in the replay.`,
       final_tick: result.final_tick,
       termination_reason: result.termination_reason,
     };
@@ -193,8 +193,9 @@ interface ScenarioRecipe extends Omit<LocalPveScenario, "npc"> {
 function createNpcDraft(ruleset: RulePackage, recipe: ScenarioRecipe): SenkeiDraft {
   const next = ruleset.next!;
   const available = new Map(next.heroes.map((hero) => [hero.id, hero]));
-  const selected = recipe.roster.map((id, index) => {
-    const hero = available.get(id) ?? next.heroes[index % next.heroes.length];
+  const selected = recipe.roster.map((id) => {
+    const hero = available.get(id);
+    if (!hero) throw new Error(`Scenario ${recipe.id} requires missing catalog Hero ${id}.`);
     const path = Object.keys(hero.skill_paths).sort()[0];
     if (!path) throw new Error(`Hero ${hero.id} has no prepared skill path.`);
     return { hero, path };
