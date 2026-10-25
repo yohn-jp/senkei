@@ -7,9 +7,9 @@ Senkeiのプレイヤー操作は**設計→実行→観測→原因検討→Jin
 ## U01 — 戦闘から戦術変更まで
 
 1. Replayで選択Tick・Hero／Squad・可視イベントを特定する。
-2. Analysisで観測された値、実際の行動と結果を確認し、事実と敗因の**推定**を明示的に分ける。
-3. 認可されたDecision Traceが存在するときだけ、選択候補・採否・CU・Unknownを表示する。敵の非公開Jinreiや隠れた観測値を推測補完しない。
-4. 対応するSource／No-code EditorのJinrei条件へ文脈付き遷移し、同じDraftを修正。元のMatchは不変のまま。
+2. Analysisで選択に対応するMatch・視点・Tick・対象を保持し、観測された値、実際の行動と結果を確認する。事実と敗因の**推定**を明示的に分ける。
+3. 認可されたDecision Traceが存在するときだけ、選択候補・採否・CU・Unknownを表示する。敵の非公開Jinreiや隠れた観測値を推測補完しない。提供済みの後半Traceにも到達できるようにする。
+4. 対応するSource／No-code EditorのJinrei条件へ文脈付き遷移し、同じDraftを修正。元のMatchは不変のまま。Source位置が解決できない場合は明示し、一般的なEditor移動を原因箇所へのジャンプと呼ばない。
 5. Compile／Preflightをやり直し、固定した相手・World・RulePackage・初期配置・版で再戦する。
 6. Before/Afterは勝敗だけでなく、戦線進捗、塔・橋、Heroの損失、視界、CU等を比較。**条件が違う場合は違いを開示**する。
 
@@ -49,3 +49,9 @@ Next LibraryのPinned setup／Recovery copyは編集中Draftを保持する。Co
 Experiment JSONはLibraryでexport／確認付きimportできる。欠落・不一致のartifactを現在の試合として開かず、元データをexport可能なまま保持する。表示モード・情報レイヤーは同じ認可済みReplayへ作用し、Match Snapshotや勝敗を変更しない。実施した検証と未確認の実機受入は[G2 completion ledger](implementation/G2-COMPLETION-LEDGER.md)で区別する。
 
 復元時はMatchResult全体のRust互換SHA-256をReplayのresult digestと照合する。最終状態だけのdigestとは区別する。Owner表示を保存したExperimentは、同じ陣営のOwner Replayと診断channelの両方を必須とし、欠落時にPublicへ黙って切り替えない。
+
+## 操作水準の具体化（合意案）
+
+[UX-INTERACTION-CONTRACTS.md](UX-INTERACTION-CONTRACTS.md) C06〜C10で、後半Traceへの到達、該当Sourceへの移動、保存対象全体のdirty判定、Library保持範囲の表示を定める。
+
+「元Snapshotの完全再実行」「変更対象以外を固定した戦型改良の比較」「別条件の参考比較」は異なる操作として表示する。現在Draftを使う再戦で相手やWorldが変わっていれば、その差を開示する。Match IDだけで同条件を断定しない。この追加はExperiment保持数の増加や、未合意のゲーム規則変更を含まない。

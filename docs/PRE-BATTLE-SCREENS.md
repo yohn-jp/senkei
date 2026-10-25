@@ -2,12 +2,12 @@
 
 ## 1. 位置づけ
 
-[PLAYER-JOURNEY.md](PLAYER-JOURNEY.md) が「プレイヤーが何を決めるか」、[PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) が「どこからどこへ移動するか」を所有する。本書は**各画面の主目的・表示情報・編集できる設定・操作・ガード・戻る先・Desktop/Mobileの異なる操作モデル**を所有する。
+[PLAYER-JOURNEY.md](PLAYER-JOURNEY.md) が「プレイヤーが何を決めるか」、[PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) が「どこからどこへ移動するか」を所有する。本書は**各画面の主目的・表示情報・編集できる設定・操作・ガード・戻る先・Desktop/Mobileの異なる操作モデル**を所有する。操作文脈と副作用を具体化する追加合意案は [UX-INTERACTION-CONTRACTS.md](UX-INTERACTION-CONTRACTS.md)。
 
-- **画面構成の提案**：Screen ID S00〜S15と下記のワイヤフレーム。「一画面にすべてのフォームを詰め込む」という合意ではない。
-- **確定済みドメイン**：Hero 5体固定、初期12種、Skill Plan、7種類のSquad分割、RulePackageとCatalog、Jinrei v0.1、ローカルPvE、自動Enbu、診断の可視権限。詳細は[HERO-ATELIER.md](HERO-ATELIER.md)、[UNITS.md](UNITS.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md)等を優先。
-- **未実装の提案画面**：「開始・再開Home」「Quick Preset確認」「シナリオ・NPC選択」「準備確認」「包括的な復旧」は現行の存在を主張しない。**新規UIの見た目・操作はまだ受入未了**。
-- **実装の現在値**：現行シェルはTactics / Next / Battle lab / Library、Next内部はFormation(Collection/Detail/Skills/Squads) / Jinrei / Battle / Analysis。Nextには初期5 Heroと相手側Starter、Jinrei compile、LocalStorageの保存・Recovery Copyがある。旧Library(IndexedDB)とは別。以下のワイヤフレームを既実装完了とは扱わない。
+- **画面構成**：Screen ID S00〜S15と下記のワイヤフレーム。「一画面にすべてのフォームを詰め込む」という合意ではない。
+- **確定済みドメイン**：Hero 5体固定、初期12種、Skill Plan、7種類のSquad分割、RulePackageとCatalog、Jinrei v0.1、ローカルPvE、自動Enbu、診断の可視権限。詳細は [HERO-ATELIER.md](HERO-ATELIER.md)、[UNITS.md](UNITS.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md) 等を優先。
+- **実装と受入の区別**：Home／Quick／NPC選択／Ready／Libraryは製品の論理作業面として定義する。旧シェルのTab名や一時的な未実装状況を規範にしない。画面が存在しても、操作・視覚・復旧の受入済みとは限らない。
+- **保存の区別**：Nextの明示保存Setup・Recovery Copy、Completed Experiment、旧形式の保全を分ける。保持範囲は [TACTICAL-LOOP.md](TACTICAL-LOOP.md) に従う。新機能の実装状態は検証記録で報告する。
 
 ## 2. UI領域と永続する情報
 
@@ -19,34 +19,33 @@
 | Ruleset / World | 名称、版、互換性。詳細digestは必要時に確認可能 | UIの固定値を正式ルールとして表示 |
 | Stage / Progress | 必須設定の不足・有効・未検証と次の修復画面 | Screen訪問回数を「設定完了」と扱う |
 | Compilation | 現行Draft revisionへ対応した実Compiler結果、CU見積 | 旧SourceのCOMPILEDを新Sourceへ流用 |
-| Current Selection | 選択Heroスロット、Skill Plan、Squadが同一Draftを参照 | DetailとSkillで別々のHeroを選択して気付かない |
-| Opponent / Scenario | 選ばれたNPC・初期条件、観測許可の範囲 | 未選択の相手をランダムに決めたふり |
+| Current Selection | 選択スロット・Skill・Squadと、閲覧だけの候補Heroの区別 | 候補を見るために編成を変更する |
+| Opponent / Scenario | 選ばれたNPC・初期条件、観測許可の範囲 | 確認画面を開いただけで相手を変更 |
 | Battle Result | 確定RunのMatch identityと結果。最新Draftとは別 | 古いRunの診断を現在編集中の判断として表示 |
+| Return Context | 呼出元Screen、対象、位置、分析Tick | Backで常にHomeやReadyへ飛ばす |
 
 ## 3. 全Screenの契約（操作・成功出口・失敗・復帰）
 
 | Screen | 第1視線／中心タスク | 主要操作と次の画面 | エラー・戻り先 |
 | --- | --- | --- | --- |
-| **S00 起動** | Local Core／RulePackage／Catalogの読込状態 | 利用可能なG2へS01 | 不可ならS15。「偽の読込％」を出さない |
-| **S01 Home** | 初戦を始める、編集を続ける、保存から復帰 | Quick→S02→S03、Custom→S02→S04、Continue→S14 | 未保存Draftがあれば変更/破棄の影響を明示 |
-| **S02 対戦条件** | Local PvE・NPC・RulePackageと何を相手に戦うか | 検証済みNPC/Scenarioを確認し、QuickならS03、CustomならS04、Readyから戻るならS10 | 無効NPC／非対応Rulesetなら選択不可・S15 |
-| **S03 Quick確認** | 自動入力済み5 Hero、Skill、Squad、Jinrei、NPC | 設定を見る→S04/S06/S07/S08、現在値で準備確認→S10 | Preset欠落・不正なら「すぐ戦う」不可、修正可能な画面へ |
-| **S04 Hero Collection** | Catalogの12種類と現在5枠の差分 | 枠の選択→Hero採用／差替え、詳細→S05、Skill→S06 | 未知Hero／重複制約はSenritsu判定、フィルター0件は解除 |
-| **S05 Hero Detail** | 同一Heroの外観、3軸、実ステータス／Capability | 戻る→S04、Skill計画→S06、Hero切替→S04/S05 | GPU未対応はデータ閲覧可能。素材不足は架空の完成モデルを表示しない |
-| **S06 Skill Tree** | 選択Heroの分岐・取得予定と前提 | 有効Branch選択、別Hero、Squad→S07、Collectionへ戻る | 必須前提なし・未登録Capabilityを拒否。予定を取得済みとしない |
-| **S07 Squad/Deployment** | 5体の所属、7分割、共有起点／隊列 | 人数分割、所属／初期Node編集、Jinrei→S08 | 不一致Squad開始Node、同一Hero二重所属、未定義NodeはReady不可 |
-| **S08 Jinrei Workbench** | Defaultと明示命令、選択Hero/Squad/Army、構文／CU | No-code/Text/保存、実Compiler、Coverage→S09、Ready→S10 | compile拒否・Catalog不一致なら編集を残し修正。旧Compileを失効 |
-| **S09 Coverage** | どの状態クラスにExplicit/Inherited/Default/Wait/Not Provenがあるか | 絞込・差分、選択した該当ActionへS08、ReadyへS10 | Unknown、Not Checkedを「正しい行動保証」と見せない |
-| **S10 Ready** | 全必須入力が開始可能か、足りないのは何か | 不足をクリック→該当Screen、Ready→S11、必要なら保存→S14 | invalid/staleは開始不可。エラーの特定先を明示 |
-| **S11 Enbu実行** | ローカル計算の進行状況と対象Snapshot | 成功→S12、失敗→S10 | 二重開始しない。中断・失敗を成功結果と混同しない |
-| **S12 Battle** | 実Replay、現在Tick、Fog/Unknown、カメラ、再生操作 | 再生/停止/seek、分析→S13、再戦→S10 | Renderer/GPU失敗はReplayを保持して再試行 |
-| **S13 Analysis** | 勝敗、観測イベント、Decision Trace、前回との比較 | 同条件再戦→S10、修正→S04/S06/S07/S08、保存→S14 | 診断がRestricted/Not Checkedなら明示、非公開敵情報を出さない |
-| **S14 Library** | 保存物、Recovery、Revision、Import/Export | 互換性確認→S03/S04/S08、作業へ戻る | 破損・旧版・容量不足→S15、元データ保全 |
-| **S15 Recovery** | Nextの保存互換性・失敗理由、または旧IndexedDB文書の保全 | Nextデータの再試行・Export、旧文書の一覧・履歴・Export・削除 | 旧文書は実行・変換しない。元データを明示せず消さない |
+| **S00 起動** | Core／RulePackage／Catalog／保存の別々の読込状態 | 利用可能ならS01、必要なら保全へ | 不可ならS15。偽の％や保存破損の誤表示なし |
+| **S01 Home** | 初戦、編成、戦役、再開 | Quick→S02→S03、Custom→S02→S04、Campaign→S02、Continue→S14 | 未保存Draftを無断で初期化しない |
+| **S02 対戦条件** | 何と戦うか・公開可能な相手情報・利用可否 | Scenarioを選択／確認。Readyから来たら同じ文脈のS10へ | 無効NPCは相手側問題として表示、別課題へ |
+| **S03 出撃内容** | 5 Hero、Skill、Squad、Jinrei、NPC | 該当箇所へ修正、現在値でS10 | 不正PresetをReadyとせず不足を示す |
+| **S04 Collection** | Catalogと現在5枠、閲覧候補と採用先 | 枠へ明示採用／差替え、候補詳細S05、Skill S06 | 制約はSenritsu判定、フィルター0件は解除可能 |
+| **S05 Detail** | 同一Heroの外観・3軸・実値・Capability | 閲覧のみ／明示採用を分離。閉じるは呼出元、採用後S06 | GPU不可でもデータ閲覧。偽の完成モデルなし |
+| **S06 Skill Tree** | 分岐・取得予定・前提・取得不能 | 合法Branch、Hero切替、S07、戻る | 未知Capability・不正前提を拒否。予定≠取得済み |
+| **S07 Squad/Deployment** | 5体の所属、7分割、共通起点／隊列 | 人数分割、所属／Node、S08 | 二重所属・不一致Nodeを対象付きで修正 |
+| **S08 Jinrei** | Source/No-code、Scope、構文／CU、分析からの根拠 | 編集・Compile・S09・S10、元の分析へ | 拒否時も入力保持。古いCompileを失効 |
+| **S09 Coverage** | Explicit/Inherited/Default/Wait/Not Proven | 絞込、対応ActionへS08、S10 | Unknown・Not Checkedを保証に変えない |
+| **S10 Ready** | 開始条件・相手・未検証と問題対象 | 対象付き修正、条件確認、ReadyならS11 | invalid/staleは不可。確認だけで種別を変えない |
+| **S11 実行** | 処理対象Snapshot・状態・結果の未確定 | 完了S12、失敗S10、提供される場合のみ取消 | 二重開始なし。移動・遅延≠取消・成功 |
+| **S12 Replay** | 実試合・Tick・Fog・対象・再生操作 | 再生/seek、選択文脈付きS13、S10 | GPU失敗はResult/Replayを保ち描画再試行 |
+| **S13 Analysis** | 結果・該当Tickの事実／Trace・比較 | Source位置S08、再戦S10、次課題S02、保存S14 | 全提供済みTraceへ到達。未取得・非公開を区別 |
+| **S14 Library** | 明示保存／Recovery／最新と直前Runの区別 | 検証後の復元、Export/Import、呼出元へ | 上書き対象と取消、保持範囲、原データ保全 |
+| **S15 Recovery** | 対象データ・障害・利用可能な復旧手段 | 再試行・原データExport・明示破棄 | 未提供の版切替を解決済み機能として案内しない |
 
-### Screenを訪れただけではDoneではない
-
-Hero DetailやCoverageは**任意の閲覧面**。S04/S06/S07/S08の各内容はQuick Presetで代入済みなら編集を省略可能。ただし、開始可否は画面訪問フラグではなく**検証済みの実データ**からのみ導出する。
+Hero DetailとCoverageは任意の閲覧面。Quickで入力済みならS04/S06/S07/S08の編集を省略できるが、開始可否は検証済みの実データで導出する。以下のワイヤフレームは配置例であり、現在の実装完了証拠ではない。
 
 ## 4. Desktop：低忠実度ワイヤフレーム
 
@@ -58,174 +57,176 @@ Hero DetailやCoverageは**任意の閲覧面**。S04/S06/S07/S08の各内容は
 ├──────────────────┬───────────────────────────────────────────────┤
 │ ナビゲーション   │ 何から始める？                               │
 │ HOME             │                                               │
-│ 編成             │ [ すぐ戦う ] [ 自分で編成 ] [ 続きから ]       │
+│ 編成             │ [すぐ戦う] [自分で編成] [戦役] [続きから]    │
 │ Jinrei           │                                               │
-│ Battle / Analysis│ 現在のローカル環境と選択中NPC                 │
-│ Library          │ 前回の設定／Recoveryの有無                    │
+│ Battle / Analysis│ 選択中NPCと現在のローカル環境                 │
+│ Library          │ 明示保存／Recovery／直近Experiment             │
 └──────────────────┴───────────────────────────────────────────────┘
 
 Quick確認:
 ┌──────────────────────────────────────────────────────────────────┐
-│ 検証済み初期Preset  |  対戦相手・Ruleset                         │
+│ 現在の戦型／初期Preset  |  対戦相手・Ruleset                     │
 ├──────────────────────────────────────────────────────────────────┤
 │ 5 Hero [1][2][3][4][5]    Skill計画     Squad配置                │
-│ Jinrei preset概要         観測・Behavior Defaultの実状態       │
+│ Jinrei概要                観測・Behavior Defaultの実状態        │
 │ [編成を変更] [Jinreiを変更]             [ 準備確認へ ]          │
 └──────────────────────────────────────────────────────────────────┘
 ~~~
 
-初戦では「コードを入力してください」と迫らない。Preset名・適用先・NPC・内容を読まずに不可逆な対戦へ進む設計にもならない。保存は任意。
+初戦でコード入力を強制せず、Preset置換の影響とNPCを確認できる。保存は任意。
 
 ### 4.2 Hero Collection・Detail・Skill Tree・Squad
 
 ~~~text
 ┌──────────────────────────────────────────────────────────────────┐
-│ 戦型  |  5枠  |  保存状態 | Collection · Detail · Skill · Squad  │
+│ 戦型 | 5枠 | 保存状態 | Collection · Detail · Skill · Squad      │
 ├──────────────────────┬───────────────────────────────────────────┤
-│ 選択した5枠          │ Hero Collection: 12体＋3軸の絞込         │
-│ [01] [02] [03] [04] │ 変更後のSkill/Squad/Jinrei影響           │
-│ [05]                 │                                           │
+│ 選択した5枠          │ Hero Catalog: 12体＋3軸フィルター          │
+│ [01] [02] [03] [04] │ [候補の詳細を見る] [この枠へ採用]         │
+│ [05]                 │ 採用時のSkill/Squad/Jinrei影響              │
 ├──────────────────────┴───────────────────────────────────────────┤
-│ [詳細を見る] [Skill計画] [Squadへ進む]       [準備確認]          │
+│ [Skill計画] [Squadへ進む]                        [準備確認]     │
 └──────────────────────────────────────────────────────────────────┘
 
-Hero Detail: Hero 3D/identityを主役にし、能力/Role/Capabilityは隣接。
-Skill Tree: 分岐キャンバスが主役。5 Heroの切替と取得予定・前提。
+Hero Detail: 閲覧Heroと編成中Heroを区別。実能力と採用先を確認。
+Skill Tree: 分岐が主役。Hero切替・取得予定・前提・ノード詳細。
 Squad Assembly: 5体の所属関係と7分割、各Squadの共有Nodeが主役。
 ~~~
 
-「Hero 5枠」はどの専用画面でも同期するが、**4画面を同じ表に押し込まない**。Skillを変えたらSquadを常に初期化するような連鎖的破棄は禁止。
+4画面を同じ表へ押し込まない。Skill変更でSquadを常に初期化するような連鎖的破棄は禁止。詳細閲覧だけでは編成やCompileを変えない。
 
 ### 4.3 Jinrei・Coverage・準備確認
 
 ~~~text
 ┌──────────────────────────────────────────────────────────────────┐
-│ Jinrei Workbench       Army / Squad / Hero     COMPILE状態       │
+│ Jinrei Workbench   Army / Squad / Hero   COMPILE状態             │
 ├─────────────────┬────────────────────────────┬─────────────────┤
-│ Domain Catalog  │ No-code / Text Editor       │ Behavior         │
-│ 型・変数・CU     │ v0.1 / 実Compiler診断       │ Default/Effective│
-│                 │                            │ Not Proven      │
+│ Domain Catalog  │ No-code / Text Editor      │ Behavior        │
+│ 型・変数・CU     │ 実Compiler診断             │ Default/Effective│
+│                 │ 分析元Match/Tick/Action     │ Not Proven      │
 ├─────────────────┴────────────────────────────┴─────────────────┤
-│ [Compile] [Coverage全画面で確認]      [ 準備確認へ ]             │
+│ [Compile] [Coverage] [元の分析へ]                [準備確認へ]   │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│ 準備確認 — 未設定 1件 / 要再コンパイル 1件 / 検証成功 5件       │
+│ 準備確認 — 選択Scenario／相手／現在のDraft                      │
 ├──────────────────────────────────────────────────────────────────┤
-│ [Hero 5枠]    有効        [Skill]      有効                     │
-│ [Squad/起点]  問題へ戻る  [Jinrei]     コンパイルが古い         │
-│ [NPC]         選択済み    [RulePackage] 一致                    │
-│ [診断取得]    任意        [保存]       任意                     │
+│ Hero/Skill    検証状態と対象       [該当Heroへ]                 │
+│ Squad/Node    不足と原因            [該当Squadへ]                │
+│ Jinrei        現行ProgramとCU       [診断位置へ]                 │
+│ 相手/World    選択・適合性          [条件を確認]                 │
+│ 診断・保存    任意の状態                                       │
 ├──────────────────────────────────────────────────────────────────┤
-│ [修正] [保存（任意）]       [戦闘開始: 検証未達のため無効]       │
+│ [再検証] [保存・任意]                      [戦闘開始／不可理由] │
 └──────────────────────────────────────────────────────────────────┘
 ~~~
 
-画面例の件数はワイヤフレーム説明用。実データや実行の測定値ではない。Ready時は**各行の理由と具体的な戻り先**を主情報にする。全部を必ず緑にするのではなく「未使用／任意／未証明」も独立表示。
+表示例の数値や状態は測定値ではない。Readyでは理由と具体的な修正先を示し、「未使用／任意／未証明」を独立させる。未知のエラーを恣意的なHeroへ紐付けない。
 
 ## 5. Mobile：Desktop縮小禁止の独立画面
 
-Mobileは**同じScreen IDと同じDraft**、別の操作・ページ遷移・情報密度。
+Mobileは同じScreen IDとDraft、異なる操作・ページ遷移・情報密度を持つ。
 
 ~~~text
-S01 START             S04 HERO SELECT           S06 SKILL
-┌────────────────┐   ┌────────────────┐         ┌────────────────┐
-│ 始める         │   │ Hero 01 / 05   │         │ Skill / Hero 1 │
-│                │   │ [Hero cards]   │         │  Branch Graph  │
-│ [すぐ戦う]     │   │ [filter]       │         │ [node] [node]  │
-│ [自分で編成]   │   │ ...            │         │                │
-│ [続きから]     │   │                │         │ [Node details] │
-│                │   │ 5枠 [1..5]    │         │ sheet          │
-│          [次へ]│   │      [Skillへ] │         │      [Squadへ] │
-└────────────────┘   └────────────────┘         └────────────────┘
+S01 START             S04 HERO SELECT          S06 SKILL
+┌────────────────┐   ┌────────────────┐        ┌────────────────┐
+│ 始める         │   │ 対象枠と候補   │        │ Skill / Hero 1 │
+│ [すぐ戦う]     │   │ [Hero cards]   │        │ Branch Graph   │
+│ [自分で編成]   │   │ [絞込] [詳細] │        │ [node] [node]  │
+│ [戦役]         │   │ [採用]         │        │ 詳細Sheet      │
+│ [続きから]     │   │ 5枠 [1..5]    │        │ [閉じる]       │
+│ 条件確認へ     │   │ [Skillへ]      │        │ [Squadへ]      │
+└────────────────┘   └────────────────┘        └────────────────┘
 
-S07 SQUAD             S08 JINREI                 S10 READY
-┌────────────────┐   ┌────────────────┐         ┌────────────────┐
-│ 5 Hero分割    │   │ No-code       │         │ 準備確認       │
-│ [1+1+1+1+1] ...│   │ [対象]         │         │ [✓ Hero]      │
-│ 所属 Hero 1..5 │   │ [条件]         │         │ [! Squad 起点]│
-│ 起点Node       │   │ [行動]         │         │ [? Coverage]   │
-│                │   │ Text編集は別面 │         │ [修正]         │
-│       [Jinrei] │   │   [Compile]    │         │ [戦闘開始]     │
-└────────────────┘   └────────────────┘         └────────────────┘
+S07 SQUAD             S08 JINREI               S10 READY
+┌────────────────┐   ┌────────────────┐        ┌────────────────┐
+│ 5 Hero分割     │   │ No-code       │        │ 対戦条件       │
+│ [分割形式]     │   │ [対象] [条件] │        │ [Hero 状態]    │
+│ 所属 Hero 1..5 │   │ [行動]         │        │ [Squad 原因]   │
+│ 共通Node       │   │ Textは独立面  │        │ [該当修正へ]   │
+│ [戻る]         │   │ [Compile]     │        │ [再検証]       │
+│ [Jinreiへ]     │   │ [元の分析へ]  │        │ [戦闘開始]     │
+└────────────────┘   └────────────────┘        └────────────────┘
 ~~~
 
-- 戻るとき、スクロール・編集中のテキスト・選択Hero・フィルター・画面状態を保持する。
-- No-codeを最初の入口にするが、Textに移動すれば同じDraftを編集できる。IMEとソフトウェアキーボードが操作を隠さない。
-- Squadは**分割 → 所属 → 共有開始Node**の段階的操作。Skillの詳細はボトムシート、ピンチが効かなくてもNode選択可。
-- Readyは幅320pxでも理由と修正先が表示され、戦闘開始と戻るが操作できる。
-- Desktopから単純にTabを横スクロールさせたUIをMobile独立設計と見なさない。
+- 戻るとき、スクロール・編集中Text・対象Hero・フィルター・画面状態を保持する。
+- No-codeを入口とし、Textでは同じDraftを編集。IMEとキーボードが編集・保存・戻るを隠さない。
+- Squadは分割→所属→共有Nodeの段階操作。Skill詳細はSheetで、ピンチなしでも選択可能。
+- Readyは320pxでも原因と修正先、開始と戻るが使える。
+- Tab横スクロールだけをMobile独立設計とみなさない。Sheetの閉じると画面Back、フォーカス復帰を区別する。
 
 ## 6. 画面状態と次の一手
 
-| 状態コード | 適用画面 | UIが表示すること | CTA |
+| 状態コード | 適用画面 | 表示する事実 | CTA |
 | --- | --- | --- | --- |
-| EMPTY | S04/S06/S07/S08 | 何が不足か、選択対象と必要枠数 | 設定する |
-| DEFAULTED | S03/S04/S06/S07/S08 | 誰が入力したか（検証済みPreset/RulePackage） | この値で確認／変更 |
-| DIRTY | 全編集 | 前回保存・前回Compileとの差分／失効範囲 | 続ける、保存 |
-| VALIDATING | S08/S10 | 実Catalog／Compilerへの検証中。偽の残秒数を出さない | 待機・必要なら取消 |
-| INVALID | 全編集/S10 | 失敗項目、原因、修正できるScreen/対象Hero | 該当場所へ移動 |
-| STALE | S08/S10 | 旧Draft/RulePackageに対するCompile/既定値。再検証必須 | 再コンパイル |
-| READY | S10 | 完全な開始条件を満たす現在のSnapshot | 戦闘開始 |
-| RUNNING | S11 | 二重実行不可、計算結果未確定 | 実行状態を見る |
-| FAILED | S11/S15 | 実エラーと再試行方法、入力は保持 | 修復・再試行 |
-| COMPLETED | S12/S13 | 確定したMatch／勝敗／許可されたReplay | 分析・再戦 |
-| NOT_PROVEN | S09/S10 | Coverageは未証明、実Compile成功と独立 | 条件を確認／継続 |
-| RESTRICTED | S09/S13 | 認可がなくTraceを表示できない | 公開可能なデータだけ見る |
+| EMPTY | S04/S06/S07/S08/S12/S13 | 入力不足または試合なし。検索0件と区別 | 設定／対戦準備 |
+| DEFAULTED | S03/S04/S06/S07/S08 | 値の由来（Preset/RulePackage） | 現在値で確認／変更 |
+| DIRTY | 編集・S14 | 保存対象全体との差分。Scenario変更も含む | 続ける／保存 |
+| VALIDATING | S08/S10 | 対象の実検証中。偽の残秒数なし | 状態確認・実装される取消のみ |
+| INVALID | 編集・S10 | 陣営・対象・原因・修正先 | 該当場所へ |
+| STALE | S08/S10 | 旧入力へのCompile／検証 | 必要な再検証 |
+| READY | S10 | 開始条件を満たす現在Snapshot | 戦闘開始 |
+| RUNNING | S11 | 計算対象、結果未確定、二重実行不可 | 実行状態へ復帰 |
+| FAILED | S11/S15 | 実失敗と復旧方法、入力保持 | 修復／再試行 |
+| INDETERMINATE | 長い処理 | 成功・失敗・取消をまだ確定できない | 状態確認。架空の成功なし |
+| COMPLETED | S12/S13 | 確定Matchと勝敗・終了理由 | 分析／再戦／戦役継続 |
+| NOT_PROVEN | S09/S10 | Coverage未証明、Compileと独立 | 確認／継続 |
+| RESTRICTED | S09/S13 | 権限のない情報は提供されない | 許可情報を見る |
 
-**優先順位**：禁止・不整合（INVALID、STALE）がある場合は開始不可。CoverageのNOT_PROVENは自動的にコンパイル失敗とはみなさない。読み取れない保存物はKEEP/EXPORTでき、消去を強制しない。
+INVALID／STALEがある場合は開始不可。NOT_PROVENだけで常に開始を禁止しない。読み取れない保存物はKEEP／EXPORTでき、消去を強制しない。未取得の診断と、権限で非公開の診断を混同しない。
 
-## 7. 開始可否に関する画面別validationの責務
+## 7. validationの責務と修正リンク
 
-| 判定 | Owner / authoritative input | UIが持つべきリンク |
+| 判定 | 正本となる入力・Owner | 修正先 |
 | --- | --- | --- |
-| 初期Ruleset/Catalog/World identityが整合 | Senritsu・World・Catalog producer | S02/S15 |
-| 5 HeroのID、重複／スロット制約 | Senritsu Hero Catalog | S04 |
-| HeroごとのSkill branchと前提、該当Capability | Senritsu Skill TreeとJinrei Catalog | S06 |
-| 所属一意と合法なSquad partition、共通Node | SenritsuとEnbu初期構成検証 | S07 |
-| 自軍Jinrei v0.1 compile、CU、Source revision一致 | Jinrei compiler | S08 |
-| Profile利用時のみ、BehaviorのDefault/Bindingが現在のRulePackageと整合するか | Senritsuの正式なRulePackage Binding。未宣言の場合はNot Declaredと表示 | S08/S09/S15 |
-| 相手のScenario／戦術／初期構成が検証済み | PvE ScenarioとEnbu | S02 |
-| 監査オプションとSnapshot、重複実行防止 | Game launch coordinator | S10 |
-| 関連する公開・非公開情報の区分 | Enbu Observation/Replay | S12/S13 |
+| Ruleset/Catalog/World identity | Senritsu・World・Catalog producer | S02/S15 |
+| 5 HeroのID、重複／スロット | Senritsu Hero Catalog | S04の対象枠 |
+| Skill branch・前提・Capability | Senritsu Skill Tree／Jinrei Catalog | S06の対象Hero |
+| 一意所属・partition・共通Node | Senritsu／Enbu初期構成検証 | S07の対象Squad |
+| Source・CU・revision | Jinrei compiler | S08の実診断位置 |
+| 有効化されたBehavior Binding | Senritsu。未宣言はNot Declared | S08/S09/S15 |
+| 相手NPC／Scenario | シナリオ定義とEnbu | S02の相手側問題 |
+| 診断オプション・開始Snapshot | 実行Coordinator | S10 |
+| 公開／非公開区分 | Enbu Observation/Replay | S12/S13 |
 
-現行実装の相手側Starterは内部で自動生成される。**「対戦相手を選べるUI」の存在はまだ未実装**。S02はNPCの実Scenarioが提供する値だけを編集可能にし、将来のPvP、課金、公式ランク、任意の相手Jinrei閲覧などを導入しない。
+S02は同梱Starterと提供される実Scenarioの値だけを扱う。名前だけの架空NPC、任意の非公開相手Jinrei閲覧、将来PvP・課金・ランクを追加しない。利用可能として提示するNPCはCoreと同じ制約で検証する。
 
 ## 8. 主な編集イベントの失効／復元ルール
 
-| イベント | 保持するもの | 失効または再検証するもの |
+| イベント | 保持するもの | 失効または再検証 |
 | --- | --- | --- |
-| Hero差替 | 他の4枠の合法な値、保存した実行履歴 | 該当Skill Plan、Squad制約、Hero参照のJinrei、該当Compile |
-| Skill Plan変更 | 5枠・Squad・Hero ID | 該当SkillとCapability合法性、構成依存Compile |
-| Squad/起点変更 | 5 Hero/SkillとJinreiソース | Squad/初期Node検証、作用Scope・構成依存Compile |
-| Jinrei編集／No-code↔Text | Hero/Skill/Squad、保存版と既存Run | 現行SourceのCompiled Program、Coverageキャッシュ |
-| Scenario/NPC変更 | 自軍の有効な選択とSource | 相手Programと初期条件、比較対象identity |
-| RulePackage/World/Catalogの意味論的変更 | 未保存ドラフト（検査・Exportできる形） | 型・Skill・行動・World・全Compile/Ready適合性 |
-| 明示保存 | 現在のDraftと以前のimmutable revision | なし。コンパイル成功とは別 |
-| Resume / Import | 元の保存ファイルや旧Restore Point | 互換性未確認のCompile、RulePackageをまたぐReady |
-| Enbu開始 | 編集中Draft、既存比較Run | 実行中の対象Snapshotを固定。失敗時にDraftを失わない |
-| Replay描画失敗 | Result、Replay、現在Tickと入力設定 | Rendererのみ再初期化。Enbu再実行の必要はない |
+| 詳細・条件・Libraryを閲覧 | Draft、対戦種別、Scenario、検証済み入力 | 閲覧のみでは失効なし |
+| Hero明示差替 | 他4枠の合法値、保存済みRun | 関連Skill・Squad・Jinrei参照・Compile |
+| Skill Plan変更 | 5枠・Squad・Hero ID | 関連Skill・Capability・構成依存Compile |
+| Squad/起点変更 | Hero/SkillとSource | 所属・Node・Scope・構成依存Compile |
+| Source変更／表現変換 | Hero/Skill/Squad、保存版、既存Run | 意味に影響するProgram／Coverage・Ready |
+| Scenario/NPC変更 | 自軍の合法な選択とSource | 相手Program／初期条件・比較条件・保存dirty |
+| Package/World/Catalogの意味変更 | 未保存Draftと原データ | 型・行動・World・Compile/Ready適合性 |
+| 明示保存 | 現在Draft、既存の不変Run | Compile成功とは別。保存対象全体で一致判定 |
+| Resume / Import | 確認前の元データと未保存編集 | 未確認Compile、版をまたぐReady |
+| Enbu開始 | 固定Snapshot、編集Draft、既存Run | 二重開始を防止。失敗時もDraft保持 |
+| 描画失敗 | Result、Replay、Tick、入力 | Rendererだけ再初期化 |
 
-変更の波及は**影響する項目だけ**とし、毎回5 Hero全員・NPC・保存履歴を初期化しない。正本の上書き優先順位と互換性は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) に従う。
+変更の波及は関連項目だけ。毎回5 Hero・NPC・保存Runを初期化しない。[RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) のIdentity・互換性を維持する。
 
 ## 9. Evidence-driven screen acceptance
 
 | テストID | 完走シナリオ | 証明すること |
 | --- | --- | --- |
-| UX-ENTRY-01 | 初回・Quick→Ready→Enbu→Replay | コード入力、保存、ログインを強制せず本物の試合が完了する |
-| UX-ENTRY-02 | Customで5 Hero→Skill→Squad→Jinrei→Ready | 一つのDraftで全データがつながる |
-| UX-HERO-01 | 12 Heroの絞込・5枠選択→Detailへ→戻る | 選択の保持・Catalogの正当性 |
-| UX-SKILL-01 | 不合法経路選択→拒否→合法経路 | Skill前提と取得予定／取得済の分離 |
-| UX-SQUAD-01 | 7分割・自由再編・Nodeミスマッチ→修復 | 所属一意性と位置制約 |
-| UX-JINREI-01 | No-code→Text→無効式→修正→Compile→Coverage | 同一意味論・旧Compile失効・Unknown |
-| UX-READY-01 | 不足/不正→修正リンク→Readyへ復帰 | 原因と戻り先が明確、虚偽READYなし |
-| UX-NPC-01 | 初期NPC→実Scenarioの変更→Ready | 両陣営入力の再検証。相手秘匿を維持 |
-| UX-RESUME-01 | 明示保存→再読込→復元→再コンパイル | 古いSourceやdigestを流用しない |
-| UX-RESUME-02 | 未保存Recoveryと旧版／不正Import | 入力保全・Export・明示破棄・互換性判定 |
-| UX-ERROR-01 | WASM/Core読込失敗、Storage障害、Enbu拒否 | 進行を偽らず原画面から復旧 |
-| UX-ERROR-02 | GPU描画失敗→再試行→同Tick再開 | Result/Replay/CUが変わらない |
-| UX-LOOP-01 | Replay→Analysis→Jinrei修正→同条件再戦 | 元Run保存、完全identity比較 |
-| UX-MOBILE-01 | 320/390/430pxでQuick／Custom／復旧を完走 | 専用タッチ導線、IME/戻る・Safe Area |
-| UX-DESKTOP-01 | 1440/1920pxで各主画面の情報階層とCTA | Hero/Skill/Squad/Jinrei/Battleの主役分離 |
+| UX-ENTRY-01 | 初回Quick→Ready→Enbu→Replay | コード・保存・ログインを強制せず実戦 |
+| UX-ENTRY-02 | Custom→Hero/Skill/Squad/Jinrei→Ready | 同じDraftで接続 |
+| UX-HERO-01 | 絞込→候補Detail→戻る→明示採用 | 閲覧と変更の分離、Catalog・選択保持 |
+| UX-SKILL-01 | 不合法経路→拒否→合法経路 | 前提と予定／取得済みを区別 |
+| UX-SQUAD-01 | 7分割・再編・Node不一致→修正 | 一意所属と位置制約 |
+| UX-JINREI-01 | No-code→Text→無効式→修正→Coverage | 同じ意味論・失効・Unknown |
+| UX-READY-01 | 不正→対象付き修正→同じReady | 具体的な原因と戻り先 |
+| UX-NPC-01 | NPC変更→Ready→条件閲覧→復帰 | 双方入力検証、閲覧で相手不変 |
+| UX-RESUME-01 | 明示保存→再読込→復元→検証 | 古いSource／digestを流用しない |
+| UX-RESUME-02 | Recovery／不正Import／版不一致 | 原本保全、Export、明示破棄 |
+| UX-ERROR-01 | Core／Storage／Enbuの各失敗 | 失敗を分類し原画面から復帰 |
+| UX-ERROR-02 | GPU失敗→描画再試行 | Result／Replay／CU／Tick不変 |
+| UX-LOOP-01 | Replay→Trace→Source→修正→比較 | 元Run保持、文脈と比較条件の一致 |
+| UX-MOBILE-01 | 320/390/430幅で主要導線 | 専用操作、戻る、Safe Area。実機IMEは別検証 |
+| UX-DESKTOP-01 | 1440/1920幅で各主画面 | 情報階層と主操作 |
 
-**未実装の画面が一つでもあれば、テスト未実施・未達を明記**。画面遷移図ができたこと自体をUX実装の完成証拠としない。
+追加合意案の詳細ケース [UX-C01〜C16](UX-INTERACTION-CONTRACTS.md) を併用する。未実装・未検証を明記し、図やテスト件数だけでUXを認定しない。装備・ガチャ・関係性等の追加画面は [PROGRESSION-UX.md](PROGRESSION-UX.md) の別範囲であり、現在G2へ自動追加しない。
