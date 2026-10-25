@@ -879,11 +879,11 @@ mod tests {
             map: BattleMap {
                 id: "test-map".to_owned(),
                 nodes: BTreeMap::from([
-                    ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned() ..Default::default()
+                    ("field".to_owned(), MapNode { x: 10, y: 10, region: "lane".to_owned(), ..Default::default()
 }),
-                    ("home".to_owned(), MapNode { x: 0, y: 0, region: "base".to_owned() ..Default::default()
+                    ("home".to_owned(), MapNode { x: 0, y: 0, region: "base".to_owned(), ..Default::default()
 }),
-                    ("far".to_owned(), MapNode { x: 500, y: 500, region: "lane".to_owned() ..Default::default()
+                    ("far".to_owned(), MapNode { x: 500, y: 500, region: "lane".to_owned(), ..Default::default()
 }),
                 ]),
                 edges: Vec::new(),
