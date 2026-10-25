@@ -56,16 +56,16 @@ const HERO_BODY_PROPORTIONS: Record<HeroBodyProfile, HeroBodyProportions> = {
 const HERO_SHAPES: Record<string, ShapeSpec> = {
   f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
   f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, bodyProfile: "bastion", stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
-  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, bodyProfile: "breacher", stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12] } },
-  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, bodyProfile: "duelist", stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, 0.14], "arm.right": [-0.08, 0, -0.14], "leg.left": [0.03, 0, 0], "leg.right": [-0.03, 0, 0] } },
-  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true, bodyProfile: "controller", stance: { torso: [0.01, 0.06, 0], "arm.left": [-0.1, 0, 0.12], "arm.right": [-0.08, 0, -0.1], "leg.left": [0.06, 0, 0], "leg.right": [-0.05, 0, 0] } },
+  f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, bodyProfile: "breacher", stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12], "weapon.main": [0, 0, -0.18] } },
+  f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, bodyProfile: "duelist", stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, 0.3], "arm.right": [-0.08, 0, -0.3], "leg.left": [0.03, 0, 0], "leg.right": [-0.03, 0, 0], "weapon.main": [0.04, 0, -0.18], "weapon.off": [0.04, 0, 0.18] } },
+  f05: { id: "F05", name: "Lockstep", weapon: "katana", headgear: "hat", cloth: 0x61504b, armor: 0x85857e, accent: 0xc6aa6d, build: 0.91, mantle: true, bodyProfile: "controller", stance: { torso: [0.01, 0.06, 0], "arm.left": [-0.1, 0, 0.12], "arm.right": [-0.08, 0, -0.1], "leg.left": [0.06, 0, 0], "leg.right": [-0.05, 0, 0], "weapon.main": [0, 0, -0.16] } },
   f06: { id: "F06", name: "Pathfinder", weapon: "two-hand-maul", headgear: "winged", cloth: 0x485f58, armor: 0x9c9b86, accent: 0xd2b370, build: 1.04, mantle: true, bodyProfile: "pathfinder", stance: { torso: [0.045, 0, 0], "arm.left": [-0.04, 0, 0.08], "arm.right": [-0.12, 0, -0.08], "leg.left": [-0.06, 0, 0], "leg.right": [0.08, 0, 0] } },
   r01: { id: "R01", name: "Tempest", weapon: "staff", headgear: "hood", cloth: 0x445e6d, armor: 0x71858c, accent: 0x94a8a5, build: 0.88, mantle: true, bodyProfile: "channeler", stance: { torso: [-0.015, 0, 0], "arm.left": [-0.08, 0, 0.07], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.04, 0, 0], "leg.right": [0.04, 0, 0] } },
-  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true, bodyProfile: "marksman", stance: { torso: [-0.04, 0.06, 0], "arm.left": [-0.13, 0, 0.12], "arm.right": [-0.15, 0, -0.09], "leg.left": [0.04, 0, 0], "leg.right": [-0.04, 0, 0] } },
-  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true, bodyProfile: "stalker", stance: { torso: [0.12, -0.04, 0], "arm.left": [-0.12, 0, 0.18], "arm.right": [-0.1, 0, -0.16], "leg.left": [0.14, 0, 0], "leg.right": [-0.12, 0, 0] } },
-  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true, bodyProfile: "oracle", stance: { torso: [-0.025, 0, 0], head: [0, 0.025, 0], "arm.left": [-0.04, 0, 0.06], "arm.right": [-0.06, 0, -0.06], "leg.left": [-0.02, 0, 0], "leg.right": [0.02, 0, 0] } },
+  r02: { id: "R02", name: "Farshot", weapon: "crossbow", headgear: "marksman", cloth: 0x657362, armor: 0x929386, accent: 0xc7aa6d, build: 0.86, mantle: true, bodyProfile: "marksman", stance: { torso: [-0.04, 0.06, 0], "arm.left": [-0.13, 0, 0.12], "arm.right": [-0.15, 0, -0.09], "leg.left": [0.04, 0, 0], "leg.right": [-0.04, 0, 0], "weapon.main": [0, 0, -0.08] } },
+  r03: { id: "R03", name: "Farwatch", weapon: "dual-daggers", headgear: "shadow", cloth: 0x3e4d58, armor: 0x68787c, accent: 0xb6a47b, build: 0.85, mantle: true, bodyProfile: "stalker", stance: { torso: [0.12, -0.04, 0], "arm.left": [-0.12, 0, 0.3], "arm.right": [-0.1, 0, -0.3], "leg.left": [0.14, 0, 0], "leg.right": [-0.12, 0, 0], "weapon.main": [0.06, 0, -0.3], "weapon.off": [0.06, 0, 0.3] } },
+  r04: { id: "R04", name: "Lifeline", weapon: "halo-staff", headgear: "oracle", cloth: 0x777050, armor: 0xaaa38d, accent: 0xd8c182, build: 0.89, mantle: true, bodyProfile: "oracle", stance: { torso: [-0.025, 0, 0], head: [0, 0.025, 0], "arm.left": [-0.04, 0, 0.06], "arm.right": [-0.06, 0, -0.06], "leg.left": [-0.02, 0, 0], "leg.right": [0.02, 0, 0], "weapon.main": [0, 0, -0.12] } },
   r05: { id: "R05", name: "Conductor", weapon: "siege-launcher", headgear: "engineer", cloth: 0x59645d, armor: 0x848d86, accent: 0xc3a66a, build: 1.02, mantle: false, bodyProfile: "engineer", stance: { torso: [0.02, 0, 0], "arm.left": [-0.08, 0, 0.08], "arm.right": [-0.1, 0, -0.08], "leg.left": [-0.08, 0, 0], "leg.right": [0.08, 0, 0] } },
-  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true, bodyProfile: "ranger", stance: { torso: [-0.045, 0.08, 0], "arm.left": [-0.08, 0, 0.1], "arm.right": [-0.14, 0, -0.12], "leg.left": [0.08, 0, 0], "leg.right": [-0.06, 0, 0] } },
+  r06: { id: "R06", name: "Aegis", weapon: "bow", headgear: "ranger", cloth: 0x536c57, armor: 0x899588, accent: 0xc2ab70, build: 0.9, mantle: true, bodyProfile: "ranger", stance: { torso: [-0.045, 0.08, 0], "arm.left": [-0.08, 0, 0.18], "arm.right": [-0.14, 0, -0.18], "leg.left": [0.08, 0, 0], "leg.right": [-0.06, 0, 0], "weapon.main": [0, 0, 0.15] } },
 };
 
 export interface BattlefieldUnitRig {
@@ -257,11 +257,82 @@ function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: n
   builder.sphere(clasp, "armor", [0.08, 0.09, 0.045], 0xc5a66b, [0, 0, 0]);
 }
 
+function addHeroChestArmor(
+  builder: UnitBuilder,
+  torso: THREE.Group,
+  palette: { armor: number; cloth: number; accent: number },
+  style: HeroBodyProfile,
+): void {
+  const chest = builder.part("armor.chest", torso, [0, 0, 0.14]);
+  chest.userData.chestStyle = style;
+  const plate = (outline: readonly (readonly [number, number])[], y = 0, z = 0.02, depth = 0.06) =>
+    builder.panel(chest, "armor", outline, palette.armor, [0, y, z], depth, 0.024);
+  const leather = (outline: readonly (readonly [number, number])[], y = 0, z = 0.03) =>
+    builder.panel(chest, "leather", outline, 0x51473c, [0, y, z], 0.045, 0.012);
+  const cloth = (outline: readonly (readonly [number, number])[], y = 0, z = 0.035) =>
+    builder.panel(chest, "cloth", outline, palette.cloth, [0, y, z], 0.035, 0.012);
+
+  switch (style) {
+    case "command":
+      plate([[-0.28, 0.49], [-0.22, 0.68], [0, 0.76], [0.22, 0.68], [0.28, 0.49], [0.16, 0.22], [0, 0.14], [-0.16, 0.22]]);
+      plate([[-0.055, 0.59], [0, 0.68], [0.055, 0.59], [0.035, 0.3], [0, 0.22], [-0.035, 0.3]], 0, 0.065, 0.022);
+      break;
+    case "bastion":
+      plate([[-0.34, 0.52], [-0.3, 0.7], [-0.16, 0.75], [0, 0.67], [0.16, 0.75], [0.3, 0.7], [0.34, 0.52], [0.24, 0.2], [0, 0.12], [-0.24, 0.2]], 0, 0.02, 0.095);
+      plate([[-0.25, 0.47], [0, 0.53], [0.25, 0.47], [0.19, 0.39], [0, 0.43], [-0.19, 0.39]], 0, 0.07, 0.03);
+      break;
+    case "breacher":
+      plate([[-0.26, 0.68], [0, 0.76], [0.26, 0.68], [0.12, 0.5], [0.075, 0.28], [0, 0.13], [-0.075, 0.28], [-0.12, 0.5]]);
+      leather([[-0.34, 0.62], [-0.28, 0.69], [-0.09, 0.48], [-0.16, 0.42]], 0, 0.055);
+      break;
+    case "duelist":
+      leather([[-0.27, 0.68], [-0.2, 0.71], [0.25, 0.19], [0.17, 0.16]]);
+      leather([[0.27, 0.68], [0.2, 0.71], [-0.25, 0.19], [-0.17, 0.16]], 0, 0.07);
+      plate([[-0.13, 0.5], [0, 0.57], [0.13, 0.5], [0.1, 0.34], [0, 0.29], [-0.1, 0.34]], 0, 0.085, 0.045);
+      break;
+    case "controller":
+      plate([[-0.26, 0.66], [0.26, 0.66], [0.22, 0.53], [-0.22, 0.53]]);
+      plate([[-0.23, 0.49], [0.23, 0.49], [0.19, 0.36], [-0.19, 0.36]], 0, 0.07);
+      plate([[-0.19, 0.32], [0.19, 0.32], [0.14, 0.2], [-0.14, 0.2]], 0, 0.12);
+      break;
+    case "pathfinder":
+      plate([[-0.29, 0.58], [-0.2, 0.7], [0.1, 0.62], [0.22, 0.42], [0.1, 0.18], [-0.12, 0.25]], 0, 0.02, 0.07);
+      leather([[-0.27, 0.7], [-0.18, 0.73], [0.27, 0.22], [0.18, 0.19]], 0, 0.08);
+      break;
+    case "channeler":
+      cloth([[-0.21, 0.68], [0, 0.74], [0.21, 0.68], [0.18, 0.3], [0.26, 0.16], [-0.25, 0.16], [-0.18, 0.3]]);
+      plate([[-0.1, 0.57], [0, 0.66], [0.1, 0.57], [0.075, 0.35], [0, 0.28], [-0.075, 0.35]], 0, 0.075, 0.035);
+      break;
+    case "marksman":
+      plate([[-0.22, 0.64], [0.22, 0.64], [0.18, 0.48], [-0.18, 0.48]], 0, 0.02);
+      leather([[-0.29, 0.68], [-0.2, 0.71], [0.2, 0.2], [0.1, 0.17]], 0, 0.08);
+      break;
+    case "stalker":
+      leather([[-0.27, 0.67], [-0.19, 0.7], [0.26, 0.19], [0.17, 0.16]]);
+      leather([[0.27, 0.67], [0.19, 0.7], [-0.26, 0.19], [-0.17, 0.16]], 0, 0.07);
+      plate([[-0.12, 0.49], [0, 0.55], [0.12, 0.49], [0.1, 0.35], [0, 0.3], [-0.1, 0.35]], 0, 0.09, 0.04);
+      break;
+    case "oracle":
+      cloth([[-0.2, 0.7], [0.2, 0.7], [0.15, 0.45], [0.19, 0.19], [-0.19, 0.19], [-0.15, 0.45]]);
+      plate([[-0.12, 0.57], [0, 0.67], [0.12, 0.57], [0.085, 0.31], [0, 0.23], [-0.085, 0.31]], 0, 0.07, 0.04);
+      break;
+    case "engineer":
+      plate([[-0.29, 0.65], [-0.06, 0.65], [-0.06, 0.43], [-0.29, 0.43]], 0, 0.02, 0.075);
+      plate([[0.06, 0.65], [0.29, 0.65], [0.29, 0.43], [0.06, 0.43]], 0, 0.02, 0.075);
+      leather([[-0.22, 0.3], [0.22, 0.3], [0.18, 0.18], [-0.18, 0.18]], 0, 0.075);
+      break;
+    case "ranger":
+      plate([[-0.26, 0.61], [-0.12, 0.72], [0.2, 0.62], [0.25, 0.4], [0.1, 0.2], [-0.18, 0.27]], 0, 0.02, 0.07);
+      leather([[-0.23, 0.65], [-0.16, 0.7], [0.19, 0.23], [0.12, 0.2]], 0, 0.08);
+      break;
+  }
+}
+
 function addHumanoidBody(
   builder: UnitBuilder,
   root: THREE.Group,
   palette: { cloth: number; armor: number; accent: number; team: number; build: number },
-  options: { scale: number; cape: boolean; bulk?: number; simple?: boolean },
+  options: { scale: number; cape: boolean; bulk?: number; simple?: boolean; chestStyle?: HeroBodyProfile },
 ): { torso: THREE.Group; head: THREE.Group; mainPivot: THREE.Group; offPivot: THREE.Group } {
   const bulk = (options.bulk ?? 1) * palette.build;
   root.scale.setScalar(options.scale);
@@ -290,10 +361,13 @@ function addHumanoidBody(
     { y: 0.57, radiusX: 0.39 * bulk, radiusZ: 0.19 },
     { y: 0.7, radiusX: 0.25 * bulk, radiusZ: 0.14 },
   ], palette.cloth);
-  builder.panel(torso, "armor", [[-0.29, 0.5], [-0.24, 0.68], [0, 0.76], [0.24, 0.68], [0.29, 0.5], [0.19, 0.22], [0, 0.12], [-0.19, 0.22]], palette.armor, [0, 0, 0.13], 0.075, 0.035);
-  builder.panel(torso, "armor", [[-0.12, 0.48], [0, 0.58], [0.12, 0.48], [0.08, 0.25], [0, 0.2], [-0.08, 0.25]], palette.accent, [0, 0, 0.18], 0.028, 0.012);
+  if (options.chestStyle) addHeroChestArmor(builder, torso, palette, options.chestStyle);
+  else {
+    builder.panel(torso, "armor", [[-0.29, 0.5], [-0.24, 0.68], [0, 0.76], [0.24, 0.68], [0.29, 0.5], [0.19, 0.22], [0, 0.12], [-0.19, 0.22]], palette.armor, [0, 0, 0.13], 0.075, 0.035);
+    builder.panel(torso, "armor", [[-0.12, 0.48], [0, 0.58], [0.12, 0.48], [0.08, 0.25], [0, 0.2], [-0.08, 0.25]], palette.accent, [0, 0, 0.18], 0.028, 0.012);
+    builder.sphere(torso, "armor", [0.095, 0.085, 0.05], palette.accent, [0, 0.1, 0.2]);
+  }
   builder.panel(torso, "leather", [[-0.22, 0.18], [0.22, 0.18], [0.18, 0.04], [-0.18, 0.04]], 0x4c4037, [0, 0, 0.15], 0.035, 0.01);
-  builder.sphere(torso, "armor", [0.095, 0.085, 0.05], palette.accent, [0, 0.1, 0.2]);
 
   const legs: THREE.Group[] = [];
   for (const side of [-1, 1]) {
@@ -767,22 +841,30 @@ function buildBattlefieldHeroLevel(
   const team = teamCloth(shape.cloth, teamColor);
   const builder = new UnitBuilder(group, materials, detail);
   const palette = { armor: shape.armor, cloth: team, accent: shape.accent, team, build: shape.build };
-  const body = addHumanoidBody(builder, group, palette, { scale: HERO_SCALE, cape: shape.mantle, bulk: shape.build, simple: detail !== "full" });
+  const body = addHumanoidBody(builder, group, palette, {
+    scale: HERO_SCALE,
+    cape: shape.mantle,
+    bulk: shape.build,
+    simple: detail !== "full",
+    chestStyle: shape.bodyProfile,
+  });
   addHeadgear(builder, body.head, shape, palette);
   if (detail === "far") addHeroFarLoadout(builder, body, shape, palette);
   else addHeroLoadout(builder, group, body, shape, palette);
   applyHeroBodyProportions(builder, shape);
   for (const [jointName, [x, y, z]] of Object.entries(shape.stance)) {
-    const joint = builder.joints[jointName];
-    if (!joint) throw new Error(`Hero ${shape.id} references unknown stance joint: ${jointName}`);
+    const joint = builder.joints[jointName] ?? (jointName.startsWith("weapon.") ? builder.weaponPivots[jointName.slice("weapon.".length)] : undefined);
+    if (!joint) throw new Error(`Hero ${shape.id} references unknown stance joint or pivot: ${jointName}`);
     joint.rotation.set(x, y, z);
   }
+  group.userData.heroChestStyle = shape.bodyProfile;
   if (detail !== "far") {
     group.userData.catalogId = entity.catalogId ?? shape.id;
     group.userData.appearanceKey = appearanceKey;
     group.userData.heroName = shape.name;
     group.userData.heroSilhouette = shape.id;
     group.userData.heroBodyProfile = shape.bodyProfile;
+    group.userData.heroChestStyle = shape.bodyProfile;
   }
   return builder.finish(detail !== "full");
 }
@@ -812,6 +894,7 @@ export function buildBattlefieldHero(
   group.userData.heroName = shape.name;
   group.userData.heroSilhouette = shape.id;
   group.userData.heroBodyProfile = shape.bodyProfile;
+  group.userData.heroChestStyle = shape.bodyProfile;
   group.userData.heroWeapon = shape.weapon;
   group.userData.battlefieldRig = {
     version: 1,

@@ -102,18 +102,26 @@ describe("Battlefield unit models", () => {
     const silhouettes = new Set<string>();
     const bodyProfiles = new Set<string>();
     const bodyContours = new Set<string>();
+    const chestStyles = new Set<string>();
+    const chestContours = new Set<string>();
     for (const id of identities) {
       const group = new THREE.Group();
       const rig = buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id}`, id.toUpperCase()), 0xffffff, `senkei.next.hero.${id}`);
+      const chest = group.getObjectByName("armor.chest");
       stances.add(JSON.stringify(rig.restPose));
       silhouettes.add(silhouetteBounds(lodLevels(group)[0]));
       bodyProfiles.add(String(group.userData.heroBodyProfile));
       bodyContours.add(silhouetteBounds(rig.joints.torso));
+      expect(chest).toBeInstanceOf(THREE.Group);
+      chestStyles.add(String(chest?.userData.chestStyle));
+      chestContours.add(silhouetteBounds(chest!));
     }
     expect(stances.size).toBe(12);
     expect(silhouettes.size).toBe(12);
     expect(bodyProfiles.size).toBe(12);
     expect(bodyContours.size).toBe(12);
+    expect(chestStyles.size).toBe(12);
+    expect(chestContours.size).toBe(12);
   });
 
   it("preserves R04's halo as weapon geometry through its full model", () => {

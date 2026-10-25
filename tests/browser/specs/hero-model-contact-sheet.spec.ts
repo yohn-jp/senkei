@@ -63,6 +63,7 @@ test("captures the actual catalog meshes for all twelve Hero identities", async 
     await expect(canvas).toHaveAttribute("data-silhouette-id", hero.id);
     await expect(canvas).toHaveAttribute("data-generator", "senkei.battlefield-unit.v1");
     await expect(canvas).not.toHaveAttribute("data-body-profile", "unknown");
+    await expect(canvas).not.toHaveAttribute("data-chest-style", "unknown");
     await expect(canvas).not.toHaveAttribute("data-weapon", "unknown");
     const appearanceKey = await canvas.getAttribute("data-appearance-key");
     expect(appearanceKey).toBeTruthy();
@@ -78,6 +79,7 @@ test("captures the actual catalog meshes for all twelve Hero identities", async 
         appearanceKey,
         silhouetteId: await canvas.getAttribute("data-silhouette-id"),
         bodyProfile: await canvas.getAttribute("data-body-profile"),
+        chestStyle: await canvas.getAttribute("data-chest-style"),
         weapon: await canvas.getAttribute("data-weapon"),
         generator: await canvas.getAttribute("data-generator"),
         previewMode: await canvas.getAttribute("data-preview-mode"),
@@ -88,6 +90,7 @@ test("captures the actual catalog meshes for all twelve Hero identities", async 
   }
 
   expect(new Set(captures.map(({ metadata }) => metadata.bodyProfile)).size).toBe(12);
+  expect(new Set(captures.map(({ metadata }) => metadata.chestStyle)).size).toBe(12);
   expect(new Set(captures.map(({ metadata }) => metadata.weapon)).size).toBe(12);
   const sheetDataUrl = await page.evaluate(async (items) => {
     const columns = 4;

@@ -195,6 +195,7 @@ export function createHeroModelPreview(
   renderer.domElement.dataset.generator = String(model.userData.battlefieldRig?.generator ?? GENERATOR);
   renderer.domElement.dataset.silhouetteId = String(model.userData.heroSilhouette ?? options.catalogId);
   renderer.domElement.dataset.bodyProfile = String(model.userData.heroBodyProfile ?? "unknown");
+  renderer.domElement.dataset.chestStyle = String(model.userData.heroChestStyle ?? "unknown");
   renderer.domElement.dataset.weapon = String(model.userData.heroWeapon ?? "unknown");
   renderer.domElement.dataset.previewReady = "true";
   renderer.domElement.setAttribute("aria-busy", "false");
