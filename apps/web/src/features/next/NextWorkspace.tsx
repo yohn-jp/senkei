@@ -4,7 +4,7 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
-import { validateNextExperimentReplay } from "./experiment-restoration";
+import { validateNextExperimentAuthorization, validateNextExperimentReplay } from "./experiment-restoration";
 import { matchesPresentedEntity } from "./battle-entity-identity";
 import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -690,6 +690,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         const expectedMapWorld = next.map.world_identity;
         const restored: BattleRun[] = [];
         for (const item of stored.experiments) {
+          validateNextExperimentAuthorization(item.response, item.include_diagnostics);
           const setup = parseSavedNextSetup(item.setup);
           const result = item.response.outcome?.result;
           const sourceReplay = item.response.owner_replays?.attacker ?? item.response.outcome?.presentation_replay;

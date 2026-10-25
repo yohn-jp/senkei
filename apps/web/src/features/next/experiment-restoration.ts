@@ -1,4 +1,18 @@
 import type { DomainValue, MatchResult, PresentationReplay } from "../../contracts";
+import type { SimulationResponse } from "../../contracts";
+import { simulationAuthorizationError } from "../../worker/simulation-authorization";
+
+/** Stored/imported responses must obey the same permissions as live Worker replies. */
+export function validateNextExperimentAuthorization(response: SimulationResponse, includeDiagnostics: boolean): void {
+  const error = simulationAuthorizationError({
+    authorized_side: response.authorized_side,
+    owner_replays: response.owner_replays,
+    owner_replay: response.owner_replay,
+    replay: response.outcome?.presentation_replay,
+    diagnostics: response.restricted_diagnostics ?? null,
+  }, includeDiagnostics ? "attacker" : null);
+  if (error !== null) throw new Error(error);
+}
 
 function orderedDomainValue(value: DomainValue): DomainValue {
   switch (value.kind) {

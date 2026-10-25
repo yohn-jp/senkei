@@ -330,7 +330,10 @@ async function runSimulation(
   }
 
   const authorizationError = simulationAuthorizationError(local, includeDiagnostics
-    ? diagnosticsSide as "attacker" | "defender" : null);
+    ? diagnosticsSide as "attacker" | "defender" : null,
+    // The retained initial rules have diagnostics but no World/owner replay.
+    // World-bound Next snapshots must carry their requested owner projection.
+    asRecord(snapshot.context)?.world_identity != null);
   if (authorizationError !== null) throw new RequestFailure("core_error", authorizationError);
 
   return {

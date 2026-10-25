@@ -18,6 +18,14 @@ describe("simulation owner authorization", () => {
     expect(simulationAuthorizationError(response, "attacker")).toMatch(/unauthorized owner replay/);
     expect(simulationAuthorizationError(authorized(), "defender")).toMatch(/authorization/);
   });
+  it("requires the requested owner replay instead of an empty or absent channel", () => {
+    expect(simulationAuthorizationError({ ...authorized(), owner_replays: {} }, "attacker")).toMatch(/unauthorized owner replay/);
+    expect(simulationAuthorizationError({ ...authorized(), owner_replays: undefined }, "attacker")).toMatch(/unauthorized owner replay/);
+  });
+  it("preserves initial-rule diagnostics without granting a foreign owner channel", () => {
+    expect(simulationAuthorizationError({ ...authorized(), owner_replays: {} }, "attacker", false)).toBeNull();
+    expect(simulationAuthorizationError({ ...authorized(), owner_replays: { defender: { perspective: "defender" } } }, "attacker", false)).toMatch(/unauthorized owner replay/);
+  });
   it("rejects private events and memory for the opposing side", () => {
     const eventLeak = authorized();
     eventLeak.diagnostics.events.push({ side: "defender" });

@@ -58,3 +58,18 @@ describe("Next experiment replay restoration identity", () => {
       .rejects.toThrow("Stored replay perspective is not authorized for this attacker workspace.");
   });
 });
+
+it("requires intact owner and diagnostic channels on persisted authorized experiments", async () => {
+  const { validateNextExperimentAuthorization } = await import("./experiment-restoration");
+  const response = {
+    authorized_side: "attacker" as const,
+    outcome: { result, presentation_replay: { ...replay, perspective: undefined } },
+    owner_replays: { attacker: replay },
+    restricted_diagnostics: { events: [], cu_by_side: { attacker: 1 }, final_memory_by_side: { attacker: {} } },
+  } as unknown as import("../../contracts").SimulationResponse;
+  expect(() => validateNextExperimentAuthorization(response, true)).not.toThrow();
+  expect(() => validateNextExperimentAuthorization({ ...response, owner_replays: {} }, true)).toThrow(/owner replay/);
+  expect(() => validateNextExperimentAuthorization({ ...response, restricted_diagnostics: undefined }, true)).toThrow(/diagnostic events/);
+  expect(() => validateNextExperimentAuthorization(response, false)).toThrow(/restricted channel/);
+  expect(() => validateNextExperimentAuthorization({ outcome: response.outcome }, false)).not.toThrow();
+});

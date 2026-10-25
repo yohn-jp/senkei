@@ -9,6 +9,7 @@ function record(value: unknown): Record<string, unknown> | null {
 export function simulationAuthorizationError(
   response: Readonly<Record<string, unknown>>,
   requestedSide: CombatantSide | null,
+  requireOwnerReplay = true,
 ): string | null {
   if (record(response.replay)?.perspective != null) {
     return "The core returned an owner perspective through the public replay channel.";
@@ -23,7 +24,7 @@ export function simulationAuthorizationError(
   if (response.authorized_side !== requestedSide) {
     return "The core diagnostics authorization does not match the requested owner side.";
   }
-  if (channels === null || Object.entries(channels).some(([side, replay]) =>
+  if (channels === null || (requireOwnerReplay && record(channels[requestedSide])?.perspective !== requestedSide) || Object.entries(channels).some(([side, replay]) =>
     side !== requestedSide || record(replay)?.perspective !== requestedSide)) {
     return "The core returned an unauthorized owner replay channel.";
   }
