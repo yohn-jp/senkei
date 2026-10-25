@@ -131,7 +131,7 @@ function heroAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord
   );
 }
 
-function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: string): { id: string; catalogId: string; entityType: string } {
+function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: string): { catalogId: string; entityType: string; side: string } {
   const heroes = entitiesAt(replay, tick)
     .filter(([, entity]) => entity.entity_type === "hero"
       && integerField(entity, "hp") !== null
@@ -143,10 +143,11 @@ function findFollowHero(replay: JsonRecord, tick: number, requestedCatalogId?: s
     const requested = requestedCatalogId ? ` (${requestedCatalogId})` : "";
     throw new Error(`No living, replay-visible Hero${requested} is available to follow at tick ${tick}.`);
   }
-  const [id, entity] = first;
+  const [, entity] = first;
   const catalogId = field(entity, "catalog_id");
-  if (typeof catalogId !== "string") throw new Error(`The selected replay Hero has no catalog identity at tick ${tick}.`);
-  return { id, catalogId, entityType: "hero" };
+  const side = entity.owner === "attacker" ? "Azure" : entity.owner === "defender" ? "Vermilion" : undefined;
+  if (typeof catalogId !== "string" || !side) throw new Error(`The selected replay Hero has no public identity or side at tick ${tick}.`);
+  return { catalogId, entityType: "hero", side };
 }
 
 async function createScenarioSnapshots(): Promise<void> {
@@ -309,6 +310,7 @@ async function followHero(page: Page, viewport: Viewport, replay: JsonRecord, ti
   const target = findFollowHero(replay, tick, requestedCatalogId);
   await seekToTick(page, tick);
   const canvas = page.locator(".next-renderer-host canvas");
+  let rendererEntityId: string | undefined;
   if (viewport.width <= 760) {
     await page.getByRole("button", { name: "Follow view" }).click();
     const clusters = page.locator(".next-follow-sheet .next-visible-cluster");
@@ -317,11 +319,18 @@ async function followHero(page: Page, viewport: Viewport, replay: JsonRecord, ti
       const cluster = clusters.nth(index);
       const toggle = cluster.locator(".next-visible-cluster-toggle");
       if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
-      const buttons = cluster.locator(".next-visible-entity-actions button[aria-label^='Follow ']");
-      for (let action = 0; action < await buttons.count(); action += 1) {
-        const label = await buttons.nth(action).getAttribute("aria-label");
-        if (label?.startsWith(`Follow ${target.catalogId} `)) {
-          await buttons.nth(action).click();
+      const rows = cluster.locator(".next-visible-cluster-entities > li");
+      for (let rowIndex = 0; rowIndex < await rows.count(); rowIndex += 1) {
+        const row = rows.nth(rowIndex);
+        const identity = await row.locator(".next-visible-entity-copy > strong").innerText();
+        const sideAndRole = await row.locator(".next-visible-entity-copy > span").innerText();
+        if (!identity.startsWith(target.catalogId) || !sideAndRole.endsWith(target.side)) continue;
+        const button = row.locator(".next-visible-entity-actions button[aria-label^='Follow ']");
+        const label = await button.getAttribute("aria-label");
+        const id = label?.match(/, replay entity (.+)$/)?.[1];
+        if (id) {
+          rendererEntityId = id;
+          await button.click();
           followed = true;
           break;
         }
@@ -330,12 +339,22 @@ async function followHero(page: Page, viewport: Viewport, replay: JsonRecord, ti
     }
     expect(followed, `the actual mobile Follow sheet contains ${target.catalogId}`).toBe(true);
   } else {
-    await page.getByRole("combobox", { name: "Observe visible entity" }).selectOption(target.id);
+    const observer = page.getByRole("combobox", { name: "Observe visible entity" });
+    const options = await observer.locator("option").all();
+    for (const option of options) {
+      const label = (await option.innerText()).trim();
+      if (!label.startsWith(`${target.side} · ${target.catalogId}`)) continue;
+      rendererEntityId = await option.getAttribute("value") ?? undefined;
+      break;
+    }
+    expect(rendererEntityId, `the actual desktop camera list contains ${target.side} ${target.catalogId}`).toBeTruthy();
+    await observer.selectOption(rendererEntityId!);
     await page.getByRole("button", { name: "Follow selected unit" }).click();
   }
-  await expect(canvas).toHaveAttribute("data-tracking", target.id);
+  expect(rendererEntityId).toBeTruthy();
+  await expect(canvas).toHaveAttribute("data-tracking", rendererEntityId!);
   await waitForSettledCamera(page);
-  return target;
+  return { ...target, id: rendererEntityId };
 }
 
 async function assertMapContract(page: Page): Promise<void> {
@@ -512,6 +531,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       await saveCapture(page, "canonical-real-battle", "bridge-crossing-follow", 50, viewport, "Follow", {
         entityType: followTarget.entityType,
         catalogId: followTarget.catalogId,
+        side: followTarget.side,
         replayEntityId: followTarget.id,
         bridge: "rebuilt TOP fixed crossing",
       }, captures);
@@ -632,6 +652,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         const target = await followHero(capturePage, viewport, captureRun.ownerReplay, 7, "F01");
         await saveCapture(capturePage, "real-mid-capture", "capture-progress-follow", 7, viewport, "Follow", {
           catalogId: target.catalogId,
+          side: target.side,
           captureProgress: 7,
         }, captures);
       }
@@ -678,6 +699,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       const target = await followHero(defaultPage, viewport, defaultRun.ownerReplay, defaultRun.result.final_tick);
       await saveCapture(defaultPage, "default-enbu-victory", "base-destruction-follow", defaultRun.result.final_tick, viewport, "Follow", {
         catalogId: target.catalogId,
+        side: target.side,
         entityType: target.entityType,
         outcome: defaultRun.result.outcome,
       }, captures);
