@@ -99,10 +99,11 @@ impl FogHistory {
         side: CombatantSide,
         tick: u32,
     ) -> FogReplayState {
+        let vision_sources = next_vision::vision_sources(world, rules, side);
         let mut nodes = BTreeMap::new();
         for (node_id, node) in &rules.map.nodes {
             let probe = node_probe(node_id, node.x, node.y);
-            let state = if next_vision::visible(world, rules, side, &probe) {
+            let state = if next_vision::visible_from_sources(&vision_sources, rules, side, &probe) {
                 self.explored_nodes.insert(node_id.clone());
                 FogVisibility::Visible
             } else if self.explored_nodes.contains(node_id) {
@@ -126,7 +127,7 @@ impl FogHistory {
                     edge.length.saturating_mul(sample as i64) / (EDGE_SAMPLE_COUNT as i64 - 1);
                 let probe = edge_probe(&edge.from, &edge.to, progress);
                 let state = if edge.length >= 0
-                    && next_vision::visible(world, rules, side, &probe)
+                    && next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
                 {
                     self.explored_edges.insert((edge_id.clone(), sample));
                     FogVisibility::Visible
@@ -145,7 +146,7 @@ impl FogHistory {
             if !is_facility(&entity.entity_type) {
                 continue;
             }
-            if !next_vision::visible(world, rules, side, entity) {
+            if !next_vision::visible_from_sources(&vision_sources, rules, side, entity) {
                 continue;
             }
             let Some(site) = facility_site(entity) else {
@@ -622,6 +623,74 @@ mod tests {
     }
 
     #[test]
+    fn batched_source_filter_matches_authoritative_visibility_for_all_probe_kinds() {
+        let mut rules = rules();
+        rules.parameters.insert("mid_observation_radius_wu".into(), 30);
+        rules.parameters.insert("minion_vision".into(), 30);
+        let mut world = WorldState::default();
+        world.entities.insert(
+            "attacker-hero".into(),
+            unit(CombatantSide::Attacker, "a", 0, 0, 20),
+        );
+        let mut matching_minion = unit(CombatantSide::Attacker, "a", 77, 99, 20);
+        matching_minion.entity_type = TypeId::from("minion");
+        world.entities.insert("matching-minion".into(), matching_minion);
+        let mut matching_minion_two = unit(CombatantSide::Attacker, "a", -44, 10, 999);
+        matching_minion_two.entity_type = TypeId::from("minion");
+        world.entities.insert("matching-minion-two".into(), matching_minion_two);
+        let mut dead_minion = unit(CombatantSide::Attacker, "a", 0, 0, 1_000);
+        dead_minion.entity_type = TypeId::from("minion");
+        dead_minion.fields.insert("hp".into(), DomainValue::Integer(0));
+        world.entities.insert("dead-minion".into(), dead_minion);
+        let mut tower = unit(CombatantSide::Attacker, "c", 160, 0, 1_000);
+        tower.entity_type = TypeId::from("tower");
+        world.entities.insert("tower".into(), tower);
+        let mut observation = bridge("c", "TOP", "normal", 1);
+        observation.entity_type = TypeId::from("observation");
+        observation.owner = Some(CombatantSide::Attacker);
+        world.entities.insert("observation".into(), observation);
+        world.entities.insert(
+            "defender-hero".into(),
+            unit(CombatantSide::Defender, "b", 80, 0, 20),
+        );
+
+        let mut probes: Vec<_> = rules
+            .map
+            .nodes
+            .iter()
+            .map(|(id, node)| node_probe(id, node.x, node.y))
+            .collect();
+        probes.extend(rules.map.edges.iter().flat_map(|edge| {
+            (0..EDGE_SAMPLE_COUNT).map(move |sample| {
+                edge_probe(
+                    &edge.from,
+                    &edge.to,
+                    edge.length * sample as i64 / (EDGE_SAMPLE_COUNT as i64 - 1),
+                )
+            })
+        }));
+        probes.extend(world.entities.values().cloned());
+
+        for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+            let sources = next_vision::vision_sources(&world, &rules, side);
+            if side == CombatantSide::Attacker {
+                assert_eq!(
+                    sources.len(),
+                    3,
+                    "same logical minion positions group using minion_vision; heroes retain their own radius; tower and dead minion are excluded"
+                );
+            }
+            for probe in &probes {
+                assert_eq!(
+                    next_vision::visible(&world, &rules, side, probe),
+                    next_vision::visible_from_sources(&sources, &rules, side, probe),
+                    "batched and authoritative visibility differ for {side:?} at {probe:?}",
+                );
+            }
+        }
+    }
+
+    #[test]
     fn fog_replay_domain_value_is_versioned_and_side_scoped() {
         let rules = rules();
         let mut world = WorldState::default();
@@ -642,7 +711,10 @@ mod tests {
         };
         assert_eq!(value[&FieldId::from("schema_version")], DomainValue::Integer(1));
         assert_eq!(value[&FieldId::from("tick")], DomainValue::Integer(12));
-        assert_eq!(value[&FieldId::from("side")], DomainValue::String("attacker".into()));
+        assert_eq!(
+            value[&FieldId::from("side")],
+            DomainValue::String("attacker".into())
+        );
         assert!(value.contains_key(&FieldId::from("nodes")));
         assert!(value.contains_key(&FieldId::from("edges")));
         assert!(value.contains_key(&FieldId::from("facilities")));

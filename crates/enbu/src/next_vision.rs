@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 pub use crate::next_fog::FogHistory;
 
 /// Projects a side-authorized view and its replay-safe exploration history.
-/// The history contains no current state for hidden entities: it carries only
-/// the last position and tick at which an enemy unit was actually observed.
+/// Hidden units leave no history. Previously observed facilities may retain
+/// only their site, allowlisted state, and last-observed tick.
 pub fn team_view_with_fog(
     world: &WorldState,
     rules: &NextRules,
@@ -143,12 +143,68 @@ pub fn visible(
     if reveal_expiry > 0 {
         return true;
     }
-    world.entities.values().any(|source| {
-        source.owner == Some(side)
-            && matches!(source.entity_type.as_str(), HERO | MINION | "observation")
-            && (source.entity_type.as_str() == "observation" || support::alive(source))
-            && within_vision(source, entity, rules)
-    })
+    world
+        .entities
+        .values()
+        .any(|source| is_vision_source(source, side) && within_vision(source, entity, rules))
+}
+
+/// Builds exactly the allied vision-source set used by `visible`. Batch
+/// presentation queries can reuse it without rescanning every world entity.
+pub(crate) fn vision_sources<'a>(
+    world: &'a WorldState,
+    rules: &NextRules,
+    side: CombatantSide,
+) -> Vec<&'a EntityState> {
+    let mut unique = BTreeMap::new();
+    for source in world
+        .entities
+        .values()
+        .filter(|source| is_vision_source(source, side))
+    {
+        let radius = vision_radius(source, rules);
+        if radius < 0 {
+            continue;
+        }
+        let track = if support::int(source, "cross_remaining") > 0 {
+            "CENTER".into()
+        } else {
+            support::string(source, "track")
+        };
+        let key = (
+            support::string(source, "node"),
+            support::string(source, "edge_to"),
+            support::int(source, "edge_progress"),
+            track,
+            radius,
+        );
+        unique.entry(key).or_insert(source);
+    }
+    unique.into_values().collect()
+}
+
+/// Applies the same owner/reveal/source test as `visible` using a previously
+/// built source set. This is a presentation optimization, not another rule.
+pub(crate) fn visible_from_sources(
+    sources: &[&EntityState],
+    rules: &NextRules,
+    side: CombatantSide,
+    entity: &EntityState,
+) -> bool {
+    if entity.owner == Some(side) {
+        return true;
+    }
+    let reveal_expiry = match side {
+        CombatantSide::Attacker => support::int(entity, "reveal_attacker_until"),
+        CombatantSide::Defender => support::int(entity, "reveal_defender_until"),
+    };
+    reveal_expiry > 0 || sources.iter().any(|source| within_vision(source, entity, rules))
+}
+
+fn is_vision_source(entity: &EntityState, side: CombatantSide) -> bool {
+    entity.owner == Some(side)
+        && matches!(entity.entity_type.as_str(), HERO | MINION | "observation")
+        && (entity.entity_type.as_str() == "observation" || support::alive(entity))
 }
 
 /// Whether a hero is inside any living friendly minion's vision. The result is
@@ -422,7 +478,12 @@ fn expire_reveals(world: &mut WorldState, tick: u32) {
 }
 
 fn within_vision(source: &EntityState, target: &EntityState, rules: &NextRules) -> bool {
-    let radius = if source.entity_type.as_str() == "observation" {
+    let radius = vision_radius(source, rules);
+    within_radius(source, target, radius, rules)
+}
+
+fn vision_radius(source: &EntityState, rules: &NextRules) -> i64 {
+    if source.entity_type.as_str() == "observation" {
         rules.parameters.get("mid_observation_radius_wu").copied().unwrap_or(240)
     } else if source.entity_type == TypeId::from(MINION) {
         rules
@@ -432,8 +493,7 @@ fn within_vision(source: &EntityState, target: &EntityState, rules: &NextRules) 
             .unwrap_or_else(|| support::int(source, "vision"))
     } else {
         support::int(source, "vision")
-    };
-    within_radius(source, target, radius, rules)
+    }
 }
 
 fn within_radius(source: &EntityState, target: &EntityState, radius: i64, rules: &NextRules) -> bool {
