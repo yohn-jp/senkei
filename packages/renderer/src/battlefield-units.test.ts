@@ -154,6 +154,13 @@ describe("Battlefield unit models", () => {
       expect(offBlade.min.x, `${id} left-hand blade clears the torso`).toBeLessThan(torsoBounds.min.x);
       expect(mainBlade.max.x - offBlade.min.x, `${id} paired weapon span`).toBeGreaterThan(0.9);
     }
+
+    const farSilhouetteWidth = (id: string) => {
+      const group = new THREE.Group();
+      buildBattlefieldHero(group, entity(id, `senkei.next.hero.${id.toLowerCase()}`, id), 0x347e83, `senkei.next.hero.${id.toLowerCase()}`);
+      return worldBounds(lodLevels(group)[2]).getSize(new THREE.Vector3()).x;
+    };
+    expect(farSilhouetteWidth("F04"), "F04 retains both blades in its far LOD").toBeGreaterThan(farSilhouetteWidth("F05") + 0.04);
   });
 
   it("keeps melee, ranged and siege Minions visually distinct with a compact shared-material far LOD", () => {

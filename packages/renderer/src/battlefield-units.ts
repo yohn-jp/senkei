@@ -765,9 +765,12 @@ function addHeroFarLoadout(builder: UnitBuilder, body: { mainPivot: THREE.Group;
       addShield(builder, body.offPivot, palette, shape.weapon === "tower-shield" ? 1.15 : 0.8);
       break;
     case "spear": addSpear(builder, body.mainPivot, palette); break;
-    case "twin-blades": case "katana":
+    case "twin-blades":
       addSword(builder, body.mainPivot, palette.armor, palette.accent, true);
-      addDagger(builder, body.offPivot, palette);
+      addSword(builder, body.offPivot, palette.armor, palette.accent, true);
+      break;
+    case "katana":
+      addSword(builder, body.mainPivot, palette.armor, palette.accent, true);
       break;
     case "two-hand-maul":
       addRod(builder, body.mainPivot, "leather", 0x77593b, 1.25, 0.05, -0.16);
