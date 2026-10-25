@@ -102,6 +102,9 @@ describe("canonical Battlefield terrain presentation", () => {
     expect(bank.y).toBeGreaterThan(channel.y + 0.5);
     expect(upperJungle.y).toBeGreaterThan(lowland.y + 0.6);
     expect(landform.geometry.getAttribute("color").count).toBeGreaterThan(10_000);
+    expect(landform.geometry.index).toBeNull();
+    expect(landform.geometry.getAttribute("uv").count).toBe(landform.geometry.getAttribute("position").count);
+    expect((landform.material as THREE.MeshStandardMaterial).map?.name).toBe("battlefield-meadow-microtexture");
   });
 
   it("builds three separated lane surfaces and keeps their dry paving off water", () => {
@@ -174,10 +177,45 @@ describe("canonical Battlefield terrain presentation", () => {
     expect(campVertices.some(point => Math.hypot(point.x - 14, point.z - 31.2) < 1.2)).toBe(true);
 
     const matrix = new THREE.Matrix4(), position = new THREE.Vector3();
+    trunks.updateWorldMatrix(true, false);
     for (let index = 0; index < trunks.count; index++) {
       trunks.getMatrixAt(index, matrix);
       position.setFromMatrixPosition(matrix);
+      trunks.localToWorld(position);
       expect(distanceToRiver(position)).toBeGreaterThan(4.3);
     }
+
+    const woodland = scene.getObjectByName("battlefield-woodland-lod") as THREE.LOD;
+    expect(woodland).toBeDefined();
+    expect(woodland.levels.map(level => level.distance)).toEqual([0, 92]);
+    expect(woodland.getObjectByName("battlefield-canopy-distant")).toBeDefined();
+  });
+
+  it("applies repeated UV texture materials to road and track meshes", () => {
+    const scene = new THREE.Scene();
+    buildBattlefieldTerrain(scene, topologyReplay());
+
+    for (const name of [
+      "lane-clearing-earth",
+      "lane-compacted-roadbed",
+      "lane-center-supply-track",
+      "jungle-trails",
+    ]) {
+      const mesh = scene.getObjectByName(name) as THREE.Mesh;
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      expect(material.map).toBeDefined();
+      expect(material.map?.wrapS).toBe(THREE.RepeatWrapping);
+      expect(material.map?.wrapT).toBe(THREE.RepeatWrapping);
+      expect(material.map?.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+      expect(mesh.geometry.getAttribute("uv").count).toBe(mesh.geometry.getAttribute("position").count);
+    }
+
+    const gravel = scene.getObjectByName("battlefield-riverbank-gravel") as THREE.Mesh;
+    const material = gravel.material as THREE.MeshStandardMaterial;
+    expect(material.map?.name).toBe("battlefield-river-gravel-microtexture");
+    expect(gravel.geometry.getAttribute("uv").count).toBe(gravel.geometry.getAttribute("position").count);
+
+    const rocks = scene.getObjectByName("battlefield-jungle-rock-outcrops") as THREE.InstancedMesh;
+    expect((rocks.material as THREE.MeshStandardMaterial).map?.name).toBe("battlefield-rock-microtexture");
   });
 });

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Replay, WorldPoint } from "@senkei/replay-contract";
 import { scenicRiverCourse } from "./battlefield-geography";
+import { battlefieldTerrainTileSize, createBattlefieldTerrainMaterial } from "./battlefield-terrain-materials";
 
 type Point2 = { x: number; y: number };
 type Polyline = readonly WorldPoint[];
@@ -245,15 +246,19 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
   const margin = Math.max(5.5, Math.min(9, extent * 0.11));
   const minX = min.x - margin, maxX = max.x + margin;
   const minZ = min.y - margin, maxZ = max.y + margin;
-  const step = 0.48;
+  // Preserve small landmarks near camera while reducing vertex density as the
+  // authored world grows. The resulting triangles use flat normals.
+  const step = THREE.MathUtils.clamp(extent / 120, 0.58, 0.96);
   const segmentsX = Math.ceil((maxX - minX) / step), segmentsZ = Math.ceil((maxZ - minZ) / step);
+  const riverCourse = scenicRiverCourse(replay);
   const paths = {
     lane: replay.scene.lanes.map(lane => lane.points),
     jungle: (replay.scene.routes ?? []).filter(route => route.region === "jungle").map(route => route.points),
     camps: replay.scene.camps,
-    river: scenicRiverCourse(replay).length ? [scenicRiverCourse(replay)] : [],
+    river: riverCourse.length ? [riverCourse] : [],
   };
-  const positions: number[] = [], colors: number[] = [], indices: number[] = [];
+  const positions: number[] = [], colors: number[] = [], uvs: number[] = [], indices: number[] = [];
+  const tileSize = battlefieldTerrainTileSize("meadow");
   const delta = 0.35;
   for (let iz = 0; iz <= segmentsZ; iz++) {
     const z = minZ + ((maxZ - minZ) * iz) / segmentsZ;
@@ -265,6 +270,7 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
       const slope = Math.hypot(slopeX, slopeZ);
       const point = { x, y: z };
       positions.push(x, elevation, z);
+      uvs.push(x / tileSize, z / tileSize);
       const color = terrainColor(point, elevation, slope, data.forest(x, z), paths);
       colors.push(color.r, color.g, color.b);
       if (ix < segmentsX && iz < segmentsZ) {
@@ -277,21 +283,45 @@ function buildGround(scene: THREE.Scene, replay: Replay, data: TerrainData): voi
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  const ground = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    vertexColors: true,
-    roughness: 0.96,
-    metalness: 0,
-  }));
+  const faceted = geometry.toNonIndexed();
+  geometry.dispose();
+  faceted.computeVertexNormals();
+  const ground = new THREE.Mesh(faceted, createBattlefieldTerrainMaterial("meadow", { vertexColors: true }));
   ground.name = "battlefield-sculpted-landform";
   ground.receiveShadow = true;
   scene.add(ground);
 }
 
-function ribbonGeometry(points: Polyline, width: number, yOffset: number, heightAt: (x: number, z: number) => number): THREE.BufferGeometry {
-  const positions: number[] = [], indices: number[] = [];
+function addRiverbankGravel(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"]): void {
+  const river = scenicRiverCourse(replay);
+  if (river.length < 2) return;
+  const gravel = new THREE.Mesh(
+    mergeRibbons(
+      [{ points: river, width: 8.3, yOffset: 0.012 }],
+      heightAt,
+      battlefieldTerrainTileSize("river-gravel"),
+    ),
+    createBattlefieldTerrainMaterial("river-gravel", {
+      color: 0x928c75,
+      roughness: 0.92,
+      side: THREE.DoubleSide,
+    }),
+  );
+  gravel.name = "battlefield-riverbank-gravel";
+  gravel.receiveShadow = true;
+  scene.add(gravel);
+}
+
+function ribbonGeometry(
+  points: Polyline,
+  width: number,
+  yOffset: number,
+  heightAt: (x: number, z: number) => number,
+  tileSize: number,
+): THREE.BufferGeometry {
+  const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
   if (points.length < 2) return new THREE.BufferGeometry();
   const half = width / 2;
   const pathSamples: WorldPoint[] = [points[0]];
@@ -312,6 +342,7 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
   let acrossSegments = Math.max(2, Math.ceil(width / 0.4));
   if (acrossSegments % 2 !== 0) acrossSegments++;
   const rowSize = acrossSegments + 1;
+  let station = 0;
   for (let index = 0; index < pathSamples.length; index++) {
     const previous = pathSamples[Math.max(index - 1, 0)], current = pathSamples[index], next = pathSamples[Math.min(index + 1, pathSamples.length - 1)];
     const dx0 = current.x - previous.x, dz0 = current.y - previous.y;
@@ -323,10 +354,12 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
     nx /= nLength; nz /= nLength;
     const denominator = Math.max(0.66, Math.abs(nx * n1.x + nz * n1.z));
     const miter = Math.min(half / denominator, half * 1.5);
+    if (index > 0) station += Math.hypot(current.x - previous.x, current.y - previous.y);
     for (let across = 0; across <= acrossSegments; across++) {
       const offset = THREE.MathUtils.lerp(-miter, miter, across / acrossSegments);
       const x = current.x + nx * offset, z = current.y + nz * offset;
       positions.push(x, heightAt(x, z) + yOffset, z);
+      uvs.push(offset / tileSize + 0.5, station / tileSize);
       if (index < pathSamples.length - 1 && across < acrossSegments) {
         const at = index * rowSize + across;
         const nextRow = at + rowSize;
@@ -336,6 +369,7 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -344,17 +378,20 @@ function ribbonGeometry(points: Polyline, width: number, yOffset: number, height
 function mergeRibbons(
   lines: readonly { points: Polyline; width: number; yOffset: number }[],
   heightAt: (x: number, z: number) => number,
+  tileSize: number,
 ): THREE.BufferGeometry {
-  const positions: number[] = [], indices: number[] = [];
+  const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
   for (const line of lines) {
-    const geometry = ribbonGeometry(line.points, line.width, line.yOffset, heightAt);
+    const geometry = ribbonGeometry(line.points, line.width, line.yOffset, heightAt, tileSize);
     const base = positions.length / 3;
     positions.push(...(geometry.getAttribute("position").array as Float32Array));
+    uvs.push(...(geometry.getAttribute("uv").array as Float32Array));
     for (const index of geometry.getIndex()?.array ?? []) indices.push(index + base);
     geometry.dispose();
   }
   const merged = new THREE.BufferGeometry();
   merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  merged.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   merged.setIndex(indices);
   merged.computeVertexNormals();
   return merged;
@@ -415,18 +452,19 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
   ]);
   const centerTracks = lanePaths.map(points => ({ points, width: 0.68, yOffset: TRACK_LEVEL + 0.026 }));
   const roadLayers = [
-    { name: "lane-clearing-earth", lines: clearing, color: 0x73785d, roughness: 1 },
-    { name: "lane-packed-earth-shoulders", lines: shoulder, color: 0x806f52, roughness: 0.98 },
-    { name: "lane-compacted-roadbed", lines: roadway, color: 0x89795b, roughness: 0.94 },
+    { name: "lane-clearing-earth", lines: clearing, color: 0x73785d, roughness: 1, texture: "forest-floor" as const },
+    { name: "lane-packed-earth-shoulders", lines: shoulder, color: 0x806f52, roughness: 0.98, texture: "packed-earth" as const },
+    { name: "lane-compacted-roadbed", lines: roadway, color: 0x89795b, roughness: 0.94, texture: "packed-earth" as const },
   ];
   for (const layer of roadLayers) {
-    const mesh = new THREE.Mesh(mergeRibbons(layer.lines, heightAt), new THREE.MeshStandardMaterial({
-      color: layer.color,
-      roughness: layer.roughness,
-      metalness: 0,
-      flatShading: true,
-      side: THREE.DoubleSide,
-    }));
+    const mesh = new THREE.Mesh(
+      mergeRibbons(layer.lines, heightAt, battlefieldTerrainTileSize(layer.texture)),
+      createBattlefieldTerrainMaterial(layer.texture, {
+        color: layer.color,
+        roughness: layer.roughness,
+        side: THREE.DoubleSide,
+      }),
+    );
     mesh.name = layer.name;
     mesh.receiveShadow = true;
     scene.add(mesh);
@@ -439,17 +477,18 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
   const trackGroup = new THREE.Group();
   trackGroup.name = "lane-three-track-paving";
   const trackSurfaces = [
-    { name: "lane-flank-passage-tracks", lines: flankTracks, color: 0x766b53, roughness: 1 },
-    { name: "lane-center-supply-track", lines: centerTracks, color: 0xb0a17b, roughness: 0.84 },
+    { name: "lane-flank-passage-tracks", lines: flankTracks, color: 0x766b53, roughness: 1, texture: "packed-earth" as const },
+    { name: "lane-center-supply-track", lines: centerTracks, color: 0xb0a17b, roughness: 0.84, texture: "road-stone" as const },
   ];
   for (const surface of trackSurfaces) {
-    const mesh = new THREE.Mesh(mergeRibbons(surface.lines, heightAt), new THREE.MeshStandardMaterial({
-      color: surface.color,
-      roughness: surface.roughness,
-      metalness: 0,
-      flatShading: true,
-      side: THREE.DoubleSide,
-    }));
+    const mesh = new THREE.Mesh(
+      mergeRibbons(surface.lines, heightAt, battlefieldTerrainTileSize(surface.texture)),
+      createBattlefieldTerrainMaterial(surface.texture, {
+        color: surface.color,
+        roughness: surface.roughness,
+        side: THREE.DoubleSide,
+      }),
+    );
     mesh.name = surface.name;
     mesh.receiveShadow = true;
     trackGroup.add(mesh);
@@ -461,19 +500,21 @@ function addRoads(scene: THREE.Scene, replay: Replay, heightAt: TerrainData["at"
   const camps = routes.filter(route => route.region === "jungle_camp").map(route => route.points);
   const fords = routes.filter(route => route.region === "river_ford").flatMap(route => splitAtWater(route.points, replay, RIVER_WATER_HALF_WIDTH + 0.4));
   const routeLayers = [
-    { name: "jungle-trail-shoulders", lines: jungle.map(points => ({ points, width: 2.25, yOffset: 0.025 })), color: 0x52654d },
-    { name: "jungle-trails", lines: jungle.map(points => ({ points, width: 1.12, yOffset: 0.045 })), color: 0x8a7a5c },
-    { name: "camp-clearing-trails", lines: camps.map(points => ({ points, width: 0.95, yOffset: 0.045 })), color: 0xa09471 },
-    { name: "ford-bank-approaches", lines: fords.map(points => ({ points, width: 1.65, yOffset: 0.04 })), color: 0x7f795e },
+    { name: "jungle-trail-shoulders", lines: jungle.map(points => ({ points, width: 2.25, yOffset: 0.025 })), color: 0x52654d, texture: "forest-floor" as const },
+    { name: "jungle-trails", lines: jungle.map(points => ({ points, width: 1.12, yOffset: 0.045 })), color: 0x8a7a5c, texture: "packed-earth" as const },
+    { name: "camp-clearing-trails", lines: camps.map(points => ({ points, width: 0.95, yOffset: 0.045 })), color: 0xa09471, texture: "packed-earth" as const },
+    { name: "ford-bank-approaches", lines: fords.map(points => ({ points, width: 1.65, yOffset: 0.04 })), color: 0x7f795e, texture: "forest-floor" as const },
   ];
   for (const layer of routeLayers) {
     if (!layer.lines.length) continue;
-    const mesh = new THREE.Mesh(mergeRibbons(layer.lines, heightAt), new THREE.MeshStandardMaterial({
-      color: layer.color,
-      roughness: 0.98,
-      flatShading: true,
-      side: THREE.DoubleSide,
-    }));
+    const mesh = new THREE.Mesh(
+      mergeRibbons(layer.lines, heightAt, battlefieldTerrainTileSize(layer.texture)),
+      createBattlefieldTerrainMaterial(layer.texture, {
+        color: layer.color,
+        roughness: 0.98,
+        side: THREE.DoubleSide,
+      }),
+    );
     mesh.name = layer.name;
     mesh.receiveShadow = true;
     scene.add(mesh);
@@ -485,11 +526,12 @@ function addInstances(
   name: string,
   geometry: THREE.BufferGeometry,
   items: readonly ScenicInstance[],
+  material?: THREE.MeshStandardMaterial,
 ): void {
-  if (!items.length) { geometry.dispose(); return; }
+  if (!items.length) { geometry.dispose(); material?.dispose(); return; }
   const mesh = new THREE.InstancedMesh(
     geometry,
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0, flatShading: true }),
+    material ?? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0, flatShading: true }),
     items.length,
   );
   mesh.name = name;
@@ -616,12 +658,41 @@ function addWoodlands(scene: THREE.Scene, replay: Replay, data: TerrainData): vo
       });
     }
   }
-  addInstances(scene, "battlefield-forest-trunks", new THREE.CylinderGeometry(0.26, 0.38, 1, 7), trunks);
-  addInstances(scene, "battlefield-canopy-lower", new THREE.IcosahedronGeometry(1, 1), canopyLower);
-  addInstances(scene, "battlefield-canopy-upper", new THREE.IcosahedronGeometry(1, 0), canopyUpper);
-  addInstances(scene, "battlefield-forest-understory", new THREE.DodecahedronGeometry(1, 0), understory);
-  addInstances(scene, "battlefield-jungle-rock-outcrops", new THREE.DodecahedronGeometry(1, 1), sampled.rocks);
-  addInstances(scene, "battlefield-meadow-grass", new THREE.ConeGeometry(0.45, 1, 4), sampled.grass);
+  const { min, max } = replay.scene.bounds;
+  const center = { x: (min.x + max.x) / 2, z: (min.y + max.y) / 2 };
+  const localize = (items: readonly ScenicInstance[]): ScenicInstance[] => items.map(item => ({
+    ...item,
+    position: [item.position[0] - center.x, item.position[1], item.position[2] - center.z],
+  }));
+
+  // Two actual mesh tiers keep the broad forest canopy readable in Overview,
+  // while close observation uses trunks, layered leaves, rocks and understory.
+  // The instance transforms are local to the map center so the LOD range tracks
+  // the battlefield instead of the renderer's global origin.
+  const woodland = new THREE.LOD();
+  woodland.name = "battlefield-woodland-lod";
+  woodland.position.set(center.x, 0, center.z);
+  const near = new THREE.Group();
+  near.name = "battlefield-woodland-near";
+  addInstances(near, "battlefield-forest-trunks", new THREE.CylinderGeometry(0.26, 0.38, 1, 7), localize(trunks));
+  addInstances(near, "battlefield-canopy-lower", new THREE.IcosahedronGeometry(1, 1), localize(canopyLower));
+  addInstances(near, "battlefield-canopy-upper", new THREE.IcosahedronGeometry(1, 0), localize(canopyUpper));
+  addInstances(near, "battlefield-forest-understory", new THREE.DodecahedronGeometry(1, 0), localize(understory));
+  addInstances(near, "battlefield-meadow-grass", new THREE.ConeGeometry(0.45, 1, 4), localize(sampled.grass));
+  addInstances(
+    near,
+    "battlefield-jungle-rock-outcrops",
+    new THREE.DodecahedronGeometry(1, 1),
+    localize(sampled.rocks),
+    createBattlefieldTerrainMaterial("rock", { color: 0x888d81, roughness: 0.96 }),
+  );
+
+  const far = new THREE.Group();
+  far.name = "battlefield-woodland-far";
+  addInstances(far, "battlefield-canopy-distant", new THREE.IcosahedronGeometry(1, 0), localize(canopyLower));
+  woodland.addLevel(near, 0);
+  woodland.addLevel(far, 92);
+  scene.add(woodland);
 }
 
 /**
@@ -631,6 +702,7 @@ function addWoodlands(scene: THREE.Scene, replay: Replay, data: TerrainData): vo
 export function buildBattlefieldTerrain(scene: THREE.Scene, replay: Replay): void {
   const data = createTerrainData(replay);
   buildGround(scene, replay, data);
+  addRiverbankGravel(scene, replay, data.at);
   addRoads(scene, replay, data.at);
   addWoodlands(scene, replay, data);
 }
