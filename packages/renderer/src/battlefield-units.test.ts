@@ -6,6 +6,7 @@ import {
   buildBattlefieldMinion,
   buildBattlefieldMonster,
 } from "./battlefield-units";
+import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 
 function entity(id: string, appearanceKey: string, catalogId?: string): DisplayEntity {
   return {
@@ -63,6 +64,14 @@ function worldBounds(root: THREE.Object3D): THREE.Box3 {
 }
 
 describe("Battlefield unit models", () => {
+  it("keeps focused targets detailed while reducing untracked LOD by screen occupancy", () => {
+    expect(battlefieldUnitLodLevel(10, true)).toBe(0);
+    expect(battlefieldUnitLodLevel(75.9, false)).toBe(1);
+    expect(battlefieldUnitLodLevel(31.9, false)).toBe(2);
+    expect(battlefieldUnitLodLevel(76, false)).toBe(0);
+    expect(battlefieldUnitLodLevel(32, false)).toBe(1);
+  });
+
   it("builds twelve Atelier identities with articulated rig anchors and bounded LOD draw calls", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
     const names = new Set<string>();

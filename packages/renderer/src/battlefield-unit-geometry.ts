@@ -2,6 +2,13 @@ import * as THREE from "three";
 
 export type UnitSurface = "armor" | "cloth" | "leather" | "skin" | "glow";
 
+/** Projected CSS-pixel thresholds keep nearby untracked units on bounded LODs. */
+export function battlefieldUnitLodLevel(projectedHeight: number, focused: boolean): 0 | 1 | 2 {
+  if (focused || projectedHeight >= 76) return 0;
+  if (projectedHeight >= 32) return 1;
+  return 2;
+}
+
 export interface ProfileRing {
   y: number;
   x?: number;

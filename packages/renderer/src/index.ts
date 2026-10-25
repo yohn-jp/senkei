@@ -14,6 +14,7 @@ import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } 
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
+import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -2376,7 +2377,7 @@ export class Battlefield {
             const [width, height, depth] = g.userData.modelBounds ?? [0, g.userData.modelHeight ?? 2.5, 0];
             const projectedHeight = Math.abs(cameraUp.x) * width + Math.abs(cameraUp.y) * height + Math.abs(cameraUp.z) * depth;
             const pixels = projectedHeight * this.host.clientHeight * this.camera.zoom / (this.camera.top - this.camera.bottom);
-            const levelIndex = focused || pixels >= 48 ? 0 : pixels >= 18 ? 1 : 2;
+            const levelIndex = battlefieldUnitLodLevel(pixels, focused);
             lod.autoUpdate = false;
             lod.levels.forEach((level, index) => { level.object.visible = index === Math.min(levelIndex, lod.levels.length - 1); });
             g.userData.lodLevel = levelIndex;
