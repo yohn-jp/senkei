@@ -172,17 +172,20 @@ for (let index = 0; index < requests.length; index += 1) {
       ? entity.fields[name].value : undefined;
     const hero = (tick, catalogId) => frameEntities(tick).find((entity) =>
       entity.entity_type === "hero" && field(entity, "catalog_id") === catalogId);
-    const bridge = (tick) => frameEntities(tick).find((entity) =>
-      entity.entity_type === "bridge" && field(entity, "site") === "TOP");
+    const bridge = (tick, site = "TOP") => frameEntities(tick).find((entity) =>
+      entity.entity_type === "bridge" && field(entity, "site") === site);
     if (field(bridge(0), "bridge_state") !== "normal" || field(bridge(13), "bridge_state") !== "expanded" ||
         field(bridge(23), "bridge_state") !== "destroyed" || field(bridge(49), "bridge_state") !== "normal") {
       fail("authorized attacker replay does not expose the real normal → expanded → destroyed → rebuilt TOP bridge states");
+    }
+    if (field(bridge(0, "MID"), "bridge_state") !== "normal" || field(bridge(11, "MID"), "bridge_state") !== "destroyed") {
+      fail("authorized attacker replay does not expose the actual MID connector bridge destruction");
     }
     if (field(hero(2, "F01"), "track") !== "LEFT" || field(hero(2, "F01"), "node") !== "A.TOP.T1" ||
         field(hero(2, "F01"), "edge_to") !== "A.TOP.T2") {
       fail("authorized attacker replay does not expose selected LEFT track movement on the canonical TOP edge");
     }
-    if (!Number.isSafeInteger(integer(hero(1, "F02"), "ford_remaining")) || integer(hero(1, "F02"), "ford_remaining") <= 0) {
+    if (!Number.isSafeInteger(integer(hero(24, "F02"), "ford_remaining")) || integer(hero(24, "F02"), "ford_remaining") <= 0) {
       fail("authorized attacker replay contains no Hero in the actual Jungle ford transit state");
     }
     if (field(hero(1, "F03"), "node") !== "A.MID.T2" || field(hero(1, "F03"), "edge_to") !== "A.MID.J" ||

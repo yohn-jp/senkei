@@ -111,9 +111,9 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   };
   const ownerHeroAt = (tick: number, catalogId: string): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
     entity.entity_type === "hero" && entity.fields?.catalog_id?.value === catalogId);
-  const bridgeAt = (tick: number): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
-    entity.entity_type === "bridge" && entity.fields?.site?.value === "TOP");
-  expect(ownerHeroAt(1, "F02")?.fields?.ford_remaining?.value).toBeGreaterThan(0);
+  const bridgeAt = (tick: number, site = "TOP"): JsonRecord | undefined => ownerEntitiesAt(tick).find((entity) =>
+    entity.entity_type === "bridge" && entity.fields?.site?.value === site);
+  expect(ownerHeroAt(24, "F02")?.fields?.ford_remaining?.value).toBeGreaterThan(0);
   expect(ownerHeroAt(1, "F03")?.fields?.edge_to?.value).toBe("A.MID.J");
   expect(ownerHeroAt(2, "F01")?.fields?.track?.value).toBe("LEFT");
   expect(ownerHeroAt(2, "F01")?.fields?.edge_to?.value).toBe("A.TOP.T2");
@@ -125,6 +125,8 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(bridgeAt(13)?.fields?.bridge_state?.value).toBe("expanded");
   expect(bridgeAt(23)?.fields?.bridge_state?.value).toBe("destroyed");
   expect(bridgeAt(49)?.fields?.bridge_state?.value).toBe("normal");
+  expect(bridgeAt(0, "MID")?.fields?.bridge_state?.value).toBe("normal");
+  expect(bridgeAt(11, "MID")?.fields?.bridge_state?.value).toBe("destroyed");
   expect(JSON.stringify(publicReplay)).not.toContain("slot_id");
   expect(JSON.stringify(publicReplay)).not.toContain("goal");
 
@@ -142,7 +144,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   expect(await page.locator('[data-bridge-site="BOT"]').count()).toBe(1);
   expect(await page.locator('[data-testid="battle-map-route"][data-ford="true"]').count()).toBe(2);
 
-  const routeStateAt = async (tick: number): Promise<string> => {
+  const routeStateAt = async (tick: number, site = "TOP"): Promise<string> => {
     const slider = page.getByRole("slider", { name: "Seek replay tick" });
     await slider.evaluate((element, targetTick) => {
       const input = element as HTMLInputElement;
@@ -152,8 +154,10 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
     }, tick);
     await expect(slider).toHaveValue(String(tick));
     await expect(canvas).toHaveAttribute("data-tick", String(tick));
-    return await page.locator('[data-bridge-site="TOP"]').getAttribute("data-bridge-state") ?? "";
+    return await page.locator(`[data-testid="battle-map-route"][data-bridge-site="${site}"]`).first().getAttribute("data-bridge-state") ?? "";
   };
+  expect(await routeStateAt(0, "MID")).toBe("normal");
+  expect(await routeStateAt(11, "MID")).toBe("destroyed");
   expect(await routeStateAt(0)).toBe("normal");
   expect(await routeStateAt(13)).toBe("expanded");
   expect(await routeStateAt(23)).toBe("destroyed");

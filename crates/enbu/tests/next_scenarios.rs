@@ -1468,15 +1468,16 @@ fn battlefield_interaction_tactics() -> (String, String) {
             action move_left {{ when match.tick == 2, do move({}, "A.TOP.T2"), }},
             action expand_top_bridge {{ when match.tick == 1, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, expand), }},
             action destroy_top_bridge {{ when match.tick == 15, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, destroy), }},
+            action destroy_mid_bridge {{ when match.tick == 3, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "MID", }} by bridge.hp then bridge.id, destroy), }},
             action rebuild_top_bridge {{ when match.tick == 25, do bridge_work({}, argmin bridge in filter bridge in battlefield.bridges {{ bridge.site == "TOP", }} by bridge.hp then bridge.id, rebuild), }},
-            action ford_crossing {{ when match.tick == 1, do move({}, "N.B.UJ"), }},
+            action ford_crossing {{ when match.tick == 24, do move({}, "N.B.UJ"), }},
             action blocked_node_exit {{ when match.tick == 1, do move({}, "B.MID.BANK"), }},
             action node_retreat {{ when match.tick == 2, do retreat({}), }},
             action pursue_mid {{ when match.tick == 1, do pursue({}, argmin hero in filter hero in enemies.visible_heroes {{ hero.node == "N.MID.OBS", }} by hero.hp then hero.id), }},
             action cross_rebuilt_bridge {{ when match.tick == 50, do move({}, "B.TOP.BANK"), }}
         }}"#,
         hero_selector("slot-1"), hero_selector("slot-1"),
-        hero_selector("slot-2"), hero_selector("slot-2"), hero_selector("slot-2"),
+        hero_selector("slot-2"), hero_selector("slot-2"), hero_selector("slot-4"), hero_selector("slot-2"),
         hero_selector("slot-3"), hero_selector("slot-4"), hero_selector("slot-4"), hero_selector("slot-5"),
         hero_selector("slot-2"),
     );
@@ -1552,6 +1553,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
     }), "a destroyed TOP bridge is a real accepted rebuild intent");
     assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.side == CombatantSide::Attacker && event.tick == 3
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "bridge_work")
+    }), "a Hero at the MID bank performs real bridge work to shape the legal route");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
         event.side == CombatantSide::Attacker && event.tick == 1
             && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "pursue")
     }), "a visible MID opponent is an explicit real Enbu pursuit target");
@@ -1603,6 +1608,7 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
         "units in the same node combat domain attack in the actual match");
 
     let bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "TOP");
+    let mid_bridge_at = |tick| presentation_entity(owner_state_at(&artifact, tick), "bridge", "site", "MID");
     assert_eq!(entity_string(bridge_at(0), "bridge_state"), "normal");
     assert_eq!(entity_integer(bridge_at(12), "build_remaining"), 1);
     assert_eq!(entity_string(bridge_at(13), "bridge_state"), "expanded");
@@ -1611,6 +1617,8 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_integer(bridge_at(23), "hp"), 0);
     assert_eq!(entity_integer(bridge_at(48), "build_remaining"), 1);
     assert_eq!(entity_string(bridge_at(49), "bridge_state"), "normal");
+    assert_eq!(entity_string(mid_bridge_at(0), "bridge_state"), "normal");
+    assert_eq!(entity_string(mid_bridge_at(11), "bridge_state"), "destroyed");
 
     let observation = presentation_entity(owner_state_at(&artifact, 1), "observation", "node", "N.MID.OBS");
     assert_eq!(entity_integer(observation, "capture_progress"), 0, "contested teams stop MID capture progress");
