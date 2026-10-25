@@ -104,7 +104,11 @@ function entitiesAt(replay: JsonRecord, tick: number): [string, JsonRecord][] {
 }
 
 function bridgeAt(replay: JsonRecord, tick: number, site: string): JsonRecord | undefined {
-  return entitiesAt(replay, tick).map(([, entity]) => entity).find((entity) =>
+  return bridgeEntryAt(replay, tick, site)?.[1];
+}
+
+function bridgeEntryAt(replay: JsonRecord, tick: number, site: string): [string, JsonRecord] | undefined {
+  return entitiesAt(replay, tick).find(([, entity]) =>
     entity.entity_type === "bridge" && field(entity, "site") === site,
   );
 }
@@ -357,6 +361,96 @@ async function followHero(page: Page, viewport: Viewport, replay: JsonRecord, ti
   return { ...target, id: rendererEntityId };
 }
 
+async function followBridgeSite(page: Page, viewport: Viewport, replay: JsonRecord, tick: number, site: "TOP" | "MID" | "BOT"): Promise<JsonRecord> {
+  const bridgeEntry = bridgeEntryAt(replay, tick, site);
+  expect(bridgeEntry, `owner replay authorizes the ${site} bridge at tick ${tick}`).toBeTruthy();
+  const [ownerReplayEntityId, bridge] = bridgeEntry!;
+  const bridgeState = field(bridge, "bridge_state");
+  expect(bridgeState, `${site} bridge has a confirmed public state at tick ${tick}`).toBeTruthy();
+
+  const canvas = page.locator(".next-renderer-host canvas");
+  await seekToTick(page, tick);
+  let rendererEntityId: string | undefined;
+  if (viewport.width <= 760) {
+    const openFollowSheet = async (): Promise<void> => {
+      const followView = page.getByRole("button", { name: "Follow view" });
+      if (await page.locator(".next-follow-sheet").isVisible().catch(() => false)) return;
+      await followView.click();
+      await expect(page.locator(".next-follow-sheet")).toBeVisible();
+    };
+    const locateBridgeRow = async () => {
+      const x = integerField(bridge, "x");
+      const y = integerField(bridge, "y");
+      expect(x, `${site} bridge owner replay includes its authorized X position`).not.toBeNull();
+      expect(y, `${site} bridge owner replay includes its authorized Y position`).not.toBeNull();
+      const clusters = page.locator(".next-follow-sheet .next-visible-cluster");
+      for (let index = 0; index < await clusters.count(); index += 1) {
+        const cluster = clusters.nth(index);
+        const toggle = cluster.locator(".next-visible-cluster-toggle");
+        if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
+        const rows = cluster.locator(".next-visible-cluster-entities > li");
+        for (let rowIndex = 0; rowIndex < await rows.count(); rowIndex += 1) {
+          const row = rows.nth(rowIndex);
+          const description = await row.locator(".next-visible-entity-copy > span").innerText();
+          if (!description.includes("Bridge facility")) continue;
+          const location = await row.locator(".next-visible-entity-copy small").innerText();
+          const coordinates = location.match(/\bX (\d+) · Y (\d+)\b/);
+          if (Number(coordinates?.[1]) === x && Number(coordinates?.[2]) === y) return row;
+        }
+      }
+      throw new Error(`The mobile Follow sheet has no currently visible ${site} bridge at owner replay position ${x}, ${y}.`);
+    };
+
+    await openFollowSheet();
+    const selectedRow = await locateBridgeRow();
+    await selectedRow.locator(".next-visible-entity-actions button[aria-label^='Select ']").click();
+    const siteField = page.locator('[data-testid="logical-detail-field"][data-field="site"] strong');
+    const stateField = page.locator('[data-testid="logical-detail-field"][data-field="bridge_state"] strong');
+    await expect(siteField).toHaveText(site);
+    await expect(stateField).toHaveText(String(bridgeState));
+    await page.getByRole("button", { name: "Close details sheet" }).click();
+
+    await openFollowSheet();
+    const followRow = await locateBridgeRow();
+    const followButton = followRow.locator(".next-visible-entity-actions button[aria-label^='Follow ']");
+    const label = await followButton.getAttribute("aria-label");
+    rendererEntityId = label?.match(/, replay entity (.+)$/)?.[1];
+    expect(rendererEntityId, `${site} bridge is a current Follow target in the mobile UI`).toBeTruthy();
+    await followButton.click();
+    const followSheet = page.locator(".next-follow-sheet");
+    if (await followSheet.isVisible().catch(() => false)) await page.getByRole("button", { name: "Close follow sheet" }).click();
+  } else {
+    const detailsButton = page.getByRole("button", { name: "Battle situation details" });
+    if (await detailsButton.getAttribute("aria-expanded") !== "true") await detailsButton.click();
+    const observer = page.getByRole("combobox", { name: "Observe visible entity" });
+    const options = await observer.locator("option").all();
+    for (const option of options) {
+      if (!(await option.innerText()).includes("Bridge facility")) continue;
+      const id = await option.getAttribute("value");
+      if (!id) continue;
+      await observer.selectOption(id);
+      const siteField = page.locator('[data-testid="logical-detail-field"][data-field="site"] strong');
+      const stateField = page.locator('[data-testid="logical-detail-field"][data-field="bridge_state"] strong');
+      const candidateSite = (await siteField.textContent().catch(() => null))?.trim();
+      if (candidateSite !== site) continue;
+      expect((await stateField.textContent())?.trim()).toBe(String(bridgeState));
+      rendererEntityId = id;
+      break;
+    }
+    expect(rendererEntityId, `the desktop camera selector exposes the authorized ${site} bridge`).toBeTruthy();
+    await page.getByRole("button", { name: "Follow selected unit" }).click();
+    if (await detailsButton.getAttribute("aria-expanded") === "true") await detailsButton.click();
+    const rosterToggle = page.getByTestId("battle-visible-roster-toggle");
+    if (await rosterToggle.getAttribute("aria-expanded") === "true") await rosterToggle.click();
+  }
+
+  expect(rendererEntityId).toBeTruthy();
+  await expect(canvas).toHaveAttribute("data-camera-mode", "tactical");
+  await expect(canvas).toHaveAttribute("data-tracking", rendererEntityId!);
+  await waitForSettledCamera(page);
+  return { id: rendererEntityId, site, bridgeState, ownerReplayEntityId };
+}
+
 async function assertMapContract(page: Page): Promise<void> {
   const toggle = page.getByRole("button", { name: "Toggle battlefield map context" });
   if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
@@ -535,6 +629,25 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         side: followTarget.side,
         replayEntityId: followTarget.id,
         bridge: "rebuilt TOP fixed crossing",
+      }, captures);
+    }
+
+    const bridgeFollowStates = [
+      { tick: 0, site: "TOP", state: "normal", id: "top-bridge-normal" },
+      { tick: 11, site: "MID", state: "destroyed", id: "mid-bridge-destroyed" },
+      { tick: 13, site: "TOP", state: "expanded", id: "top-bridge-expanded" },
+      { tick: 23, site: "TOP", state: "destroyed", id: "top-bridge-destroyed" },
+      { tick: 49, site: "TOP", state: "normal", id: "top-bridge-rebuilt" },
+    ] as const;
+    for (const bridgeState of bridgeFollowStates) {
+      const target = await followBridgeSite(page, viewport, canonical.ownerReplay, bridgeState.tick, bridgeState.site);
+      expect(target.bridgeState).toBe(bridgeState.state);
+      await saveCapture(page, "canonical-real-battle", `${bridgeState.id}-follow`, bridgeState.tick, viewport, "Follow", {
+        bridgeSite: target.site,
+        bridgeState: target.bridgeState,
+        ownerReplayEntityId: target.ownerReplayEntityId,
+        rendererEntityId: target.id,
+        cameraOperation: "Follow the currently visible bridge entity in the real authorized owner replay",
       }, captures);
     }
 
@@ -768,6 +881,13 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
         confirmedNodeAttackTick: 1,
         ticks: { initial: 0, nodeFight: 1, lateralCrossing: 3, midBridgeDestroyed: 11, topBridgeExpanded: 13,
           topBridgeDestroyed: 23, fordTransit: 24, topBridgeRebuilt: 49, fixedBridgeTransit: 50, end: 70 },
+        closeFocusBridgeCaptureCount: captures.filter((capture) => capture.scenario === "canonical-real-battle" && capture.facts.cameraOperation !== undefined).length,
+        closeFocusBridgeTargetsByViewport: Object.fromEntries(viewports.map((viewport) => [
+          viewport.name,
+          captures.filter((capture) => capture.scenario === "canonical-real-battle" &&
+            capture.viewport.width === viewport.width && capture.facts.cameraOperation !== undefined)
+            .map((capture) => ({ tick: capture.tick, site: capture.facts.bridgeSite, state: capture.facts.bridgeState, path: capture.image.path })),
+        ])),
       },
       observationCapture: {
         provenance: "real Jinrei idle orders + real Enbu capture lifecycle; same snapshot executed by browser Worker and WASM",
@@ -801,6 +921,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       replayPlayPause: true,
       pixelAndSmooth3dToggle: true,
       desktopTacticalOverviewFollow: true,
+      followAuthorizedBridgeFacility: true,
       mobileBattleOverviewFollowTimelineDetails: true,
       mapRoutesAndRiver: true,
       mapRouteBridgeState: true,
@@ -824,6 +945,7 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
     `| Mobile battlefield and first Hero clash | [6fa8296 baseline](${beforeImages.mobile}) | [real Hero clash](default-enbu-victory/390x844/first-node-clash-t016-tactical.png) | 390×844, T16, Tactical |`,
     `| Track and river crossings | — | [lateral crossing](canonical-real-battle/1440x900/lane-crossing-t003-tactical.png), [ford transit](canonical-real-battle/1440x900/ford-transit-t024-tactical.png) | real Jinrei + Enbu + WASM |`,
     `| Bridge states | — | [expanded](canonical-real-battle/1440x900/top-bridge-expanded-t013-tactical.png), [destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-t023-tactical.png), [rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-t049-tactical.png) | replay-confirmed |`,
+    `| Close-focus facility Follow | — | [TOP normal](canonical-real-battle/1440x900/top-bridge-normal-follow-t000-follow.png), [MID destroyed](canonical-real-battle/1440x900/mid-bridge-destroyed-follow-t011-follow.png), [TOP expanded](canonical-real-battle/1440x900/top-bridge-expanded-follow-t013-follow.png), [TOP destroyed](canonical-real-battle/1440x900/top-bridge-destroyed-follow-t023-follow.png), [TOP rebuilt](canonical-real-battle/1440x900/top-bridge-rebuilt-follow-t049-follow.png) | camera follows an authorized visible bridge entity |`,
     `| MID capture and victory | — | [capture progress](real-mid-capture/1440x900/capture-progress-t007-tactical.png), [T420 victory](default-enbu-victory/1440x900/base-destruction-end-t420-tactical.png) | actual simulation state |`,
     "",
     "Each screenshot's SHA-256, tick, viewport, requested camera mode, renderer camera pose/target, replay identity and scene facts are listed in `metadata.json`.",
