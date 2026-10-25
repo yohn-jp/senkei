@@ -18,13 +18,39 @@ const FIELDS: [(&str, &str); 8] = [
 // These are intentionally unresolved RulePackage producer decisions. Fixture
 // values below exercise shape and composition contracts only; they are not
 // defaults or balance recommendations for the shipped next behavior.
-const DECISION_REQUIRED: [&str; 6] = [
-    "Navigation preference vocabulary, scoring weights, and Unknown-risk policy",
-    "Engagement preference vocabulary and the rule-owned meaning of each value",
-    "Targeting eligibility and stable tie-break contract",
-    "Pursuit limits, visibility semantics, and path legality",
-    "Survival thresholds and their versioned unit/range",
-    "Objective identifiers, ownership scope, and preference aggregation",
+const DECISION_REQUIRED: [(&str, &str); 8] = [
+    (
+        "DEC-BEHAVIOR-NAVIGATION-001",
+        "Preference vocabulary, scoring weights, and Unknown-risk policy",
+    ),
+    (
+        "DEC-BEHAVIOR-ENGAGEMENT-001",
+        "Preference vocabulary and the rule-owned meaning of each value",
+    ),
+    (
+        "DEC-BEHAVIOR-TARGETING-001",
+        "Target eligibility and stable tie-break contract",
+    ),
+    (
+        "DEC-BEHAVIOR-PURSUIT-001",
+        "Pursuit limits, visibility semantics, and path legality",
+    ),
+    (
+        "DEC-BEHAVIOR-SURVIVAL-001",
+        "Thresholds and their versioned unit/range",
+    ),
+    (
+        "DEC-BEHAVIOR-OBJECTIVE-001",
+        "Objective identifiers, ownership scope, and preference aggregation",
+    ),
+    (
+        "DEC-BEHAVIOR-AGGREGATION-001",
+        "Numeric Hero-to-Squad formulas and cross-scope preference precedence",
+    ),
+    (
+        "DEC-BEHAVIOR-BINDING-001",
+        "Physical representation of the exact-pinned Behavior extension",
+    ),
 ];
 
 struct Fixture {
@@ -626,8 +652,10 @@ fn producer_contract_keeps_six_domain_schemas_typed_and_values_unresolved() {
         fixture.catalog.compatibility_key().metadata_extension_digest.as_ref(),
         Some(metadata_digest)
     );
-    assert_eq!(DECISION_REQUIRED.len(), BehaviorDomain::ALL.len());
-    assert!(DECISION_REQUIRED.iter().all(|decision| !decision.trim().is_empty()));
+    assert_eq!(DECISION_REQUIRED.len(), BehaviorDomain::ALL.len() + 2);
+    assert!(DECISION_REQUIRED
+        .iter()
+        .all(|(id, decision)| id.starts_with("DEC-BEHAVIOR-") && !decision.trim().is_empty()));
 
     // The current next RulePackage has no authored Behavior section. The
     // resolver refuses to fabricate one, leaving Enbu/runtime integration
