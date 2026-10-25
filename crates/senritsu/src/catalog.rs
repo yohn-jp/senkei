@@ -2096,6 +2096,10 @@ mod tests {
     }
 
     fn verified_next() -> VerifiedRulePlan {
+        verified_next_with_behavior("steady")
+    }
+
+    fn verified_next_without_behavior() -> VerifiedRulePlan {
         validate(next_package(), &next_engine_compatibility()).expect("next package validates")
     }
 
@@ -2106,7 +2110,10 @@ mod tests {
         let extension = test_extension(&provisional, mode);
         package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
         package.ruleset.digest = crate::canonical_digest(&package).unwrap();
-        validate(package, &next_engine_compatibility()).expect("bound next package validates")
+        let mut extension = extension;
+        extension.ruleset_digest = package.ruleset.digest.clone();
+        crate::validate_with_catalog_extension(package, &next_engine_compatibility(), extension)
+            .expect("bound next package validates")
     }
 
     fn test_extension(plan: &VerifiedRulePlan, mode: &str) -> CatalogMetadataExtension {
@@ -2237,7 +2244,7 @@ mod tests {
 
     #[test]
     fn catalog_projects_verified_package_and_hides_runtime_values() {
-        let plan = verified_next();
+        let plan = verified_next_without_behavior();
         let catalog = DomainCatalog::from_verified_plan(&plan).unwrap();
 
         assert_eq!(catalog.identity().ruleset_id, plan.ruleset().id);

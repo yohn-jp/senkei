@@ -21,7 +21,10 @@ pub use catalog::{
     RejectionMetadata, Scope, SurvivalBehaviorSchema, SymbolCategory, SymbolKey,
     TargetingBehaviorSchema, DOMAIN_CATALOG_SCHEMA_VERSION,
 };
-pub use validate::{canonical_digest, validate};
+pub use validate::{
+    canonical_digest, validate, validate_with_catalog_extension,
+    validate_with_world_resolver, validate_with_world_resolver_and_catalog_extension,
+};
 
 mod next_content;
 pub mod next_world;

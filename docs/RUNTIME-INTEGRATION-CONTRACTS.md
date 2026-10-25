@@ -52,9 +52,9 @@ Worldから作る `BattleMap` その他のmap値は、Canonical Simulation World
 
 Canonical Worldからruntime `BattleMap`へ変換するときは、source IDと必要なlogical factをすべて保つか、明示的なincompatibilityを返す。Topology、river-crossing subrange、bridge-site identity、lane-route list、tower placement、edge identityを黙って削除／改名しない。Renderer geometryから欠けたgameplay metadataを復元しない。追加のmapping／supplemental dataが必要なら、版付きで明示し、source World identityとtarget map schemaに束縛する。
 
-基準branchの現行形状はlosslessに互換ではない。35 node／42 edgeのendpointとlengthは一致するが、edge IDは42本中0本が一致し、World／site IDも異なる。runtime mapのbridge／fordはedge全体のflagであり、World側のriver-crossing progress rangeを表さない。またWorld側にはruntimeのlane-route listと12個のtower placementがない。これらを互換と扱うには推測ではなく検証済みmappingが必要である。
+現行の初期BattlefieldではWorld Definitionがruntime layoutとlogical node positionを所有する。`BattleMapWorldProjection` は全node／edge identity、edgeごとのtrack range、river-crossing progress subrange、bridge site、terrain／observation semanticsをversion付きで保持する。`BattleMap.x/y` は論理座標、`presentation_x/y` は表示座標である。既定の`senritsu::validate`はbuilt-in Worldをresolveし、`validate_with_world_resolver`は明示されたstoreを使う。どちらも完全なpaired identityと生成済みprojection全体を照合し、不在・不一致・projection改変を`VerifiedRulePlan`の生成前に拒否する。
 
-**必須不変条件はidentityとdigestの束縛**である。**方向性採用**：Worldは不変content-addressed artifactを参照（DEC-WORLD-BINDING-001）。Canonical World→Runtime BattleMapはsource ID、crossing区間、橋、lane／tower等を失わないversioned projection Schema拡張（DEC-WORLD-MAP-CONVERSION-001）。Resolver、Schema、移行・検証はまだ必要。lossy変換は拒否する。
+**必須不変条件はidentityとdigestの束縛**である。Worldは不変content-addressed artifactとして解決する。Canonical WorldからRuntime BattleMapへのlossless projectionはversioned schemaを使い、損失・自己申告digest・欠落参照を成功として扱わない。
 
 ### 2.3 Match、Replay、互換性
 
@@ -75,7 +75,7 @@ Canonical Worldからruntime `BattleMap`へ変換するときは、source IDと�
 | 試合に影響するCatalog extension | Extension digest、それを使うcompile／runtime／reproduction reference | 同じpackage IDの別digest extensionへの置換なし |
 | Replay schema／presentation adapter契約 | Reader／writer互換性、Replay表示cache | 記録済みの権威ある結果とCU |
 
-試合に影響するBehavior内容は不変で版管理され、match reproduction identityに含まれる。**方向性採用**：意味を持つBehavior Profile／Default／aggregationはRulePackage digestへ含める（DEC-BEHAVIOR-BINDING-001）。UI説明等の非意味的metadataは分離可能だが試合結果に作用しないこと。Producer／Enbuまでの実装・検証は未完了と区別する。
+試合に影響するBehavior内容は不変で版管理され、match reproduction identityに含まれる。RulePackageはsemantic Behavior extension digestを含み、`validate_with_catalog_extension`はextensionが欠落・不一致の場合に実行可能planを返さない（DEC-BEHAVIOR-BINDING-001）。UI説明等の非意味的metadataはsemantic digestから分離する。Enbuでのproduction profile消費は別途統合対象である。
 
 ## 3. Behaviorの主体、Intent、Default、全順序
 
@@ -122,13 +122,13 @@ Decision Traceは通常Observationとpublic Replayから分離された `Restric
 
 ## 6. 方向性採用とDECISION_REQUIREDの台帳
 
-方向性採用は具体的Schemaや実装・テスト完了を意味しない。未決事項を推測で埋めず、責務所有者の正本へ反映する。[DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) は横断の合意状態を示す。
+台帳は実装済み契約と未決事項を分ける。未決事項を推測で埋めず、責務所有者の正本へ反映する。[DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) は横断の合意状態を示す。
 
 | ID／owner | 方向性または未決事項 | 選択結果と残る詳細 |
 | --- | --- | --- |
-| **DEC-WORLD-BINDING-001** · World／Senritsu | **方向性採用：B content-addressed World参照** | World identity/digest完全照合必須。Resolver、配布／Offline、参照先欠落時の失敗、Schemaは未決 |
-| **DEC-WORLD-MAP-CONVERSION-001** · World／Senritsu／Enbu | **方向性採用：A Runtime BattleMap projectionのVersioned Schema拡張** | source ID、crossing subrange、lane／towerのlossless移行・Schemaと互換テストが必要 |
-| **DEC-BEHAVIOR-BINDING-001** · Senritsu／Behavior | **方向性採用：A 意味的BehaviorをRulePackage digestに含める** | 非意味的UI metadataと区別。canonical encodingとCompile／Run／Replay接続が必要 |
+| **DEC-WORLD-BINDING-001** · World／Senritsu | 実装済み基盤：content-addressed World参照 | `WorldResolver` exact paired identity lookup。既定Senritsu validationはbuilt-in Worldを解決し、明示resolver variantはmissing/mismatchを拒否する。配布／Offline artifact retentionは別途必要 |
+| **DEC-WORLD-MAP-CONVERSION-001** · World／Senritsu／Enbu | 実装済みproducer／validation seam：versioned lossless BattleMap projection | W1 package producer・Senritsu resolver validationはWorld source factsを保持・照合する。Enbuでedge crossing subrangeを実際の移動／visionに適用する適合テストは別途必要 |
+| **DEC-BEHAVIOR-BINDING-001** · Senritsu／Behavior | 実装済みbinding：semantic catalog extension digestはRulePackage／VerifiedRulePlanに含む | metadata extensionはpackage semantics digestとcatalog presentation digestを分離し、Behavior resolverは未束縛／不一致extensionを拒否する |
 | **DEC-TERRAIN-OCCLUSION-001** · World／Senritsu | 論理的なterrain occlusionの概念は合意済み。authoring shape、query geometry、視界半径／高台効果との組み合わせは未決定。Renderer geometry／Raycastは権威を持たない。 | **A. graph edgeまたはnamed regionに対する有限なvisibility blocker／relation：** 単純で検証しやすいが、境界表現が粗い。**B. 有限な論理空間mask／regionと決定論的query：** より細かく表現できるが、World schema、authoring、compatibilityの範囲が広がる。どちらも境界挙動を定め、描画形状から独立し、未合意の視界／attack規則を追加しない。 |
 | **DEC-ATTACK-TIMING-001** · Combat／Senritsu／Enbu | 合意済みのwindup → impact → recoveryについて、離散Tick境界、target／range／livenessの再検証、同時impact順、cancel／interruptを決める。 | **A. impact時にattack legalityを再検証：** impact条件を満たさなくなったtargetへ予定effectを与えない。cancelと時間意味論を明示する必要がある。**B. windup時に成立条件をcommit：** preparation開始時にtargetを選び、後のimpactを明示的lock／snapshot規則で解決する。target移動による結果が異なり、commit済effectの意味が必要。いずれもduration／phase移行／同Tick処理を版付きRulePlanに定め、animation frameから導出しない。 |
 | **DEC-MID-DIRECTION-001** · World／Senritsu／Observation | MID施設が敵の実際の移動方向を報告するための観測証拠、時間条件、direction語彙／粒度、reset／expiry規則。目的地や将来intentは公開しない。 | **A. 順序付けられたTickで同一stable entityを複数回観測：** 保守的で監査可能だが、必要な観測が揃うまでUnknown。**B. 隣接named graph location間の確定遷移：** 離散的で再現可能だがedge内の移動方向は表せない。**C. 連続して観測したpositionの有限量子化vector：** 空間の詳細を持つが、versioned quantization／boundary規則が必要で、より細かい位置情報を公開し得る。採択と認可の前に推定方向を公開せず、証拠不足はUnknownにする。 |
@@ -137,17 +137,17 @@ Decision Traceは通常Observationとpublic Replayから分離された `Restric
 
 producer／consumer契約を満たすにはend-to-endでidentityを照合し、不変inputから再現できる必要がある。Native／WASM同等性は同じpackage、World logic、Behavior binding、program、snapshot、component versionに対して確認する。Presentationはpaired Presentation digestに対して別に検証する。schema validationだけではgameplay互換性、coverage、diagnostic認可、視覚受入を証明しない。
 
-次表は共通pinned baseのDTO監査であり、target contractや変換実装の主張ではない。
+次表は現行producer／consumerのDTOと残る運用・適合検証を示す。
 
 | 現行producer／public type | 現行identity／version | targetとの境界差 |
 | --- | --- | --- |
-| `senkei-world::VerifiedWorld`／`WorldIdentity` | Compiler 1.0.0。`world_id`、schema、compiler compatibility bounds、optional validation profile、SHA-256 `worldLogicDigest`、別SHA-256 `worldPresentationDigest`、Canonical Simulation／Presentation投影を持つ。 | identityは現行`NextRules`、Enbu `MatchContext`、Rust core Replay DTOへ運ばれない。digest内容のみではpaired identityにならない。 |
-| `senkei_model::NextRules`／`BattleMap` (`senritsu::next_world`由来) | Next mechanics 2.0.0。mapはID、x/y／region／allegiance付きnode、optional id/site/fordとedge全体のblocked／length／regionを持つedge、lane list、bases、towersを持つ。 | World identity／digestがない。基準Worldとendpoint／lengthは35 node／42 edgeで一致するがedge IDは0/42本だけ一致し、World／site IDは異なる。runtimeのedge全体bridge／ford flagはWorld crossing progress rangeを表さない。World側にはruntime lane-route listと12 tower placementもない。検証済みmapping／metadataなしの直接変換はlosslessでない。 |
-| `senkei_model::RulePackage`／検証済み`RulePlan` | Package ID／version／digest。canonical package digestは`ruleset.digest`を除いたcanonical serialize値のSHA-256。現行Next packageはinline `NextRules`。 | World identity referenceがなく、package validationだけではcompiled WorldとBattleMapが同一Artifactだと確認できない。 |
-| `senritsu::DomainCatalog`／`CatalogCompatibilityKey` | Catalog schema 1.0.0。Packageとengine/language/IR identity、catalog digest、optionalに別hashしたBehavior metadata extension digestを持つ。extensionはruleset ID／version／digestへ束縛され、extension reference／内容はcatalog digestに含まれる。 | matchに影響するBehavior metadataの束縛方法は未決定。cache keyだけではEnbu match／reproduction recordが当該extensionを実際に使った証明にならない。 |
+| `senkei-world::VerifiedWorld`／`WorldIdentity` | Compiler 1.0.0。paired identityとCanonical Simulation／Presentation投影。公開`WorldResolver`はexact identityをcontent-addressed keyとして解決する。 | Artifact配布／永続storeの運用はcaller責務。 |
+| `senkei_model::NextRules`／`BattleMap` (`senritsu::next_world`由来) | Mechanics 2.0.0。WorldIdentityRef、logical/presentation node positions、bases／routes／towers、versioned edge factsを持つ。 | Senritsu validationはresolved canonical projectionとの全体一致を確認する。Enbuのcrossing interval消費は別の適合テストで確認する。 |
+| `senkei_model::RulePackage`／検証済み`RulePlan` | canonical package digestはself digestとWorld presentation-only fieldsを除いたlogical rule contentをhashする。World logic identityとsemantic catalog digestを保持する。 | Presentation repro identityはpaired World referenceに含むが、simulation package digestには含めない。 |
+| `senritsu::DomainCatalog`／`CatalogCompatibilityKey` | Catalog schema 1.0.0。Package/engine/language/IR identity、catalog digest、metadata extension digestを持つ。semantic projectionはRulePackageに束縛し、presentation-only説明等はcatalog identityに残す。 | match実行側はVerifiedRulePlanとCatalogCompatibilityKeyを完全照合する。 |
 | `senkei-behavior::BehaviorResolver` | Behavior runtime 1.0.0。constructorでCatalogCompatibilityKeyをexact checkし、authored Behavior extensionを要求。汎用profile composition／candidate arbitrationは宣言済みmetadata、capability、arbitration、caller提供legalityを使う。 | Worldを調べたり、combat／pathfinding factを推測したり、effectをcommitしない。現行next packageにproduction Behavior profileはなく、合意済みDefault／subject／arbitrationがEnbu統合済みとの根拠にはならない。 |
-| `MatchContext`、`SimulationArtifact`、`ReproductionContext` | Shared model 1.0.0、Enbu 1.2.0、Rust replay schema 1.0.0。MatchContextはruleset referenceとcomponent versionを持つ。ReproductionContextはattacker／defender snapshot、RulePackage digest、MatchContextを持ち、既定ではprivate／non-serializable。 | World/compiler/profile/Catalog identityがなく、full reproductionにはpackage／World実体を別途保持または解決する必要がある。 |
-| Rust core `PresentationReplay`、JS `packages/replay-contract` | Core replayはschema／match／result digest／frames。JS replay 0.3 headerはSenritsu ID+digestとEnbu versionを持ち、Next adapterにはRulePackage／MatchResultも別途渡される。 | Rust replayはRulePackage／World identityを持たない。JS replayにはruleset versionとWorld ID／schema／profile／logic／presentation digestがない。どちらもpaired World-to-replay identityを完全には示さない。 |
+| `MatchContext`、`SimulationArtifact`、`ReproductionContext` | MatchContextとPresentationReplayはpaired World identityを持つ。ReplayはRulesetRefも持つ。Owner outputsはside keyed。 | Full reproductionにはpackage／World artifact自体を保持または解決する。 |
+| Rust core `PresentationReplay`、JS `packages/replay-contract` | Rust DTOはWorld identityとRulePackage ID/version/digestを表現する。JS replay contractはbranch別実装・migration statusで管理する。 | Readerは未知schema、missing identity、mismatchをrejectする。 |
 | Web Worker／core-WASM client | Worker protocol 1とcore API 1.0.0は独立したwire contract。 | Protocol versionだけでは各message境界に必要なCatalog key、World identity、RulePackage／Program digestを代替しない。 |
 
-したがって現行version／DTO名は互換性監査の入力であり、欠けたreferenceを免除しない。必須ID mapping／digestのないgenerated map、paired dependencyのないReplay、execution／reproductionまで束縛されないmatch-affecting Behavior extensionはend-to-end contractを満たさない。
+artifact resolverを越える保存・配布とEnbu interval消費のend-to-end適合検証は残る。各検証境界は必須identityを照合し、missing／mismatchを拒否する。match-affecting Behavior extensionを参照するpackageは、そのextensionが実行時に解決・照合されるまでverified planとして受理しない。

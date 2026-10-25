@@ -21,10 +21,24 @@ pub const RUNTIME_BATTLE_MAP_PROJECTION_SCHEMA: senkei_model::Version =
 
 /// The immutable authored World used by the v2 Battlefield package.
 pub fn compiled_authored_world() -> VerifiedWorld {
-    senkei_world::compile_json(include_bytes!(
+    senkei_world::compile(builtin_world_definition())
+        .expect("checked-in World Definition compiles")
+}
+
+pub(crate) fn builtin_world_definition() -> senkei_world::WorldDefinition {
+    serde_json::from_slice(include_bytes!(
         "../../senkei-world/fixtures/initial-battlefield.json"
     ))
-    .expect("checked-in World Definition compiles")
+    .expect("checked-in World Definition parses")
+}
+
+/// Resolver containing the built-in immutable Battlefield World artifact.
+/// Public package validation uses this store by default.
+pub fn builtin_world_resolver() -> senkei_world::WorldResolver {
+    let mut resolver = senkei_world::WorldResolver::default();
+    resolver.insert(compiled_authored_world())
+        .expect("built-in World identity is content-addressed and unique");
+    resolver
 }
 
 /// Optional explicitly supplied layout assertion. The canonical layout is

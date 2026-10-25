@@ -69,7 +69,9 @@ fn fixture() -> Fixture {
     let extension = test_extension(&provisional, &hero_ids);
     package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
     package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
-    let plan = senritsu::validate(package, &senritsu::next_engine_compatibility())
+    let mut extension = extension;
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    let plan = senritsu::validate_with_catalog_extension(package, &senritsu::next_engine_compatibility(), extension)
         .unwrap_or_else(|issues| panic!("bound fixture RulePackage must validate: {issues:#?}"));
     let extension = test_extension(&plan, &hero_ids);
     let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension)
@@ -78,11 +80,38 @@ fn fixture() -> Fixture {
     Fixture { plan, catalog, resolver, hero_ids }
 }
 
+#[test]
+fn package_rejects_missing_or_semantically_changed_behavior_extension_at_validation() {
+    let fixture = fixture();
+    let mut package = senritsu::next_package();
+    let mut extension = test_extension(&fixture.plan, &fixture.hero_ids);
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension.ruleset_digest = package.ruleset.digest.clone();
+
+    let missing = senritsu::validate(package.clone(), &senritsu::next_engine_compatibility())
+        .expect_err("a package reference cannot stand in for the Behavior artifact");
+    assert!(missing.iter().any(|issue| issue.code == "missing_catalog_semantics_extension"));
+
+    extension.behavior_profiles.senritsu_default.insert(
+        "engagement.mode".into(),
+        DomainValue::String("aggressive".into()),
+    );
+    let mismatch = senritsu::validate_with_catalog_extension(
+        package,
+        &senritsu::next_engine_compatibility(),
+        extension,
+    )
+    .expect_err("changed Behavior semantics must not produce an executable plan");
+    assert!(mismatch.iter().any(|issue| issue.code == "catalog_semantics_digest_mismatch"), "unexpected validation issues: {mismatch:#?}");
+}
+
 fn bind_extension(mut extension: CatalogMetadataExtension) -> (VerifiedRulePlan, CatalogMetadataExtension) {
     let mut package = senritsu::next_package();
     package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
     package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
-    let plan = senritsu::validate(package, &senritsu::next_engine_compatibility())
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    let plan = senritsu::validate_with_catalog_extension(package, &senritsu::next_engine_compatibility(), extension.clone())
         .expect("extension-bound RulePackage validates");
     extension.ruleset_id = plan.ruleset().id.clone();
     extension.ruleset_version = plan.ruleset().version;

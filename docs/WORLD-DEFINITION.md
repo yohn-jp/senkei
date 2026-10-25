@@ -123,6 +123,10 @@ Worldは進路候補とコストを提供するが**戦術の選好**までは�
 5. 初期Worldの地理的公平性・進軍線・ジャングルの短絡距離・固定橋・河上基地が実画面と論理グラフで対応する。
 6. Rendererはトポロジー以外の描画要素から通行／観測／攻撃結果を発生させず、非公開データを漏らさない。
 
-## 9. 残る実装時選択
+## 9. 現行実装と残る選択
 
-表層フォーマット、Compilerの具体的言語／crate、地形幾何・表示座標の補間は実装選択。World artifactは**不変content-addressed参照**（DEC-WORLD-BINDING-001）、Canonical WorldからRuntime BattleMapへは**損失のない版付きprojection拡張**（DEC-WORLD-MAP-CONVERSION-001）を方向性として採用。Resolver、Offline可用性、projection Schema、lane／tower等のmetadata、移行・互換テストは詳細未決。[RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が横断契約。Schema・一方向の責務・Digest分離・不変条件を維持する。
+現行Compilerは `senkei-world::VerifiedWorld` とpaired `WorldIdentity` を生成する。初期Battlefield Worldは論理ノード座標、bases、lane routes、tower placementsをLogic projectionに保持し、node／edgeの表示座標・path・material等を別Presentation projectionに保持する。Logic digestとPresentation digestは独立している。
+
+`senritsu::next_world::project_verified_world` は `RuntimeBattleMapProjection` を生成する。versioned `BattleMapWorldProjection` がsource World identity、全node／edge ID、track ranges、river-crossing progress subranges、bridge site、terrain／observation semanticsを保持し、`BattleMap.nodes.x/y` は論理座標、`presentation_x/y` は表示座標とする。canonical `next_package()` はこのCompiler出力を使い、別のRust地形テーブルからmap topologyを作らない。互換性検査はpaired identity・projection facts・両座標を完全一致で確認する。
+
+Senritsuの既定 `validate` はbuilt-in Battlefieldをcontent-addressed `WorldResolver` から解決する。`validate_with_world_resolver` は呼び出し側の不変artifact storeを受け取り、参照欠落、identity mismatch、package内projectionとresolved Worldの差を`VerifiedRulePlan`生成前に拒否する。API／projection Schemaの互換移行は引き続きversionedにする。観測遮蔽の幾何と表示補間は引き続き未確定で、Presentation geometryから論理規則を推測しない。

@@ -48,6 +48,39 @@ pub fn validate(
     package: RulePackage,
     engine: &EngineCompatibility,
 ) -> Result<VerifiedRulePlan, Vec<ValidationIssue>> {
+    let resolver = crate::next_world::builtin_world_resolver();
+    validate_with_world_resolver_and_catalog_extension(package, engine, &resolver, None)
+}
+
+/// Validates a RulePackage against an explicit immutable World artifact store.
+/// All next packages must resolve and exactly reproduce their versioned
+/// BattleMap projection before a VerifiedRulePlan can be constructed.
+pub fn validate_with_world_resolver(
+    package: RulePackage,
+    engine: &EngineCompatibility,
+    resolver: &senkei_world::WorldResolver,
+) -> Result<VerifiedRulePlan, Vec<ValidationIssue>> {
+    validate_with_world_resolver_and_catalog_extension(package, engine, resolver, None)
+}
+
+/// Validates the World projection and the package-bound catalog/Behavior
+/// extension before returning an executable plan. The extension is required
+/// exactly when the RulePackage carries its semantic content digest.
+pub fn validate_with_catalog_extension(
+    package: RulePackage,
+    engine: &EngineCompatibility,
+    extension: crate::catalog::CatalogMetadataExtension,
+) -> Result<VerifiedRulePlan, Vec<ValidationIssue>> {
+    let resolver = crate::next_world::builtin_world_resolver();
+    validate_with_world_resolver_and_catalog_extension(package, engine, &resolver, Some(extension))
+}
+
+pub fn validate_with_world_resolver_and_catalog_extension(
+    package: RulePackage,
+    engine: &EngineCompatibility,
+    resolver: &senkei_world::WorldResolver,
+    extension: Option<crate::catalog::CatalogMetadataExtension>,
+) -> Result<VerifiedRulePlan, Vec<ValidationIssue>> {
     let mut issues = Vec::new();
     validate_header_and_digest(&package, engine, &mut issues);
     validate_limits(&package, &mut issues);
@@ -56,6 +89,7 @@ pub fn validate(
     validate_world_initialization(&package, &mut issues);
     if package.next.is_none() { validate_roster_identity_contract(&package, &mut issues); }
     crate::next_validate::validate_next(&package, &mut issues);
+    validate_world_resolution(&package, resolver, &mut issues);
     validate_phases_and_rules(&package, &mut issues);
     validate_arbitration(&package, &mut issues);
     validate_costs(&package, &mut issues);
@@ -79,11 +113,84 @@ pub fn validate(
             format!("package could not be serialized for digest verification: {error}"),
         )]
     })?;
-    Ok(VerifiedRulePlan::from_validation(
+    let plan = VerifiedRulePlan::from_validation(
         package.ruleset.clone(),
         digest,
         RulePlan::from(&package),
-    ))
+    );
+    match (plan.catalog_semantics_digest(), extension) {
+        (None, None) => Ok(plan),
+        (Some(_), None) => Err(vec![ValidationIssue::new(
+            "missing_catalog_semantics_extension",
+            "catalog_semantics_digest",
+            "RulePackage references match-affecting catalog/Behavior metadata but no extension was resolved",
+        )]),
+        (_, Some(extension)) => {
+            crate::catalog::DomainCatalog::from_verified_plan_with_extension(&plan, extension)
+                .map(|_| plan)
+                .map_err(|error| error.issues.into_iter().map(|issue| ValidationIssue::new(
+                    issue.code,
+                    issue.path,
+                    issue.message,
+                )).collect())
+        }
+    }
+}
+
+fn validate_world_resolution(
+    package: &RulePackage,
+    resolver: &senkei_world::WorldResolver,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    let Some(next) = package.next.as_ref() else { return };
+    let Some(reference) = next.world_identity.as_ref() else {
+        issues.push(ValidationIssue::new(
+            "missing_world_identity",
+            "next.world_identity",
+            "RulePackage cannot be verified without its source World identity",
+        ));
+        return;
+    };
+    let world = match resolver.resolve(reference) {
+        Ok(world) => world,
+        Err(senkei_world::WorldResolveError::MissingWorld) => {
+            issues.push(ValidationIssue::new(
+                "world_artifact_missing",
+                "next.world_identity",
+                "referenced World artifact is unavailable in the resolver",
+            ));
+            return;
+        }
+        Err(senkei_world::WorldResolveError::IdentityMismatch) => {
+            issues.push(ValidationIssue::new(
+                "world_identity_mismatch",
+                "next.world_identity",
+                "resolved World artifact does not match the complete paired identity",
+            ));
+            return;
+        }
+        Err(senkei_world::WorldResolveError::IdentityConflict) => {
+            issues.push(ValidationIssue::new(
+                "world_resolver_conflict",
+                "next.world_identity",
+                "resolver contains conflicting immutable artifacts for one World identity",
+            ));
+            return;
+        }
+    };
+    match crate::next_world::project_verified_world(world, None) {
+        Ok(projection) if projection.runtime_map() == &next.map => {}
+        Ok(_) => issues.push(ValidationIssue::new(
+            "world_projection_mismatch",
+            "next.map.world_projection",
+            "BattleMap content does not exactly match the resolved canonical World projection",
+        )),
+        Err(error) => issues.push(ValidationIssue::new(
+            "world_projection_invalid",
+            "next.map.world_projection",
+            format!("resolved World cannot produce this BattleMap projection: {error}"),
+        )),
+    }
 }
 
 fn validate_header_and_digest(

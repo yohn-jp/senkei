@@ -36,6 +36,42 @@ mod tests {
         }
     }
     #[test]
+    fn next_validation_resolves_the_exact_world_and_projection() {
+        let package = next_package();
+        crate::validate(package.clone(), &next_engine_compatibility())
+            .expect("default validation resolves the built-in immutable World");
+
+        let empty = senkei_world::WorldResolver::default();
+        let issues = crate::validate_with_world_resolver(
+            package.clone(),
+            &next_engine_compatibility(),
+            &empty,
+        ).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "world_artifact_missing"));
+
+        let mut other_world = crate::next_world::builtin_world_definition();
+        other_world.presentation.materials[0].color = "#010203".into();
+        let other_world = senkei_world::compile(other_world).unwrap();
+        let mut wrong_resolver = senkei_world::WorldResolver::default();
+        wrong_resolver.insert(other_world).unwrap();
+        let issues = crate::validate_with_world_resolver(
+            package,
+            &next_engine_compatibility(),
+            &wrong_resolver,
+        ).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "world_identity_mismatch"));
+    }
+
+    #[test]
+    fn next_validation_rejects_self_digested_forged_projection() {
+        let mut package = next_package();
+        package.next.as_mut().unwrap().map.world_projection.as_mut().unwrap()
+            .edge_facts.values_mut().next().unwrap().terrain_profile_id = "forged-profile".into();
+        package.ruleset.digest = crate::canonical_digest(&package).unwrap();
+        let issues = crate::validate(package, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "world_projection_mismatch"));
+    }
+    #[test]
     fn package_rejects_missing_or_mismatched_paired_world_identity() {
         let mut missing = next_package();
         missing.next.as_mut().unwrap().world_identity = None;
@@ -48,6 +84,14 @@ mod tests {
         mismatch.ruleset.digest = crate::canonical_digest(&mismatch).unwrap();
         let issues = crate::validate(mismatch, &next_engine_compatibility()).unwrap_err();
         assert!(issues.iter().any(|issue| issue.code == "invalid_next_rules" && issue.path == "next.map.world_identity"));
+    }
+    #[test]
+    fn package_cannot_be_verified_without_referenced_behavior_extension() {
+        let mut package = next_package();
+        package.catalog_semantics_digest = Some(senkei_model::ContentDigest::new("c".repeat(64)));
+        package.ruleset.digest = crate::canonical_digest(&package).unwrap();
+        let issues = crate::validate(package, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "missing_catalog_semantics_extension"));
     }
     #[test]
     fn presentation_only_map_changes_do_not_change_rule_package_digest_but_logical_changes_do() {
