@@ -123,6 +123,7 @@ test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight
   await collection.getByRole("tab", { name: "Hero Collection" }).click();
   await page.locator(".next-catalog-card").nth(1).click();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const validSource = await source.inputValue();
   expect(validSource).toMatch(/^senkei next_orders/m);
@@ -169,6 +170,7 @@ test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight
   await secondHeroSquad.selectOption("squad-1");
   await expect(page.getByRole("alert").filter({ hasText: "This Squad has multiple starting nodes." })).toBeVisible();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(page.locator(".next-compile-state")).toHaveText("COMPILE REQUIRED");
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
@@ -184,6 +186,7 @@ test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight
   await firstSquadNode.selectOption(originalNode);
   await expect(firstSquadNode).toHaveValue(originalNode);
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(page.locator(".next-compile-state")).toHaveText("COMPILE REQUIRED");
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
@@ -206,6 +209,7 @@ test("Continue preserves the pinned setup and separately restores the latest uns
   await page.getByTestId("nav-next").click();
   await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console/ })).toBeVisible();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const pinnedSource = await source.inputValue();
   const unsavedSource = pinnedSource.replace("advance_01", "advance_01_recovered");
@@ -217,16 +221,19 @@ test("Continue preserves the pinned setup and separately restores the latest uns
   await expect(page.getByText("Unsaved edits are automatically saved as a separate local recovery copy.")).toBeVisible();
   await page.reload({ waitUntil: "networkidle" });
   await page.getByTestId("journey-home").getByRole("button", { name: "続きから" }).click();
-  await expect(page.getByTestId("journey-resume")).toBeVisible();
+  await expect(page.getByTestId("next-library")).toBeVisible();
   await page.screenshot({ path: resolve(journeyScreenshots, "continue-resume-options.png") });
-  await page.getByRole("button", { name: "編集を続ける" }).click();
+  await page.getByRole("button", { name: "Readyへ" }).click();
+  await page.getByRole("button", { name: "Jinreiを変更" }).first().click();
   await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console/ })).toBeVisible();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(source).toHaveValue(unsavedSource);
   await expect(page.getByText(/Recovered this unsaved draft after reload/)).toBeVisible();
 
   await page.getByRole("button", { name: "Restore saved" }).click();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(source).toHaveValue(pinnedSource);
   await page.screenshot({ path: resolve(journeyScreenshots, "continue-restored-pinned-setup.png") });
 });

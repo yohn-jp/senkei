@@ -483,6 +483,7 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   await page.getByTestId("nav-next").click();
   await expect(page.getByRole("heading", { name: /Battle workbench|Battlefield console|Observe the battlefield/ })).toBeVisible();
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await page.locator("#next-tab-battle").click();

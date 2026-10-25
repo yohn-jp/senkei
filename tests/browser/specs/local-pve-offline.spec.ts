@@ -65,7 +65,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await expect(page.getByRole("heading", { name: "Tactics & CU trace" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Conditions & intents" })).toBeVisible();
 
-  await navigation.getByRole("button", { name: /Library/ }).click();
+  await navigation.getByRole("button", { name: "旧版 Library", exact: true }).click();
   await page.getByPlaceholder("Strategy name").fill("Offline campaign journey");
   await page.getByRole("button", { name: "Create document" }).click();
   const savedDocument = page.getByRole("button", { name: "Open Offline campaign journey" });
@@ -78,7 +78,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
   await navigation.getByTestId("nav-editor").click();
-  await navigation.getByRole("button", { name: /Library/ }).click();
+  await navigation.getByRole("button", { name: "旧版 Library", exact: true }).click();
   await page.getByRole("button", { name: "Open Offline campaign journey" }).click();
   await expect(page.getByRole("heading", { name: "Offline campaign journey" })).toBeVisible();
   await navigation.getByRole("button", { name: /Tactics/ }).click();
@@ -111,7 +111,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await expect(acceptedDeployRow).toHaveCount(1);
   await expect(acceptedDeployRow.locator("strong")).toHaveText("deploy_ready_reserve");
   await expect(acceptedDeployRow.locator("small")).toContainText("Attacker · tick 4");
-  await navigation.getByRole("button", { name: /Library/ }).click();
+  await navigation.getByRole("button", { name: "旧版 Library", exact: true }).click();
   await page.getByRole("button", { name: "Save revision" }).click();
   await expect(page.getByText("REV 3", { exact: true })).toBeVisible();
 
@@ -120,7 +120,7 @@ test("real WASM local PvE journey remains playable offline", async ({ page, base
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("navigation", { name: "Workspace" }).getByTestId("nav-editor").click();
-  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Library/ }).click();
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "旧版 Library", exact: true }).click();
   await page.getByRole("button", { name: "Open Offline campaign journey" }).click();
   await expect(page.getByRole("heading", { name: "Offline campaign journey" })).toBeVisible();
   await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: /Tactics/ }).click();

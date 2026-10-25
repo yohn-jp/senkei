@@ -147,7 +147,7 @@ for (const viewport of viewports) {
         await page.screenshot({ path: resolve(evidenceDirectory, viewport.name + "-skill-tree-plan.png") });
       }
       if (label === "Squad Assembly") {
-        const split = page.getByRole("button", { name: "Use squad split 2+2+1" });
+        const split = page.getByRole("button", { name: "Use squad split 2+2+1", includeHidden: true });
         await split.click();
         await expect(split).toHaveAttribute("aria-pressed", "true");
         if (viewport.mobile) {
@@ -163,7 +163,7 @@ for (const viewport of viewports) {
         }
         const formation = page.getByRole("region", { name: "Squad formation preview" });
         await expect(formation).toBeVisible();
-        await expect(formation).toContainText("3+2");
+        await expect(formation.locator(".ha-group")).toHaveCount(2);
         const squadTwoStart = formation.getByRole("combobox", { name: "Starting node for Squad 2" });
         const squadTwo = formation.locator(".ha-group").filter({ hasText: "Squad 2 · 3 HEROES" });
         await expect(squadTwo.getByRole("listitem")).toHaveCount(3);
@@ -173,9 +173,9 @@ for (const viewport of viewports) {
         await expect(squadTwoStart).toHaveValue(secondNode!);
         const memberNodes = await squadTwo.locator("ol li small").allTextContents();
         expect(new Set(memberNodes.map((text) => text.split(" · ").slice(1).join(" · "))).size).toBe(1);
-        await expect(formation).toContainText("3+2");
+        await expect(formation.locator(".ha-group")).toHaveCount(2);
       }
-      await page.locator("#next-panel-formation .next-panel-header").scrollIntoViewIfNeeded();
+      await page.locator("#next-panel-formation .ha-header").scrollIntoViewIfNeeded();
       await page.screenshot({ path: resolve(evidenceDirectory, viewport.name + "-" + screenshot + ".png") });
     }
     expect(pageErrors).toEqual([]);

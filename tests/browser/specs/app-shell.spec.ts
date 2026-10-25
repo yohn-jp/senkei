@@ -18,8 +18,8 @@ test("production app navigation stays local", async ({ page, baseURL }) => {
   await expect(navigation.getByRole("button", { name: /Tactics/ })).toHaveAttribute("aria-current", "page");
   await navigation.getByRole("button", { name: /Battle lab/ }).click();
   await expect(navigation.getByRole("button", { name: /Battle lab/ })).toHaveAttribute("aria-current", "page");
-  await navigation.getByRole("button", { name: /Library/ }).click();
-  await expect(navigation.getByRole("button", { name: /Library/ })).toHaveAttribute("aria-current", "page");
+  await navigation.getByRole("button", { name: "旧版 Library", exact: true }).click();
+  await expect(navigation.getByRole("button", { name: "旧版 Library", exact: true })).toHaveAttribute("aria-current", "page");
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);

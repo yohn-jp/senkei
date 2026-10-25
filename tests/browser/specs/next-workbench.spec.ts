@@ -43,6 +43,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await pathB.click();
   await expect(pathB).toHaveAttribute("aria-pressed","true");
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const starterSource = await source.inputValue();
   // Keep the persistent-goal guard: repeated explicit MOVE is intentionally
@@ -72,11 +73,11 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   const initialObservationTarget = await battlefieldCanvas.getAttribute("data-camera-target");
   expect(initialObservationTarget).toBeTruthy();
   await page.locator("#next-tab-analysis").click();
-  await expect(page.getByRole("heading", {name:"Read the result"})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"戦績を 分析"})).toBeVisible();
   await page.screenshot({path:resolve(evidenceDirectory,"analysis-1440.png")});
-  const analysisEvent = page.locator(".next-analysis-panel .next-timeline li button").nth(8);
+  const analysisEvent = page.locator(".battle-analysis-timeline li button").nth(8);
   await expect(analysisEvent).toBeVisible();
-  const analysisTick = (await analysisEvent.locator(".next-timeline-tick").innerText()).replace(/\D/g, "");
+  const analysisTick = (await analysisEvent.locator(".battle-analysis-tick").innerText()).replace(/\D/g, "");
   await analysisEvent.click();
   await expect(page.locator("#next-tab-battle")).toHaveAttribute("aria-selected","true");
   await expect(page.locator(".next-tick-readout")).toContainText(`TICK ${Number(analysisTick)} /`);
@@ -195,6 +196,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await pathA.click();
   await expect(pathA).toHaveAttribute("aria-pressed","true");
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
   await expect(page.locator(".next-compile-state")).toHaveText("COMPILED");
@@ -245,6 +247,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await recoveryPathB.click();
   await expect(recoveryPathB).toHaveAttribute("aria-pressed","true");
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await source.fill(recoverySource);
   await page.getByRole("button", {name:"Compile tactics"}).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
@@ -267,6 +270,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await atelier.getByRole("tab", {name:"Skill Tree"}).click();
     await expect(page.getByRole("button", {name:"Choose Path B for slot-01"})).toHaveAttribute("aria-pressed","true");
     await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(recoverySource);
     await page.getByRole("button", { name: "Restore saved" }).click();
     await page.locator("#next-tab-formation").click();
@@ -275,6 +279,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await atelier.getByRole("tab", {name:"Skill Tree"}).click();
     await expect(page.getByRole("button", {name:"Choose Path A for slot-01"})).toHaveAttribute("aria-pressed","true");
     await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(editedSource);
     await page.getByRole("button", {name:"Compile tactics"}).click();
     await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();

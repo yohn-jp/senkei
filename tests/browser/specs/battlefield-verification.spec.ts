@@ -929,6 +929,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   await expect(page.getByText(/REAL LOCAL SIMULATION|LOCAL ENBU REPLAY/i).first()).toBeVisible();
 
   await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const defaultSource = await source.inputValue();
   let selectedTacticSource = defaultSource;
