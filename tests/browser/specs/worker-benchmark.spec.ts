@@ -1,4 +1,3 @@
-import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
@@ -41,19 +40,25 @@ test("production Worker batches the six Next campaign drafts and reports protoco
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
   const pageErrors: string[] = [];
   const externalRequests: string[] = [];
+  let servedWorkerUrl: string | null = null;
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.context().on("request", (request) => {
-    if (new URL(request.url()).origin !== baseURL) externalRequests.push(request.url());
+    const url = new URL(request.url());
+    if (url.origin !== new URL(baseURL).origin) {
+      externalRequests.push(request.url());
+      return;
+    }
+    if (!servedWorkerUrl && /\/assets\/core\.worker-[^/]+\.js$/.test(url.pathname)) {
+      servedWorkerUrl = url.href;
+    }
   });
 
   await page.goto(baseURL, { waitUntil: "networkidle" });
   await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible();
-  const workerAsset = readdirSync(resolve(repositoryRoot, "dist/web/assets"))
-    .find((name) => /^core\.worker-.*\.js$/.test(name));
-  expect(workerAsset, "the production build must contain its real core Worker").toBeTruthy();
+  expect(servedWorkerUrl, "the production page must request its real same-origin core Worker asset").toBeTruthy();
 
-  await page.evaluate(async (assetName) => {
-    const worker = new Worker(`/assets/${assetName}`, { type: "module", name: "next-campaign-benchmark" });
+  await page.evaluate(async (workerUrl) => {
+    const worker = new Worker(workerUrl, { type: "module", name: "next-campaign-benchmark" });
     const pending = new Map<string, (reply: WorkerReply) => void>();
     let sequence = 0;
     worker.addEventListener("error", (event) => {
@@ -84,7 +89,7 @@ test("production Worker batches the six Next campaign drafts and reports protoco
         if (pending.delete(request_id)) reject(new Error(`Production Worker timed out: ${operation}`));
       }, 120_000);
     });
-  }, workerAsset!);
+  }, servedWorkerUrl!);
 
   const packageReply = await page.evaluate(() => (window as WorkerWindow).__senkeiTestRequest!("next_ruleset", {}));
   expect(packageReply.ok, JSON.stringify(packageReply)).toBe(true);
