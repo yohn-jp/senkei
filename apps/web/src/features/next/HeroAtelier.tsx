@@ -88,7 +88,6 @@ export function HeroAtelier({
   const [mobileSquadStage, setMobileSquadStage] = useState<"split" | "assign" | "deploy">("split");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const screenRef = useRef<HTMLElement>(null);
-  const keepTabFocus = useRef(false);
   const currentSlot = slots[activeSlot] ?? null;
   const currentHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
@@ -106,8 +105,6 @@ export function HeroAtelier({
     onActiveSlotChange(index);
   };
   useEffect(() => {
-    if (!keepTabFocus.current) screenRef.current?.querySelector<HTMLElement>(".ha-header h3")?.focus({ preventScroll: true });
-    keepTabFocus.current = false;
     screenRef.current?.scrollIntoView({ block: "start" });
   }, [screen]);
   const changeHero = (hero: HeroDefinition): void => {
@@ -163,7 +160,6 @@ export function HeroAtelier({
           if (nextIndex < 0) return;
           event.preventDefault();
           const target = SCREENS[nextIndex]!;
-          keepTabFocus.current = true;
           onScreenChange(target.id);
           document.getElementById("next-atelier-" + target.id)?.focus();
         }} role="tab" tabIndex={screen === item.id ? 0 : -1} type="button">

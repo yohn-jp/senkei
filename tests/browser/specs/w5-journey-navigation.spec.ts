@@ -17,7 +17,7 @@ for (const viewport of viewports) test(`W5 journey navigation and recovery contr
   const page = await context.newPage();
   await page.goto("/");
   await expect(page.getByTestId("journey-home")).toBeVisible({ timeout: 60_000 });
-  if (viewport.width < 761) await page.getByText("自分で作る・再開する", { exact: true }).click();
+  if (viewport.width < 761) await page.getByText("戦役・自由編成・再開", { exact: true }).click();
   await page.getByTestId("journey-home").getByRole("button", { name: "自分で編成", exact: true }).click();
   await page.getByRole("button", { name: "この条件で進む" }).click();
 
@@ -26,10 +26,11 @@ for (const viewport of viewports) test(`W5 journey navigation and recovery contr
   await expect(collection).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "Choose hero for slot 2" }).click();
   await page.getByRole("region", { name: "Filtered hero catalog" }).getByRole("button", { name: /F02.*Stoneheart/ }).click();
-  await atelier.getByRole("tab", { name: "Hero Detail" }).click();
-  await expect(page.getByRole("heading", { name: "Hero detail" })).toBeFocused();
-  await expect(page.getByRole("heading", { name: "Stoneheart" })).toBeVisible();
   await expect(page.getByLabel("Hero change impact")).toContainText("Stoneheart");
+  const detailTab = atelier.getByRole("tab", { name: "Hero Detail" });
+  await detailTab.click();
+  await expect(detailTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Stoneheart" })).toBeVisible();
 
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
@@ -40,7 +41,7 @@ for (const viewport of viewports) test(`W5 journey navigation and recovery contr
   await library.getByRole("tab", { name: "S14 · Library" }).click();
   await library.getByRole("button", { name: "Save current setup", exact: true }).click();
   await library.getByRole("button", { name: "Clear pinned…", exact: true }).click();
-  const confirmation = library.getByRole("alertdialog", { name: "Confirm Library change" });
+  const confirmation = library.getByRole("alertdialog", { name: "Clear the pinned setup?" });
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByRole("button", { name: "Confirm clear" })).toBeVisible();
   if (viewport.width < 761) {
