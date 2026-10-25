@@ -99,7 +99,10 @@ fn parameters() -> BTreeMap<String, i64> {
         ("solo_high_mobility_milli".into(), 1_100),
         ("mid_observation_radius_wu".into(), 240),
         ("mid_capture_ticks".into(), 8),
-        ("attack_preparation_ticks".into(), 1),
+        // v2 uses shortest-legal-graph distance for vision and no terrain occlusion.
+        ("vision_graph_metric".into(), 1),
+        ("vision_occlusion_enabled".into(), 0),
+        ("attack_preparation_ticks".into(), 0),
         ("attack_recovery_ticks".into(), 1),
         // Minion cadence and sensor radius are implementation starting points.
         ("minion_spawn_interval".into(), 30),
@@ -642,6 +645,8 @@ mod tests {
             ("bridge_expand_ticks", 12), ("bridge_rebuild_ticks", 24),
             ("bridge_destroy_ticks", 8), ("bridge_work_energy", 25),
             ("mid_observation_radius_wu", 240), ("mid_capture_ticks", 8),
+            ("vision_graph_metric", 1), ("vision_occlusion_enabled", 0),
+            ("attack_preparation_ticks", 0), ("attack_recovery_ticks", 1),
         ] { assert_eq!(rules.parameters[key], value, "{key}"); }
         assert_eq!(rules.parameters["minion_vision_speed_milli"], 1_200);
         assert_eq!(rules.parameters["squad_5_speed_milli"], 800);

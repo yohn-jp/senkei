@@ -36,6 +36,16 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         );
     }
     check(
+        r.parameters.get("vision_graph_metric") == Some(&1),
+        "next.parameters.vision_graph_metric",
+        "Battlefield v2 vision uses legal graph-distance metric 1",
+    );
+    check(
+        r.parameters.get("vision_occlusion_enabled") == Some(&0),
+        "next.parameters.vision_occlusion_enabled",
+        "Battlefield v2 visibility does not use geometric occlusion",
+    );
+    check(
         r.parameters.get("xp_scale") == Some(&2520),
         "next.parameters.xp_scale",
         "exact XP storage requires 2520 quanta per XP",
