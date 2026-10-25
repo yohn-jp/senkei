@@ -58,6 +58,16 @@ pub struct BattleMapWorldProjection {
     pub node_ids: std::collections::BTreeSet<String>,
     pub edge_facts: BTreeMap<String, WorldEdgeFacts>,
     pub bridge_sites: BTreeMap<String, Vec<String>>,
+    /// Canonical render geometry and materials from the same sealed World.
+    /// This payload is exact-validated through WorldResolver and excluded
+    /// from the simulation RulePackage digest.
+    pub presentation_artifact: CanonicalPresentationWorldArtifact,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanonicalPresentationWorldArtifact {
+    pub schema_version: Version,
+    pub content: serde_json::Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

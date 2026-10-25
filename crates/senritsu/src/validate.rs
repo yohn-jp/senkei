@@ -26,6 +26,7 @@ pub fn canonical_digest(package: &RulePackage) -> Result<ContentDigest, serde_js
                 if let Some(identity) = projection.get_mut("source_identity").and_then(serde_json::Value::as_object_mut) {
                     identity.remove("presentation_digest");
                 }
+                projection.remove("presentation_artifact");
             }
             if let Some(nodes) = map.get_mut("nodes").and_then(serde_json::Value::as_object_mut) {
                 for node in nodes.values_mut() {

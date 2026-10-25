@@ -3,8 +3,6 @@
 //! Coordinates only arrange the authored battlefield. Edge identities,
 //! endpoint membership, length, terrain and fixed bridge site are the rules.
 
-// The adapter is intentionally staged without changing `next_package` until
-// World identities and runtime semantics are proven compatible.
 #![allow(dead_code)]
 
 use senkei_model::{BattleMap, BattleMapWorldProjection, MapEdge, MapNode, TowerPlacement, WorldEdgeFacts, WorldRiverCrossing, WorldTrackRange};
@@ -352,7 +350,7 @@ pub fn project_verified_world(
             // identity remains separately preserved in the binding below.
             id: BATTLEFIELD_MAP_ID.into(),
             world_identity: Some(identity.to_model_ref()),
-            world_projection: Some(world_projection(identity, simulation)?),
+            world_projection: Some(world_projection(identity, simulation, presentation)?),
             nodes,
             edges,
             lanes: metadata.lanes.clone(),
@@ -366,6 +364,7 @@ pub fn project_verified_world(
 fn world_projection(
     identity: &WorldIdentity,
     simulation: &CanonicalSimulationWorld,
+    presentation: &CanonicalPresentationWorld,
 ) -> Result<BattleMapWorldProjection, WorldMapAdapterError> {
     let mut edge_facts = BTreeMap::new();
     for (id, edge) in &simulation.topology.edges {
@@ -414,6 +413,13 @@ fn world_projection(
         node_ids: simulation.topology.nodes.keys().cloned().collect(),
         edge_facts,
         bridge_sites: simulation.topology.bridge_sites.iter().map(|(id, site)| (id.clone(), site.edge_ids.clone())).collect(),
+        presentation_artifact: senkei_model::CanonicalPresentationWorldArtifact {
+            schema_version: RUNTIME_BATTLE_MAP_PROJECTION_SCHEMA,
+            content: serde_json::to_value(presentation).map_err(|error| adapter_error(
+                "presentation_serialization_failed",
+                format!("canonical presentation could not be serialized: {error}"),
+            ))?,
+        },
     })
 }
 
@@ -1274,6 +1280,7 @@ mod tests {
         if let Some(source) = projection.world_projection.as_mut() {
             source.source_identity.presentation_digest =
                 senkei_model::ContentDigest::new("0".repeat(64));
+            source.presentation_artifact.content = serde_json::Value::Null;
         }
         for node in projection.nodes.values_mut() {
             node.presentation_x = 0;

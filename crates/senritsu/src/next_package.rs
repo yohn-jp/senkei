@@ -72,6 +72,17 @@ mod tests {
         assert!(issues.iter().any(|issue| issue.code == "world_projection_mismatch"));
     }
     #[test]
+    fn presentation_artifact_is_paired_and_exact_validated_but_not_a_rule_digest_input() {
+        let mut package = next_package();
+        let original = crate::canonical_digest(&package).unwrap();
+        package.next.as_mut().unwrap().map.world_projection.as_mut().unwrap()
+            .presentation_artifact.content["lighting"]["key_percent"] = serde_json::json!(999);
+        assert_eq!(crate::canonical_digest(&package).unwrap(), original);
+        package.ruleset.digest = original;
+        let issues = crate::validate(package, &next_engine_compatibility()).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.code == "world_projection_mismatch"));
+    }
+    #[test]
     fn package_rejects_missing_or_mismatched_paired_world_identity() {
         let mut missing = next_package();
         missing.next.as_mut().unwrap().world_identity = None;
