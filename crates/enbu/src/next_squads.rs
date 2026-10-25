@@ -604,24 +604,15 @@ fn merge(
     if !cohesive(world, &members, distance, rules) {
         return;
     }
-    // Bridge range deliberately ignores lateral offsets. That does not permit
-    // a merge to distribute one new tactical subject across separate tracks.
+    // A merge must form one spatial subject without teleporting members or
+    // implicitly distributing them across connectors or lateral tracks.
     for (index, left_id) in members.iter().enumerate() {
         let left = &world.entities[left_id];
-        let from = support::string(left, "node");
-        let to = support::string(left, "edge_to");
-        if to.is_empty() { continue; }
-        let site = rules.map.edges.iter().find(|edge| !edge.bridge_site.is_empty()
-            && ((edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)))
-            .map(|edge| edge.bridge_site.as_str());
-        let Some(site) = site else { continue };
         for right_id in members.iter().skip(index + 1) {
             let right = &world.entities[right_id];
-            let right_from = support::string(right, "node");
-            let right_to = support::string(right, "edge_to");
-            let same_site = rules.map.edges.iter().any(|edge| edge.bridge_site == site
-                && ((edge.from == right_from && edge.to == right_to) || (edge.to == right_from && edge.from == right_to)));
-            if same_site && support::string(left, "track") != support::string(right, "track") { return; }
+            if support::combat_distance2(left, right, rules).is_none()
+                || support::string(left, "track") != support::string(right, "track")
+            { return; }
         }
     }
 
