@@ -44,7 +44,7 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.locator("#next-tab-jinrei").click();
   const source = page.getByRole("textbox", { name: "Jinrei source" });
   const starterSource = await source.inputValue();
-  const editedSource = starterSource.replace("when true,", "when match.tick < 374,");
+  const editedSource = starterSource.replace(/when [^\n]+,/, "when match.tick < 374,");
   const recoverySource = editedSource.replace("match.tick < 374", "match.tick < 338");
   expect(editedSource).not.toBe(starterSource);
   await source.fill(editedSource);

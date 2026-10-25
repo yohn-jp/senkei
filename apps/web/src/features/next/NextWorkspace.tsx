@@ -425,7 +425,10 @@ function createStarterJinrei(packageValue: RulePackage, side: Side, slots: reado
       }
       return `"${node}"`;
     });
-    return `    action advance_${String(index + 1).padStart(2, "0")} {\n        when true,\n        do move(${args.join(", ")}),\n    }`;
+    const needsGoal = "goal" in actorSchema.visible_fields
+      ? `any hero in ${actorCollection} { hero.${actorKey} == "${slot.slot_id}", hero.goal == "", hero.hp > 0, }`
+      : "match.tick == 1";
+    return `    action advance_${String(index + 1).padStart(2, "0")} {\n        when ${needsGoal},\n        do move(${args.join(", ")}),\n    }`;
   });
   const activate = packageValue.domain.capabilities.activate;
   const ownHeroes = Object.entries(packageValue.domain.collections).find(([, collection]) =>
