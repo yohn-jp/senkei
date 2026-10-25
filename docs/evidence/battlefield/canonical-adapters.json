@@ -1,0 +1,36 @@
+{
+  "schema": "senkei-battlefield-adapter-evidence/v1",
+  "cases": [
+    {
+      "request_id": "next-battlefield-canonical",
+      "input_sha256": "9b68fc08d0199df38ae0298d48c838ca1d0466f9a640fb6de6a4b38f9608f4ed",
+      "native_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
+      "repeated_native_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
+      "wasm_sha256": "dc9c171fe4247ab86d8ca25a609c4e86116dacfbc4341f76d9471ac0ff162883",
+      "ok": true,
+      "final_tick": 70,
+      "final_state_digest": "0d3d24a2c1dbf6266127236b7dc1d1d722d422fd4c01d33392b0173e125901ce",
+      "cu_spent": {
+        "attacker": 2038,
+        "defender": 164
+      },
+      "public_replay_sha256": "c87ad77243da3e3351d7c868a84c0363a221945cea27f8f7d11fa8dfdba2bcca"
+    },
+    {
+      "request_id": "next-battlefield-owner",
+      "input_sha256": "6e32f25659087bd1ae938f122f15c2dc7747620afcf1c738e5a889c91822a142",
+      "native_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
+      "repeated_native_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
+      "wasm_sha256": "ebdf18d9894ea0f439ca10f4b734e1ff2990195dadf03511660323eeb9ecd1e1",
+      "ok": true,
+      "final_tick": 70,
+      "final_state_digest": "0d3d24a2c1dbf6266127236b7dc1d1d722d422fd4c01d33392b0173e125901ce",
+      "cu_spent": {
+        "attacker": 2038,
+        "defender": 164
+      },
+      "public_replay_sha256": "c87ad77243da3e3351d7c868a84c0363a221945cea27f8f7d11fa8dfdba2bcca",
+      "owner_replay_sha256": "50fde44f82f8f931e94e7e6da4e78fd8f30474ba5d0dca8a4297f03712a8ea06"
+    }
+  ]
+}

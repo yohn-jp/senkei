@@ -1,0 +1,61 @@
+{
+  "evidenceKind": "compiled real Jinrei executed by desktop and mobile browser WASM",
+  "sourceRevision": "5a725880a954ef47935b1853dcd298b2a567ef55",
+  "buildRevision": "444f5afb40795b8a3b1a0b68e1a4712ef837ec37",
+  "inputSha256": "d577f393647e754bdf04dd9ff682d541eab6a6ba412e79bfbdfc68eb9a1c643f",
+  "ruleset": {
+    "digest": "8bfadf6a16385431a0b94d3ed14eda39850a2306a88751ad846ee1b4cbf68c46",
+    "id": "senkei.next",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "engineVersion": {
+    "major": 1,
+    "minor": 2,
+    "patch": 0
+  },
+  "result": {
+    "cu_spent": {
+      "attacker": 2038,
+      "defender": 164
+    },
+    "final_state_digest": "0d3d24a2c1dbf6266127236b7dc1d1d722d422fd4c01d33392b0173e125901ce",
+    "final_tick": 70,
+    "match_id": "battlefield-canonical-interactions",
+    "outcome": "draw",
+    "statistics": {},
+    "termination_reason": "time_limit"
+  },
+  "publicReplaySha256": "c87ad77243da3e3351d7c868a84c0363a221945cea27f8f7d11fa8dfdba2bcca",
+  "ownerReplaySha256": "50fde44f82f8f931e94e7e6da4e78fd8f30474ba5d0dca8a4297f03712a8ea06",
+  "fullDesktopMobileReplayEquality": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "wasmStatuses": [
+    200,
+    200,
+    200,
+    200
+  ],
+  "ticks": {
+    "lateralCrossing": 3,
+    "midDestroyed": 11,
+    "topExpanded": 13,
+    "topDestroyed": 23,
+    "ford": 24,
+    "topRebuilt": 49,
+    "bridgeTransit": 50
+  },
+  "renderer": "Chromium with SwiftShader; hardware GPU and physical touch not checked"
+}
