@@ -1597,10 +1597,10 @@ fn canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_
     assert_eq!(entity_string(pursuer, "edge_to"), "N.MID.OBS", "the actual pursuit begins along a connected edge to the observed target node");
     assert!(entity_integer(pursuer, "edge_progress") > 0);
     let retreating = owner_hero_at(&artifact, 2, "slot-4");
-    assert_eq!(entity_string(retreating, "edge_from"), "N.MID.OBS");
+    assert_eq!(entity_string(retreating, "node"), "N.MID.OBS");
     assert_eq!(entity_string(retreating, "edge_to"), "A.MID.BANK", "retreat uses the legal allied connector out of MID");
     let bridge_crossing = owner_hero_at(&artifact, 50, "slot-2");
-    assert_eq!(entity_string(bridge_crossing, "edge_from"), "A.TOP.BANK");
+    assert_eq!(entity_string(bridge_crossing, "node"), "A.TOP.BANK");
     assert_eq!(entity_string(bridge_crossing, "edge_to"), "B.TOP.BANK", "the rebuilt fixed bridge remains an actual traversable edge");
 
     let ford_frame = artifact.owner_replay.as_ref().unwrap().frames.iter().find(|frame| {

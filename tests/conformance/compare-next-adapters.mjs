@@ -163,7 +163,7 @@ for (let index = 0; index < requests.length; index += 1) {
       fail("authorized public replay contains no real unit traversing a Jungle ford");
     }
     if (!entries(50).some((entity) => entity.entity_type === "hero" &&
-        field(entity, "edge_from") === "A.TOP.BANK" && field(entity, "edge_to") === "B.TOP.BANK")) {
+        field(entity, "node") === "A.TOP.BANK" && field(entity, "edge_to") === "B.TOP.BANK")) {
       fail("authorized public replay contains no real unit traversing the rebuilt fixed TOP bridge");
     }
     if (["slot_id", "squad", "goal", "internal_secret_marker"].some((marker) => JSON.stringify(result).includes(marker))) {
