@@ -1953,6 +1953,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   };
 
   const repairPreflight = (target: PreflightRepairTarget): void => {
+    const failure = currentPreflightError;
+    if (!failure || failure.problem.inputKey !== launchKeyRef.current
+      || stableKey(failure.problem.repair) !== stableKey(target)) return;
     const requestId = newExperimentId("preflight-repair");
     switch (target.kind) {
       case "own_hero":
