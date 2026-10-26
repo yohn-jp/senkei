@@ -10,9 +10,12 @@ import type {
   TacticalProgram,
 } from "./core-model";
 import type {
+  ActionSourceMap,
   CatalogStamp,
   CompilerRequest as EditorCompileRequest,
 } from "@senkei/jinrei-editor";
+
+export type { ActionSourceMap, ActionSourceLocation } from "@senkei/jinrei-editor";
 
 /** JSON values crossing the Rust/WASM boundary. Domain shapes stay core-owned. */
 export type CoreJsonValue =
@@ -99,6 +102,7 @@ export interface CompileOutcome {
   readonly ast: StructuredTacticsAst;
   readonly estimated_cu: LogicalCu;
   readonly diagnostics: readonly CompileDiagnostic[];
+  readonly source_map?: ActionSourceMap;
 }
 
 /** Exact-stamped result returned by the existing Senritsu/Jinrei editor adapter. */
