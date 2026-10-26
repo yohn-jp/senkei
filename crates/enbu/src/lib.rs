@@ -423,9 +423,8 @@ pub fn simulate<P: TacticalExecutionPort>(
                 };
                 owner_frames.get_mut(&side).unwrap().push(frame);
             }
-            public_events.extend(next_events.into_iter().filter(|event| {
-                let known = |id: &senkei_model::EntityId| before_next.entities.contains_key(id) && after.entities.contains_key(id);
-                event.entity.as_ref().is_some_and(known) && event.payload.values().all(|v| match v { DomainValue::Entity(id) => known(id), DomainValue::List(_) | DomainValue::Record(_) => false, _ => true })
+            public_events.extend(next_events.into_iter().filter_map(|event| {
+                project_next_public_event(event, &plan.presentation, &before_next, &after)
             }));
         }
         replay_frames.push(ReplayFrame {
@@ -1486,10 +1485,35 @@ fn arithmetic_error(message: impl Into<String>) -> ApiError { api_error(ApiError
 fn api_error(code: ApiErrorCode, message: impl Into<String>) -> ApiError { ApiError::new(code, message) }
 
 fn presentation_view(world: &WorldState, plan: &RulePlan) -> senkei_model::WorldStateView {
-    match &plan.next { Some(next) => next_vision::public_view(world,next), None => world::public_view(world,plan) }
+    match &plan.next { Some(next) => next_vision::public_view_with_policy(world,next,&plan.presentation), None => world::public_view(world,plan) }
 }
 fn observation(world: &WorldState, plan: &RulePlan, side: CombatantSide, tick:u32, index: &world::ProjectionIndex) -> Result<ObservationSnapshot,ApiError> {
     if plan.next.is_some() { Ok(next_vision::observation(world,plan,side,tick)) } else { world::observation(world,plan,side,tick,index) }
+}
+
+/// The Next-specific event producer must obey the same RulePlan allowlist as
+/// the generic Enbu producer, after the existing public visibility check.
+fn project_next_public_event(
+    mut event: senkei_model::PresentationEvent,
+    policy: &senkei_model::PresentationPolicy,
+    before: &senkei_model::WorldStateView,
+    after: &senkei_model::WorldStateView,
+) -> Option<senkei_model::PresentationEvent> {
+    let schema = policy.visible_events.get(&event.event)?;
+    let known = |id: &senkei_model::EntityId| {
+        before.entities.contains_key(id) && after.entities.contains_key(id)
+    };
+    if !event.entity.as_ref().is_some_and(known)
+        || !event.payload.values().all(|value| match value {
+            DomainValue::Entity(id) => known(id),
+            DomainValue::List(_) | DomainValue::Record(_) => false,
+            _ => true,
+        })
+    {
+        return None;
+    }
+    event.payload.retain(|field, _| schema.payload.contains_key(field));
+    Some(event)
 }
 
 fn event_references_known(event:&senkei_model::PresentationEvent,before:&senkei_model::WorldStateView,after:&senkei_model::WorldStateView)->bool {
@@ -1719,5 +1743,54 @@ mod actor_order_domain_tests {
         ).expect_err("declared but incomplete compiled order must fail closed");
         assert_eq!(error.code, ApiErrorCode::ValidationFailed);
         assert!(error.message.contains("unique complete authored order"));
+    }
+}
+
+#[cfg(test)]
+mod next_public_projection_tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn next_public_event_respects_authored_allowlist() {
+        use senkei_model::{DomainType, EntityStateView, EventId, EventSchema, FieldId, PresentationPolicy, PresentationEvent, TypeId, WorldStateView};
+        let entity_id = EntityId::from("shared");
+        let view = WorldStateView {
+            entities: BTreeMap::from([(entity_id.clone(), EntityStateView {
+                entity_type: TypeId::from("hero"),
+                owner: Some(CombatantSide::Attacker),
+                fields: BTreeMap::new(),
+            })]),
+            global_fields: BTreeMap::new(),
+        };
+        let permitted = PresentationPolicy {
+            visible_entity_fields: BTreeMap::from([(
+                TypeId::from("hero"),
+                BTreeSet::from([FieldId::from("hp")]),
+            )]),
+            visible_global_fields: BTreeSet::new(),
+            visible_events: BTreeMap::from([(
+                EventId::from("next.attack"),
+                EventSchema { payload: BTreeMap::from([(
+                    FieldId::from("source"),
+                    DomainType::Entity { entity_type: None },
+                )]) },
+            )]),
+        };
+        let event = PresentationEvent {
+            event: EventId::from("next.attack"),
+            entity: Some(entity_id.clone()),
+            payload: BTreeMap::from([
+                (FieldId::from("source"), DomainValue::Entity(entity_id.clone())),
+                (FieldId::from("private_detail"), DomainValue::String("secret".into())),
+            ]),
+        };
+        let allowed = project_next_public_event(event.clone(), &permitted, &view, &view).unwrap();
+        assert_eq!(allowed.payload.len(), 1);
+        assert!(allowed.payload.contains_key(&FieldId::from("source")));
+        let denied = PresentationPolicy { visible_events: BTreeMap::new(), ..permitted };
+        assert!(project_next_public_event(event.clone(), &denied, &view, &view).is_none());
+        let unknown = WorldStateView { entities: BTreeMap::new(), global_fields: BTreeMap::new() };
+        assert!(project_next_public_event(event, &permitted, &unknown, &view).is_none());
     }
 }

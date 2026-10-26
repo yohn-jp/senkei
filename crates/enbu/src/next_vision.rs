@@ -282,6 +282,26 @@ pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
     }
 }
 
+/// Restrict the already visibility-filtered public Next view to the
+/// exact allowlist authored by the verified RulePlan. This only narrows
+/// exposure; it cannot make a hidden entity or field visible.
+pub(crate) fn public_view_with_policy(
+    world: &WorldState,
+    rules: &NextRules,
+    policy: &PresentationPolicy,
+) -> WorldStateView {
+    let mut view = public_view(world, rules);
+    view.entities.retain(|_, entity| {
+        let Some(allowed) = policy.visible_entity_fields.get(&entity.entity_type) else {
+            return false;
+        };
+        entity.fields.retain(|field, _| allowed.contains(field));
+        true
+    });
+    view.global_fields.retain(|field, _| policy.visible_global_fields.contains(field));
+    view
+}
+
 /// Projects the current battlefield from one player's perspective. Owner-only
 /// fields are added only for that side's own entities; hidden enemies remain
 /// absent from the view.
@@ -1300,6 +1320,19 @@ mod tests {
         );
         world.entities.insert("seen-by-both".into(), minion);
         let view = public_view(&world, &rules);
+        let restricted = public_view_with_policy(&world, &rules, &PresentationPolicy {
+            visible_events: BTreeMap::new(),
+            visible_entity_fields: BTreeMap::from([(
+                TypeId::from(MINION),
+                BTreeSet::from([FieldId::from("hp")]),
+            )]),
+            visible_global_fields: BTreeSet::new(),
+        });
+        assert_eq!(restricted.entities.len(), 1);
+        let restricted_minion = &restricted.entities[&EntityId::from("seen-by-both")];
+        assert_eq!(restricted_minion.fields.len(), 1);
+        assert_eq!(restricted_minion.fields[&FieldId::from("hp")], DomainValue::Integer(10));
+        assert!(!restricted_minion.fields.contains_key(&FieldId::from("catalog_id")));
         assert!(!view.entities.contains_key(&EntityId::from("ally-hero")));
         assert!(!view.entities.contains_key(&EntityId::from("enemy-hero")));
         let minion = &view.entities[&EntityId::from("seen-by-both")];
