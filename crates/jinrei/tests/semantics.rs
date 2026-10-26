@@ -501,6 +501,28 @@ fn collection_grammar_including_standalone_filter_formats_losslessly() {
 }
 
 #[test]
+fn nested_quantifier_shadowing_restores_outer_binding() {
+    let rules = rules(true, false);
+    let source = r#"senkei shadowed {
+        action check {
+            when any u in allies.units {
+                u.health == 2,
+                any u in enemies.units { u.health == 3, },
+                u.health == 2,
+            },
+            do act(),
+        },
+    }"#;
+    let compiled = compile(source, &rules).unwrap();
+    for optimize in [false, true] {
+        let output = execute(&rules, &compiled.program, &observation(true, false), 100_000, optimize);
+        assert_eq!(output.status, TacticalExecutionStatus::Completed);
+        assert_eq!(output.intents.len(), 1, "outer u must survive nested u");
+        assert_eq!(output.intents[0].action_id.as_str(), "check");
+    }
+}
+
+#[test]
 fn implicit_collection_conjunctions_have_all_runtime_cost_operations() {
     let rules = rules(true, false);
     let obs = observation(true, false);

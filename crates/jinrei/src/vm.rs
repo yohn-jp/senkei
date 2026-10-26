@@ -267,9 +267,13 @@ impl<'a> Eval<'a> {
                         let mut aggregate = if is_any { Truth::False } else { Truth::True };
                         for member in members {
                             self.charge_item(CostKind::CollectionIteration)?;
-                            bindings.insert(binding.clone(), member);
+                            let previous = bindings.insert(binding.clone(), member);
                             let result = self.eval_implicit_and(predicates, bindings)?;
-                            bindings.remove(binding);
+                            if let Some(previous) = previous {
+                                bindings.insert(binding.clone(), previous);
+                            } else {
+                                bindings.remove(binding);
+                            }
                             aggregate = if is_any { or3(aggregate, result) } else { and3(aggregate, result) };
                             // Ordinary any/all are deliberately eager. No
                             // logical short circuit is allowed here.
@@ -336,9 +340,13 @@ impl<'a> Eval<'a> {
                 for member in members {
                     self.charge_item(CostKind::CollectionIteration)?;
                     self.charge_item(CostKind::Aggregate)?;
-                    bindings.insert(binding.clone(), member);
+                    let previous = bindings.insert(binding.clone(), member);
                     let result = self.eval_implicit_and(predicates, bindings)?;
-                    bindings.remove(binding);
+                    if let Some(previous) = previous {
+                        bindings.insert(binding.clone(), previous);
+                    } else {
+                        bindings.remove(binding);
+                    }
                     match result { Truth::True => count = count.checked_add(1).ok_or_else(|| runtime_error(ApiErrorCode::RuntimeFailure, "count overflow"))?, Truth::False => {}, Truth::Unknown => unknown = true }
                 }
                 if unknown { return Ok(RuntimeValue::Unknown); }
@@ -364,9 +372,13 @@ impl<'a> Eval<'a> {
             self.charge_item(CostKind::CollectionIteration)?;
             self.charge_item(CostKind::Aggregate)?;
             if op == AggregateOp::Sum { self.charge_item(CostKind::Arithmetic)?; }
-            bindings.insert(binding.to_owned(), member);
+            let previous = bindings.insert(binding.to_owned(), member);
             let value = self.eval_value(expression, bindings)?;
-            bindings.remove(binding);
+            if let Some(previous) = previous {
+                bindings.insert(binding.to_owned(), previous);
+            } else {
+                bindings.remove(binding);
+            }
             match value { RuntimeValue::Known(value) => values.push(value), _ => unknown = true }
         }
         if unknown { return Ok(RuntimeValue::Unknown); }
@@ -401,10 +413,14 @@ impl<'a> Eval<'a> {
             self.charge_item(CostKind::CollectionIteration)?;
             self.charge_item(CostKind::Aggregate)?;
             self.charge_item(CostKind::Compare)?;
-            bindings.insert(binding.to_owned(), member.clone());
+            let previous = bindings.insert(binding.to_owned(), member.clone());
             let value = self.eval_value(expression, bindings)?;
             let key = self.eval_path(unique_key, bindings)?;
-            bindings.remove(binding);
+            if let Some(previous) = previous {
+                bindings.insert(binding.to_owned(), previous);
+            } else {
+                bindings.remove(binding);
+            }
             let (RuntimeValue::Known(value), RuntimeValue::Known(key)) = (value, key) else { unknown = true; continue; };
             if !matches!(value, DomainValue::Integer(_) | DomainValue::Fixed { .. }) { return Err(runtime_error(ApiErrorCode::InvalidProgram, "arg selection value is not numeric")); }
             candidates.push((value, key, member.id));
@@ -468,9 +484,13 @@ impl<'a> Eval<'a> {
                 let mut unknown = false;
                 for item in items {
                     self.charge_item(CostKind::CollectionIteration)?;
-                    bindings.insert(binding.clone(), item.clone());
+                    let previous = bindings.insert(binding.clone(), item.clone());
                     let result = self.eval_implicit_and(predicates, bindings)?;
-                    bindings.remove(binding);
+                    if let Some(previous) = previous {
+                        bindings.insert(binding.clone(), previous);
+                    } else {
+                        bindings.remove(binding);
+                    }
                     match result { Truth::True => filtered.push(item), Truth::False => {}, Truth::Unknown => unknown = true }
                 }
                 if unknown { Ok(None) } else { Ok(Some(filtered)) }
