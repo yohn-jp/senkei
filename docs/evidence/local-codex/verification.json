@@ -1,0 +1,78 @@
+{
+  "scope": "Bounded coordinator checks; both Goals remain incomplete.",
+  "core": {
+    "source_revision": "30ef5eacc94f226fbf42966ca69976d0a0277ea6",
+    "crates_tree": "9d3bc738dec5cb5e2a146c9b933a11e62b0e1e5d",
+    "wasm_sha256": "ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a",
+    "checks": [
+      {
+        "command": "bash scripts/wasm/build.sh",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo build --workspace --release --locked",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo test --workspace --release --locked",
+        "exit_code": 0,
+        "tests_passed": 229,
+        "tests_failed": 0,
+        "tests_ignored": 0
+      },
+      {
+        "command": "SENKEI_NATIVE_DISPATCHER=target/release/senkei-wasm-dispatch node tests/conformance/generate-scenario-inputs.mjs --check && SENKEI_NATIVE_DISPATCHER=target/release/senkei-wasm-dispatch node tests/conformance/compare-adapters.mjs",
+        "exit_code": 0,
+        "initial_scenarios_passed": 7
+      }
+    ]
+  },
+  "focus_integration": {
+    "source_revision": "224332e70b26dd9e4f31c64dbad21631c6990158",
+    "unit_tests": 280,
+    "ci_helper_tests": 11,
+    "production_build": "PASS",
+    "generated_contract_types": "UNCHANGED",
+    "real_core_component_checks": {
+      "source_revision": "3083a1aa102e3d7cd0ec1e616d352c355ee562e6",
+      "viewports": [
+        390,
+        1440
+      ],
+      "passed": 2,
+      "scope": "Component producer only, Ready parent caller not proved."
+    }
+  },
+  "import_integration": {
+    "initial_source_revision": "dda888b",
+    "corrected_test_source_revision": "232f2d486964d0caff0bd3d56bbbdca92d087639",
+    "unit_tests": 290,
+    "production_build": "PASS",
+    "browser_initial": {
+      "passed": [
+        "incompatible paired-World import preserves records and Draft",
+        "Core-down export retains IndexedDB content",
+        "quota replacement-write failure retains Run, Draft and durable payload"
+      ],
+      "failed": "Raw-only clear test used aria-label instead of aria-labelledby accessible name; production clear button and dialog were present."
+    },
+    "browser_rerun": {
+      "passed": [
+        "unrecognized schema export and explicit confirmed discard with Core unavailable"
+      ],
+      "test_only_fix": "Use accessible dialog name Clear saved experiments?",
+      "genuine_export_sha256": "730acf9a444b1434d0bb907b10cd4d1079a938a88accf4d3bad28a92a3b6882a",
+      "reused_artifact_scope": "Same Core and product import implementation; no fresh battle generation required for this rerun."
+    }
+  },
+  "environment": {
+    "browser": "Nix Chromium 156",
+    "renderer": "SwiftShader",
+    "physical_mobile_device": "NOT_CHECKED",
+    "physical_gpu_performance": "NOT_CHECKED"
+  },
+  "limits": [
+    "No final integrated-main CI claim.",
+    "C04 parent, S06, Campaign retry, C08, new diagnostics lineage, Behavior completeness and final art still require their own integration and acceptance."
+  ]
+}
