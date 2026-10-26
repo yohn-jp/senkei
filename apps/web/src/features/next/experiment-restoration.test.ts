@@ -21,7 +21,7 @@ const replay: PresentationReplay = {
 };
 
 const diagnosticsSnapshot = (): SimulationSnapshot => ({
-  attacker: { program: { content_digest: "attacker-program" }, "\uE000": "bmp-key", "\u{10000}": "supplementary-key" },
+  attacker: { program: { content_digest: "attacker-program" }, configuration: { "2": "two", "10": "ten" }, "\uE000": "bmp-key", "\u{10000}": "supplementary-key" },
   context: { match_id: "match-a", world_identity: { world_id: "world" } },
   defender: { program: { content_digest: "defender-program" } },
 } as unknown as SimulationSnapshot);
@@ -113,7 +113,7 @@ describe("Next experiment diagnostics lineage", () => {
     const reordered = {
       defender: snapshot.defender,
       context: snapshot.context,
-      attacker: { "\u{10000}": "supplementary-key", program: { content_digest: "attacker-program" }, "\uE000": "bmp-key" },
+      attacker: { "\u{10000}": "supplementary-key", program: { content_digest: "attacker-program" }, configuration: { "10": "ten", "2": "two" }, "\uE000": "bmp-key" },
     } as unknown as SimulationSnapshot;
     await expect(validateNextExperimentDiagnostics(response, reordered)).resolves.toBeUndefined();
   });
