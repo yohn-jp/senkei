@@ -129,10 +129,54 @@ describe("Battlefield unit models", () => {
       assetKey: "hero.f01",
       appearanceKey: "senkei.next.hero.f01",
       generator: "senkei.battlefield-unit.v1",
-      generatorVersion: 1,
+      generatorVersion: 2,
       lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
       source: "project-authored-procedural-geometry",
     }));
+  });
+
+  it("reproduces golden identities, rig transforms and every LOD geometry buffer", () => {
+    for (const [id, name, weapon] of [["F01", "Bannerhold", "sword-shield"], ["R01", "Tempest", "staff"]]) {
+      const build = () => {
+        const group = new THREE.Group();
+        const appearanceKey = `senkei.next.hero.${id.toLowerCase()}`;
+        const rig = buildBattlefieldHero(group, entity(id, appearanceKey, id), 0x347e83, appearanceKey);
+        group.updateMatrixWorld(true);
+        return { group, rig };
+      };
+      const first = build();
+      const second = build();
+      expect(first.group.userData.heroName).toBe(name);
+      expect(first.group.userData.heroWeapon).toBe(weapon);
+      expect(first.group.userData.assetManifest).toEqual(second.group.userData.assetManifest);
+      expect(first.rig.restPose).toEqual(second.rig.restPose);
+      const firstLevels = lodLevels(first.group);
+      const secondLevels = lodLevels(second.group);
+      firstLevels.forEach((level, levelIndex) => {
+        const firstMeshes = meshes(level);
+        const secondMeshes = meshes(secondLevels[levelIndex]);
+        expect(firstMeshes.map(mesh => mesh.name)).toEqual(secondMeshes.map(mesh => mesh.name));
+        firstMeshes.forEach((mesh, meshIndex) => {
+          const other = secondMeshes[meshIndex];
+          expect(mesh.matrixWorld.elements).toEqual(other.matrixWorld.elements);
+          expect(Object.keys(mesh.geometry.attributes)).toEqual(Object.keys(other.geometry.attributes));
+          for (const attribute of ["position", "normal", "color"]) {
+            const values = mesh.geometry.getAttribute(attribute).array;
+            expect(Array.from(values).every(Number.isFinite), `${id} ${mesh.name} ${attribute}`).toBe(true);
+            expect(values).toEqual(other.geometry.getAttribute(attribute).array);
+          }
+          expect(mesh.geometry.index?.array).toEqual(other.geometry.index?.array);
+        });
+      });
+      for (const key of ["main", "off"]) {
+        const pivot = first.rig.weaponPivots[key];
+        expect(pivot.parent).toBe(first.rig.joints[`hand.${key === "main" ? "right" : "left"}`]);
+      }
+      const hand = first.rig.joints["hand.right"];
+      const handMesh = hand.children.find(child => child instanceof THREE.Mesh)!;
+      const weaponLeather = first.rig.weaponPivots.main.children.find(child => child instanceof THREE.Mesh && child.userData.unitSurface === "leather")!;
+      expect(worldBounds(handMesh).intersectsBox(worldBounds(weaponLeather)), `${id} grip intersects the hand`).toBe(true);
+    }
   });
 
   it("gives each Hero an authored stance and a distinct shape signature independent of palette colors", () => {
