@@ -1,5 +1,7 @@
 # Clause-level gaps and decision boundaries
 
+Current integration state: [INTEGRATION-CHECKPOINT.md](INTEGRATION-CHECKPOINT.md). The gap rows and PR overlay below retain their historical source baseline; merged changes must not be treated as still-unallocated implementation gaps.
+
 Source baseline: main `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. The current task includes PR22's defined interaction and progression operations. The prior first Wave is historical ownership, not a stop rule. These rows refine concrete contract clauses rather than assigning a single “complete” status to an entire S-screen or subsystem. They are a selected implementation queue; the [47-document source register](CLAUSE-INDEX.md) retains the rest of the source coverage.
 
 `INCOMPLETE` below identifies a concrete partial seam unless its row explicitly says **acceptance only**. In the source register, `INCOMPLETE / NOT_CHECKED` commonly means only acceptance remains unverified. These uses must not be confused. Production acceptance is **NOT_CHECKED by this documentation continuation** for every row; the separate BH-03 scratch resolver proof is narrowly scoped below. Previous branch results are separately identified evidence; none proves all clauses at current main. No final four-way contract totals are asserted.
@@ -46,7 +48,7 @@ Source baseline: main `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. The current ta
 | Tempo/600-Tick target and second-screen sync | DESIGN-DECISIONS G03 and remaining decisions; TACTICAL-LOOP U04 | UNDEFINED/DEFERRED | Existing 600-Tick result is an observation, not a desired tempo; local play gains no login/network prerequisite |
 | Official PvP/rating/tickets/provider implementation | ONLINE §§1–9; DELIVERY Phase E | UNDEFINED/DEFERRED | Local unrestricted PvE remains primary. No provider, authority, rating formula, monetization or paid competitive advantage is adopted by this audit |
 
-## Implementation PR overlay (separate from pinned main)
+## Historical implementation PR overlay (superseded integration state)
 
 GitHub PR state was read explicitly during this audit continuation. PR26 is merged at the pinned baseline. These other implementations remain **OPEN** in that observed state; their branch proof never changes the pinned-main classification by itself. The coordinator owns later review, integration and final-main evidence.
 

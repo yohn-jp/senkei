@@ -1,5 +1,7 @@
 # Canonical coverage — clause register and implementation evidence
 
+Latest integration and bounded browser evidence: [INTEGRATION-CHECKPOINT.md](INTEGRATION-CHECKPOINT.md), at committed main `54011ea`. Historical PR-state statements below are superseded by that checkpoint.
+
 Current source-clause inventory: [CLAUSE-INDEX.md](CLAUSE-INDEX.md), pinned to main `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. It covers all 47 root documents with exact line citations, including the runtime integration authority omitted from the root README index. [GAPS-AND-BOUNDARIES.md](GAPS-AND-BOUNDARIES.md) separates concrete source gaps, acceptance still awaiting proof, and undefined producer decisions. The machine-readable [source inventory](source-inventory.json) records source fingerprints; it is not a final requirement count.
 
 The focused [BH-03 proof and decision boundary](BEHAVIOR-CONFLICT-DECISION.md) supersedes the initial Catalog-validator leaf proposal: a real Catalog/Compiler/VM/resolver scratch proof establishes late rejection under caller-supplied test legality, not production Enbu behavior. The common typed authored-order validation/consumption mechanism remains defined and incomplete, with ordinary schema implementation authorized. Only unauthored production groups/rankings/game-specific mappings are DECISION_REQUIRED; no Rust/default changes or partial satisfiability checker are selected in this audit.

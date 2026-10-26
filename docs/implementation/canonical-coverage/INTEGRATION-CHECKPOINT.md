@@ -1,0 +1,58 @@
+# Integration checkpoint at main 54011ea
+
+Observed 2026-10-26 against committed main `54011ea0d04cbfbb4400daa065af0681affad3d5`. This overlay supersedes the historical PR-state statements in this directory. It does not regenerate the [47-document source register](CLAUSE-INDEX.md), whose source baseline remains `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Its 2,682 source units are not distinct contracts or verified requirements. No exhaustive four-category contract totals, global completion, or release readiness is asserted.
+
+## Integration state
+
+GitHub was queried directly. The scoped queue contains **15 merged implementation PRs (#24–#38)** and **one open implementation PR (#39)**. Merge state records integration, not acceptance of every associated contract. Documentation PR23 is separate.
+
+| PR | Bounded change | GitHub state | Merge commit (or open head) |
+| --- | --- | --- | --- |
+| [#24](https://github.com/yohn-jp/senkei/pull/24) | fix: preserve Campaign conditions when inspecting Ready | MERGED | `28fc46e7cc62ae3c6ec4ba18281edfea8b1f5fa3` |
+| [#25](https://github.com/yohn-jp/senkei/pull/25) | fix: inspect Hero candidates before adopting into Draft | MERGED | `12be77a4a5e2afa9aeee7684b52172a3d660a71f` |
+| [#26](https://github.com/yohn-jp/senkei/pull/26) | fix: keep mobile Follow targets below sticky header | MERGED | `9f52dbfa44d8f08ff854116fef7850fbc91e13af` |
+| [#27](https://github.com/yohn-jp/senkei/pull/27) | fix: make the final campaign NPC pass formation preflight | MERGED | `81684c0bfa0b4eed96938328eafac96ec90b258d` |
+| [#28](https://github.com/yohn-jp/senkei/pull/28) | fix(renderer): make idle unit orientation independent of replay seeks | MERGED | `e79d503d296357b9ab6961ff1a4c623cca683707` |
+| [#29](https://github.com/yohn-jp/senkei/pull/29) | fix: review setup differences before restoring a Draft | MERGED | `4695057ba4b50ce867615980e75d29d111b01a94` |
+| [#30](https://github.com/yohn-jp/senkei/pull/30) | fix: make all supplied attacker diagnostics reachable | MERGED | `fcf129055aa86a76860573187922d2e7e05933b0` |
+| [#31](https://github.com/yohn-jp/senkei/pull/31) | feat(jinrei): emit parser-produced Action source locations | MERGED | `f8a91d49a43b7a1f6402c386b1b000462ce0390e` |
+| [#32](https://github.com/yohn-jp/senkei/pull/32) | fix: classify completed run comparisons by full input conditions | MERGED | `5d06d634265cea062ee69d7a6912db355f00d6fe` |
+| [#33](https://github.com/yohn-jp/senkei/pull/33) | fix: explain Library retention and truthful export status | MERGED | `3960a8f773b2783bc322fe8f29a5b016cd944482` |
+| [#34](https://github.com/yohn-jp/senkei/pull/34) | fix: preserve Library tab keyboard focus after navigation | MERGED | `5de1072bccf84f66e1036af59f2194c0d0092d78` |
+| [#35](https://github.com/yohn-jp/senkei/pull/35) | feat: add completion-aware campaign progress producer | MERGED | `97abc6f1a99a410e51937c275f6a176aa134e430` |
+| [#36](https://github.com/yohn-jp/senkei/pull/36) | feat(behavior): validate and consume authored cross-capability orders | MERGED | `4b8ca49755abf3c5124973d62d75135395afcf47` |
+| [#37](https://github.com/yohn-jp/senkei/pull/37) | feat: preserve Replay analysis context and inspect verified Action source | MERGED | `12a029a6f570079125c9ee6ad0acc14337006eaa` |
+| [#38](https://github.com/yohn-jp/senkei/pull/38) | feat: preserve structured preflight repair targets | MERGED | `54011ea0d04cbfbb4400daa065af0681affad3d5` |
+| [#39](https://github.com/yohn-jp/senkei/pull/39) | feat(next): derive improved rematches from original run conditions | OPEN | `f87d838da6dab5eed808909af96c51d6ddd391a2` |
+
+## CI state
+
+Main [run 40275861697](https://github.com/yohn-jp/senkei/actions/runs/40275861697), at `54011ea`, was still in progress when queried, with **Browser / journeys-workbench already failed** and journeys-ui still running. Native Rust, real WebAssembly conformance, web/build, all five Quick widths, all six visual shards, both verification shards and journeys-analysis had succeeded. The run is not green; successful visual automation is not final art or physical-device acceptance. Failure cause was not investigated in this documentation task.
+
+The earlier [4b8ca49 run](https://github.com/yohn-jp/senkei/actions/runs/40270167730) completed with failure, including journeys-workbench and journeys-ui. Runs [40269960132](https://github.com/yohn-jp/senkei/actions/runs/40269960132) (`12a029a`), [40268048117](https://github.com/yohn-jp/senkei/actions/runs/40268048117) (`97abc6f`), [40267689736](https://github.com/yohn-jp/senkei/actions/runs/40267689736) (`f8a91d4`) and [40267684657](https://github.com/yohn-jp/senkei/actions/runs/40267684657) were cancelled. Cancelled runs do not prove acceptance. These are observed snapshots, not assertions about later CI state.
+
+## Remaining consumer and proof boundaries
+
+| Clause / seam | Implemented scope now integrated | Remaining work / verification |
+| --- | --- | --- |
+| C01/C02/C03/C09 and Library | PR24/25/27/29/33/34 integrate bounded navigation, candidate, NPC, restore-review, retention and focus changes | Broad origin/return state, physical devices and exact-current-main combined acceptance remain distinct. The historical queue is not an assertion that these merged changes are still missing |
+| C04 repair destination | PR38 preserves structured preflight problem targets | Target-specific UI consumption and actual repair return paths remain INCOMPLETE / NOT_CHECKED here; producer merge alone does not implement the operation |
+| C06 source/diagnostic access | PR30 supplied-diagnostic access, PR31 parser source locations and PR37 Replay context/source inspection | Production profile-to-result tracing and broader context/device cases remain separate. Existing finite diagnostic access is no longer an unallocated missing leaf |
+| C07/C08 comparison/improvement | PR32 classifies completed comparisons by full inputs; PR39 is open for improvement from original conditions | Actual improved-rematch operation, exact frozen-input interoperability and browser victory acceptance are not established by classification tests |
+| C10 Campaign completion | PR35 supplies strict completion-aware progress producer | Live UI/persistence consumer and actual final-victory/reload/final-known-versus-all-recorded proof remain INCOMPLETE / NOT_CHECKED by this checkpoint. No inspection of another worker's uncommitted Campaign implementation was performed |
+| Core slot identity interoperability | Shared Core accepts bounded opaque slot IDs; committed UI parser restricts the own formation to padded positional IDs | Exact native Snapshot input must not be rewritten to padded IDs. Existing consumer alignment and real-Core/browser proof are assigned separately; no universal arbitrary-Snapshot importer is claimed as a documented product feature |
+| BH03 authored ordering | PR36 integrates typed authored cross-capability ordering and fail-closed consumption, with native/WASM fixture evidence | General static completeness and production Behavior/Enbu integration remain defined outstanding work. Unauthored production profile/rank/game-policy choices alone remain DECISION_REQUIRED. Fixture execution is not production Enbu execution |
+| Presentation | PR26 mobile Follow fix and PR28 seek-independent orientation are merged | Exact-current-main visual judgment, physical touch/IME/GPU and balance proof remain separate, NOT_CHECKED here |
+| Progression/equipment/relations/economy | No new completion evidence collected here | Defined UI operations remain in scope; genuinely unauthored producer values, authority and economic/game rules remain deferred as detailed in the historical boundary register |
+
+## C13/C14 Recovery quota and same-package Core retry probe
+
+**Specific Draft path: VERIFIED by one real browser regression; suspected Draft-loss bug was not reproduced.** This does not classify all of C13/C14 as verified. In-memory Run preservation is **NOT_CHECKED**. No new production fix is justified by this passing Draft probe.
+
+The isolated source checkout was exactly `54011ea0d04cbfbb4400daa065af0681affad3d5` on `fix/wave8-recovery-retry`. Root and browser `npm ci`, production build and one Chromium regression passed. The test used port 4203, actual worker/Core/WASM responses and no mocked Core success. The compatible source-map WASM was copied from the existing artifact, not rebuilt at this source revision: SHA256 `e15cc7add78827aff1af977fe0be2a5f32ff766142ae4a97dfc67204b9a9bd1a`, 6,677,105 bytes; actual package digest `c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f`.
+
+The regression established an old valid Recovery, denied only `senkei.next-workspace-recovery.v1` writes with QuotaExceededError, added a unique current-Draft Source marker, observed the Library Recovery error, and clicked the actual Retry Core/Catalog action. It awaited a replacement core worker and loaded Catalog, returned to Text, then compiled successfully using the real Core. The edited Source survived byte-for-byte, the original stored Recovery bytes remained byte-for-byte unchanged, and no page errors occurred. No Enbu match was executed.
+
+The suspected null→same-digest package transition does not occur on this UI path: [App.tsx at 54011ea](https://github.com/yohn-jp/senkei/blob/54011ea0d04cbfbb4400daa065af0681affad3d5/apps/web/src/App.tsx#L18) replaces the Core client without clearing the existing ruleset. [NextWorkspace initialization](https://github.com/yohn-jp/senkei/blob/54011ea0d04cbfbb4400daa065af0681affad3d5/apps/web/src/features/next/NextWorkspace.tsx#L1010) depends on package digest and Recovery-loaded state, which stay unchanged during a successful same-package retry. Although failed autosave leaves its Recovery ref stale, that fact alone does not cause the alleged Draft restore.
+
+Session-local reproducibility artifacts (not portable repository attachments): `/workspace/wt-recovery-retry/tests/browser/specs/recovery-core-quota-retry.spec.ts`; `/workspace/scratch/recovery-retry-evidence/report.json`; before/after screenshots in the same evidence directory; `/workspace/scratch/recovery-retry-browser.log`. Command: `SENKEI_CHROMIUM_EXECUTABLE=/usr/bin/chromium SENKEI_BROWSER_PORT=4203 npm run test:e2e --prefix tests/browser -- specs/recovery-core-quota-retry.spec.ts --workers=1`. Result: 1/1 passed. The untracked regression remains in its isolated checkout for handoff; this PR changes documentation only.
