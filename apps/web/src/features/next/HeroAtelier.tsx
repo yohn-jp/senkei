@@ -57,6 +57,25 @@ export const HERO_SQUAD_PATTERNS: readonly { id: string; sizes: readonly number[
 ];
 const STAT_KEYS = ["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const;
 const SQUAD_NAMES = ["Solo", "Duo", "Trio", "Quartet", "Quintet"] as const;
+export type HeroSynergyEffectKey = "maturity_effect_milli" | "ally_skill_effect_milli";
+export type HeroSynergyMultiplier =
+  | { readonly value: number; readonly source: "catalog" | "engine-default" }
+  | { readonly value: null; readonly source: "unknown" };
+export function heroSynergyMultiplier(hero: HeroDefinition | undefined, key: HeroSynergyEffectKey): HeroSynergyMultiplier {
+  if (!hero) return { value: null, source: "unknown" };
+  const milli = hero.synergy?.[key];
+  if (typeof milli === "number" && Number.isFinite(milli)) return { value: Math.max(0, milli) / 1000, source: "catalog" };
+  // Enbu uses a 1000 milli (×1.00) fallback when a Hero or effect key is absent.
+  return { value: 1, source: "engine-default" };
+}
+export function heroSynergyMultiplierLabel(hero: HeroDefinition | undefined, key: HeroSynergyEffectKey): string {
+  const multiplier = heroSynergyMultiplier(hero, key);
+  if (multiplier.source === "unknown") return "Catalog data unavailable";
+  const value = multiplier.source === "engine-default"
+    ? multiplier.value.toFixed(2)
+    : multiplier.value.toFixed(3).replace(/\.?0+$/, "");
+  return `×${value}${multiplier.source === "catalog" ? " · Catalog" : " · engine default"}`;
+}
 function formatId(value: string): string { return value.replaceAll("_", " ").replaceAll("-", " ").replaceAll(".", " · ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function repairSlotKey(slot: HeroAtelierSlot): string { return JSON.stringify([slot.slot_id, slot.catalog_id, slot.skill_path, slot.squad, slot.node]); }
 function findHero(rules: NextRules, id: string): HeroDefinition | undefined { return rules.heroes.find((hero) => hero.id === id); }
@@ -283,6 +302,12 @@ export function HeroAtelier({
         <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div>
           <div className="ha-stat-table" role="table" aria-label="Hero base stats and growth"><div role="row"><strong role="columnheader">Stat</strong><strong role="columnheader">Base</strong><strong role="columnheader">Per level</strong></div>{STAT_KEYS.map((stat) => <div role="row" key={stat}><span role="rowheader">{formatId(stat)}</span><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></div>)}</div>
         </section>
+        <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">CATALOG COMBAT TRAITS</span><h4>Tactical strengths</h4></div></div>
+          <div className="ha-tactical-traits">
+            <article className="ha-tactical-trait"><header><strong>Mature Squad shield contribution</strong><span>{heroSynergyMultiplierLabel(currentHero, "maturity_effect_milli")}</span></header><p>Scales this Hero's current maturity when it contributes shield to other living members of the same Squad.</p></article>
+            <article className="ha-tactical-trait"><header><strong>Ally support skill power</strong><span>{heroSynergyMultiplierLabel(currentHero, "ally_skill_effect_milli")}</span></header><p>Scales Heal, Shield, Haste, Empower, and Defense skills aimed at another ally.</p></article>
+          </div>
+        </section>
         <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span>{candidate ? "Read-only candidate Catalog" : "Planned · " + formatId(currentSlot.skill_path)}</span></div>
           <div className="ha-skill-catalog">{currentHero.skills.map((skill) => skillDetail(skill, !candidate && (currentHero.skill_paths[currentSlot.skill_path]?.includes(skill.id) ?? false)))}</div>
         </section>
@@ -350,7 +375,7 @@ export function HeroAtelier({
           const label = members.length ? SQUAD_NAMES[members.length - 1] : "Empty";
           return <article className="ha-group" key={squad}><header><div><span className="next-eyebrow">{formatId(squad)} · {members.length} {members.length === 1 ? "HERO" : "HEROES"}</span><h5>{label} <small>· {members.length}-member Squad</small></h5></div><span className="ha-speed">MOVE ×{Number.isFinite(movement) ? ((movement ?? 0) / 1000).toFixed(2) : "—"}</span></header>
             <label className="ha-start-node"><span>Shared starting node</span><select data-repair-field="node" data-repair-squad-id={squad} aria-label={"Starting node for " + formatId(squad)} value={starts.length === 1 ? starts[0] : ""} onChange={(event) => onMoveSquad(squad, event.currentTarget.value)}><option disabled value="">{starts.length > 1 ? "Resolve member node mismatch" : "Select a map node"}</option>{nodes.map((node) => { const lane = Object.entries(nextRules.map.lanes).find(([, laneNodes]) => laneNodes.includes(node))?.[0]; const allegiance = nextRules.map.nodes[node]?.allegiance; return <option key={node} value={node}>{formatId(node)}{lane ? " · " + formatId(lane) : ""}{allegiance ? " · " + formatId(allegiance) : ""}</option>; })}</select></label>
-            <ol>{members.map(({ slot, index }) => { const hero = findHero(nextRules, slot.catalog_id); return <li key={slot.slot_id}><span className={"ha-member-sigil" + (hero?.placement === "backline" ? " backline" : "")}>{hero?.placement === "backline" ? "⌁" : "◆"}</span><span><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id} · {formatId(slot.node)}</small></span><button onClick={() => { chooseSlot(index); setMobileSquadStage("assign"); }} type="button">Edit slot</button></li>; })}</ol>
+            <ol>{members.map(({ slot, index }) => { const hero = findHero(nextRules, slot.catalog_id); return <li key={slot.slot_id}><span className={"ha-member-sigil" + (hero?.placement === "backline" ? " backline" : "")}>{hero?.placement === "backline" ? "⌁" : "◆"}</span><span><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id} · {formatId(slot.node)}</small><small>Mature Squad shield · {heroSynergyMultiplierLabel(hero, "maturity_effect_milli")}</small></span><button onClick={() => { chooseSlot(index); setMobileSquadStage("assign"); }} type="button">Edit slot</button></li>; })}</ol>
             {starts.length > 1 && <p className="ha-group-error" role="alert">This Squad has multiple starting nodes. Choose one shared node to make this initial formation valid.</p>}
             <small className="ha-rules-note">Movement ×{Number.isFinite(movement) ? ((movement ?? 0) / 1000).toFixed(2) : "—"} · maturation {nextRules.parameters.squad_maturation_ticks ?? "unknown"} ticks · values from current Senritsu rules</small>
           </article>;

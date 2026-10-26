@@ -80,6 +80,12 @@ for (const viewport of viewports) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
       if (label === "Hero Detail") {
         await expect(page.getByRole("heading", { name: "Stoneheart" })).toBeVisible();
+        const tacticalTraits = page.locator(".ha-tactical-trait");
+        await expect(tacticalTraits).toHaveCount(2);
+        await expect(tacticalTraits.nth(0)).toContainText("Mature Squad shield contribution");
+        await expect(tacticalTraits.nth(0)).toContainText(/×[\d.]+ · (Catalog|engine default)/);
+        await expect(tacticalTraits.nth(1)).toContainText("Ally support skill power");
+        await expect(tacticalTraits.nth(1)).toContainText(/×[\d.]+ · (Catalog|engine default)/);
         await expect(page.locator(".next-renderer-host canvas"), "catalog preview must not launch or reuse an Enbu battle renderer").toHaveCount(0);
         const preview = page.getByRole("region", { name: "Stoneheart 3D model" });
         const modelCanvas = preview.locator("canvas");
@@ -171,7 +177,10 @@ for (const viewport of viewports) {
         expect(secondNode).toBeTruthy();
         await squadTwoStart.selectOption(secondNode!);
         await expect(squadTwoStart).toHaveValue(secondNode!);
-        const memberNodes = await squadTwo.locator("ol li small").allTextContents();
+        const memberTraits = await squadTwo.locator("ol li small:nth-of-type(2)").allTextContents();
+        expect(memberTraits).toHaveLength(3);
+        expect(memberTraits.every((text) => /Mature Squad shield · ×[\d.]+ · (Catalog|engine default)/.test(text))).toBe(true);
+        const memberNodes = await squadTwo.locator("ol li small:first-of-type").allTextContents();
         expect(new Set(memberNodes.map((text) => text.split(" · ").slice(1).join(" · "))).size).toBe(1);
         await expect(formation.locator(".ha-group")).toHaveCount(2);
       }

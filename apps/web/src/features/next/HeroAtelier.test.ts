@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HeroDefinition, SkillDefinition } from "../../contracts";
-import { skillPathIssues } from "./HeroAtelier";
+import { heroSynergyMultiplier, heroSynergyMultiplierLabel, skillPathIssues } from "./HeroAtelier";
 
 function skill(id: string, unlock_level: number, prerequisites: string[] = []): SkillDefinition {
   return {
@@ -50,6 +50,18 @@ describe("Hero Atelier Skill Tree path validation", () => {
     const definition = hero([], [skill("root", 1)]);
     expect(skillPathIssues(definition, "path_a")).toEqual(["This branch has no selectable skills."]);
     expect(skillPathIssues(definition, "missing")).toEqual(["This branch has no selectable skills."]);
+  });
+});
+
+describe("Hero Atelier Catalog combat traits", () => {
+  it("shows authored multipliers and the explicit Enbu fallback for absent values", () => {
+    const definition = { ...hero([], []), synergy: { maturity_effect_milli: 1150, ally_skill_effect_milli: 1100 } } as HeroDefinition;
+    expect(heroSynergyMultiplierLabel(definition, "maturity_effect_milli")).toBe("×1.15 · Catalog");
+    expect(heroSynergyMultiplierLabel(definition, "ally_skill_effect_milli")).toBe("×1.1 · Catalog");
+    expect(heroSynergyMultiplier(definition, "maturity_effect_milli")).toEqual({ value: 1.15, source: "catalog" });
+    expect(heroSynergyMultiplierLabel(hero([], []), "maturity_effect_milli")).toBe("×1.00 · engine default");
+    expect(heroSynergyMultiplier(undefined, "maturity_effect_milli")).toEqual({ value: null, source: "unknown" });
+    expect(heroSynergyMultiplierLabel({ ...definition, synergy: { maturity_effect_milli: -250 } }, "maturity_effect_milli")).toBe("×0 · Catalog");
   });
 });
 

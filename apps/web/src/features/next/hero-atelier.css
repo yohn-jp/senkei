@@ -93,6 +93,12 @@
 .ha-skill-detail > div small, .ha-skill-detail > small { color: #80908a; font-size: 7px; line-height: 1.5; }
 .ha-skill-detail > span { color: #b2c89f; font: 7px "DM Mono", monospace; }
 .ha-skill-detail p { color: #9aa8a0; font-size: 8px; grid-column: 1/-1; line-height: 1.5; margin: 0; }
+.ha-tactical-traits { display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ha-tactical-trait { background: rgba(255,255,255,.018); border: 1px solid rgba(214,225,218,.075); border-radius: 3px; display: grid; gap: 6px; padding: 9px; }
+.ha-tactical-trait > header { align-items: flex-start; display: flex; gap: 8px; justify-content: space-between; }
+.ha-tactical-trait > header strong { color: #d8e2d8; font-size: 9px; }
+.ha-tactical-trait > header span { color: #b2c89f; font: 7px "DM Mono", monospace; text-align: right; }
+.ha-tactical-trait > p { color: #9aa8a0; font-size: 8px; line-height: 1.5; margin: 0; }
 .ha-capability { align-items: start; display: flex; flex-wrap: wrap; gap: 7px 14px; justify-content: space-between; }
 .ha-capability > strong { color: #bcd1b0; font: 500 10px Georgia, serif; }
 .ha-capability > p { color: #8d9b94; flex: 1 1 280px; font-size: 8px; line-height: 1.6; margin: 0; }
@@ -186,7 +192,7 @@
   .ha-roster button:last-child { grid-column: 2; }
   .ha-dossier .next-hero-model-preview { min-height: 300px; }
   .ha-dossier .next-hero-model-canvas { height: 300px; }
-  .ha-skill-catalog, .ha-branches, .ha-membership-grid, .ha-group-grid { grid-template-columns: 1fr; }
+  .ha-skill-catalog, .ha-tactical-traits, .ha-branches, .ha-membership-grid, .ha-group-grid { grid-template-columns: 1fr; }
   .ha-mobile-stages { display: grid; gap: 5px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ha-mobile-stages button { background: rgba(8,15,19,.35); border: 1px solid var(--ha-line); border-radius: 3px; color: #99a9a0; cursor: pointer; font-size: 8px; min-height: 44px; padding: 5px; }
   .ha-mobile-stages button.is-active { background: rgba(189,237,149,.08); border-color: rgba(189,237,149,.3); color: #dfead8; }
