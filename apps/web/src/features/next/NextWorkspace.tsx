@@ -2,7 +2,7 @@ import { CoreClientError } from "../../worker";
 import { JourneyScreens } from "./JourneyScreens";
 import { CampaignRunActions } from "./CampaignProgressViews";
 import { campaignConditionMismatch, type CampaignAssociation } from "./campaign-run-eligibility";
-import { CAMPAIGN_PROGRESS_PREFIX, LEGACY_CAMPAIGN_PROGRESS_PREFIX, createCampaignProgress, parseCampaignProgress, migrateLegacyCampaignProgress, serializeCampaignProgress, reduceCampaignProgress, campaignCompletionSummary, type CampaignProgress } from "./campaign-progress";
+import { CAMPAIGN_PROGRESS_PREFIX, LEGACY_CAMPAIGN_PROGRESS_PREFIX, createCampaignProgress, parseCampaignProgress, migrateLegacyCampaignProgress, serializeCampaignProgress, mergeCampaignProgress, reduceCampaignProgress, campaignCompletionSummary, type CampaignProgress } from "./campaign-progress";
 import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
@@ -719,6 +719,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [campaignProgressAttempt, setCampaignProgressAttempt] = useState(0);
   const [campaignProgressReadBlocked, setCampaignProgressReadBlocked] = useState(false);
   const campaignProgressReadGeneration = useRef(0);
+  const campaignProgressAcknowledged = useRef<{ digest: string; serialized: string } | null>(null);
   const [campaignProgressLoadedGeneration, setCampaignProgressLoadedGeneration] = useState(0);
   const [campaignProgressLoadedDigest, setCampaignProgressLoadedDigest] = useState<string | null>(null);
   const [campaignProgressError, setCampaignProgressError] = useState<string | null>(null);
@@ -919,6 +920,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   useEffect(() => {
     const digest = packageValue?.ruleset.digest;
     if (!digest || campaignScenarioIds.length === 0) return;
+    const sessionProgress = campaignProgress?.ruleset_digest === digest ? campaignProgress : null;
     const generation = ++campaignProgressReadGeneration.current;
     setCampaignProgressLoadedDigest(null);
     setCampaignProgressError(null);
@@ -929,16 +931,25 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       setCampaignProgressRaw({ current, legacy: null });
       const legacy = window.localStorage.getItem(`${LEGACY_CAMPAIGN_PROGRESS_PREFIX}:${digest}`);
       setCampaignProgressRaw({ current, legacy });
-      const progress = current !== null ? parseCampaignProgress(current, digest, campaignScenarioIds)
+      const storedProgress = current !== null ? parseCampaignProgress(current, digest, campaignScenarioIds)
         : legacy !== null ? migrateLegacyCampaignProgress(legacy, digest, campaignScenarioIds)
         : createCampaignProgress(digest, campaignScenarioIds);
+      const sessionSerialized = sessionProgress ? serializeCampaignProgress(sessionProgress, campaignScenarioIds) : null;
+      const acknowledged = campaignProgressAcknowledged.current;
+      const hasUnacknowledgedSessionProgress = sessionProgress !== null &&
+        (acknowledged?.digest !== digest || sessionSerialized !== acknowledged.serialized);
+      const storedSerialized = serializeCampaignProgress(storedProgress, campaignScenarioIds);
+      const progress = sessionProgress && (hasUnacknowledgedSessionProgress || sessionSerialized !== storedSerialized)
+        ? mergeCampaignProgress(storedProgress, sessionProgress, campaignScenarioIds)
+        : storedProgress;
+      campaignProgressAcknowledged.current = { digest, serialized: storedSerialized };
       setCampaignProgress(progress);
       setSelectedScenarioId(id => campaignScenarioIds.includes(id) ? id : campaignScenarioIds[0]);
     } catch (cause) {
       setCampaignProgressError(`Campaign progress could not be read. Original bytes are preserved and automatic writes are blocked: ${cause instanceof Error ? cause.message : String(cause)}`);
       setCampaignProgressReadBlocked(true);
-      setCampaignProgress({ ...createCampaignProgress(digest, campaignScenarioIds), history_incomplete: true });
-      setSelectedScenarioId(campaignScenarioIds[0]);
+      setCampaignProgress(sessionProgress ?? { ...createCampaignProgress(digest, campaignScenarioIds), history_incomplete: true });
+      setSelectedScenarioId(id => campaignScenarioIds.includes(id) ? id : campaignScenarioIds[0]);
     } finally { setCampaignProgressLoadedDigest(digest); setCampaignProgressLoadedGeneration(generation); }
   }, [campaignScenarioIds, packageValue?.ruleset.digest, campaignProgressAttempt]);
 
@@ -949,6 +960,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     try {
       const current = serializeCampaignProgress(campaignProgress, campaignScenarioIds);
       window.localStorage.setItem(`${CAMPAIGN_PROGRESS_PREFIX}:${digest}`, current);
+      campaignProgressAcknowledged.current = { digest, serialized: current };
       setCampaignProgressRaw(previous => ({ ...previous, current }));
     } catch (cause) {
       setCampaignProgressError(`Campaign progress could not be saved. Progress in this session remains available; stored originals are unchanged: ${cause instanceof Error ? cause.message : String(cause)}`);

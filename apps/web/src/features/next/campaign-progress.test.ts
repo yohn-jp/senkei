@@ -3,7 +3,7 @@ import type { MatchContext, MatchResult } from "../../contracts/core-model";
 import {
   CAMPAIGN_PROGRESS_PREFIX, LEGACY_CAMPAIGN_PROGRESS_PREFIX, CAMPAIGN_PROGRESS_MAX_BYTES,
   createCampaignProgress, parseCampaignProgress, migrateLegacyCampaignProgress,
-  serializeCampaignProgress, reduceCampaignProgress, campaignScenarioStatus, campaignCompletionSummary,
+  serializeCampaignProgress, mergeCampaignProgress, reduceCampaignProgress, campaignScenarioStatus, campaignCompletionSummary,
 } from "./campaign-progress";
 
 const ids = ["first", "second", "final"];
@@ -37,6 +37,17 @@ describe("campaign progress versioned storage", () => {
     expect(campaignScenarioStatus(progress, "final")).toBe("completion_unknown");
     expect(legacyRaw).toBe(original);
     expect(parseCampaignProgress(serializeCampaignProgress(progress, ids), digest, ids)).toEqual(progress);
+  });
+
+  it("merges validated stored and unsaved session history in canonical catalog order", () => {
+    const stored = reduceCampaignProgress(createCampaignProgress(digest, ids), ids, win("first"));
+    const session = reduceCampaignProgress(createCampaignProgress(digest, ids), ids, win("first"));
+    const withFinal = { ...stored, unlocked_scenario_ids: ids, completed_scenario_ids: [...stored.completed_scenario_ids, "final"], history_incomplete: true };
+    const merged = mergeCampaignProgress(withFinal, session, ids);
+    expect(merged.unlocked_scenario_ids).toEqual(ids);
+    expect(merged.completed_scenario_ids).toEqual(["first", "final"]);
+    expect(merged.history_incomplete).toBe(true);
+    expect(() => mergeCampaignProgress(stored, { ...session, ruleset_digest: "other" }, ids)).toThrow(/different Rulesets/);
   });
 
   it("retains the first unlock and deduplicates valid legacy IDs as the old loader did", () => {
