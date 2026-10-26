@@ -2929,4 +2929,27 @@ mod tests {
         assert_ne!(authored, catalog_semantics_digest(&extension).unwrap());
     }
 
+    #[test]
+    fn behavior_order_keys_reject_semantic_duplicates_independent_of_json_member_order() {
+        let plan = verified_next_without_behavior();
+        let mut extension = test_extension(&plan, "steady");
+        let sort_by: Vec<IntentSortTerm> = serde_json::from_str(r#"[
+            {"key":{"kind":"argument","value":1},"direction":"ascending"},
+            {"key":{"value":1,"kind":"argument","ignored":true},"direction":"descending"},
+            {"key":{"kind":"action_id"},"direction":"ascending"}
+        ]"#).unwrap();
+        assert_eq!(sort_by[0].key, sort_by[1].key);
+        extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
+            intent_selection: vec![BehaviorOrderDeclaration {
+                scope: BehaviorScope::Hero, actor_type: TypeId::new("hero"),
+                capabilities: [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect(),
+                arbitration: ArbitrationRule { conflict_keys: vec![IntentKey::Actor],
+                    resolution: ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 } },
+            }], field_writers: BTreeMap::new(),
+        });
+        let mut issues = Vec::new();
+        validate_behavior_orders(&extension, &plan.plan().domain, &mut issues);
+        assert!(issues.iter().any(|issue| issue.message.contains("unique explicit sort keys")));
+    }
+
 }

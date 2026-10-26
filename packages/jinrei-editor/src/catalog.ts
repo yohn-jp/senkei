@@ -240,7 +240,10 @@ function isBehaviorOrderContract(value: unknown): value is BehaviorOrderContract
     return order.max_accepted === 1 && Array.isArray(order.sort_by)
       && order.sort_by.every((term) => object(term) && key(term.key) && ["ascending", "descending"].includes(String(term.direction)))
       && order.sort_by.some((term) => object(term) && object(term.key) && term.key.kind === "action_id")
-      && new Set(order.sort_by.map((term) => JSON.stringify((term as { key: unknown }).key))).size === order.sort_by.length;
+      && new Set(order.sort_by.map((term) => {
+        const key = (term as { key: BehaviorIntentKey }).key;
+        return key.kind === "argument" ? `argument:${key.value}` : key.kind;
+      })).size === order.sort_by.length;
   });
   return orders(value.intentSelection) && Object.keys(value.fieldWriters).length <= 256 && Object.values(value.fieldWriters).every(orders);
 }

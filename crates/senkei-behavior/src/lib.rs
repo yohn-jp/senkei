@@ -495,7 +495,7 @@ impl BehaviorResolver {
             eligible_intents.push(intent.clone());
         }
         if self.profiles.cross_capability_order.is_some() { unique_action_ids(&eligible_intents)?; }
-        let arbitration = arbitrate_by_ruleset(&eligible_intents, side, &self.arbitration)?;
+        let arbitration = arbitrate_by_ruleset(&eligible_intents, side, &self.arbitration, self.profiles.cross_capability_order.is_some())?;
         for intent in arbitration.rejected {
             rejected.push(RejectedOverride {
                 action_id: intent.action_id,
@@ -697,7 +697,7 @@ impl BehaviorResolver {
             return Ok((None, false));
         }
         if self.profiles.cross_capability_order.is_some() { unique_action_ids(&candidates)?; }
-        let mut accepted = arbitrate_by_ruleset(&candidates, side, &self.arbitration)?;
+        let mut accepted = arbitrate_by_ruleset(&candidates, side, &self.arbitration, self.profiles.cross_capability_order.is_some())?;
         if accepted.selected.len() > 1 {
             if let Some(contract) = &self.profiles.cross_capability_order {
                 let ordered = self.authored_order(actor, side, accepted.selected, &contract.intent_selection)?;
@@ -1224,6 +1224,7 @@ fn arbitrate_by_ruleset(
     intents: &[Intent],
     side: CombatantSide,
     rules: &BTreeMap<senkei_model::CapabilityId, senkei_model::ArbitrationRule>,
+    strict: bool,
 ) -> Result<ArbitrationResult, BehaviorError> {
     let mut groups = BTreeMap::<senkei_model::CapabilityId, Vec<Intent>>::new();
     for intent in intents {
@@ -1236,6 +1237,7 @@ fn arbitrate_by_ruleset(
         let mut rejected = BTreeSet::new();
         match &rule.resolution {
             ArbitrationResolution::AllowAll { max_accepted } => {
+                if strict && group.len() > *max_accepted as usize { return Err(BehaviorError::UnresolvedCandidateConflict); }
                 for index in *max_accepted as usize..group.len() { rejected.insert(index); }
             }
             ArbitrationResolution::RejectConflicts => {
@@ -1249,14 +1251,43 @@ fn arbitrate_by_ruleset(
                 }
             }
             ArbitrationResolution::SelectOrdered { sort_by, max_accepted } => {
-                group.sort_by(|left, right| compare_intents(left, side, right, side, sort_by));
+                if strict {
+                    // Check before local reduction: a global order cannot recover a
+                    // candidate silently discarded by a missing local ordering key.
+                    for (index, intent) in group.iter().enumerate() {
+                        let competes = group.len() > *max_accepted as usize || group.iter().enumerate().any(|(other, right)|
+                            index != other && keys_conflict(intent, side, right, side, &rule.conflict_keys));
+                        if competes && sort_by.iter().any(|term| key_value(intent, side, &term.key).is_none()) {
+                            return Err(BehaviorError::UnresolvedCandidateConflict);
+                        }
+                    }
+                    group.sort_by(|left, right| compare_declared(left, side, right, side, sort_by));
+                } else {
+                    group.sort_by(|left, right| compare_intents(left, side, right, side, sort_by));
+                }
                 let mut selected = Vec::new();
+                let mut checked_tie_end = 0;
                 for index in 0..group.len() {
                     if selected.len() >= *max_accepted as usize || selected.iter().any(|prior| {
                         keys_conflict(&group[*prior], side, &group[index], side, &rule.conflict_keys)
                     }) {
                         rejected.insert(index);
                     } else {
+                        if strict && index >= checked_tie_end {
+                            // Equal-ranked candidates blocked by an earlier strictly
+                            // better selection are irrelevant. Remaining ties must all
+                            // fit and be disjoint; otherwise no local winner is declared.
+                            checked_tie_end = (index + 1..group.len()).find(|other|
+                                compare_declared(&group[index], side, &group[*other], side, sort_by) != Ordering::Equal).unwrap_or(group.len());
+                            let tied = (index..checked_tie_end).filter(|other|
+                                !selected.iter().any(|prior| keys_conflict(&group[*prior], side, &group[*other], side, &rule.conflict_keys)))
+                                .collect::<Vec<_>>();
+                            if tied.len() > (*max_accepted as usize).saturating_sub(selected.len())
+                                || tied.iter().enumerate().any(|(position, left)| tied[position + 1..].iter()
+                                    .any(|right| keys_conflict(&group[*left], side, &group[*right], side, &rule.conflict_keys))) {
+                                return Err(BehaviorError::UnresolvedCandidateConflict);
+                            }
+                        }
                         selected.push(index);
                     }
                 }

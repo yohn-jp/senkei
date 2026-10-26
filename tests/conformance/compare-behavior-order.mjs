@@ -22,10 +22,18 @@ assert.equal(result.composition.values["navigation.destination"].value, "A.TOP.J
 assert.equal(result.composition.values["targeting.mode"].value, "f01_a_active");
 const server = await createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true }, appType: "custom" });
 try {
-  const { loadDomainCatalog } = await server.ssrLoadModule("/packages/jinrei-editor/src/catalog.ts");
+  const { loadDomainCatalog, digestMaterialJson } = await server.ssrLoadModule("/packages/jinrei-editor/src/catalog.ts");
   const decoded = await loadDomainCatalog(result.catalog);
   assert.equal(decoded.behaviorProfiles.value.metadata.crossCapabilityOrder.intentSelection[0].actorType, "hero");
   await assert.rejects(loadDomainCatalog(result.catalog.replace('"actorType":"hero"', '"actorType":"wrong_type"')), { code: "invalid_shape" });
   await assert.rejects(loadDomainCatalog(result.catalog.replaceAll('"kind":"action_id"', '"kind":"capability"')), { code: "invalid_shape" });
+  const duplicate = JSON.parse(result.catalog);
+  duplicate.behaviorProfiles.value.metadata.crossCapabilityOrder.intentSelection[0].arbitration.resolution.value.sort_by.unshift(
+    { key: { kind: "argument", value: 1 }, direction: "ascending" },
+    { key: { value: 1, kind: "argument", ignored: true }, direction: "descending" },
+  );
+  const malformed = JSON.stringify(duplicate);
+  const rehashed = malformed.replace(/"catalogDigest":"[0-9a-f]{64}"/, `"catalogDigest":"${createHash("sha256").update(digestMaterialJson(malformed)).digest("hex")}"`);
+  await assert.rejects(loadDomainCatalog(rehashed), { code: "invalid_shape" });
 } finally { await server.close(); }
 console.log(`PASS real Catalog/Jinrei VM/BehaviorResolver native-WASM exact fixture parity; wasm SHA256 ${createHash("sha256").update(bytes).digest("hex")}`);
