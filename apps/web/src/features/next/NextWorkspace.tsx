@@ -891,9 +891,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const heading = [...(workspaceHost.current?.querySelectorAll<HTMLElement>("h2,h3,h4") ?? [])]
         .find(element => element.getClientRects().length > 0);
       // A keyboard interaction may have moved focus before this entry frame runs.
-      const libraryTabHasFocus = screen === "resume" && document.activeElement instanceof HTMLElement
-        && workspaceHost.current?.contains(document.activeElement) && document.activeElement.matches(".next-library [role=tab]");
-      if (heading && !libraryTabHasFocus) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+      const selectedTabHasFocus = document.activeElement instanceof HTMLElement
+        && workspaceHost.current?.contains(document.activeElement)
+        && document.activeElement.matches('[role="tab"][aria-selected="true"]')
+        && document.activeElement.getClientRects().length > 0;
+      if (heading && !selectedTabHasFocus) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
       window.scrollTo(0, scrollPositions.current.get(viewKey) ?? 0);
     });
     return () => { cancelAnimationFrame(frame); scrollPositions.current.set(viewKey, window.scrollY); };
