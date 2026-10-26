@@ -222,3 +222,8 @@
   .ha-dossier .next-hero-model-canvas { height: 260px; }
   .ha-footer > div > button { font-size: 8px; padding: 0 7px; }
 }
+
+.ha-catalog-entry { display: grid; gap: 5px; min-width: 0; }
+.ha-catalog-entry > .ha-hero-card { width: 100%; }
+.ha-catalog-entry > .next-secondary-button { justify-content: center; min-height: 36px; }
+@media (max-width: 760px) { .ha-catalog-entry > .next-secondary-button { min-height: 44px; } }

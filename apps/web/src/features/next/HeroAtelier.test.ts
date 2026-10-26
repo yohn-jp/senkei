@@ -52,3 +52,33 @@ describe("Hero Atelier Skill Tree path validation", () => {
     expect(skillPathIssues(definition, "missing")).toEqual(["This branch has no selectable skills."]);
   });
 });
+
+describe("Hero candidate adoption", () => {
+  it("previews the same patch used for adoption without changing the source slot", async () => {
+    const { heroAdoption } = await import("./HeroAtelier");
+    const slot = { slot_id: "slot-02", catalog_id: "old", skill_path: "missing", squad: "squad-2", node: "home" };
+    const candidate = { ...hero(["root"], [skill("root", 1)]), id: "candidate", name: "Candidate" };
+    const before = { ...slot };
+    const result = heroAdoption(candidate, slot, 1, "Original");
+    expect(slot).toEqual(before);
+    expect(result.changes).toEqual({ catalog_id: "candidate", skill_path: "path_a" });
+    expect(result.details.join(" ")).toContain("Slot 2: Original → Candidate");
+    expect(result.details.join(" ")).toContain("Skill plan changed");
+    expect(result.details.join(" ")).toContain("Squad Squad 2 and starting node Home stay assigned");
+    expect(result.details.join(" ")).toContain("Jinrei compile must be checked again");
+  });
+
+  it("retains a branch provided by the candidate", async () => {
+    const { heroAdoption } = await import("./HeroAtelier");
+    const slot = { slot_id: "slot-01", catalog_id: "old", skill_path: "path_a", squad: "solo", node: "home" };
+    const candidate = { ...hero(["root"], [skill("root", 1)]), id: "candidate", name: "Candidate" };
+    expect(heroAdoption(candidate, slot, 0, "Original").details.join(" ")).toContain("skill plan was retained");
+  });
+
+  it("describes preview effects prospectively", async () => {
+    const { heroAdoption } = await import("./HeroAtelier");
+    const slot = { slot_id: "slot-01", catalog_id: "old", skill_path: "missing", squad: "solo", node: "home" };
+    const candidate = { ...hero(["root"], [skill("root", 1)]), id: "candidate", name: "Candidate" };
+    expect(heroAdoption(candidate, slot, 0, "Original", true).details.join(" ")).toContain("Skill plan will change");
+  });
+});
