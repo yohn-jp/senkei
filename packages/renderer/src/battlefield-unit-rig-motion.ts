@@ -70,7 +70,10 @@ export function battlefieldUnitRigMotion(
         ? rotation(-hit * 0.22 - hitRecovery * 0.08 - settledFall * 0.08, hit * 0.06, death * 0.1)
         : rotation(0, 0, death * 0.24),
       pelvis: rotation(death * 0.12 - (heroMotion ? hit * 0.08 + hitRecovery * 0.04 : 0)),
-      cape: rotation(Math.abs(step) * 0.18 + death * 0.36 + (heroMotion ? hit * 0.42 + hitRecovery * 0.15 : death * -0.06)),
+      // The cape extends along local -Z, so a positive X rotation swings it
+      // through the torso toward the camera. Hit recoil keeps the cloth folded
+      // behind the body, then returns it from that side as the hit recovers.
+      cape: rotation(Math.abs(step) * 0.18 + death * 0.36 + (heroMotion ? -hit * 0.28 - hitRecovery * 0.1 : death * -0.06)),
     },
     weaponPivots: {
       main: rotation(-strike * 0.22 + (heroMotion ? attackPrep * 0.35 - attackFollowThrough * 0.2 : 0), 0,

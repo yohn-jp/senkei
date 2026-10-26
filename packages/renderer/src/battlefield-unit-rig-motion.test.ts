@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { DisplayEntity } from "@senkei/replay-contract";
-import { applyBattlefieldUnitLodMotion, buildBattlefieldHero } from "./battlefield-units";
+import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, type BattlefieldUnitRig } from "./battlefield-units";
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { applyHeroPreviewMotion, heroPreviewPose } from "./hero-preview-motion";
 
@@ -52,6 +52,37 @@ function vertexPositions(root: THREE.Object3D): number[] {
 
 function maximumDisplacement(first: readonly number[], second: readonly number[]): number {
   return Math.max(...first.map((value, index) => Math.abs(value - second[index]!)));
+}
+
+function capeWorldBounds(rig: BattlefieldUnitRig, lodLevel: THREE.Object3D): THREE.Box3 {
+  const cape = rig.joints.cape;
+  if (cape) {
+    cape.updateWorldMatrix(true, true);
+    return new THREE.Box3().setFromObject(cape);
+  }
+
+  const bounds = new THREE.Box3();
+  let found = false;
+  lodLevel.updateWorldMatrix(true, true);
+  const point = new THREE.Vector3();
+  lodLevel.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const ranges = object.geometry.userData.bakedCapeRanges as readonly { startVertex: number; vertexCount: number }[] | undefined;
+    if (!ranges) return;
+    const positions = object.geometry.getAttribute("position");
+    for (const range of ranges) {
+      const end = range.startVertex + range.vertexCount;
+      if (range.startVertex < 0 || end > positions.count) throw new Error("Baked cape range exceeds its reduced LOD geometry.");
+      for (let index = range.startVertex; index < end; index++) {
+        point.fromBufferAttribute(positions, index);
+        object.localToWorld(point);
+        bounds.expandByPoint(point);
+      }
+      found = true;
+    }
+  });
+  if (!found) throw new Error(`LOD ${lodLevel.name} has no cape joint or baked cape geometry.`);
+  return bounds;
 }
 
 function weaponPenetratesBody(weapon: THREE.Object3D, torso: THREE.Object3D): boolean {
@@ -324,6 +355,38 @@ describe("additive named Hero rig motion", () => {
         expect(maximumDisplacement(armFrames[0]!, armFrames[2]!)).toBeGreaterThan(0.08);
         expect(maximumDisplacement(frames[2]!, frames[3]!)).toBeGreaterThan(0.025);
         expect(frames[0]).toEqual(frames[4]);
+      }
+    }
+  });
+
+  it("keeps both Heroes' cape behind the torso throughout Hit at every LOD", () => {
+    const sampleTimes = [0, 0.2, 0.4, 0.6, 0.8];
+    for (const heroId of ["F01", "R01"]) {
+      const model = new THREE.Group();
+      const entity = previewEntity(heroId);
+      const rig = buildBattlefieldHero(model, entity, 0x71847b, entity.appearanceKey!);
+      const lod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD)!;
+
+      for (let level = 0; level < 3; level++) {
+        const selectedRig = rig.lodRigs![level]!;
+        const selectedLod = lod.levels[level]!.object;
+        lod.levels.forEach((item, index) => { item.object.visible = index === level; });
+
+        for (const elapsedSeconds of sampleTimes) {
+          applyHeroPreviewMotion(selectedRig, model, "hit", elapsedSeconds, false);
+          selectedLod.updateWorldMatrix(true, true);
+          const torsoBounds = new THREE.Box3().setFromObject(selectedRig.joints.torso!);
+          const capeBounds = capeWorldBounds(selectedRig, selectedLod);
+          const torsoCenter = torsoBounds.getCenter(new THREE.Vector3());
+          const capeCenter = capeBounds.getCenter(new THREE.Vector3());
+
+          // The Heroes face +Z. The cape may overlap in screen projection at
+          // the shoulders, but it must remain behind the chest depth envelope.
+          expect(capeCenter.z).toBeLessThan(torsoCenter.z - 0.02);
+          expect(capeBounds.max.z).toBeLessThan(torsoBounds.max.z);
+          if (selectedRig.joints.cape && elapsedSeconds > 0 && elapsedSeconds < 0.8)
+            expect(selectedRig.joints.cape.rotation.x).toBeLessThan(0);
+        }
       }
     }
   });
