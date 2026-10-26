@@ -523,6 +523,26 @@ fn nested_quantifier_shadowing_restores_outer_binding() {
 }
 
 #[test]
+fn sum_accepts_total_above_individual_numeric_field_bound() {
+    let rules = rules(true, false);
+    let mut obs = observation(true, false);
+    let Some(Observed::Known(units)) = obs.collections.get_mut(&CollectionId::new("allies.units")) else {
+        panic!("expected allies");
+    };
+    for unit in units {
+        unit.fields.insert(FieldId::new("health"), Observed::Known(DomainValue::Integer(90)));
+    }
+    // health is individually capped at 100, but two legal 90s sum to 180.
+    let source = "senkei sums { action check { when sum u in allies.units by u.health >= 180, do act(), }, }";
+    let program = compile(source, &rules).expect("sum result range must not inherit element bound").program;
+    for optimize in [false, true] {
+        let output = execute(&rules, &program, &obs, 100_000, optimize);
+        assert_eq!(output.status, TacticalExecutionStatus::Completed);
+        assert_eq!(output.intents.len(), 1);
+    }
+}
+
+#[test]
 fn implicit_collection_conjunctions_have_all_runtime_cost_operations() {
     let rules = rules(true, false);
     let obs = observation(true, false);

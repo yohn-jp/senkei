@@ -181,9 +181,16 @@ impl<'a> TypeChecker<'a> {
                 let collection = self.type_collection(collection)?;
                 let binding_info = self.binding_info(&collection)?;
                 let expression = Box::new(self.with_binding(binding, binding_info, |checker| checker.type_value(expression, None))?);
-                let ty = value_type(&expression).clone();
-                if !is_numeric(&ty) { return Err(type_error("sum requires an integer or fixed-point expression")); }
-                Value::Sum { binding: binding.clone(), collection, expression, value_type: ty }
+                let ty = value_type(&expression);
+                // An aggregate sum is not bounded by a single element's
+                // declared range. It may exceed that range while remaining
+                // a valid i64 result; the VM checks the actual integer limit.
+                let sum_type = match ty {
+                    DomainType::Integer { .. } => DomainType::Integer { min: None, max: None },
+                    DomainType::Fixed { scale, .. } => DomainType::Fixed { scale: *scale, min: None, max: None },
+                    _ => return Err(type_error("sum requires an integer or fixed-point expression")),
+                };
+                Value::Sum { binding: binding.clone(), collection, expression, value_type: sum_type }
             }
             V::Min { binding, collection, expression } => {
                 let collection = self.type_collection(collection)?;
