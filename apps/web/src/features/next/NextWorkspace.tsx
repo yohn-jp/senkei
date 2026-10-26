@@ -604,7 +604,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [savedRaw, setSavedRaw] = useState<string | null>(null);
   const [recoveryRaw, setRecoveryRaw] = useState<string | null>(null);
   const [exactRun, setExactRun] = useState<BattleRun | null>(null);
-  const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign" | "review">("quick");
+  const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; message: string; status: "invalid" | "unverified" | "failed" } | null>(null);
@@ -1028,8 +1028,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const draftIsSaved = Boolean(savedSetup && !savedSetupError && draft
-    && stableKey({ draft, slots, rivalSlots, formationShape }) === stableKey({
+    && stableKey({ draft, slots, rivalSlots, formationShape, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null }) === stableKey({
       draft: savedSetup.draft, slots: savedSetup.slots, rivalSlots: savedSetup.rival_slots, formationShape: savedSetup.formation_shape,
+      campaignScenario: savedSetup.campaign_scenario_id ?? null,
     }));
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
   const runIsCurrent = Boolean(run && draft &&
