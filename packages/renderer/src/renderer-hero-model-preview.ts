@@ -204,6 +204,7 @@ export function createHeroModelPreview(
   const recordFrame = () => {
     renderer.domElement.dataset.camera = [...camera.position.toArray(), ...controls.target.toArray()].map(value => value.toFixed(4)).join(",");
     renderer.domElement.dataset.bodyPoseSample = [model.rotation.z, motionRig.joints.torso?.rotation.z ?? 0].map(value => value.toFixed(4)).join(",");
+    renderer.domElement.dataset.rootY = model.position.y.toFixed(4);
     renderer.domElement.dataset.poseSample = [motionRig.joints["leg.left"], motionRig.joints["arm.right"], motionRig.weaponPivots.main]
       .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
     if (heroLod) {

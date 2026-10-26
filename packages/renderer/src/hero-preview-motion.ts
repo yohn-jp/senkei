@@ -1,7 +1,7 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { BattlefieldUnitRig } from "./battlefield-units";
 import type { BattlefieldUnitPose } from "./battlefield-unit-motion";
-import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
+import { battlefieldUnitGroundingOffset, battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 
 export type HeroPreviewPose = "idle" | "move" | "attack" | "hit" | "death";
 
@@ -28,7 +28,7 @@ export function applyHeroPreviewMotion(
   elapsedSeconds: number,
   reducedMotion: boolean,
 ): void {
-  const motion = battlefieldUnitRigMotion(heroPreviewPose(pose, elapsedSeconds, reducedMotion));
+  const motion = battlefieldUnitRigMotion(heroPreviewPose(pose, elapsedSeconds, reducedMotion), true);
   const apply = (key: string, joint: THREE.Group, offset?: { x: number; y: number; z: number }) => {
     const rest = rig.restPose?.[key] ?? { x: 0, y: 0, z: 0 };
     joint.rotation.set(rest.x + (offset?.x ?? 0), rest.y + (offset?.y ?? 0), rest.z + (offset?.z ?? 0));
@@ -37,10 +37,17 @@ export function applyHeroPreviewMotion(
   for (const [key, joint] of Object.entries(rig.weaponPivots)) apply(`weapon.${key}`, joint, motion.weaponPivots[key]);
   model.rotation.z = motion.rootZ;
   model.position.y = 0;
+  if (pose === "death" && motion.rootZ !== 0) {
+    const lod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD);
+    const visible = lod?.levels.find(({ object }) => object.visible)?.object;
+    model.position.y = battlefieldUnitGroundingOffset(visible ?? model, 0);
+  }
   if (pose === "idle" && !reducedMotion) {
     const breath = Math.sin(elapsedSeconds * 1.7);
-    if (rig.joints.torso) apply("torso", rig.joints.torso, { x: breath * 0.025, y: 0, z: breath * 0.012 });
-    if (rig.joints.head) apply("head", rig.joints.head, { x: 0, y: Math.sin(elapsedSeconds * 0.8) * 0.035, z: 0 });
-    if (rig.joints.cape) apply("cape", rig.joints.cape, { x: breath * 0.035, y: 0, z: 0 });
+    if (rig.joints.torso) apply("torso", rig.joints.torso, { x: breath * 0.055, y: 0, z: breath * 0.035 });
+    if (rig.joints.head) apply("head", rig.joints.head, { x: 0, y: Math.sin(elapsedSeconds * 0.8) * 0.07, z: 0 });
+    if (rig.joints.cape) apply("cape", rig.joints.cape, { x: breath * 0.085, y: 0, z: 0 });
+    if (rig.joints["arm.left"]) apply("arm.left", rig.joints["arm.left"], { x: breath * 0.035, y: 0, z: 0 });
+    if (rig.joints["arm.right"]) apply("arm.right", rig.joints["arm.right"], { x: -breath * 0.035, y: 0, z: 0 });
   }
 }

@@ -12,7 +12,7 @@ import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMi
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
-import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
+import { battlefieldUnitGroundingOffset, battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
@@ -2387,6 +2387,11 @@ export class Battlefield {
       this.camera.updateMatrixWorld();
       const cameraUp = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
       for (const g of this.units.values()) {
+        const priorDeathGroundOffset = Number(g.userData.heroDeathGroundOffset ?? 0);
+        if (priorDeathGroundOffset) {
+          g.position.y -= priorDeathGroundOffset;
+          delete g.userData.heroDeathGroundOffset;
+        }
         if (g.userData.to) {
           if (this.replay.scene.routes?.length || !this.playing || this.reducedMotion)
             g.position.copy(g.userData.to);
@@ -2401,9 +2406,10 @@ export class Battlefield {
           phase,
         );
         g.userData.actionPose = actionPose;
-        const rigMotion = battlefieldUnitRigMotion(actionPose);
-        const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
         const entity = this.state?.entities[g.userData.entityId];
+        const heroEntity = Boolean(entity && this.isHero(entity));
+        const rigMotion = battlefieldUnitRigMotion(actionPose, heroEntity);
+        const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
           const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
@@ -2461,6 +2467,15 @@ export class Battlefield {
           applyBattlefieldUnitLodMotion(rig, g.userData.lodLevel ?? 0, rigMotion);
         }
         g.rotation.z = rigMotion.rootZ;
+        if (rig && heroEntity && actionPose.death > 0) {
+          const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
+          const visible = lod?.levels.find(({ object }) => object.visible)?.object;
+          if (visible) {
+            const offset = battlefieldUnitGroundingOffset(visible, g.position.y);
+            g.position.y += offset;
+            g.userData.heroDeathGroundOffset = offset;
+          }
+        }
         const collapsing =
           this.playing &&
           !this.reducedMotion &&
