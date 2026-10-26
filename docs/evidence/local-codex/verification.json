@@ -69,7 +69,13 @@
     "browser": "Nix Chromium 156",
     "renderer": "SwiftShader",
     "physical_mobile_device": "NOT_CHECKED",
-    "physical_gpu_performance": "NOT_CHECKED"
+    "physical_gpu_performance": "NOT_CHECKED",
+    "default_headless_webgl_probe": {
+      "webgl2": true,
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "physical_gpu_verified": false
+    }
   },
   "limits": [
     "No final integrated-main CI claim.",
@@ -174,5 +180,40 @@
       "landscape editor compressed to 164px"
     ],
     "next_scope": "EN-03 artifact retention/resolution and remaining Art gates continue in same parent session."
+  },
+  "en03_candidate": {
+    "source_revision": "9bc8cd4",
+    "integration_state": "Candidate branch only; not yet accepted on main",
+    "unit_tests": 325,
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "generated_contract_types": "UNCHANGED",
+    "ci_helper_tests": 11,
+    "wasm_sha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e",
+    "independent_reviews": {
+      "typescript": "No P1/P2 found; real mixed-package and Campaign import-credit acceptance still pending",
+      "core": "P2 nested unknown fields silently dropped before digest validation; assigned to Artifact Coordinator for repair"
+    },
+    "browser_shard": {
+      "source_revision": "6be3196",
+      "passed": 47,
+      "failed": 2,
+      "scope": "journeys-ui subset, one worker; failures assigned to stale reproduce capture and import completion instrumentation, repairs not yet verified"
+    },
+    "native_workspace": "RUNNING"
+  },
+  "art_preservation": {
+    "remote_branch": "art/3d-production",
+    "pushed_revision": "e2114bba5a92b3322eea9bb71d97e1361433c60a",
+    "capture_source": "e6277a2f55664fd0fd4a8455dae06364c9d66e29",
+    "png_hashes_matched": 180,
+    "manifest_sha256": "fd6c00efd6ca8d4cb8964a2ea5d218a3e829bdd9b2d8d1bb816591033b73694f",
+    "scope": "Independent preview review; expected-size Battlefield, Tactical, and all eight complete Hard Gates remain unverified"
+  },
+  "current_main_ci": {
+    "source_revision": "c03854f76a60707143342c9db4ca2f79e8b5ade3",
+    "run_id": 40314233352,
+    "state": "NOT_PASS",
+    "reason": "journeys-ui reached the 40-minute limit; other individual jobs passed, aggregate browser smoke failed. Shard partition and once-only Native fixture preparation repair is in progress."
   }
 }
