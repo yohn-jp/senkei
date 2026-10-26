@@ -292,6 +292,14 @@ Beforeには[既存F01](evidence/next/atelier/hero-model-contact-sheet/f01.png)�
 同一試合の初期、交戦、横断、通常橋、拡張橋、破壊橋、徒歩渡河、基地争奪、終局を既存の実Jinrei→Enbu/WASM→PresentationReplay→Rendererで検証する。
 Fixtureは再現と造形確認を補助するが、本番実戦の証拠を代替しない。
 
+### Hero品質スコアと必須Hard Gate
+
+12体のHeroは一体ずつ採点し、別Heroとの平均で不合格を隠さない。各軸を0〜5で評価する。0は欠落または評価不能、1は重大な破綻、2は目立つ欠陥、3は成立しているが要改善、4は採用品質、5は基準を超える品質を表す。スコアはIdentity 30%、Silhouette/Proportion 25%、Geometry/Material 20%、Animation 15%、Tactical Readability 10%で加重平均する。合格には全軸3.5/5以上かつ加重平均4.0/5以上が必要。
+
+スコアと独立して、Identity、Geometry、Material、Animation、LOD、Integration、Determinism、Reproducibilityの8項目を各HeroでHard Gateとし、全項目PASSを要する。各項目の失敗や未検証は他の軸の得点で相殺しない。別の評価者が最新HEADの固定視点における実画像と動作を確認し、build/capture SHA、画像SHA-256、評価者、採点理由、欠陥の位置を記録する。静止pose、縮小画像、過去HEADの証拠だけでは加点・合格にしない。
+
+評価表とHero別の状態は[3D-PRODUCTION-STATUS.md](3D-PRODUCTION-STATUS.md)で追跡する。未確認は `NOT_CHECKED`、確認した具体的未達は `FAIL`、必要な実行環境を利用できない項目は `BLOCKED_BY_ENVIRONMENT` とする。F01/R01の全ゲート合格までは残り10体への展開条件を満たさない。
+
 | 確認 | 証拠と判定条件 |
 | --- | --- |
 | Hero近景とLOD | 先行2体の各方向、全12体の一覧、個別近景、Follow/Tactical。同一identity、輪郭、装備、面構成、材質、貫通、接地を目視 |
