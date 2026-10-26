@@ -235,6 +235,9 @@ pub struct SimulationArtifact {
     pub result: MatchResult,
     pub replay: PresentationReplay,
     pub diagnostics: crate::RestrictedDiagnostics,
+    /// Private inputs used to project exactly one authorized diagnostic identity.
+    pub diagnostic_snapshot_digest: ContentDigest,
+    pub diagnostic_program_digests_by_side: BTreeMap<CombatantSide, ContentDigest>,
     pub reproduction: ReproductionContext,
 }
 
@@ -248,6 +251,14 @@ impl SimulationArtifact {
 
     pub fn diagnostic_response(&self, side: CombatantSide) -> crate::LocalSimulationResponse {
         let mut diagnostics = self.diagnostics.clone();
+        diagnostics.identity = crate::RestrictedDiagnosticsIdentity {
+            schema_version: 1,
+            side,
+            match_id: self.result.match_id.clone(),
+            result_digest: self.replay.result_digest.clone(),
+            snapshot_digest: self.diagnostic_snapshot_digest.clone(),
+            program_digest: self.diagnostic_program_digests_by_side[&side].clone(),
+        };
         diagnostics.events.retain(|event| event.side == side);
         diagnostics.cu_by_side.retain(|event_side, _| *event_side == side);
         diagnostics.final_memory_by_side.retain(|event_side, _| *event_side == side);

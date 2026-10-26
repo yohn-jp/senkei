@@ -314,10 +314,30 @@ fn hidden_bridge_is_unknown_and_cannot_be_worked_or_charged() {
     assert_eq!(authorized.owner_replays.keys().copied().collect::<Vec<_>>(), vec![CombatantSide::Attacker]);
     assert!(authorized.diagnostics.as_ref().unwrap().events.iter().all(|event| event.side == CombatantSide::Attacker));
     assert!(authorized.diagnostics.as_ref().unwrap().cu_by_side.keys().all(|side| *side == CombatantSide::Attacker));
+    let attacker_identity = &authorized.diagnostics.as_ref().unwrap().identity;
+    assert_eq!(attacker_identity.schema_version, 1);
+    assert_eq!(attacker_identity.side, CombatantSide::Attacker);
+    assert_eq!(attacker_identity.match_id, first.result.match_id);
+    assert_eq!(attacker_identity.result_digest, first.replay.result_digest);
+    assert_eq!(attacker_identity.program_digest, first.reproduction.attacker.program.content_digest);
+    assert!(attacker_identity.snapshot_digest.has_sha256_shape());
+    let wire_identity = serde_json::to_value(attacker_identity).unwrap();
+    assert_eq!(
+        wire_identity.as_object().unwrap().keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["match_id", "program_digest", "result_digest", "schema_version", "side", "snapshot_digest"],
+        "an owner trace has one program digest, never a map of both sides' programs",
+    );
     let defender_authorized = first.diagnostic_response(CombatantSide::Defender);
     assert_eq!(defender_authorized.authorized_side, Some(CombatantSide::Defender));
     assert_eq!(defender_authorized.owner_replays.keys().copied().collect::<Vec<_>>(), vec![CombatantSide::Defender]);
     assert!(defender_authorized.diagnostics.as_ref().unwrap().events.iter().all(|event| event.side == CombatantSide::Defender));
+    let defender_identity = &defender_authorized.diagnostics.as_ref().unwrap().identity;
+    assert_eq!(defender_identity.schema_version, 1);
+    assert_eq!(defender_identity.side, CombatantSide::Defender);
+    assert_eq!(defender_identity.match_id, first.result.match_id);
+    assert_eq!(defender_identity.result_digest, first.replay.result_digest);
+    assert_eq!(defender_identity.snapshot_digest, attacker_identity.snapshot_digest);
+    assert_eq!(defender_identity.program_digest, first.reproduction.defender.program.content_digest);
     assert!(owner.frames.iter().all(|frame| {
         frame.visible_state.as_ref().is_some_and(|state| {
             state.entities.values().all(|entity| entity.entity_type != TypeId::new("bridge"))
