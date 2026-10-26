@@ -111,3 +111,10 @@
   .next-library-confirm .next-library-actions { margin: 0; }
   .next-library-confirm .next-library-actions button { flex: 1; min-height: 48px; }
 }
+
+.next-library-restore-differences { color: var(--library-ink); font-size: 11px; line-height: 1.65; margin: 12px 0 0; overflow-wrap: anywhere; padding-left: 20px; }
+.next-library-confirm .next-library-actions { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .next-library-confirm .next-library-actions { background: #1c282e; bottom: -16px; flex-wrap: wrap; padding-block: 10px; position: sticky; }
+  .next-library-confirm .next-library-actions button { flex: 1 1 100%; }
+}

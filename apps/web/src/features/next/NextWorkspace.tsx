@@ -175,6 +175,38 @@ function canonicalKey(value: unknown): string {
   return JSON.stringify(normalize(value));
 }
 
+/** Differences in persisted setup content; save timestamps are not editable content. */
+export function setupRestoreDifferences(current: SavedNextSetup | null, restored: SavedNextSetup | null): readonly string[] {
+  if (!current || !restored) return [];
+  const differences: string[] = [];
+  const changed = (left: unknown, right: unknown) => canonicalKey(left) !== canonicalKey(right);
+  if (changed(current.ruleset, restored.ruleset)) differences.push("RulePackage identity changes.");
+  if (changed(current.schema_version, restored.schema_version)) differences.push("Schema version changes.");
+  if (changed(current.mechanics_version, restored.mechanics_version)) differences.push("Mechanics version changes.");
+  if (current.format_version !== restored.format_version) differences.push("Setup format changes.");
+  if ((current.campaign_scenario_id ?? null) !== (restored.campaign_scenario_id ?? null)) {
+    differences.push(`Scenario: ${current.campaign_scenario_id ?? "Starter"} → ${restored.campaign_scenario_id ?? "Starter"}`);
+  }
+  if (current.formation_shape !== restored.formation_shape) differences.push(`Formation: ${current.formation_shape} → ${restored.formation_shape}`);
+  for (const [label, before, after] of [["Own", current.slots, restored.slots], ["Opponent", current.rival_slots, restored.rival_slots]] as const) {
+    if (!changed(before, after)) continue;
+    const previousCount = differences.length;
+    for (const id of new Set([...before, ...after].map(slot => slot.slot_id))) {
+      const oldSlot = before.find(slot => slot.slot_id === id);
+      const newSlot = after.find(slot => slot.slot_id === id);
+      if (!oldSlot || !newSlot) { differences.push(`${label} slot ${id} is ${newSlot ? "added" : "removed"}.`); continue; }
+      for (const [field, name] of [["catalog_id", "Hero"], ["skill_path", "Skill plan"], ["squad", "Squad"], ["node", "starting Node"]] as const) {
+        if (oldSlot[field] !== newSlot[field]) differences.push(`${label} ${id} ${name}: ${oldSlot[field]} → ${newSlot[field]}`);
+      }
+    }
+    if (changed(before.map(slot => slot.slot_id), after.map(slot => slot.slot_id))) differences.push(`${label} slot order changes.`);
+    if (differences.length === previousCount) differences.push(`${label} slot content changes.`);
+  }
+  if (changed(current.draft, restored.draft)) differences.push("Jinrei / Draft content, identity or revision changes.");
+  if (current.rival_source !== restored.rival_source) differences.push("Opponent Jinrei changes.");
+  return differences;
+}
+
 function incrementRevision(revision: string): string {
   const numeric = Number(revision);
   return Number.isSafeInteger(numeric) && numeric >= 0 && numeric < Number.MAX_SAFE_INTEGER
@@ -1027,11 +1059,6 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, [campaignScenarios, entryMode, selectedScenarioId, unlockedScenarioSet]);
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
-  const draftIsSaved = Boolean(savedSetup && !savedSetupError && draft
-    && stableKey({ draft, slots, rivalSlots, formationShape, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null }) === stableKey({
-      draft: savedSetup.draft, slots: savedSetup.slots, rivalSlots: savedSetup.rival_slots, formationShape: savedSetup.formation_shape,
-      campaignScenario: savedSetup.campaign_scenario_id ?? null,
-    }));
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
   const runIsCurrent = Boolean(run && draft &&
     stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
@@ -1192,6 +1219,13 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       ...(entryMode === "campaign" && selectedScenario ? { campaign_scenario_id: selectedScenario.id } : {}),
     };
   }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots]);
+
+  const currentSetup = buildSavedSetup();
+  const restoreDifferences = {
+    saved: setupRestoreDifferences(currentSetup, savedSetup),
+    recovery: setupRestoreDifferences(currentSetup, recoverySetup),
+  };
+  const draftIsSaved = Boolean(currentSetup && savedSetup && !savedSetupError && restoreDifferences.saved.length === 0);
 
   useEffect(() => {
     if (!recoverySetupLoaded || !savedSetupLoaded || slots.length !== 5 || !draft || recoveryLoadError || recoveryMismatchReason) return;
@@ -1867,7 +1901,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   );
 
   const library = <NextLibrary view={libraryView} onViewChange={setLibraryView}
-    saved={savedSetup} recovery={recoverySetup} savedRaw={savedRaw} recoveryRaw={recoveryRaw}
+    saved={savedSetup} recovery={recoverySetup} savedRaw={savedRaw} recoveryRaw={recoveryRaw} restoreDifferences={restoreDifferences}
     savedError={savedSetupError} recoveryError={recoveryLoadError}
     runtimeError={rulesetError ?? editorCatalogError ?? rendererError ?? error ?? runtimeFailure ?? currentPreflightError?.message}
     savedMismatch={savedSetupMismatchReason} recoveryMismatch={recoveryMismatchReason}
@@ -1955,7 +1989,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         <div className="next-save-summary"><span className="next-eyebrow">LOCAL NEXT DRAFT</span><strong>Saved setup and recovery copy</strong><small>Save setup pins a restore point; current edits are recovered separately after reload.</small></div>
         <div className="next-save-actions">
           <button disabled={!draft || !packageValue || !savedSetupLoaded} onClick={() => saveSetup()} type="button">Save setup</button>
-          <button disabled={!canRestoreSavedSetup} onClick={restoreSetup} type="button">Restore saved</button>
+          <button disabled={!canRestoreSavedSetup} onClick={() => openLibrary()} type="button">Restore saved</button>
           <button disabled={!draft || !packageValue} onClick={exportCurrentSetup} type="button">Export JSON</button>
           <button onClick={() => importFileInput.current?.click()} type="button">Import JSON</button>
           {savedSetup && <button onClick={exportSavedSetup} type="button">Export saved</button>}
