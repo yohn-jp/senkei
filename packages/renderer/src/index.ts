@@ -1437,7 +1437,11 @@ export class Battlefield {
     if (!(fill instanceof THREE.Mesh)) return;
     const ratio = THREE.MathUtils.clamp(e.maxHp > 0 ? e.hp / e.maxHp : 0, 0, 1);
     fill.scale.x = Math.max(0.02 / 0.84, ratio);
-    fill.position.x = -0.42 * (1 - ratio);
+    // The caller applies only the change in display offset to each child.
+    // Restore the previous offset here when resetting the health fill,
+    // otherwise a stationary unit's fill drifts away from its bar background.
+    const previousOffset = group.userData.displayOffset as WorldPoint | undefined;
+    fill.position.x = -0.42 * (1 - ratio) + (previousOffset?.x ?? 0);
     const material = Array.isArray(fill.material) ? fill.material[0] : fill.material;
     if (material instanceof THREE.MeshStandardMaterial) material.color.set(colors[e.side]);
   }
