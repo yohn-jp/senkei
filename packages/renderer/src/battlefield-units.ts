@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { BattlefieldRigMotion } from "./battlefield-unit-rig-motion";
 import type { DisplayEntity } from "@senkei/replay-contract";
 import {
   mergeColoredGeometry,
@@ -69,11 +70,29 @@ const HERO_SHAPES: Record<string, ShapeSpec> = {
 };
 
 export interface BattlefieldUnitRig {
+  /** Ordered rigs for the mutually exclusive visible LOD levels. */
+  lodRigs?: readonly BattlefieldUnitRig[];
   joints: Record<string, THREE.Group>;
   weaponPivots: Record<string, THREE.Group>;
   anchors: Record<string, THREE.Object3D>;
   /** Neutral local Euler rotations. Replay animation channels add offsets to these values. */
   restPose?: Readonly<Record<string, Readonly<{ x: number; y: number; z: number }>>>;
+}
+
+/** Selects and poses only the visible level, using authored rotations on every sample. */
+export function applyBattlefieldUnitLodMotion(rig: BattlefieldUnitRig, level: number, motion: BattlefieldRigMotion): BattlefieldUnitRig {
+  const selected = rig.lodRigs?.[Math.min(Math.max(0, level), rig.lodRigs.length - 1)] ?? rig;
+  for (const [name, joint] of Object.entries(selected.joints)) {
+    const rest = selected.restPose?.[name];
+    const delta = motion.joints[name] ?? motion.joints[name.replace(/\.(front|back)$/, "")];
+    if (rest) joint.rotation.set(rest.x + (delta?.x ?? 0), rest.y + (delta?.y ?? 0), rest.z + (delta?.z ?? 0));
+  }
+  for (const [name, pivot] of Object.entries(selected.weaponPivots)) {
+    const rest = selected.restPose?.[`weapon.${name}`];
+    const delta = motion.weaponPivots[name];
+    if (rest) pivot.rotation.set(rest.x + (delta?.x ?? 0), rest.y + (delta?.y ?? 0), rest.z + (delta?.z ?? 0));
+  }
+  return selected;
 }
 
 interface Bucket {
@@ -187,46 +206,55 @@ class UnitBuilder {
 
   finish(flatten = false): BattlefieldUnitRig {
     if (flatten) {
-      const merged = new Map<UnitSurface, THREE.BufferGeometry[]>();
+      // Keep the silhouette's major moving regions, baking decorative parts,
+      // head, hands and shins into their nearest retained animation ancestor.
+      // One vertex-colored mesh per region bounds Hero draws to eight (quadrupeds to nine);
+      // a lower LOD never pays for the full rig's per-surface mesh split.
+      const retainedNames = new Set(["torso", "arm.left", "arm.right", "leg.left", "leg.right"]);
+      const retained = new Set<THREE.Group>([
+        this.root,
+        ...Object.entries(this.joints).filter(([key]) => retainedNames.has(key) || key.startsWith("leg.")).map(([, group]) => group),
+        ...Object.values(this.weaponPivots),
+      ]);
+      const merged = new Map<THREE.Group, THREE.BufferGeometry[]>();
       for (const { group, surfaces } of this.buckets.values()) {
+        let target = group;
         const relative = new THREE.Matrix4();
-        for (let cursor: THREE.Object3D | null = group; cursor && cursor !== this.root; cursor = cursor.parent) {
-          cursor.updateMatrix();
-          relative.premultiply(cursor.matrix);
+        while (!retained.has(target)) {
+          target.updateMatrix();
+          relative.premultiply(target.matrix);
+          target = target.parent as THREE.Group;
         }
-        for (const [surface, pieces] of surfaces) {
-          const destination = merged.get(surface) ?? [];
-          for (const geometry of pieces) {
-            geometry.applyMatrix4(relative);
-            destination.push(geometry);
-          }
-          merged.set(surface, destination);
+        const destination = merged.get(target) ?? [];
+        for (const pieces of surfaces.values()) for (const geometry of pieces) {
+          geometry.applyMatrix4(relative);
+          destination.push(geometry);
         }
+        merged.set(target, destination);
       }
-      this.root.clear();
-      for (const surface of SURFACES) {
-        const pieces = merged.get(surface);
-        if (!pieces?.length) continue;
-        const mesh = new THREE.Mesh(mergeColoredGeometry(pieces), this.materials[surface]);
-        mesh.name = `${this.root.name}.${surface}`;
-        mesh.castShadow = true;
+      for (const [group, pieces] of merged) {
+        if (!pieces.length) continue;
+        const mesh = new THREE.Mesh(mergeColoredGeometry(pieces), this.materials.armor);
+        mesh.name = `${group.name}.armor`;
         mesh.receiveShadow = true;
-        mesh.userData.unitSurface = surface;
-        this.root.add(mesh);
-      }
-      this.root.userData.bakedLod = true;
-      return { joints: {}, weaponPivots: {}, anchors: {} };
-    }
-    for (const { group, surfaces } of this.buckets.values()) {
-      for (const surface of SURFACES) {
-        const parts = surfaces.get(surface);
-        if (!parts?.length) continue;
-        const mesh = new THREE.Mesh(mergeColoredGeometry(parts), this.materials[surface]);
-        mesh.name = `${group.name}.${surface}`;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.userData.unitSurface = surface;
+        mesh.userData.unitSurface = "armor";
         group.add(mesh);
+      }
+      for (const name of Object.keys(this.joints)) if (!retained.has(this.joints[name])) delete this.joints[name];
+      this.root.userData.bakedLod = true;
+      this.root.userData.lodShading = "shared-vertex-color";
+    } else {
+      for (const { group, surfaces } of this.buckets.values()) {
+        for (const surface of SURFACES) {
+          const parts = surfaces.get(surface);
+          if (!parts?.length) continue;
+          const mesh = new THREE.Mesh(mergeColoredGeometry(parts), this.materials[surface]);
+          mesh.name = `${group.name}.${surface}`;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.userData.unitSurface = surface;
+          group.add(mesh);
+        }
       }
     }
     this.root.userData.battlefieldRig = {
@@ -945,6 +973,7 @@ function attachLod(group: THREE.Group, name: string, entries: readonly { distanc
   lod.autoUpdate = true;
   let fullRig: BattlefieldUnitRig = { joints: {}, weaponPivots: {}, anchors: {} };
   const levels: string[] = [];
+  const lodRigs: BattlefieldUnitRig[] = [];
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index];
     const level = new THREE.Group();
@@ -955,13 +984,14 @@ function attachLod(group: THREE.Group, name: string, entries: readonly { distanc
       // shadow, while avoiding a second high cost draw pass for tiny units.
       level.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = false; });
     }
+    lodRigs.push(rig);
     if (index === 0) fullRig = rig;
     levels.push(level.name);
     lod.addLevel(level, entry.distance);
   }
   group.add(lod);
   group.userData.battlefieldLod = { levels, distances: entries.map(({ distance }) => distance) };
-  return fullRig;
+  return { ...fullRig, lodRigs };
 }
 
 function buildBattlefieldHeroLevel(
@@ -1006,8 +1036,8 @@ function buildBattlefieldHeroLevel(
 
 /**
  * Adds an articulated Hero at the supplied group's local ground origin. The parent owns
- * world position and facing; the model faces local +Z. Returns references in the full LOD
- * for deterministic movement/combat presentation.
+ * world position and facing; the model faces local +Z. Returns full-detail references
+ * plus the reduced rigs for deterministic movement/combat at every LOD.
  */
 export function buildBattlefieldHero(
   group: THREE.Group,

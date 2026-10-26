@@ -8,7 +8,7 @@ import { buildBattlefieldLaneGuides } from "./battlefield-lane-guides";
 import { applyBattlefieldInformationLayers, type BattlefieldInformationLayers } from "./battlefield-information-layers";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
-import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
+import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
@@ -1493,10 +1493,6 @@ export class Battlefield {
   }
   private attachRig(group: THREE.Group, rig: BattlefieldUnitRig) {
     group.userData.animationRig = rig;
-    group.userData.rigRest = new Map(
-      [...Object.values(rig.joints), ...Object.values(rig.weaponPivots)]
-        .map(joint => [joint, joint.rotation.clone()]),
-    );
     const materials = new Set<THREE.Material>();
     group.traverse(object => {
       if (object instanceof THREE.Mesh)
@@ -2462,24 +2458,7 @@ export class Battlefield {
             }
             g.userData.focusOpacity = opacity;
           }
-          const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
-          for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
-          for (const [name, delta] of Object.entries(rigMotion.joints)) {
-            const joint = rig.joints[name];
-            if (joint) {
-              joint.rotation.x += delta.x;
-              joint.rotation.y += delta.y;
-              joint.rotation.z += delta.z;
-            }
-          }
-          for (const [name, delta] of Object.entries(rigMotion.weaponPivots)) {
-            const pivot = rig.weaponPivots[name];
-            if (pivot) {
-              pivot.rotation.x += delta.x;
-              pivot.rotation.y += delta.y;
-              pivot.rotation.z += delta.z;
-            }
-          }
+          applyBattlefieldUnitLodMotion(rig, g.userData.lodLevel ?? 0, rigMotion);
         }
         g.rotation.z = rigMotion.rootZ;
         const collapsing =

@@ -88,10 +88,10 @@ describe("Battlefield unit models", () => {
       expect(levels[1].name).toContain(".medium");
       expect(levels[2].name).toContain(".far");
       expect(meshes(levels[0]).length).toBeGreaterThan(8);
-      // Full rigs keep per-joint meshes animatable; common distances are flattened below.
+      // Reduced rigs merge surfaces/decorations into the major moving regions.
       expect(meshes(levels[0]).length).toBeLessThanOrEqual(60);
-      expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
-      expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
+      expect(meshes(levels[1]).length).toBeLessThanOrEqual(8);
+      expect(meshes(levels[2]).length).toBeLessThanOrEqual(8);
       expect(minimumWorldY(levels[0]), `${id} neutral pose stays above the ground`).toBeGreaterThanOrEqual(-0.025);
       expect(rig.joints.torso).toBeInstanceOf(THREE.Group);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
@@ -305,7 +305,7 @@ describe("Battlefield unit models", () => {
       expect(levels).toHaveLength(3);
       levels.forEach((level, index) => {
         signaturesByLevel[index].add(silhouetteBounds(level));
-        if (index > 0) expect(meshes(level).length).toBeLessThanOrEqual(5);
+        if (index > 0) expect(meshes(level).length).toBeLessThanOrEqual(8);
       });
       expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
@@ -328,8 +328,8 @@ describe("Battlefield unit models", () => {
       levels.forEach((level, index) => signaturesByLevel[index].add(silhouetteBounds(level)));
       expect(group.userData.species).toBe(species);
       expect(levels).toHaveLength(3);
-      expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
-      expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
+      expect(meshes(levels[1]).length).toBeLessThanOrEqual(9);
+      expect(meshes(levels[2]).length).toBeLessThanOrEqual(9);
       expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
