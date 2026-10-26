@@ -5,8 +5,8 @@ Reviewer: `visual_auditor` on `session/art-audit`.
 ## Evidence and integrity
 
 - Exact rendered source HEAD: `1b71f79261cc69820ff110897ee4760ce012f6f7`; the capture manifest records an empty `dirtyWorktreeAtCapture`.
-- Capture manifest: `/home/sophia/src/senkei-art-lod-visual/docs/evidence/art-production/lod-visual-1b71f79261cc/manifest.json`; SHA-256 `11d51b84f52409600d24ae50cdb6d0604105f5ec5dba68c943c6463c0c86b0d5`.
-- Raw images: `/home/sophia/src/senkei-art-lod-visual/docs/evidence/art-production/lod-visual-1b71f79261cc/images/`.
+- Capture manifest: `../lod-visual-1b71f79261cc/manifest.json`; SHA-256 `11d51b84f52409600d24ae50cdb6d0604105f5ec5dba68c943c6463c0c86b0d5`.
+- Raw images: `../lod-visual-1b71f79261cc/images/`.
 - Chromium `156.0.8078.47` / SwiftShader, 1440 × 1000 viewport at device scale 1; each raw full-canvas PNG is 1200 × 661. Capture URL: `http://127.0.0.1:4188/`.
 - Capture uses production `createHeroModelPreview` / `buildBattlefieldHero`, with each requested generated LOD child selected via the inspection-only lab override. It is not Battlefield Replay integration. Each Hero/LOD has 30 images: five idle, five move, five attack, five hit, seven death, and three static angles.
 - Independently recalculated PNG SHA-256 values match the manifest for **180/180 unique files**. Manifest `errors`, `consoleErrors`, `httpErrors`, and `failedRequests` are empty.
@@ -93,7 +93,7 @@ No overall F01/R01 acceptance or Goal completion is claimed by this visual revie
 
 ## Raw image SHA-256 references
 
-Paths are relative to `/home/sophia/src/senkei-art-lod-visual/docs/evidence/art-production/lod-visual-1b71f79261cc/images/`. All 180 values below were independently matched against the capture manifest.
+Paths are relative to `../lod-visual-1b71f79261cc/images/` from this report. All 180 values below were independently matched against the capture manifest.
 
 | Hero | LOD | Pose / view | Time (s) | PNG | SHA-256 |
 | --- | --- | --- | ---: | --- | --- |
