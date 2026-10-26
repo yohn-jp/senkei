@@ -274,6 +274,17 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(recoverySource);
     await page.getByRole("button", { name: "Restore saved" }).click();
+    const library = page.getByTestId("next-library");
+    await expect(library).toBeVisible();
+    await library.getByRole("button", { name: "Restore pinned setup", exact: true }).click();
+    const review = library.getByRole("alertdialog", { name: "Replace the current Draft with the pinned setup?" });
+    const differences = review.getByRole("list", { name: "Setup differences" });
+    await expect(differences).toContainText("Hero");
+    await expect(differences).toContainText("Skill plan");
+    await expect(differences).toContainText("Jinrei");
+    await review.getByRole("button", { name: "Replace current Draft", exact: true }).click();
+    await expect(page.getByTestId("journey-ready")).toBeVisible();
+    await page.getByTestId("journey-ready").getByRole("button", { name: /^Hero/ }).click();
     await page.locator("#next-tab-formation").click();
     await atelier.getByRole("tab", {name:"Hero Collection"}).click();
     await expect(page.getByRole("group", {name:"Five selected Hero slots"})).toContainText("Stoneheart");
@@ -290,7 +301,10 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
     await expect(page.getByText(/Confirmed result/i)).toContainText(/Attacker Victory|Defender Victory|Draw/, {timeout:180_000});
     await expect(page.locator(".next-renderer-host canvas")).toHaveCount(1);
   } finally {
-    await page.context().setOffline(false);
+    // A test timeout closes the page before cleanup; retain its original error.
+    if (!page.isClosed()) await page.context().setOffline(false).catch((error: Error) => {
+      if (!page.isClosed()) throw error;
+    });
   }
 
   expect(wasmResponses.some((response) => response.status === 200 && /[?&]rev=[a-f0-9]{64}/.test(response.url))).toBe(true);

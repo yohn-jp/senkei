@@ -270,6 +270,14 @@ test("Continue preserves the pinned setup and separately restores the latest uns
   await expect(page.getByText(/Recovered this unsaved draft after reload/)).toBeVisible();
 
   await page.getByRole("button", { name: "Restore saved" }).click();
+  const library = page.getByTestId("next-library");
+  await expect(library).toBeVisible();
+  await library.getByRole("button", { name: "Restore pinned setup", exact: true }).click();
+  const review = library.getByRole("alertdialog", { name: "Replace the current Draft with the pinned setup?" });
+  await expect(review.getByRole("list", { name: "Setup differences" })).toContainText("Jinrei");
+  await review.getByRole("button", { name: "Replace current Draft", exact: true }).click();
+  await expect(page.getByTestId("journey-ready")).toBeVisible();
+  await page.getByTestId("journey-ready").getByRole("button", { name: /^Jinrei/ }).click();
   await page.locator("#next-tab-jinrei").click();
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(source).toHaveValue(pinnedSource);
