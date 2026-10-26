@@ -55,7 +55,7 @@ const HERO_BODY_PROPORTIONS: Record<HeroBodyProfile, HeroBodyProportions> = {
 };
 
 const HERO_SHAPES: Record<string, ShapeSpec> = {
-  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
+  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "weapon.main": [0, 0, -0.32], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
   f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, bodyProfile: "bastion", stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
   f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, bodyProfile: "breacher", stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12], "weapon.main": [0, 0, -0.18] } },
   f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, bodyProfile: "duelist", stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, -0.34], "arm.right": [-0.08, 0, 0.34], "leg.left": [0.03, 0, 0], "leg.right": [-0.03, 0, 0], "weapon.main": [0.04, 0, -0.34], "weapon.off": [0.04, 0, 0.34] } },
@@ -125,7 +125,7 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     assetKey,
     appearanceKey,
     generator: UNIT_GENERATOR,
-    generatorVersion: 2,
+    generatorVersion: 3,
     sourceFiles: [
       "packages/renderer/src/battlefield-units.ts",
       "packages/renderer/src/battlefield-unit-geometry.ts",
@@ -364,8 +364,15 @@ function addHeroChestArmor(
 
   switch (style) {
     case "command":
-      plate([[-0.28, 0.49], [-0.22, 0.68], [0, 0.76], [0.22, 0.68], [0.28, 0.49], [0.16, 0.22], [0, 0.14], [-0.16, 0.22]]);
-      plate([[-0.055, 0.59], [0, 0.68], [0.055, 0.59], [0.035, 0.3], [0, 0.22], [-0.035, 0.3]], 0, 0.065, 0.022);
+      // Shape the breastplate around the ribs and waist; a pointed outline
+      // made the whole chest read like a second, body-sized shield.
+      plate([
+        [-0.26, 0.66], [-0.2, 0.73], [-0.1, 0.77], [0, 0.74], [0.1, 0.77], [0.2, 0.73], [0.26, 0.66],
+        [0.23, 0.53], [0.19, 0.46], [0.17, 0.31], [0.1, 0.27], [0, 0.29], [-0.1, 0.27], [-0.17, 0.31],
+        [-0.19, 0.46], [-0.23, 0.53],
+      ], 0, 0.02, 0.065);
+      // The command crest is a narrow relief line, not another shield plate.
+      builder.panel(chest, "armor", [[-0.018, 0.68], [0, 0.72], [0.018, 0.68], [0.013, 0.34], [0, 0.3], [-0.013, 0.34]], palette.accent, [0, 0, 0.065], 0.014, 0.006);
       break;
     case "bastion":
       plate([[-0.34, 0.52], [-0.3, 0.7], [-0.16, 0.75], [0, 0.67], [0.16, 0.75], [0.3, 0.7], [0.34, 0.52], [0.24, 0.2], [0, 0.12], [-0.24, 0.2]], 0, 0.02, 0.095);
@@ -389,11 +396,24 @@ function addHeroChestArmor(
       plate([[-0.29, 0.58], [-0.2, 0.7], [0.1, 0.62], [0.22, 0.42], [0.1, 0.18], [-0.12, 0.25]], 0, 0.02, 0.07);
       leather([[-0.27, 0.7], [-0.18, 0.73], [0.27, 0.22], [0.18, 0.19]], 0, 0.08);
       break;
-    case "channeler":
-      cloth([[-0.21, 0.68], [0, 0.74], [0.21, 0.68], [0.18, 0.3], [0.26, 0.16], [-0.25, 0.16], [-0.18, 0.3]]);
-      // A narrow woven stole follows the tunic instead of a shield-shaped cuirass.
-      builder.panel(chest, "cloth", [[-0.045, 0.7], [0.045, 0.7], [0.055, 0.22], [0, 0.14], [-0.055, 0.22]], palette.accent, [0, 0, 0.045], 0.014, 0.004);
+    case "channeler": {
+      // A shaped, closed cloth shell follows the torso instead of a flat
+      // shield-like bib. Its circumferential facets carry the tunic volume.
+      builder.profile(chest, "cloth", [
+        { y: 0.16, radiusX: 0.25, radiusZ: 0.19 },
+        { y: 0.27, radiusX: 0.33, radiusZ: 0.215 },
+        { y: 0.44, radiusX: 0.36, radiusZ: 0.225 },
+        { y: 0.58, radiusX: 0.3, radiusZ: 0.205 },
+        { y: 0.7, radiusX: 0.21, radiusZ: 0.165 },
+      ], palette.cloth, [0, 0, -0.14], [0, 0, 0], 9);
+      // A narrow woven stole and two low-contrast folds keep the cloth readable
+      // without giving it the hard, centered edge of a cuirass.
+      builder.panel(chest, "cloth", [[-0.045, 0.68], [0.045, 0.68], [0.055, 0.22], [0, 0.16], [-0.055, 0.22]], palette.accent, [0, 0, 0.09], 0.01, 0.004);
+      const fold = new THREE.Color(palette.cloth).multiplyScalar(0.88).getHex();
+      builder.panel(chest, "cloth", [[-0.18, 0.54], [-0.145, 0.57], [-0.1, 0.21], [-0.13, 0.18]], fold, [0, 0, 0.065], 0.006, 0.002);
+      builder.panel(chest, "cloth", [[0.14, 0.57], [0.175, 0.54], [0.13, 0.18], [0.1, 0.21]], fold, [0, 0, 0.065], 0.006, 0.002);
       break;
+    }
     case "marksman":
       plate([[-0.22, 0.64], [0.22, 0.64], [0.18, 0.48], [-0.18, 0.48]], 0, 0.02);
       leather([[-0.29, 0.68], [-0.2, 0.71], [0.2, 0.2], [0.1, 0.17]], 0, 0.08);

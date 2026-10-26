@@ -133,8 +133,27 @@ describe("Battlefield unit models", () => {
         }
         const chest = root.getObjectByName("armor.chest")!;
         expect(meshes(chest).some(mesh => mesh.userData.unitSurface === "armor")).toBe(false);
+        const tunic = chest.getObjectByName("armor.chest.cloth") as THREE.Mesh;
+        tunic.geometry.computeBoundingBox();
+        expect(tunic.geometry.boundingBox!.getSize(new THREE.Vector3()).z).toBeGreaterThan(0.4);
       }
     }
+  });
+
+  it("keeps F01's command cuirass integrated and angles its sword clear of the torso", () => {
+    const root = new THREE.Group();
+    const rig = buildBattlefieldHero(root, entity("F01", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    const chest = root.getObjectByName("armor.chest")!;
+    const armor = chest.getObjectByName("armor.chest.armor") as THREE.Mesh;
+    const positions = armor.geometry.getAttribute("position");
+    const centerBottom = Math.min(...Array.from({ length: positions.count }, (_, index) => ({
+      x: positions.getX(index), y: positions.getY(index),
+    })).filter(point => Math.abs(point.x) < 1e-5).map(point => point.y));
+    expect(centerBottom, "the chest crest should not end in a shield-like point").toBeGreaterThan(0.26);
+    expect(rig.restPose?.["weapon.main"]?.z).toBeCloseTo(-0.32);
+
+    const torso = rig.joints.torso.getObjectByName("joint.torso.leather")!;
+    expect(worldBounds(rig.weaponPivots.main).max.x, "the sword should clear the breastplate's edge").toBeGreaterThan(worldBounds(torso).max.x);
   });
 
   it("keeps the golden mouth a narrow facial mark instead of a projecting block", () => {
@@ -164,7 +183,7 @@ describe("Battlefield unit models", () => {
       assetKey: "hero.f01",
       appearanceKey: "senkei.next.hero.f01",
       generator: "senkei.battlefield-unit.v1",
-      generatorVersion: 2,
+      generatorVersion: 3,
       lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
       source: "project-authored-procedural-geometry",
     }));
