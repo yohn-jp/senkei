@@ -10,8 +10,12 @@ export interface HeroModelPreviewOptions {
   catalogId: string;
   appearanceKey: string;
   name: string;
+  /** Inspection-only selection. Omit to preserve the production distance-based LOD. */
+  lodOverride?: HeroPreviewLod;
   onError?: (message: string) => void;
 }
+
+export type HeroPreviewLod = "full" | "medium" | "far";
 
 export interface HeroModelPreviewController {
   dispose(): void;
@@ -21,6 +25,27 @@ export interface HeroModelPreviewController {
 
 const TEAM_COLOR = 0x71847b;
 const GENERATOR = "senkei.battlefield-unit.v1";
+
+function materialProfile(root: THREE.Object3D): string {
+  const counts = new Map<string, number>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const surface = String(object.userData.unitSurface ?? "unlabeled");
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      const standard = material as THREE.MeshStandardMaterial;
+      const key = [
+        surface,
+        material.type,
+        `metalness=${standard.metalness ?? "n/a"}`,
+        `roughness=${standard.roughness ?? "n/a"}`,
+        `vertexColors=${standard.vertexColors ?? false}`,
+        `flatShading=${standard.flatShading ?? false}`,
+      ].join("|");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  });
+  return JSON.stringify([...counts].sort(([left], [right]) => left.localeCompare(right)).map(([profile, slots]) => ({ profile, slots })));
+}
 
 function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   return {
@@ -149,6 +174,19 @@ export function createHeroModelPreview(
     renderer.domElement.remove();
     throw error;
   }
+  const heroLod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD);
+  const lodProfiles = heroLod?.levels.map(({ object }) => materialProfile(object)) ?? [];
+  let motionRig = rig;
+  if (options.lodOverride) {
+    if (!heroLod) throw new Error("Hero preview LOD override requested, but the generated Hero has no LOD.");
+    const selectedIndex = heroLod.levels.findIndex(({ object }) => object.name.endsWith(`.${options.lodOverride}`));
+    if (selectedIndex < 0) throw new Error(`Hero preview does not contain the requested ${options.lodOverride} LOD.`);
+    const selectedRig = rig.lodRigs?.[selectedIndex];
+    if (!selectedRig) throw new Error(`Hero preview is missing the ${options.lodOverride} LOD rig.`);
+    motionRig = selectedRig;
+    heroLod.autoUpdate = false;
+    heroLod.levels.forEach(({ object }, index) => { object.visible = index === selectedIndex; });
+  }
   renderer.domElement.dataset.generator = String(model.userData.battlefieldRig?.generator ?? GENERATOR);
   renderer.domElement.dataset.silhouetteId = String(model.userData.heroSilhouette ?? options.catalogId);
   renderer.domElement.dataset.bodyProfile = String(model.userData.heroBodyProfile ?? "unknown");
@@ -165,16 +203,26 @@ export function createHeroModelPreview(
 
   const recordFrame = () => {
     renderer.domElement.dataset.camera = [...camera.position.toArray(), ...controls.target.toArray()].map(value => value.toFixed(4)).join(",");
-    renderer.domElement.dataset.bodyPoseSample = [model.rotation.z, rig.joints.torso?.rotation.z ?? 0].map(value => value.toFixed(4)).join(",");
-    renderer.domElement.dataset.poseSample = [rig.joints["leg.left"], rig.joints["arm.right"], rig.weaponPivots.main]
+    renderer.domElement.dataset.bodyPoseSample = [model.rotation.z, motionRig.joints.torso?.rotation.z ?? 0].map(value => value.toFixed(4)).join(",");
+    renderer.domElement.dataset.poseSample = [motionRig.joints["leg.left"], motionRig.joints["arm.right"], motionRig.weaponPivots.main]
       .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
+    if (heroLod) {
+      const selectedIndex = heroLod.levels.findIndex(({ object }) => object.visible);
+      const selected = heroLod.levels[selectedIndex]?.object;
+      renderer.domElement.dataset.lodOverride = options.lodOverride ?? "automatic";
+      renderer.domElement.dataset.lodIndex = String(selectedIndex);
+      renderer.domElement.dataset.lodLevel = selected?.name.split(".").at(-1) ?? "none";
+      renderer.domElement.dataset.lodChild = selected?.name ?? "none";
+      renderer.domElement.dataset.lodVisible = heroLod.levels.map(({ object }) => String(object.visible)).join(",");
+      renderer.domElement.dataset.lodMaterialProfile = selectedIndex >= 0 ? lodProfiles[selectedIndex] ?? "[]" : "[]";
+    }
   };
   const render = () => {
     if (!disposed) { renderer.render(scene, camera); recordFrame(); }
   };
   const animate = (time: number) => {
     if (disposed) return;
-    applyHeroPreviewMotion(rig, model, pose, Math.max(0, (time - poseStarted) / 1000), false);
+    applyHeroPreviewMotion(motionRig, model, pose, Math.max(0, (time - poseStarted) / 1000), false);
     controls.update();
     renderer.render(scene, camera);
     recordFrame();
@@ -212,7 +260,7 @@ export function createHeroModelPreview(
     observer.observe(host);
   } else window.addEventListener("resize", resize);
   resize();
-  if (reducedMotion) applyHeroPreviewMotion(rig, model, pose, 0, true);
+  if (reducedMotion) applyHeroPreviewMotion(motionRig, model, pose, 0, true);
   else renderer.setAnimationLoop(animate);
   render();
 
@@ -221,7 +269,7 @@ export function createHeroModelPreview(
       pose = nextPose;
       poseStarted = performance.now();
       renderer.domElement.dataset.pose = nextPose;
-      applyHeroPreviewMotion(rig, model, pose, 0, reducedMotion);
+      applyHeroPreviewMotion(motionRig, model, pose, 0, reducedMotion);
       render();
     },
     resetView() {
