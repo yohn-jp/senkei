@@ -1,16 +1,20 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 import { expect, test } from "@playwright/test";
 
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
 for (const width of [1440, 390]) test(`Read-only skill context renders actual owner frames at ${width}px`, async ({ page }) => {
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: repositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { deriveSkillRunProgress } = await server.ssrLoadModule("/apps/web/src/features/next/skill-run-progress.ts");
     const { SkillRunProgressContext } = await server.ssrLoadModule("/apps/web/src/features/next/SkillRunProgressContext.tsx");
-    const actual = JSON.parse(readFileSync("tests/fixtures/s06-actual-owner-frames.json", "utf8"));
-    const css = readFileSync("apps/web/src/features/next/skill-run-progress.css", "utf8");
+    const actual = JSON.parse(readFileSync(resolve(repositoryRoot, "tests/fixtures/s06-actual-owner-frames.json"), "utf8"));
+    const css = readFileSync(resolve(repositoryRoot, "apps/web/src/features/next/skill-run-progress.css"), "utf8");
     await page.setViewportSize({ width, height: 844 });
     for (const state of [0, 85, "public"] as const) {
       const tick = state === "public" ? 85 : state;
