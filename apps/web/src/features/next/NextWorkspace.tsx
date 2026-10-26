@@ -48,11 +48,14 @@ import {
 } from "../../contracts";
 import type { SenkeiDraft } from "../../contracts";
 import { isDomainValueRecord, isStructuredTacticsAst } from "./draft-validation";
+import { classifyPreflightProblem, PreflightLocalFailure } from "./preflight-problem";
+import type { PreflightProblem as ClassifiedPreflightProblem, PreflightStage, PreflightRepairTarget } from "./preflight-problem";
+import type { HeroRepairFocusRequest, JinreiRepairFocusRequest } from "./repair-focus";
 import "./next-workspace.css";
 import "./battle-view-controls.css";
 
 class PreflightProblem extends Error {
-  constructor(message: string, readonly status: "invalid" | "unverified") { super(message); }
+  constructor(message: string, readonly status: "invalid" | "unverified", readonly classificationCause?: unknown) { super(message); }
 }
 
 function preflightFailureStatus(cause: unknown): "invalid" | "unverified" | "failed" {
@@ -744,7 +747,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
-  const [preflightFailure, setPreflightFailure] = useState<{ key: string; message: string; status: "invalid" | "unverified" | "failed" } | null>(null);
+  const [preflightFailure, setPreflightFailure] = useState<{ key: string; problem: ClassifiedPreflightProblem; exactSource: string | null } | null>(null);
+  const [heroRepairFocus, setHeroRepairFocus] = useState<HeroRepairFocusRequest | null>(null);
+  const [jinreiRepairFocus, setJinreiRepairFocus] = useState<JinreiRepairFocusRequest | null>(null);
+  const [scenarioRepairFocus, setScenarioRepairFocus] = useState<{ requestId: string; scenarioId: string | null } | null>(null);
+  const preflightStage = useRef<PreflightStage>("availability");
   const operationInFlight = useRef(false);
   useEffect(() => {
     if (operationInFlight.current) return;
@@ -1714,7 +1721,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       }
       if (envelope.reply.status === "rejected") {
         const { code, message, path } = envelope.reply.error;
-        throw new PreflightProblem(`${code}${path ? ` at ${path}` : ""}: ${message}`, "invalid");
+        throw new PreflightProblem(`${code}${path ? ` at ${path}` : ""}: ${message}`, "invalid", {
+          code: "compile_failed", message, path: path ?? null, details: {},
+        });
       }
       result = envelope.reply.result;
     } else {
@@ -1737,6 +1746,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, [editorCatalog, packageValue, slots]);
 
   const prepareBattle = async (): Promise<SimulationSnapshot> => {
+    preflightStage.current = "availability";
     if (!core || !packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
       throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
     }
@@ -1746,43 +1756,66 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       if (!sameRulesetRef(exactRun.snapshot.attacker.ruleset, packageValue.ruleset)) {
         throw new PreflightProblem("The original match RulePackage differs from the current package. Preserve/export the draft and use a compatible package.", "invalid");
       }
+      preflightStage.current = "snapshot_preflight";
       await core.preflight(exactRun.snapshot);
-      if (launchKeyRef.current !== key) throw new PreflightProblem("再戦対象が変更されました。再検証してください。", "unverified");
+      if (launchKeyRef.current !== key) {
+        const message = "再戦対象が変更されました。再検証してください。";
+        preflightStage.current = "stale_inputs";
+        throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
+      }
       setPrepared({ key, snapshot: exactRun.snapshot });
       return exactRun.snapshot;
     }
     if (entryMode === "campaign" && (!campaignScenario || !unlockedScenarioSet.has(campaignScenario.id))) {
-      throw new PreflightProblem("選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。", "invalid");
+      const message = "選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。";
+      preflightStage.current = "scenario_selection";
+      throw new PreflightProblem(message, "invalid", new PreflightLocalFailure(message, "invalid"));
     }
+    preflightStage.current = "own_compile";
     const playerCompilation = activeCompilation ?? await compileTactics(draft.program_input.kind === "text"
       ? { kind: "text", source: draft.program_input.source, ruleset_ref: draft.ruleset }
       : { kind: "structured_ast", ast: draft.program_input.ast, ruleset_ref: draft.ruleset });
     const rivalDraft = campaignScenario?.npc ?? createTacticDraft(packageValue, nextRules, "defender");
     if (!sameRulesetRef(rivalDraft.ruleset, packageValue.ruleset) || stableKey(rivalDraft.schema_version) !== stableKey(packageValue.model_version)) {
-      throw new PreflightProblem("The selected opponent draft belongs to a different RulePackage or schema.", "invalid");
+      const message = "The selected opponent draft belongs to a different RulePackage or schema.";
+      preflightStage.current = campaignScenario ? "scenario_selection" : "opponent_compile";
+      throw new PreflightProblem(message, "invalid", campaignScenario ? new PreflightLocalFailure(message, "invalid") : undefined);
     }
     let rivalProgram: SenkeiSnapshot["program"];
     if (campaignScenario) {
+      preflightStage.current = "opponent_compile";
       const input: TacticalInput = rivalDraft.program_input.kind === "text"
         ? { kind: "text", source: rivalDraft.program_input.source, ruleset_ref: rivalDraft.ruleset }
         : { kind: "structured_ast", ast: rivalDraft.program_input.ast, ruleset_ref: rivalDraft.ruleset };
       rivalProgram = (await core.compile(input)).program;
     } else {
+      preflightStage.current = "opponent_compile";
       const rivalSource = createStarterJinrei(packageValue, "defender", rivalSlots);
       const revision = ++editorCompileRevision.current;
       const stamp = catalogStamp(editorCatalog);
       const envelope = await core.editorCompile({ source: rivalSource, stamp, revision });
       if (envelope.revision !== revision || !sameCatalog(stamp, envelope.reply.stamp)) throw new Error("NPC compiler identity mismatch.");
-      if (envelope.reply.status === "rejected") throw new PreflightProblem(`${envelope.reply.error.code}: ${envelope.reply.error.message}`, "invalid");
+      if (envelope.reply.status === "rejected") {
+        const { code, message, path } = envelope.reply.error;
+        throw new PreflightProblem(`${code}${path ? ` at ${path}` : ""}: ${message}`, "invalid", {
+          code: "compile_failed", message, path: path ?? null, details: {},
+        });
+      }
       rivalProgram = envelope.reply.result.program;
     }
     const attacker = makeSideSnapshot(draft, playerCompilation.program, slots);
     const opponentSlots = campaignScenario && nextRules ? scenarioFormation(campaignScenario, nextRules) : rivalSlots;
     const defender = makeSideSnapshot(rivalDraft, rivalProgram, opponentSlots);
+    preflightStage.current = "context_creation";
     const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, scenario_id: campaignScenario?.id ?? null, attacker, defender }));
     const snapshot = { attacker, defender, context };
+    preflightStage.current = "snapshot_preflight";
     await core.preflight(snapshot);
-    if (launchKeyRef.current !== key) throw new PreflightProblem("設定が変更されました。現在の設定を再検証してください。", "unverified");
+    if (launchKeyRef.current !== key) {
+      const message = "設定が変更されました。現在の設定を再検証してください。";
+      preflightStage.current = "stale_inputs";
+      throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
+    }
     setPrepared({ key, snapshot });
     return snapshot;
   };
@@ -1796,7 +1829,22 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setError(null);
     const key = launchKey;
     try { await prepareBattle(); }
-    catch (cause) { setPreflightFailure({ key, message: cause instanceof Error ? cause.message : String(cause), status: preflightFailureStatus(cause) }); }
+    catch (cause) {
+      const classifiedCause = cause instanceof PreflightProblem ? cause.classificationCause ?? cause : cause;
+      const problem = classifyPreflightProblem(classifiedCause, {
+        stage: preflightStage.current,
+        input: exactRun ? "original_run" : "draft",
+        inputKey: key,
+        scenarioId: entryMode === "campaign" ? selectedScenario?.id ?? null : null,
+        slots: {
+          attacker: exactRun?.setup.slots ?? slots,
+          defender: exactRun?.setup.rival_slots ?? rivalSlots,
+        },
+      });
+      const source = (exactRun?.setup.draft ?? draft)?.program_input;
+      setPreflightFailure({ key, problem: { ...problem, status: preflightFailureStatus(cause) },
+        exactSource: source?.kind === "text" ? source.source : null });
+    }
     finally { operationInFlight.current = false; setChecking(false); }
   };
 
@@ -1890,6 +1938,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   };
 
   const editScreen = (target: AtelierScreen | "jinrei"): void => {
+    setHeroRepairFocus(null); setJinreiRepairFocus(null); setScenarioRepairFocus(null);
     setExactRun(null);
     setScreen("workspace");
     setTab(target === "jinrei" ? "jinrei" : "formation");
@@ -1901,6 +1950,35 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     if (screen !== "resume") setLibraryReturn(screen);
     setLibraryView(view);
     setScreen("resume");
+  };
+
+  const repairPreflight = (target: PreflightRepairTarget): void => {
+    const requestId = newExperimentId("preflight-repair");
+    switch (target.kind) {
+      case "own_hero":
+        setJinreiRepairFocus(null); setScenarioRepairFocus(null);
+        setHeroRepairFocus({ requestId, target });
+        setExactRun(null); setScreen("workspace"); setTab("formation"); setAtelierScreen(target.screen);
+        break;
+      case "own_jinrei":
+        setHeroRepairFocus(null); setScenarioRepairFocus(null);
+        setJinreiRepairFocus({ requestId, target, exactSource: currentPreflightError?.exactSource ?? null });
+        setExactRun(null); setScreen("workspace"); setTab("jinrei"); setJinreiScreen("workbench");
+        break;
+      case "scenario":
+        setHeroRepairFocus(null); setJinreiRepairFocus(null);
+        setScenarioRepairFocus({ requestId, scenarioId: target.scenarioId });
+        setExactRun(null); setScreen("conditions");
+        break;
+      case "ready":
+        setHeroRepairFocus(null); setJinreiRepairFocus(null); setScenarioRepairFocus(null);
+        setScreen("ready"); void checkReadiness();
+        break;
+      case "recovery":
+        setHeroRepairFocus(null); setJinreiRepairFocus(null); setScenarioRepairFocus(null);
+        openLibrary("recovery");
+        break;
+    }
   };
 
   const applySquadPattern = useCallback((sizes: readonly number[]): void => {
@@ -2120,7 +2198,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const library = <NextLibrary view={libraryView} onViewChange={setLibraryView}
     saved={savedSetup} recovery={recoverySetup} savedRaw={savedRaw} recoveryRaw={recoveryRaw} restoreDifferences={restoreDifferences}
     savedError={savedSetupError} recoveryError={recoveryLoadError}
-    runtimeError={rulesetError ?? editorCatalogError ?? rendererError ?? error ?? runtimeFailure ?? currentPreflightError?.message}
+    runtimeError={rulesetError ?? editorCatalogError ?? rendererError ?? error ?? runtimeFailure ?? currentPreflightError?.problem.message}
     savedMismatch={savedSetupMismatchReason} recoveryMismatch={recoveryMismatchReason}
     message={saveMessage} loaded={savedSetupLoaded && recoverySetupLoaded} canSave={Boolean(draft && packageValue)}
     onSave={() => saveSetup(true)} onRestoreSaved={() => { restoreSetup(); setScreen("ready"); }} onRestoreRecovery={restoreRecovery}
@@ -2258,7 +2336,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       <p className="journey-draft-status" hidden={screen === "workspace" && tab === "battle"}>{draft?.id} · {draftIsSaved ? "保存済み" : savedSetup ? "未保存の変更あり" : "未保存Draft"} · {activeCompilation ? "Compiled" : compilation ? "Compile失効" : "未コンパイル"}</p>
       <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={exactRun ? exactRun.setup.campaign_scenario_id ? "campaign" : "quick" : entryMode} setEntryMode={mode => { setExactRun(null); setEntryMode(mode); }}
         slots={exactRun?.setup.slots ?? slots} rivalSlots={exactRun?.setup.rival_slots ?? rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={exactRun?.setup.draft ?? draft}
-        ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
+        ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError?.problem ?? null} onRepair={repairPreflight} scenarioRepairFocus={scenarioRepairFocus}
         compiled={Boolean(exactRun || activeCompilation)} compilationCU={exactRun?.estimatedCU ?? activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
         coreReady={Boolean(core && editorCatalogMatchesRuleset(editorCatalog, packageValue))}
         includeDiagnostics={exactRun?.includeDiagnostics ?? includeDiagnostics} setIncludeDiagnostics={setRematchDiagnostics}
@@ -2296,7 +2374,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
-            <HeroAtelier active={active && screen === "workspace" && tab === "formation"} nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
+            <HeroAtelier active={active && screen === "workspace" && tab === "formation"} repairFocus={heroRepairFocus} nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
               skillRunContext={run && sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset) ? {
                 experimentId: run.experimentId,
                 matchId: run.snapshot.context.match_id,
@@ -2314,7 +2392,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
-            <JinreiWorkbench analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
+            <JinreiWorkbench analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
               catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
               catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
               compilation={activeCompilation} slots={slots} activeSlot={activeSlot}
