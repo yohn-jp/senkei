@@ -1,5 +1,6 @@
 import type {
   CompileDiagnostic,
+  ContentDigest,
   MatchContext,
   MatchResult,
   PresentationReplay,
@@ -102,6 +103,14 @@ export interface SimulationSnapshot {
   readonly context: MatchContext;
 }
 
+/** Exact public package and authored World needed to rebuild a local match. */
+export interface ReproductionAssets {
+  readonly format_version: 1;
+  readonly rule_package: RulePackage;
+  /** Authored World Definition JSON; the core recompiles and verifies it. */
+  readonly world_definition: CoreJsonValue;
+}
+
 export interface BenchmarkCase {
   readonly case_id: string;
   readonly case_role?: "before" | "current";
@@ -177,6 +186,8 @@ export interface WorkerFailure {
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
   nextRuleset(): Promise<RulePackage>;
+  /** Load the current builtin package with the exact World Definition it uses. */
+  reproductionAssets(): Promise<ReproductionAssets>;
   editorCatalogJson(): Promise<string>;
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
@@ -187,6 +198,13 @@ export interface CoreClient {
   preflight(snapshot: SimulationSnapshot): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
+    options?: SimulationRequestOptions,
+  ): Promise<SimulationResponse>;
+  /** Re-run a frozen input against its retained package and authored World. */
+  reproduce(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
     options?: SimulationRequestOptions,
   ): Promise<SimulationResponse>;
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome>;

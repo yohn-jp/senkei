@@ -5,6 +5,7 @@ import type {
   CoreClient,
   CoreJsonValue,
   EditorCompilerEnvelope,
+  ReproductionAssets,
   SimulationRequestOptions,
   SimulationResponse,
   SimulationSnapshot,
@@ -83,6 +84,10 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("next_ruleset", {}) as Promise<RulePackage>;
   }
 
+  reproductionAssets(): Promise<ReproductionAssets> {
+    return this.request("next_reproduction_assets", {}) as Promise<ReproductionAssets>;
+  }
+
   editorCatalogJson(): Promise<string> {
     return this.request("editor_catalog", {}) as Promise<string>;
   }
@@ -123,6 +128,18 @@ export class WorkerCoreClient implements CoreClient {
       ? { snapshot, include_diagnostics: true as const, diagnostics_side: options.diagnostics_side }
       : { snapshot, include_diagnostics: false as const };
     return this.request("simulate", payload) as Promise<SimulationResponse>;
+  }
+
+  reproduce(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: string,
+    options: SimulationRequestOptions = {},
+  ): Promise<SimulationResponse> {
+    const payload = options.include_diagnostics === true
+      ? { assets, snapshot, snapshot_digest, include_diagnostics: true as const, diagnostics_side: options.diagnostics_side }
+      : { assets, snapshot, snapshot_digest, include_diagnostics: false as const };
+    return this.request("reproduce", payload) as Promise<SimulationResponse>;
   }
 
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome> {

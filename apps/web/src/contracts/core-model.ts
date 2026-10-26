@@ -723,6 +723,8 @@ export function isLogicalCu(value: number): boolean {
 export interface WorldIdentityRef {
   readonly world_id: string;
   readonly schema_version: import("./core").CoreVersion;
+  /** Exact compiler that produced this immutable World artifact. */
+  readonly compiler_version: import("./core").CoreVersion;
   readonly minimum_compiler: import("./core").CoreVersion;
   readonly maximum_compiler_exclusive: import("./core").CoreVersion | null;
   readonly validation_profile_id: string | null;
