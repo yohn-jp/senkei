@@ -6,7 +6,7 @@
 - Capture URL: `http://127.0.0.1:4188/`; production Hero Detail preview using `buildBattlefieldHero`.
 - Chromium `156.0.8078.47`, 1440 × 1000 viewport, device scale 1, SwiftShader software GPU, `prefers-reduced-motion: no-preference`.
 - Full automatic LOD at the default camera; the manifest reports LOD 0 / full for the initial F01 sample. This capture is not Battlefield integration and does not force other LODs.
-- Raw 1200 × 661 full-canvas PNGs: `/home/sophia/src/senkei-art-lod-visual/test-results/art-production/hero-motion-30a9d6d/`.
+- Raw 1200 × 661 full-canvas PNGs: [committed image set](../hero-motion-30a9d6d/images/); the original capture output was `/home/sophia/src/senkei-art-lod-visual/test-results/art-production/hero-motion-30a9d6d/`.
 - Manifest: `/home/sophia/src/senkei-art-lod-visual/docs/evidence/art-production/hero-motion-30a9d6d/manifest.json`; SHA-256 `c26f90ef88290ba912fd068fdf09eb69880fef4d2b05b8129e7ef560f72d0697`.
 - I inspected all 54 full-resolution PNGs for F01/R01 idle, move, attack, hit, and death samples. Independently recomputed PNG hashes match the manifest for 54/54 images. `errors`, `consoleErrors`, `httpErrors`, and `failedRequests` are empty.
 

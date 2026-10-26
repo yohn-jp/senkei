@@ -4,9 +4,9 @@
 - URL: http://127.0.0.1:4188/; viewport 1440 × 1000, device scale 1.
 - Browser: Chromium 156.0.8078.47; SwiftShader software renderer.
 - Source: committed production `createHeroModelPreview` / `buildBattlefieldHero`; automatic LOD at default camera, verified as full in every capture. This does not prove Battlefield integration or physical GPU performance.
-- Motion: no reduced-motion preference. Captured 54 actual canvas PNGs across the five poses for F01 and R01; per-image SHA-256, elapsed request and pose/rootY/LOD attributes are in [manifest.json](manifest.json). Originals are in ignored `test-results/art-production/hero-motion-30a9d6d/`.
+- Motion: no reduced-motion preference. Captured 54 actual canvas PNGs across the five poses for F01 and R01; per-image SHA-256, elapsed request and pose/rootY/LOD attributes are in [manifest.json](manifest.json). The 1200 × 661 full-resolution originals are committed under [images](images/); their bytes match the ignored raw capture files at `test-results/art-production/hero-motion-30a9d6d/`.
 - Runtime: 0 page errors, 0 console errors, 0 HTTP errors and 0 failed requests. Exact values are in the manifest.
-- Review sheets: [F01](F01-motion-contact.jpg), [R01](R01-motion-contact.jpg). They are reduced overviews; independent visual review should use original PNGs. No visual acceptance is inferred here.
+- Review sheets: [F01](F01-motion-contact.jpg), [R01](R01-motion-contact.jpg). They are reduced overviews; use the committed full-resolution PNGs for detailed review. No visual acceptance is inferred here.
 - All-LOD geometry contact is covered by the focused CPU regression tests; visual medium/far LOD remains unverified.
 - Reproduction: build and serve the isolated lab at port 4188, then run `SENKEI_CHROMIUM_EXECUTABLE=/path/to/chromium SENKEI_ART_LAB_URL=http://127.0.0.1:4188/ node docs/evidence/art-production/hero-motion-30a9d6d/capture.mjs` from the repository root. The script stores source-revision metadata and writes raw canvases to ignored `test-results/`.
 
