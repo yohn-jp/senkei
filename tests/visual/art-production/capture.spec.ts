@@ -3,7 +3,6 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { completePreflight } from "../../browser/helpers/preflight";
 
 const output = resolve(process.env.SENKEI_ART_OUTPUT ?? "test-results/art-production/captures");
 const goldenHeroes = [{ id: "F01", name: "Bannerhold" }, { id: "R01", name: "Tempest" }] as const;
@@ -105,7 +104,12 @@ test("actual Hero Detail golden candidates and production battlefield", async ({
     await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
     await page.locator("#next-tab-battle").click();
     await page.getByRole("button", { name: /Launch local battle|New local battle/i }).click();
-    await completePreflight(page);
+    // Use this runner's Playwright instance; importing tests/browser's helper loads
+    // a second @playwright/test from its separate node_modules and aborts test discovery.
+    await expect(page.getByTestId("journey-ready")).toBeVisible();
+    await page.getByRole("button", { name: "検証・コンパイル" }).click();
+    await expect(page.getByTestId("preflight-status")).toHaveText("開始可能", { timeout: 60_000 });
+    await page.getByRole("button", { name: "戦闘開始" }).click();
     const battlefield = page.locator(".next-renderer-host canvas");
     await expect(battlefield).toHaveAttribute("data-rendered", "true", { timeout: 240_000 });
     await capture(battlefield, "battlefield-default-t000", captures); flush();
