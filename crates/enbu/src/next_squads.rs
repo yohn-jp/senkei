@@ -304,11 +304,12 @@ fn parse_loadout(
     side: CombatantSide,
     rules: &NextRules,
 ) -> Result<Vec<HeroSeed>, ApiError> {
+    let roster_error = |error| loadout_error(error, side, None, None, None);
     let Some(DomainValue::List(records)) = snapshot.configuration.get(&FieldId::from(HEROES_FIELD)) else {
-        return Err(invalid("snapshot configuration must contain a `heroes` list"));
+        return Err(roster_error(invalid("snapshot configuration must contain a `heroes` list")));
     };
     if records.len() != HERO_COUNT {
-        return Err(invalid("snapshot configuration must contain exactly five Heroes"));
+        return Err(roster_error(invalid("snapshot configuration must contain exactly five Heroes")));
     }
 
     let required = ["slot_id", "catalog_id", "squad", "node", "skill_path"];
@@ -317,16 +318,17 @@ fn parse_loadout(
     let mut seeds = Vec::with_capacity(HERO_COUNT);
     for (index, record) in records.iter().enumerate() {
         let DomainValue::Record(fields) = record else {
-            return Err(invalid(format!("`heroes[{index}]` must be a record")));
+            return Err(loadout_error(invalid(format!("`heroes[{index}]` must be a record")), side, Some(index), None, None));
         };
+        let annotate = |error, field| loadout_error(error, side, Some(index), Some(fields), field);
         if fields.len() != required.len() || required.iter().any(|key| !fields.contains_key(&FieldId::from(*key))) {
-            return Err(invalid(format!("`heroes[{index}]` must have exactly slot_id, catalog_id, squad, node, and skill_path")));
+            return Err(annotate(invalid(format!("`heroes[{index}]` must have exactly slot_id, catalog_id, squad, node, and skill_path")), None));
         }
-        let slot_id = required_string(fields, "slot_id", index)?;
-        let catalog_id = required_string(fields, "catalog_id", index)?;
-        let squad_label = required_string(fields, "squad", index)?;
-        let node = required_string(fields, "node", index)?;
-        let skill_path = required_string(fields, "skill_path", index)?;
+        let slot_id = required_string(fields, "slot_id", index).map_err(|error| annotate(error, Some("slot_id")))?;
+        let catalog_id = required_string(fields, "catalog_id", index).map_err(|error| annotate(error, Some("catalog_id")))?;
+        let squad_label = required_string(fields, "squad", index).map_err(|error| annotate(error, Some("squad")))?;
+        let node = required_string(fields, "node", index).map_err(|error| annotate(error, Some("node")))?;
+        let skill_path = required_string(fields, "skill_path", index).map_err(|error| annotate(error, Some("skill_path")))?;
         for (name, value) in [
             ("slot_id", &slot_id),
             ("catalog_id", &catalog_id),
@@ -335,19 +337,19 @@ fn parse_loadout(
             ("skill_path", &skill_path),
         ] {
             if value.trim().is_empty() {
-                return Err(invalid(format!("`heroes[{index}].{name}` must not be empty")));
+                return Err(annotate(invalid(format!("`heroes[{index}].{name}` must not be empty")), Some(name)));
             }
         }
         if !slots.insert(slot_id.clone()) {
-            return Err(invalid(format!("Hero slot `{slot_id}` is configured more than once")));
+            return Err(annotate(invalid(format!("Hero slot `{slot_id}` is configured more than once")), Some("slot_id")));
         }
         if !rules.map.nodes.contains_key(&node) {
-            return Err(invalid(format!("Hero slot `{slot_id}` names unknown map node `{node}`")));
+            return Err(annotate(invalid(format!("Hero slot `{slot_id}` names unknown map node `{node}`")), Some("node")));
         }
 
         if let Some(existing_node) = squad_nodes.get(&squad_label) {
             if existing_node != &node {
-                return Err(invalid(format!("initial squad `{squad_label}` spans multiple map nodes")));
+                return Err(annotate(invalid(format!("initial squad `{squad_label}` spans multiple map nodes")), Some("node")));
             }
         } else {
             squad_nodes.insert(squad_label.clone(), node.clone());
@@ -355,18 +357,18 @@ fn parse_loadout(
 
         let matching = rules.heroes.iter().filter(|definition| definition.id == catalog_id).collect::<Vec<_>>();
         if matching.len() != 1 {
-            return Err(invalid(format!("Hero catalog ID `{catalog_id}` must identify exactly one catalog entry")));
+            return Err(annotate(invalid(format!("Hero catalog ID `{catalog_id}` must identify exactly one catalog entry")), Some("catalog_id")));
         }
         let definition = matching[0];
         validate_hero_stats(definition)?;
         let Some(path) = definition.skill_paths.get(&skill_path) else {
-            return Err(invalid(format!("Hero `{catalog_id}` has no configured skill path `{skill_path}`")));
+            return Err(annotate(invalid(format!("Hero `{catalog_id}` has no configured skill path `{skill_path}`")), Some("skill_path")));
         };
         let mut path_skills = BTreeSet::new();
         for skill_id in path {
             let matches = definition.skills.iter().filter(|skill| skill.id == *skill_id).count();
             if matches != 1 || !path_skills.insert(skill_id) {
-                return Err(invalid(format!("skill path `{skill_path}` for `{catalog_id}` contains an unknown or repeated skill `{skill_id}`")));
+                return Err(annotate(invalid(format!("skill path `{skill_path}` for `{catalog_id}` contains an unknown or repeated skill `{skill_id}`")), Some("skill_path")));
             }
         }
 
@@ -380,6 +382,38 @@ fn parse_loadout(
         });
     }
     Ok(seeds)
+}
+
+// The metadata is evidence from this validation site, never inferred from text.
+fn loadout_error(
+    mut error: ApiError,
+    side: CombatantSide,
+    index: Option<usize>,
+    fields: Option<&BTreeMap<FieldId, DomainValue>>,
+    field: Option<&str>,
+) -> ApiError {
+    let side = support::side_name(side);
+    let mut path = format!("{side}.configuration.heroes");
+    error.details.entry("preflight_side".into()).or_insert_with(|| side.into());
+    if let Some(index) = index {
+        path.push_str(&format!(".value[{index}]"));
+        error.details.entry("preflight_record_index".into()).or_insert_with(|| index.to_string());
+    }
+    if let Some(field) = field {
+        path.push_str(&format!(".value.{field}"));
+        error.details.entry("preflight_field".into()).or_insert_with(|| field.into());
+    }
+    if let Some(fields) = fields {
+        for (name, key) in [("slot_id", "preflight_slot_id"), ("squad", "preflight_squad_id")] {
+            if let Some(DomainValue::String(value)) = fields.get(&FieldId::from(name)) {
+                if !value.trim().is_empty() {
+                    error.details.entry(key.into()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
+    if error.path.is_none() { error.path = Some(path); }
+    error
 }
 
 fn required_string(

@@ -92,3 +92,42 @@ fn preflight_operation_accepts_a_real_launch_snapshot_and_rejects_invalid_roster
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "invalid_snapshot");
 }
+
+#[test]
+fn preflight_failure_targets_are_structured_and_side_specific() {
+    let rules = senritsu::validate(senritsu::next_package(), &senritsu::next_engine_compatibility()).unwrap();
+    let context = new_match_context(&rules, MatchId::new("preflight-targets"));
+    let valid = json!({ "attacker": valid_snapshot(&rules, CombatantSide::Attacker), "defender": valid_snapshot(&rules, CombatantSide::Defender), "context": context });
+    for side in ["attacker", "defender"] {
+        for case in ["skill_path", "squad", "program"] {
+            let mut input = valid.clone();
+            match case {
+                "skill_path" => input[side]["configuration"]["heroes"]["value"][1]["value"]["skill_path"]["value"] = json!("missing-path"),
+                "squad" => {
+                    input[side]["configuration"]["heroes"]["value"][1]["value"]["squad"] = input[side]["configuration"]["heroes"]["value"][0]["value"]["squad"].clone();
+                    let base = input[side]["configuration"]["heroes"]["value"][0]["value"]["node"]["value"].as_str().unwrap();
+                    let other = rules.plan().next.as_ref().unwrap().map.nodes.keys().find(|node| node.as_str() != base).unwrap();
+                    input[side]["configuration"]["heroes"]["value"][1]["value"]["node"]["value"] = json!(other);
+                }
+                _ => input[side]["program"]["content_digest"] = json!("0".repeat(64)),
+            }
+            let response = dispatch("preflight", input);
+            assert_eq!(response["ok"], false);
+            let error = &response["error"];
+            assert_eq!(error["details"]["preflight_side"], side);
+            if case == "program" {
+                assert_eq!(error["code"], "invalid_program");
+                assert_eq!(error["path"], format!("{side}.program"));
+                assert!(error["details"].get("preflight_slot_id").is_none());
+            } else {
+                let field = if case == "squad" { "node" } else { "skill_path" };
+                assert_eq!(error["code"], "invalid_snapshot");
+                assert_eq!(error["path"], format!("{side}.configuration.heroes.value[1].value.{field}"));
+                assert_eq!(error["details"]["preflight_record_index"], "1");
+                assert_eq!(error["details"]["preflight_slot_id"], "slot-2");
+                assert_eq!(error["details"]["preflight_field"], field);
+            }
+        }
+    }
+    assert_eq!(dispatch("preflight", valid)["ok"], true);
+}
