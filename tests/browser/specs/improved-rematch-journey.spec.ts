@@ -49,7 +49,13 @@ test("C08 keeps original non-target inputs for a real improved battle and preser
   await analysis.getByRole("button", { name: "同条件で再戦 · Run Snapshot", exact: true }).click();
   await page.getByRole("button", { name: "検証・コンパイル", exact: true }).click();
   await expect(page.getByTestId("preflight-status")).toHaveText("開始可能", { timeout: 60_000 });
-  await expect(page.getByText("同条件再戦 · 元Runの確定Snapshot", { exact: true })).toBeVisible();
+  const exactFrozenLabel = page.getByText("同条件再戦 · 元Runの確定Snapshot", { exact: true });
+  await expect(exactFrozenLabel).toBeVisible();
+  const exactDiagnostics = page.getByTestId("journey-ready").locator(".journey-desktop input[type=checkbox]");
+  await exactDiagnostics.uncheck();
+  await expect(exactFrozenLabel).toBeVisible();
+  await exactDiagnostics.check();
+  await expect(exactFrozenLabel).toBeVisible();
   await page.getByTestId("journey-ready").getByRole("button", { name: /^Jinrei/ }).click();
   await expect(source).toHaveValue(changedSource);
 
@@ -57,7 +63,12 @@ test("C08 keeps original non-target inputs for a real improved battle and preser
   await page.locator("#next-tab-analysis").click();
   await analysis.getByRole("button", { name: "改良した戦型を比較 · 元Run条件固定", exact: true }).click();
   await expect(page.getByTestId("journey-ready")).toBeVisible();
-  await expect(page.getByText("改良比較 · 自軍以外は元Runに固定", { exact: true })).toBeVisible();
+  const improvedFrozenLabel = page.getByText("改良比較 · 自軍以外は元Runに固定", { exact: true });
+  await expect(improvedFrozenLabel).toBeVisible();
+  const mobileDiagnostics = page.getByTestId("journey-ready").locator(".journey-ready-mobile details").nth(1);
+  await mobileDiagnostics.locator("summary").click();
+  await page.getByTestId("journey-ready").locator(".journey-ready-mobile input[type=checkbox]").uncheck();
+  await expect(improvedFrozenLabel).toBeVisible();
   await completePreflight(page);
   await expect(page.getByText(/Confirmed result · (Attacker Victory|Defender Victory|Draw)/i)).toBeVisible({ timeout: 180_000 });
   await page.locator("#next-tab-analysis").click();

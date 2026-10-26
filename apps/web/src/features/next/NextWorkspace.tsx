@@ -777,6 +777,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   }, []);
   const [busy, setBusy] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
+  const setRematchDiagnostics = useCallback((value: boolean): void => {
+    setIncludeDiagnostics(value);
+    setFrozenRematch(current => current ? { ...current, run: { ...current.run, includeDiagnostics: value } } : current);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [runtimeFailure, setRuntimeFailure] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
@@ -2183,7 +2187,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
         compiled={Boolean(exactRun || activeCompilation)} compilationCU={exactRun?.estimatedCU ?? activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
         coreReady={Boolean(core && editorCatalogMatchesRuleset(editorCatalog, packageValue))}
-        includeDiagnostics={exactRun?.includeDiagnostics ?? includeDiagnostics} setIncludeDiagnostics={value => { setExactRun(null); setIncludeDiagnostics(value); }}
+        includeDiagnostics={exactRun?.includeDiagnostics ?? includeDiagnostics} setIncludeDiagnostics={setRematchDiagnostics}
         check={() => void checkReadiness()} launch={() => void launchBattle()}
         edit={editScreen}
         recoveryRestored={recoveryRestored} saved={canRestoreSavedSetup}
