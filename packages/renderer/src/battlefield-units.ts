@@ -129,7 +129,7 @@ class UnitBuilder {
   private readonly buckets = new Map<THREE.Group, Bucket>();
   private readonly materials: UnitMaterials;
 
-  constructor(readonly root: THREE.Group, materials: UnitMaterials = createUnitMaterials(), private readonly detail: DetailLevel = "full") {
+  constructor(readonly root: THREE.Group, materials: UnitMaterials = createUnitMaterials(), readonly detail: DetailLevel = "full") {
     this.buckets.set(root, { group: root, surfaces: new Map() });
     this.materials = materials;
   }
@@ -273,14 +273,48 @@ function createAnchor(builder: UnitBuilder, root: THREE.Group, key: string, posi
   return anchor;
 }
 
-function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: number, spread: number, pattern: "long" | "short" | "leaf" = "long"): void {
+function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: number, spread: number, pattern: "long" | "short" | "leaf" = "long", folded = false): void {
   const cape = builder.part("joint.cape", root, [0, 0, -0.24]);
   const lower = pattern === "short" ? 0.73 : 0.37;
   const points: readonly (readonly [number, number])[] = pattern === "leaf"
     ? [[-0.26, 1.92], [0.26, 1.92], [0.38, 1.25], [0.32, 0.88], [0.12, 0.72], [0.05, 0.96], [-0.06, 0.73], [-0.18, 1.02], [-0.35, 0.86], [-0.4, 1.28]]
     : [[-0.26 * spread, 1.94], [0.26 * spread, 1.94], [0.37 * spread, 1.24], [0.4 * spread, lower], [0.2 * spread, lower + 0.08], [0, lower - 0.05], [-0.18 * spread, lower + 0.12], [-0.4 * spread, lower]];
-  builder.panel(cape, "cloth", points, cloth, [0, 0, 0], 0.045, 0.025);
-  builder.panel(cape, "cloth", [[-0.035, 1.74], [0.035, 1.74], [0.06, lower + 0.05], [0, lower + 0.16], [-0.045, lower + 0.05]], team, [0, 0, 0.028], 0.018, 0.01);
+  if (folded) {
+    // Broad cloth folds sweep away from the body; retain a real closed edge.
+    const rows = [
+      { y: 1.94, width: 0.24 * spread, z: 0.02 },
+      { y: 1.58, width: 0.31 * spread, z: -0.04 },
+      { y: 1.02, width: 0.34 * spread, z: -0.15 },
+      { y: lower, width: 0.43 * spread, z: -0.24 },
+    ];
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    const columns = [-1, -0.64, -0.28, 0, 0.3, 0.65, 1];
+    for (const back of [false, true]) {
+      rows.forEach((row, r) => columns.forEach((column, c) => {
+        const fold = [0.02, -0.035, 0.025, -0.045, 0.025, -0.035, 0.02][c];
+        const hem = r === rows.length - 1 ? [0.09, 0.02, 0.06, -0.04, 0.04, 0, 0.08][c] : 0;
+        vertices.push(column * row.width, row.y + hem, row.z + fold * (0.3 + r / 3) + (back ? -0.028 : 0));
+      }));
+    }
+    const count = rows.length * columns.length;
+    for (let r = 0; r < rows.length - 1; r++) for (let c = 0; c < columns.length - 1; c++) {
+      const a = r * columns.length + c, b = a + 1, d = a + columns.length, e = d + 1;
+      indices.push(a, d, b, b, d, e, a + count, b + count, d + count, b + count, e + count, d + count);
+    }
+    const perimeter = [0, 1, 2, 3, 4, 5, 6, 13, 20, 27, 26, 25, 24, 23, 22, 21, 14, 7];
+    perimeter.forEach((a, index) => {
+      const b = perimeter[(index + 1) % perimeter.length];
+      indices.push(a, b, a + count, b, b + count, a + count);
+    });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    builder.add(cape, "cloth", geometry, cloth);
+  } else {
+    builder.panel(cape, "cloth", points, cloth, [0, 0, 0], 0.045, 0.025);
+    builder.panel(cape, "cloth", [[-0.035, 1.74], [0.035, 1.74], [0.06, lower + 0.05], [0, lower + 0.16], [-0.045, lower + 0.05]], team, [0, 0, 0.028], 0.018, 0.01);
+  }
   const clasp = builder.part("cape.clasp", root, [0, 1.78, -0.18]);
   builder.sphere(clasp, "armor", [0.08, 0.09, 0.045], 0xc5a66b, [0, 0, 0]);
 }
@@ -329,7 +363,8 @@ function addHeroChestArmor(
       break;
     case "channeler":
       cloth([[-0.21, 0.68], [0, 0.74], [0.21, 0.68], [0.18, 0.3], [0.26, 0.16], [-0.25, 0.16], [-0.18, 0.3]]);
-      plate([[-0.1, 0.57], [0, 0.66], [0.1, 0.57], [0.075, 0.35], [0, 0.28], [-0.075, 0.35]], 0, 0.075, 0.035);
+      // A narrow woven stole follows the tunic instead of a shield-shaped cuirass.
+      builder.panel(chest, "cloth", [[-0.045, 0.7], [0.045, 0.7], [0.055, 0.22], [0, 0.14], [-0.055, 0.22]], palette.accent, [0, 0, 0.045], 0.014, 0.004);
       break;
     case "marksman":
       plate([[-0.22, 0.64], [0.22, 0.64], [0.18, 0.48], [-0.18, 0.48]], 0, 0.02);
@@ -363,8 +398,10 @@ function addHumanoidBody(
   options: { scale: number; cape: boolean; bulk?: number; simple?: boolean; chestStyle?: HeroBodyProfile },
 ): { torso: THREE.Group; head: THREE.Group; mainPivot: THREE.Group; offPivot: THREE.Group } {
   const bulk = (options.bulk ?? 1) * palette.build;
+  const channeler = options.chestStyle === "channeler";
+  const golden = options.chestStyle === "command" || channeler;
   root.scale.setScalar(options.scale);
-  if (options.cape) addCape(builder, root, palette.cloth, palette.team, bulk, "long");
+  if (options.cape) addCape(builder, root, palette.cloth, palette.team, bulk, "long", golden);
 
   const pelvis = builder.part("joint.pelvis", root, [0, 0.89, 0]);
   builder.profile(pelvis, "leather", [
@@ -376,7 +413,13 @@ function addHumanoidBody(
     { y: 0.15, radiusX: 0.31 * bulk, radiusZ: 0.2 },
     { y: 0.2, radiusX: 0.32 * bulk, radiusZ: 0.2 },
   ], palette.accent);
-  for (const side of [-1, 1]) {
+  if (channeler) builder.profile(pelvis, "cloth", [
+    { y: -0.57, radiusX: 0.39 * bulk, radiusZ: 0.24 },
+    { y: -0.35, radiusX: 0.37 * bulk, radiusZ: 0.23 },
+    { y: -0.05, radiusX: 0.28 * bulk, radiusZ: 0.19 },
+    { y: 0.17, radiusX: 0.24 * bulk, radiusZ: 0.17 },
+  ], palette.cloth, [0, 0, 0.015], [0, 0, 0], 10);
+  for (const side of channeler ? [] : [-1, 1]) {
     builder.panel(pelvis, "cloth", [[-0.12, 0.12], [0.12, 0.12], [0.17, -0.24], [0, -0.31], [-0.16, -0.21]], palette.cloth, [side * 0.16 * bulk, 0.03, 0.14], 0.035, 0.025, [0, side * 0.1, side * 0.03]);
     if (!options.simple) builder.panel(pelvis, "armor", [[-0.09, 0.11], [0.09, 0.11], [0.11, -0.12], [0, -0.18], [-0.1, -0.13]], palette.armor, [side * 0.25 * bulk, 0.05, 0.09], 0.045, 0.03, [0, side * 0.55, 0]);
   }
@@ -405,10 +448,10 @@ function addHumanoidBody(
       { y: -0.32, radiusX: 0.13 * bulk, radiusZ: 0.13 },
       { y: -0.45, radiusX: 0.1 * bulk, radiusZ: 0.11 },
     ], 0x484640);
-    if (!options.simple) {
+    if (!options.simple && !channeler) {
       builder.panel(leg, "armor", [[-0.085, 0.1], [0.085, 0.1], [0.1, -0.11], [0, -0.17], [-0.095, -0.11]], palette.armor, [0, -0.19, 0.11], 0.045, 0.025);
       builder.sphere(leg, "armor", [0.11 * bulk, 0.095, 0.13], palette.accent, [0, -0.45, 0.07]);
-    } else builder.sphere(leg, "armor", [0.105, 0.09, 0.12], palette.armor, [0, -0.43, 0.065]);
+    } else if (!channeler) builder.sphere(leg, "armor", [0.105, 0.09, 0.12], palette.armor, [0, -0.43, 0.065]);
     // Bend at the kneecap, retaining the authored neutral surface positions.
     // The old pivot sat high inside the thigh and swept the entire boot outward.
     const shin = builder.part(`joint.shin.${side < 0 ? "left" : "right"}`, leg, [0, -0.45, 0]);
@@ -417,7 +460,7 @@ function addHumanoidBody(
       { y: 0.07, radiusX: 0.083, radiusZ: 0.1 },
       { y: -0.24, radiusX: 0.075, radiusZ: 0.085 },
     ], 0x453e37);
-    builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, 0.23, 0.08], 0.042, 0.02);
+    if (!channeler) builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, 0.23, 0.08], 0.042, 0.02);
     builder.profile(shin, "leather", [
       { y: -0.26, radiusX: 0.11, radiusZ: 0.17 },
       { y: -0.41, x: 0, z: 0.055, radiusX: 0.12, radiusZ: 0.22 },
@@ -430,6 +473,13 @@ function addHumanoidBody(
   for (const side of [-1, 1]) {
     const label = side < 0 ? "left" : "right";
     const arm = builder.part(`joint.arm.${label}`, torso, [side * 0.38 * bulk, 0.52, 0]);
+    if (channeler) {
+      builder.profile(arm, "cloth", [
+        { y: 0.09, radiusX: 0.1, radiusZ: 0.12 },
+        { y: -0.06, radiusX: 0.145, radiusZ: 0.145 },
+        { y: -0.3, radiusX: 0.14, radiusZ: 0.13 },
+      ], palette.cloth);
+    } else {
     builder.sphere(arm, "armor", [0.185 * bulk, 0.16, 0.17], palette.armor, [0, 0, 0.015]);
     builder.panel(arm, "armor", [[-0.13, 0.12], [0.12, 0.12], [0.17, -0.04], [0.08, -0.17], [-0.13, -0.08]], palette.accent, [0, 0.005, 0.105], 0.045, 0.03, [0, 0, side * 0.08]);
     builder.profile(arm, "leather", [
@@ -437,13 +487,14 @@ function addHumanoidBody(
       { y: -0.2, radiusX: 0.13, radiusZ: 0.12 },
       { y: -0.33, radiusX: 0.1, radiusZ: 0.1 },
     ], palette.cloth);
+    }
     const forearm = builder.part(`joint.forearm.${label}`, arm, [0, -0.31, 0]);
-    builder.profile(forearm, "leather", [
+    builder.profile(forearm, channeler ? "cloth" : "leather", [
       { y: 0.02, radiusX: 0.095, radiusZ: 0.1 },
       { y: -0.16, radiusX: 0.115, radiusZ: 0.11 },
       { y: -0.34, radiusX: 0.085, radiusZ: 0.085 },
     ], palette.cloth);
-    if (!options.simple) builder.panel(forearm, "armor", [[-0.08, 0.14], [0.08, 0.14], [0.07, -0.12], [0, -0.19], [-0.075, -0.12]], palette.armor, [0, -0.085, 0.085], 0.045, 0.024, [0, 0, side * -0.06]);
+    if (!options.simple && !channeler) builder.panel(forearm, "armor", [[-0.08, 0.14], [0.08, 0.14], [0.07, -0.12], [0, -0.19], [-0.075, -0.12]], palette.armor, [0, -0.085, 0.085], 0.045, 0.024, [0, 0, side * -0.06]);
     builder.profile(forearm, "leather", [
       { y: -0.33, radiusX: 0.08, radiusZ: 0.09 },
       { y: -0.38, radiusX: 0.11, radiusZ: 0.1 },
@@ -454,23 +505,69 @@ function addHumanoidBody(
   }
 
   const head = builder.part("joint.head", torso, [0, 0.69, 0]);
-  builder.profile(head, "skin", [
+  const faceRings: readonly ProfileRing[] = [
     { y: 0.04, radiusX: 0.12, radiusZ: 0.105, z: 0.012 },
     { y: 0.13, radiusX: 0.17, radiusZ: 0.14, z: 0.012 },
-    { y: 0.3, radiusX: 0.18, radiusZ: 0.145, z: 0.0 },
+    { y: 0.3, radiusX: 0.18, radiusZ: 0.145, z: 0 },
     { y: 0.43, radiusX: 0.145, radiusZ: 0.13, z: -0.005 },
     { y: 0.51, radiusX: 0.08, radiusZ: 0.08, z: -0.005 },
-  ], 0xb98c70);
+  ];
+  builder.profile(head, "skin", faceRings, 0xb98c70);
   builder.sphere(head, "skin", [0.045, 0.065, 0.06], 0xb98c70, [-0.168, 0.24, 0]);
   builder.sphere(head, "skin", [0.045, 0.065, 0.06], 0xb98c70, [0.168, 0.24, 0]);
-  builder.sphere(head, "leather", [0.032, 0.025, 0.017], 0x252c2d, [-0.067, 0.265, 0.132]);
-  builder.sphere(head, "leather", [0.032, 0.025, 0.017], 0x252c2d, [0.067, 0.265, 0.132]);
-  builder.panel(head, "skin", [[-0.018, 0.08], [0.018, 0.08], [0.045, -0.035], [-0.045, -0.035]], 0xa97760, [0, 0.2, 0.145], 0.022, 0.009);
-  if (!options.simple) {
-    builder.panel(head, "leather", [[-0.12, 0.03], [0.12, 0.03], [0.105, -0.025], [-0.105, -0.025]], 0x684c40, [0, 0.125, 0.14], 0.025, 0.008);
-    builder.panel(head, "leather", [[-0.105, 0.04], [-0.035, 0.04], [-0.02, 0.022], [-0.105, 0.02]], 0x403b36, [-0.067, 0.286, 0.145], 0.018, 0.006);
-    builder.panel(head, "leather", [[0.035, 0.04], [0.105, 0.04], [0.105, 0.02], [0.02, 0.022]], 0x403b36, [0.067, 0.286, 0.145], 0.018, 0.006);
+  // Surface marks share the actual faceted face plane rather than sit on boxes.
+  // Match the nine-sided head sweep (and its reduced LOD segment counts).
+  const faceSides = builder.detail === "far" ? 5 : builder.detail === "medium" ? 7 : 9;
+  const frontAt = (x: number, y: number) => {
+    const row = Math.max(0, faceRings.findIndex(ring => ring.y >= y) - 1);
+    const lo = faceRings[row], hi = faceRings[row + 1];
+    const t = (y - lo.y) / (hi.y - lo.y);
+    const rx = THREE.MathUtils.lerp(lo.radiusX, hi.radiusX, t);
+    const rz = THREE.MathUtils.lerp(lo.radiusZ, hi.radiusZ, t);
+    const z = THREE.MathUtils.lerp(lo.z ?? 0, hi.z ?? 0, t);
+    let front = -Infinity;
+    for (let i = 0; i < faceSides; i++) {
+      const a = (i + 0.5) / faceSides * Math.PI * 2;
+      const b = (i + 1.5) / faceSides * Math.PI * 2;
+      const ax = Math.cos(a) * rx, bx = Math.cos(b) * rx;
+      if (x < Math.min(ax, bx) || x > Math.max(ax, bx) || Math.abs(ax - bx) < 1e-8) continue;
+      const u = (x - ax) / (bx - ax);
+      front = Math.max(front, z + THREE.MathUtils.lerp(Math.sin(a), Math.sin(b), u) * rz);
+    }
+    return front;
+  };
+  const mark = (outline: readonly (readonly [number, number])[], color: number) => {
+    // Subdivide every patch so its triangles follow the face's plane breaks.
+    const contour = outline.map(([x, y]) => new THREE.Vector2(x, y));
+    const triangles = THREE.ShapeUtils.triangulateShape(contour, []);
+    const vertices: number[] = [];
+    const append = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, depth: number) => {
+      if (depth > 0) {
+        const ab = a.clone().lerp(b, 0.5), bc = b.clone().lerp(c, 0.5), ca = c.clone().lerp(a, 0.5);
+        append(a, ab, ca, depth - 1); append(ab, b, bc, depth - 1);
+        append(ca, bc, c, depth - 1); append(ab, bc, ca, depth - 1);
+      } else for (const point of [a, b, c]) vertices.push(point.x, point.y, frontAt(point.x, point.y) + 0.0015);
+    };
+    triangles.forEach(([a, b, c]) => append(contour[a], contour[b], contour[c], 2));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    builder.add(head, "leather", geometry, color);
+  };
+  for (const side of [-1, 1]) {
+    const x = side * 0.067;
+    mark([[x - 0.028, 0.264], [x - 0.016, 0.276], [x + 0.02, 0.275], [x + 0.029, 0.264], [x + 0.012, 0.254], [x - 0.016, 0.254]], 0x252c2d);
+    if (!options.simple) mark([[x - 0.029, 0.296], [x + 0.026, 0.295], [x + 0.026, 0.286], [x - 0.029, 0.287]], 0x403b36);
   }
+  // Compact nose wedge grows from the bridge and rejoins the cheek plane.
+  const nose = new THREE.BufferGeometry();
+  nose.setAttribute("position", new THREE.Float32BufferAttribute([
+    -0.018, 0.254, 0.139, -0.028, 0.195, 0.148, 0, 0.202, 0.185,
+    0.018, 0.254, 0.139, 0, 0.202, 0.185, 0.028, 0.195, 0.148,
+    -0.018, 0.254, 0.139, 0, 0.202, 0.185, 0.018, 0.254, 0.139,
+    -0.028, 0.195, 0.148, 0.028, 0.195, 0.148, 0, 0.202, 0.185,
+  ], 3));
+  builder.add(head, "skin", nose, 0xb1856b);
+  if (!options.simple) mark([[-0.055, 0.143], [-0.02, 0.146], [0.02, 0.146], [0.055, 0.143], [0.025, 0.137], [-0.025, 0.137]], 0x684c40);
 
   const mainPivot = builder.part("pivot.weapon.main", arms[1], [0, -0.005, 0.015]);
   const offPivot = builder.part("pivot.weapon.off", arms[0], [0, -0.005, 0.015]);
@@ -663,7 +760,7 @@ function addHeadgear(builder: UnitBuilder, head: THREE.Group, shape: ShapeSpec, 
       break;
     case "hood":
       builder.panel(helm, "cloth", [[-0.23, 0.25], [-0.2, 0.52], [-0.11, 0.7], [0.1, 0.72], [0.22, 0.51], [0.24, 0.22], [0.15, 0.11], [0, 0.19], [-0.15, 0.1]], palette.cloth, [0, 0, -0.045], 0.075, 0.035);
-      builder.panel(helm, "leather", [[-0.15, 0.29], [0.15, 0.29], [0.13, 0.22], [-0.13, 0.22]], palette.accent, [0, 0, 0.125], 0.025, 0.008);
+      builder.profile(helm, "cloth", [{ y: 0.02, radiusX: 0.16, radiusZ: 0.13 }, { y: 0.09, radiusX: 0.18, radiusZ: 0.14 }], palette.cloth);
       break;
     case "marksman":
       builder.profile(helm, "leather", [

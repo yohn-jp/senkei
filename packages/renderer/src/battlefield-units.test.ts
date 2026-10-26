@@ -117,6 +117,41 @@ describe("Battlefield unit models", () => {
     expect(names).toHaveProperty("size", 12);
   });
 
+  it("gives golden capes a swept depth and channeler sleeves a cloth silhouette", () => {
+    for (const id of ["F01", "R01"]) {
+      const root = new THREE.Group();
+      const key = `senkei.next.hero.${id.toLowerCase()}`;
+      const rig = buildBattlefieldHero(root, entity(id, key, id), 0x347e83, key);
+      const cape = rig.joints.cape;
+      const capeMesh = meshes(cape)[0];
+      capeMesh.geometry.computeBoundingBox();
+      expect(capeMesh.geometry.boundingBox!.getSize(new THREE.Vector3()).z).toBeGreaterThan(0.2);
+      if (id === "R01") {
+        for (const side of ["left", "right"]) {
+          const arm = rig.joints[`arm.${side}`];
+          expect(arm.children.some(child => child instanceof THREE.Mesh && child.userData.unitSurface === "armor")).toBe(false);
+        }
+        const chest = root.getObjectByName("armor.chest")!;
+        expect(meshes(chest).some(mesh => mesh.userData.unitSurface === "armor")).toBe(false);
+      }
+    }
+  });
+
+  it("keeps the golden mouth a narrow facial mark instead of a projecting block", () => {
+    const root = new THREE.Group();
+    const rig = buildBattlefieldHero(root, entity("F01", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    const mouthColor = new THREE.Color(0x684c40);
+    const mouth = new THREE.Box3();
+    for (const mesh of meshes(rig.joints.head)) {
+      const colors = mesh.geometry.getAttribute("color");
+      const positions = mesh.geometry.getAttribute("position");
+      for (let i = 0; i < colors.count; i++) if (Math.abs(colors.getX(i) - mouthColor.r) < 1e-6 && Math.abs(colors.getY(i) - mouthColor.g) < 1e-6) mouth.expandByPoint(new THREE.Vector3().fromBufferAttribute(positions, i));
+    }
+    expect(mouth.isEmpty()).toBe(false);
+    expect(mouth.getSize(new THREE.Vector3()).x).toBeLessThan(0.13);
+    expect(mouth.getSize(new THREE.Vector3()).y).toBeLessThan(0.02);
+  });
+
   it("shares the common facet materials and exposes a reproducible appearance record", () => {
     const first = new THREE.Group();
     const second = new THREE.Group();
