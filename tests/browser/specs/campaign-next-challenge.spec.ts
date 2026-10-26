@@ -24,7 +24,8 @@ test("Published first-march own setup wins a genuine Campaign rematch and prepar
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
   await library.getByLabel("Import Next experiment file").setInputFiles({ name: "actual-native-first-march.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(nativeCampaignStore(fixture, compilation.estimated_cu))) });
-  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled({ timeout: 60_000 });
+  // The imported Run must be reproduced before the comparison can be opened; one 600-tick import took >60s in CI.
+  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled({ timeout: 180_000 });
   await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
   expect((await progress()).completed_scenario_ids).toEqual([]);
   await page.getByRole("button", { name: /同条件で再戦 · Run Snapshot/ }).click();

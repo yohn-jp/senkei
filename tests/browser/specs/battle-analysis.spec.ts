@@ -116,7 +116,8 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await page.getByTestId("journey-home").getByRole("button", { name: "続きから" }).click();
   await expect(page.getByTestId("next-library")).toBeVisible();
   await expect(page.getByTestId("next-library").locator(".next-library-experiment-list li")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 60_000 });
+  // Cold restore reproduces both retained Runs in the serialized Core worker; each 600-tick replay took ~92s in CI.
+  await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 240_000 });
   await page.getByRole("button", { name: "Open latest comparison" }).click();
   await expect(page.getByTestId("battle-analysis")).toBeVisible();
   await expect(page.getByTestId("battle-analysis")).toContainText("PREVIOUS");
