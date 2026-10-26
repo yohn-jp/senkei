@@ -513,7 +513,7 @@ fn reproduction_output_limit(rules: &VerifiedRulePlan, context: &senkei_model::M
 }
 
 fn project_simulation_response(
-    artifact: &enbu::SimulationArtifact,
+    artifact: &senkei_model::SimulationArtifact,
     diagnostics_side: Option<CombatantSide>,
 ) -> LocalSimulationResponse {
     let public = artifact.public_response();
