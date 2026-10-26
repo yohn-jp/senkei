@@ -1,0 +1,27 @@
+# ART-DIRECTION — source-clause register
+
+Source revision: `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Authority: [original document](../../../ART-DIRECTION.md). Source SHA-256: `56852fb16c6e2a6c1899bbc14e1b35d12c1252ef2f9bad9800cddd8469a467be`.
+
+Each source list item, table obligation, prose paragraph or flow transition has its own stable line-derived audit ID. A paragraph may contain related obligations; this is source-clause coverage, not a deduplicated count of independent gameplay requirements. References/examples and historical reports are explicitly excluded from normative totals. A brief source excerpt accompanies each exact citation; full prose and illustrative blocks remain in their originals. Rule values are not invented.
+
+**Classification concerns acceptance completeness.** `INCOMPLETE` with `NOT_CHECKED` means acceptance proof remains open; it does not mean the implementation is missing. The implementation column names an inspection lead; clause-specific inspection is not implied. `DEFINED/MISSING` is reserved for independently identified absent extension features. `UNDEFINED/DEFERRED` applies only to expressly unresolved detail/future scope. No `VERIFIED` claim is made from source/test presence.
+
+Owner: **Replay / renderer / World presentation**. Family evidence: [presentation.md](../presentation.md). Dependency: authorized Replay and paired World identity.
+
+| Audit ID / exact authority | Source clause | Classification | Existing implementation / gap | Verification |
+| --- | --- | --- | --- | --- |
+| [ART-DIRECTION-L005](../../../ART-DIRECTION.md#L5) · 方針 · lines 5–5 | V01–V03はHero、Minion、Monster、地形、橋、施設に共通のFaceted Low-Poly Stylized 3Dを採用方向とする。GRAPHICS、HERO-ATELIER、BATTLEFIELD-VISUALが個別の正本。これだけでSophiaや12 Heroのモデルが完成したとは扱わず、個別造形契約の確定済み面構成・形状・デフォルメ… [read full cited clause] | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L009](../../../ART-DIRECTION.md#L9) · V01 — TacticalとCinematic · lines 9–9 | - Tactical：敵味方、Hero／Minion、交戦、地形、橋、レーン、視界、対象選択の可読性を最優先。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L010](../../../ART-DIRECTION.md#L10) · V01 — TacticalとCinematic · lines 10–10 | - Cinematic：Hero・地形・建築の造形と演出を主役にする。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L011](../../../ART-DIRECTION.md#L11) · V01 — TacticalとCinematic · lines 11–11 | - 視界・レーン・交戦等の情報レイヤーは必要に応じ表示を切り替える。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L012](../../../ART-DIRECTION.md#L12) · V01 — TacticalとCinematic · lines 12–12 | - 表示は同一の認可済みReplayと同一Rendererのカメラ・材質・表示設定。別のゲーム世界や戦闘計算を作らない。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L013](../../../ART-DIRECTION.md#L13) · V01 — TacticalとCinematic · lines 13–13 | - FOGは全モード共通。Cinematicで未観測の敵や橋の現在状態を暴露しない。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L017](../../../ART-DIRECTION.md#L17) · V02 — 共通Generator＋固有Hero · lines 17–17 | 共通のファセット配置、面の方向、輪郭、材質、装備のレイヤーをGenerator／部品／材質ライブラリで管理する。Hero固有の武器・装備・体型・姿勢を残し、単なる色違いにしない。Hero Detailと戦場LODは同じAppearance identityと生成元を参照。Minion／MonsterはHeroと識別でき、施設・地形も同じ材質文法で統一。Pix… [read full cited clause] | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L021](../../../ART-DIRECTION.md#L21) · V03 — LODとパフォーマンス · lines 21–21 | LODは距離だけでなく画面占有サイズとOverview／Followカメラを考慮。Instancing、共有Geometry／Material、不要な更新停止を検討。FPS／LOD／Pixelパスの変更でEnbu結果・論理CU・観測情報が変わることは禁止。Viewport／ズーム別の可読性は目視評価し、実機GPU・メモリ・タッチは実測する。SwiftShad… [read full cited clause] | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+| [ART-DIRECTION-L025](../../../ART-DIRECTION.md#L25) · 受入 · lines 25–25 | Heroの近・遠景が同じ個体として識別可能、地形・橋・戦線・施設がTacticalで認識可能、Tactical／Cinematic間で権限と確定イベントが一致。Functional／Visual／Interaction／Performanceを別判定し、未実施はNOT_CHECKED。 | INCOMPLETE<br>DEFINED / ACCEPTANCE OPEN | Owner/source lead above; clause-specific behavior and acceptance NOT_CHECKED. | NOT_CHECKED |
+
+## Required verification routing
+
+For each in-scope clause, check the exact producer and consumer, then run the narrowest meaningful acceptance scenario with the same pinned package/World/Program/input identities. Core clauses require native/WASM and negative-boundary evidence where stated. UI clauses require actual desktop/mobile actions and state preservation. Visual clauses require fixed-Tick/camera images plus human review; physical touch/IME/GPU remain separate. Progression clauses require real approved producer data and idempotent settlement. A green build, fixture screenshot or historical session never substitutes for these checks.
+
+Do not sum this file into a final implemented/missing/undefined requirement count: repeated cross-document obligations, mixed prose paragraphs and illustrative tables still require semantic deduplication. Exact source coverage is reported separately in the index.

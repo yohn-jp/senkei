@@ -1,0 +1,569 @@
+{
+  "source_revision": "9f52dbfa44d8f08ff854116fef7850fbc91e13af",
+  "count_semantics": "source units, NOT deduplicated final normative contract counts",
+  "documents": [
+    {
+      "document": "ARCHITECTURE.md",
+      "lines": 130,
+      "bytes": 9776,
+      "sha256": "50cdad7aa9ed095930aed9998c8dd23b99e938094b436cf173473cd54cc5587c",
+      "source_units": 35,
+      "classifications": {
+        "INCOMPLETE": 23,
+        "—": 3,
+        "UNDEFINED/DEFERRED": 9
+      },
+      "register": "architecture.md"
+    },
+    {
+      "document": "ART-DIRECTION.md",
+      "lines": 25,
+      "bytes": 2563,
+      "sha256": "56852fb16c6e2a6c1899bbc14e1b35d12c1252ef2f9bad9800cddd8469a467be",
+      "source_units": 9,
+      "classifications": {
+        "INCOMPLETE": 9
+      },
+      "register": "art-direction.md"
+    },
+    {
+      "document": "BALANCE.md",
+      "lines": 196,
+      "bytes": 15439,
+      "sha256": "01c49c5b8ee47c1d7a88f5aea67357786a2a57e86e7cb79588234e435b5f4bc8",
+      "source_units": 119,
+      "classifications": {
+        "INCOMPLETE": 101,
+        "—": 1,
+        "UNDEFINED/DEFERRED": 17
+      },
+      "register": "balance.md"
+    },
+    {
+      "document": "BATTLEFIELD-VISUAL.md",
+      "lines": 67,
+      "bytes": 9013,
+      "sha256": "a3aa099f1e5a60048f54e204201cc682cf3db1300b9d0a6ed625f1d26f1c8fbc",
+      "source_units": 40,
+      "classifications": {
+        "INCOMPLETE": 40
+      },
+      "register": "battlefield-visual.md"
+    },
+    {
+      "document": "BATTLEFIELD.md",
+      "lines": 300,
+      "bytes": 33627,
+      "sha256": "14f1f31a0f0b1c4a34ba1eea069a05dbdde7e757daa8f188ab2a7c474c7f71a0",
+      "source_units": 172,
+      "classifications": {
+        "INCOMPLETE": 154,
+        "—": 3,
+        "UNDEFINED/DEFERRED": 15
+      },
+      "register": "battlefield.md"
+    },
+    {
+      "document": "BEHAVIOR.md",
+      "lines": 139,
+      "bytes": 15405,
+      "sha256": "1657f8046e2ab1a2874bdbe793f375af81a9785aad75b9154d51838e3f2b1975",
+      "source_units": 68,
+      "classifications": {
+        "INCOMPLETE": 65,
+        "—": 2,
+        "UNDEFINED/DEFERRED": 1
+      },
+      "register": "behavior.md"
+    },
+    {
+      "document": "CI-BROWSER-PARALLEL.md",
+      "lines": 33,
+      "bytes": 3117,
+      "sha256": "2713821ddbe01d64f36331f551a61613f2c0bf4bd2beab58a31fab63a8a834f3",
+      "source_units": 21,
+      "classifications": {
+        "—": 21
+      },
+      "register": "ci-browser-parallel.md"
+    },
+    {
+      "document": "COMBAT.md",
+      "lines": 168,
+      "bytes": 17682,
+      "sha256": "93f4f888ef82909d28c642a6368f2bf7f73f43db9e0657af9f9e00205c763752",
+      "source_units": 94,
+      "classifications": {
+        "INCOMPLETE": 91,
+        "—": 2,
+        "UNDEFINED/DEFERRED": 1
+      },
+      "register": "combat.md"
+    },
+    {
+      "document": "COMPONENTS.md",
+      "lines": 83,
+      "bytes": 7221,
+      "sha256": "660e1a26daa766a71c5f985266758e5a469b112875b459c655a1701b40997e21",
+      "source_units": 33,
+      "classifications": {
+        "INCOMPLETE": 32,
+        "—": 1
+      },
+      "register": "components.md"
+    },
+    {
+      "document": "DELIVERY.md",
+      "lines": 109,
+      "bytes": 8382,
+      "sha256": "5f759c74f261e40c23f8030da3ba57a979ef44d399d413ed14dcab55539fc2f3",
+      "source_units": 60,
+      "classifications": {
+        "INCOMPLETE": 49,
+        "UNDEFINED/DEFERRED": 11
+      },
+      "register": "delivery.md"
+    },
+    {
+      "document": "DESIGN-DECISIONS.md",
+      "lines": 39,
+      "bytes": 4547,
+      "sha256": "84f383467975f610ba271dcedbbf9cae7948ec73e664f06ac292dbbe47d9f687",
+      "source_units": 26,
+      "classifications": {
+        "INCOMPLETE": 24,
+        "UNDEFINED/DEFERRED": 2
+      },
+      "register": "design-decisions.md"
+    },
+    {
+      "document": "DOMAIN-CATALOG.md",
+      "lines": 105,
+      "bytes": 9576,
+      "sha256": "d30e04d16383e8326521b736cff87a5c1bde60679bef9b49e3e6059b9749b037",
+      "source_units": 43,
+      "classifications": {
+        "INCOMPLETE": 39,
+        "—": 4
+      },
+      "register": "domain-catalog.md"
+    },
+    {
+      "document": "ENBU.md",
+      "lines": 103,
+      "bytes": 8988,
+      "sha256": "e02087f7626ae65b4d82c0f64f655b892ebeb18d6507963650030db72b051dee",
+      "source_units": 44,
+      "classifications": {
+        "INCOMPLETE": 42,
+        "—": 2
+      },
+      "register": "enbu.md"
+    },
+    {
+      "document": "EQUIPMENT.md",
+      "lines": 65,
+      "bytes": 6099,
+      "sha256": "eb45f31943c22542f7b4f2fbb2011c3ff6deb15e1416b69c5cf35921a805ebb5",
+      "source_units": 34,
+      "classifications": {
+        "INCOMPLETE": 3,
+        "DEFINED/MISSING": 27,
+        "UNDEFINED/DEFERRED": 4
+      },
+      "register": "equipment.md"
+    },
+    {
+      "document": "EXECUTION.md",
+      "lines": 120,
+      "bytes": 11349,
+      "sha256": "52f1d4eb6ce5d55a94b41129ec8158a875d4043f195cc3e89353431129f358d9",
+      "source_units": 46,
+      "classifications": {
+        "INCOMPLETE": 43,
+        "—": 2,
+        "UNDEFINED/DEFERRED": 1
+      },
+      "register": "execution.md"
+    },
+    {
+      "document": "FOG-OF-WAR.md",
+      "lines": 66,
+      "bytes": 6027,
+      "sha256": "028329b0f7501e7d25101f65e2bcaa6198618e994e95dbc30b2f080b3a874d27",
+      "source_units": 37,
+      "classifications": {
+        "INCOMPLETE": 36,
+        "UNDEFINED/DEFERRED": 1
+      },
+      "register": "fog-of-war.md"
+    },
+    {
+      "document": "G1-VERIFICATION.md",
+      "lines": 76,
+      "bytes": 8084,
+      "sha256": "59bb48655a601dbeff7281d477fa6b5b8b540ca60290622b1c8367aea9e172f6",
+      "source_units": 31,
+      "classifications": {
+        "—": 31
+      },
+      "register": "g1-verification.md"
+    },
+    {
+      "document": "GAMEPLAY.md",
+      "lines": 79,
+      "bytes": 6241,
+      "sha256": "02e47fc6a4b69cdb4f0774cb8447fa6dd03aac4e6341f96d677429b63d35f3ce",
+      "source_units": 43,
+      "classifications": {
+        "INCOMPLETE": 32,
+        "—": 5,
+        "UNDEFINED/DEFERRED": 6
+      },
+      "register": "gameplay.md"
+    },
+    {
+      "document": "GRAPHICS-DELIVERY.md",
+      "lines": 97,
+      "bytes": 7321,
+      "sha256": "514f7b8bc992abf7a1c5f35f361f778b1bd1b9ec27a64bb2b832072d86a9f45d",
+      "source_units": 24,
+      "classifications": {
+        "INCOMPLETE": 21,
+        "—": 3
+      },
+      "register": "graphics-delivery.md"
+    },
+    {
+      "document": "GRAPHICS.md",
+      "lines": 115,
+      "bytes": 10552,
+      "sha256": "423ba4a4230158dfd41788f91fbacbd9e76182b6b0f906d278f22e5e55b67343",
+      "source_units": 58,
+      "classifications": {
+        "INCOMPLETE": 48,
+        "UNDEFINED/DEFERRED": 9,
+        "—": 1
+      },
+      "register": "graphics.md"
+    },
+    {
+      "document": "HERO-ATELIER.md",
+      "lines": 122,
+      "bytes": 11511,
+      "sha256": "82290a23b5ec2b3b565b60a6b5acca9b42100eb05e72ce46746e511ebbbd2a9b",
+      "source_units": 71,
+      "classifications": {
+        "INCOMPLETE": 71
+      },
+      "register": "hero-atelier.md"
+    },
+    {
+      "document": "HERO-RELATIONSHIPS.md",
+      "lines": 74,
+      "bytes": 8244,
+      "sha256": "1c35b164b89e6b9465fc5ac81ebdb444bbaed32f55f630a428ae5b8a24c7cc5f",
+      "source_units": 33,
+      "classifications": {
+        "INCOMPLETE": 2,
+        "DEFINED/MISSING": 29,
+        "UNDEFINED/DEFERRED": 2
+      },
+      "register": "hero-relationships.md"
+    },
+    {
+      "document": "JINREI-EDITOR.md",
+      "lines": 123,
+      "bytes": 13236,
+      "sha256": "579193480d82d75951d090146b0703c792770eaeb7e91e426a3ca88f2a7170d4",
+      "source_units": 67,
+      "classifications": {
+        "INCOMPLETE": 66,
+        "—": 1
+      },
+      "register": "jinrei-editor.md"
+    },
+    {
+      "document": "JINREI-GRAMMAR.md",
+      "lines": 193,
+      "bytes": 13356,
+      "sha256": "b76730f47466c3815a94701688f6e18c86197f8518f01ae6945e33e65bc0b0b8",
+      "source_units": 74,
+      "classifications": {
+        "INCOMPLETE": 70,
+        "—": 4
+      },
+      "register": "jinrei-grammar.md"
+    },
+    {
+      "document": "JINREI.md",
+      "lines": 45,
+      "bytes": 4483,
+      "sha256": "0ce23fec7570b6de4b934f3cbb6d397fee26ef48cdc3a87b59ffaaaddf1b3fd1",
+      "source_units": 23,
+      "classifications": {
+        "INCOMPLETE": 23
+      },
+      "register": "jinrei.md"
+    },
+    {
+      "document": "ONLINE.md",
+      "lines": 89,
+      "bytes": 7256,
+      "sha256": "2e5556f01b0aa29d05e173b057ec2aae5647b26c2df2d3370c443bdbff3540be",
+      "source_units": 36,
+      "classifications": {
+        "UNDEFINED/DEFERRED": 35,
+        "—": 1
+      },
+      "register": "online.md"
+    },
+    {
+      "document": "PLAYER-JOURNEY.md",
+      "lines": 138,
+      "bytes": 15669,
+      "sha256": "2abce2843c9a562fd7c3c08ac9efb714fe73bb871a2593ec39fdda7f70dd9454",
+      "source_units": 78,
+      "classifications": {
+        "INCOMPLETE": 72,
+        "—": 6
+      },
+      "register": "player-journey.md"
+    },
+    {
+      "document": "PRE-BATTLE-FLOWS.md",
+      "lines": 292,
+      "bytes": 17003,
+      "sha256": "100f27fee607ad2e1fb6d419bdb83bc8a799f13eb4ad3cee3d2e402979e0e893",
+      "source_units": 220,
+      "classifications": {
+        "INCOMPLETE": 213,
+        "—": 7
+      },
+      "register": "pre-battle-flows.md"
+    },
+    {
+      "document": "PRE-BATTLE-SCREENS.md",
+      "lines": 232,
+      "bytes": 22270,
+      "sha256": "12b0eae3cc20501278a55e42fe0f6c449a02cca5d4f15ac82532b9e002b80cf8",
+      "source_units": 96,
+      "classifications": {
+        "INCOMPLETE": 92,
+        "—": 4
+      },
+      "register": "pre-battle-screens.md"
+    },
+    {
+      "document": "PRODUCT.md",
+      "lines": 76,
+      "bytes": 6450,
+      "sha256": "7fd9b8d2ba287eca0b0cd4b47a133123bc79a1b03aee870ab855c639866bc2ea",
+      "source_units": 42,
+      "classifications": {
+        "INCOMPLETE": 42
+      },
+      "register": "product.md"
+    },
+    {
+      "document": "PROGRESSION-UX.md",
+      "lines": 100,
+      "bytes": 9185,
+      "sha256": "00bf7beb041ecae83d9059da78b0c2774fe9d516cd86c5aa12bca1e961b98248",
+      "source_units": 60,
+      "classifications": {
+        "INCOMPLETE": 11,
+        "DEFINED/MISSING": 41,
+        "—": 2,
+        "UNDEFINED/DEFERRED": 6
+      },
+      "register": "progression-ux.md"
+    },
+    {
+      "document": "QUALITY-AND-RETIREMENT.md",
+      "lines": 43,
+      "bytes": 4594,
+      "sha256": "3ae32eca00eea960fa1e64cfdd09cd3754043cd426ec92a3d921eff27b98b6a6",
+      "source_units": 20,
+      "classifications": {
+        "INCOMPLETE": 20
+      },
+      "register": "quality-and-retirement.md"
+    },
+    {
+      "document": "README.md",
+      "lines": 78,
+      "bytes": 8213,
+      "sha256": "4938d3452fd8c67ada1882d49754ac2d971c905d701dca4f51efd8678454d121",
+      "source_units": 56,
+      "classifications": {
+        "—": 56
+      },
+      "register": "readme.md"
+    },
+    {
+      "document": "REPLAY.md",
+      "lines": 93,
+      "bytes": 9412,
+      "sha256": "684954ad0857f0a56ccf9e374159069e779417bc879704168a1ec2e74b62aaf0",
+      "source_units": 52,
+      "classifications": {
+        "INCOMPLETE": 52
+      },
+      "register": "replay.md"
+    },
+    {
+      "document": "REWARDS-AND-LIBRA.md",
+      "lines": 50,
+      "bytes": 3881,
+      "sha256": "fe837700c9a1f03a29bb9a053a7fbb19ff797d6ca2275db3f90b891618ddc12f",
+      "source_units": 24,
+      "classifications": {
+        "INCOMPLETE": 3,
+        "DEFINED/MISSING": 11,
+        "UNDEFINED/DEFERRED": 10
+      },
+      "register": "rewards-and-libra.md"
+    },
+    {
+      "document": "RUNTIME-INTEGRATION-CONTRACTS.md",
+      "lines": 155,
+      "bytes": 25754,
+      "sha256": "a33a8952aa35d313737a85943a2b2958058d66b217272ab67638ddbf93cb3e8b",
+      "source_units": 74,
+      "classifications": {
+        "INCOMPLETE": 70,
+        "—": 1,
+        "UNDEFINED/DEFERRED": 3
+      },
+      "register": "runtime-integration-contracts.md"
+    },
+    {
+      "document": "SENRITSU.md",
+      "lines": 96,
+      "bytes": 10049,
+      "sha256": "c4a156fd9ec02edbf464abd6a0c51f9769410b0aa9565f12a77e5f86a5629356",
+      "source_units": 57,
+      "classifications": {
+        "INCOMPLETE": 57
+      },
+      "register": "senritsu.md"
+    },
+    {
+      "document": "SIMULATION.md",
+      "lines": 73,
+      "bytes": 6452,
+      "sha256": "6e029caa2f1b310303468c15080a0855e56e89a20f558a4cd85d2a6a9dfda461",
+      "source_units": 41,
+      "classifications": {
+        "INCOMPLETE": 41
+      },
+      "register": "simulation.md"
+    },
+    {
+      "document": "TACTICAL-LOOP.md",
+      "lines": 57,
+      "bytes": 6653,
+      "sha256": "707f1b160b1d54cd7fa50bbda3dadbda33f982482d5ed0ac2b874ff58ea4bffc",
+      "source_units": 27,
+      "classifications": {
+        "INCOMPLETE": 27
+      },
+      "register": "tactical-loop.md"
+    },
+    {
+      "document": "TACTICS.md",
+      "lines": 92,
+      "bytes": 8157,
+      "sha256": "39544469fb38bf809fd0937fe8a37a32ada847efa63d7d6e8bf99ae8924b8d31",
+      "source_units": 46,
+      "classifications": {
+        "INCOMPLETE": 45,
+        "—": 1
+      },
+      "register": "tactics.md"
+    },
+    {
+      "document": "UI-DESIGN.md",
+      "lines": 132,
+      "bytes": 13959,
+      "sha256": "6e90ef8d951ca47bcb30d6cd36f7421d8491095472ca47b4317653685e2af7cc",
+      "source_units": 66,
+      "classifications": {
+        "INCOMPLETE": 65,
+        "—": 1
+      },
+      "register": "ui-design.md"
+    },
+    {
+      "document": "UNITS.md",
+      "lines": 178,
+      "bytes": 16850,
+      "sha256": "f8464bf5c842bd3ab1c06698b694ccd4f99004f8f4921e98ee8852ae34667979",
+      "source_units": 97,
+      "classifications": {
+        "INCOMPLETE": 95,
+        "UNDEFINED/DEFERRED": 2
+      },
+      "register": "units.md"
+    },
+    {
+      "document": "UX-INTERACTION-CONTRACTS.md",
+      "lines": 137,
+      "bytes": 14503,
+      "sha256": "6abff60a8b235298bf005f8d7456c722f11f75e31c40a6e2b4e90ed626d42eed",
+      "source_units": 72,
+      "classifications": {
+        "INCOMPLETE": 72
+      },
+      "register": "ux-interaction-contracts.md"
+    },
+    {
+      "document": "UX-SESSION-1.md",
+      "lines": 91,
+      "bytes": 9255,
+      "sha256": "26f89e2aa7d94076e26b5bf2d01bd8fccae7dcdd383011d2368bbd4db72fc48b",
+      "source_units": 41,
+      "classifications": {
+        "—": 41
+      },
+      "register": "ux-session-1.md"
+    },
+    {
+      "document": "UX-SESSION-2.md",
+      "lines": 117,
+      "bytes": 8789,
+      "sha256": "c706393b05febef93ee400ff37f0b928ad1a95ddc2ba4724860a29b48fa9795b",
+      "source_units": 46,
+      "classifications": {
+        "—": 46
+      },
+      "register": "ux-session-2.md"
+    },
+    {
+      "document": "WORLD-DEFINITION.md",
+      "lines": 132,
+      "bytes": 13625,
+      "sha256": "f5021289c973cb0cbb7af0fafdfdfe12508a2aae8b03160c3affd5fd2b632afe",
+      "source_units": 54,
+      "classifications": {
+        "INCOMPLETE": 49,
+        "—": 5
+      },
+      "register": "world-definition.md"
+    },
+    {
+      "document": "WORLD.md",
+      "lines": 138,
+      "bytes": 15759,
+      "sha256": "15b9e3b2037c55b776bd12a90476ecf3b69e2fb3bcdbe445934d20e35908d4ac",
+      "source_units": 72,
+      "classifications": {
+        "INCOMPLETE": 69,
+        "—": 1,
+        "UNDEFINED/DEFERRED": 2
+      },
+      "register": "world.md"
+    }
+  ]
+}

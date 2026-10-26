@@ -1,0 +1,17 @@
+{
+  "refs/heads/art/3d-production": "d5cfd807a5a00e492fd0cbb733b9300e0dc0ed5a",
+  "refs/heads/chore/wave1-coverage": "f79f9cccd051825f682af02ae8371068bfe55b0f",
+  "refs/heads/feat/improved-rematch-ui": "a57f4ee5cc0023f23c7e50cd507b4e6531eed2cc",
+  "refs/heads/feat/repair-focus-producers": "7c7801ec8a3990437ba616784b0707b8cf1eeeeb",
+  "refs/heads/feat/s06-skill-live": "4f0cd8c2c7642b46f97824a07514701a4ea15c14",
+  "refs/heads/feat/wave5-campaign-live": "9df16f0aedae917067ec06c427cb9333a4d645e5",
+  "refs/heads/fix/mobile-battle-controls": "c780293e7119663fbb2f420f428199256dc8ba9e",
+  "refs/heads/fix/wave3-behavior-validation": "9f52dbfa44d8f08ff854116fef7850fbc91e13af",
+  "refs/heads/fix/wave7-experiment-import": "811c36482fb334f7148bc073858d51da889a61ae",
+  "refs/heads/fix/wave8-recovery-retry": "715aca51fce1342b438ce15c291fe71d513189b0",
+  "refs/heads/integration/autonomous-wave2": "47cebda8546bf0f8a74349dc6a6b27087c022fb0",
+  "refs/heads/integration/autonomous-wave3": "95a65d1cfe93567dc6a9666b9ca53f7bbfc4cb8e",
+  "refs/heads/integration/wave1": "89d37997482da165b66c47ae4bf17d2a2a72b67b",
+  "refs/heads/main": "fdd6c9c3b4f1fcbc07d6bbe37dad05a11a49eee3",
+  "refs/heads/recovery/skill-consumer-workdir-merge": "8d648c30f5981a69be6b81b05234d7c0ad579f17"
+}

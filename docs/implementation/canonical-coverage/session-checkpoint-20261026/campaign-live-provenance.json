@@ -1,0 +1,30 @@
+{
+  "base": "e319f01c54e208ee6ad545f32d167b59e1aea4f7",
+  "artifacts": [
+    {
+      "path": "/workspace/wt-campaign-live/test-results/campaign-exact-rematch-records.json",
+      "bytes": 24885921,
+      "sha256": "92fdccd962da268018e760a0eddbfa6bb669d57804e3cea53bca11f6a7d6e1eb"
+    },
+    {
+      "path": "/workspace/wt-campaign-live/test-results/campaign-first-exact-rematch-records.json",
+      "bytes": 21265944,
+      "sha256": "1f65a954c68f5d3d8fbc46578618a34ab6e1fe7710f067165ca1f976cf687013"
+    },
+    {
+      "path": "/workspace/wt-campaign-live/test-results/campaign-native-final-proof.json",
+      "bytes": 12440324,
+      "sha256": "de103371926cbde6c4de7e241ff5d3b7dc0f94efd4631f6ef367e3a1a94fa138"
+    },
+    {
+      "path": "/workspace/wt-campaign-live/test-results/campaign-native-first-march-proof.json",
+      "bytes": 10630347,
+      "sha256": "efb7e28761ef7a2fc494ba7871e61dbd0dcf1ff406e7302fc78a450cb5e2b351"
+    },
+    {
+      "path": "/workspace/wt-campaign-live/apps/web/public/wasm/senkei_wasm.wasm",
+      "bytes": 6677105,
+      "sha256": "e15cc7add78827aff1af977fe0be2a5f32ff766142ae4a97dfc67204b9a9bd1a"
+    }
+  ]
+}

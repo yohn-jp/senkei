@@ -1,0 +1,19 @@
+# Six browser contract repairs — final
+
+Commitb82cbf76d403d4ce9c0dde275baa2f9dca09dd77, branchfix/wave8-ci-contract-tests, PR https://github.com/yohn-jp/senkei/pull/42, base54011ea0d04cbfbb4400daa065af0681affad3d5. Exactly6browser specs,40insertions/10deletions; no productfiles, newtestfiles, skips, timeoutincreases or removedbehavioralchecks. Scopeownership released afterstablepush/PR.
+
+Repairscope: restoredrafttests nowfollowactualLibrary→Restorepinned→explicitdifferencereview→ReplacecurrentDraft→Ready→Hero/Jinreiedit thenassertactualpinnedHero/Skill/source. DiagnosticlastReplaybutton selectedindependently ofnewActionsourcebutton. NPCWASMload andViteSSRroot resolvedmodule-relative, fixingactualCIcwd. MobileFollowawaitsautoexpandedpreferredcluster withoutstaleconditionaltoggle; selectedID/contextassertions retained. Savesuccessassertion usesactualPinnednotice andretains/strengthenspersistedsourcechecks. Offlinecleanup suppressesonlyclosedpagecleanupfailure sooriginaltestfailureisnotmasked.
+
+Artifactprovenance: exactproduction-browser-build12630087483 frommainrun40275861697. Recordedrevision54011ea0d04cbfbb4400daa065af0681affad3d5. Root+distWASM anddistHTML SHA256verificationpassed. Extractedunchangedproductdist+WASM intotestworktree; localnpmci ensuredworkspacealiases refercheckedoutsource. Focusedcommands usednpm run test:e2e --prefix tests/browser -- --workers=1 --retries=0 withsystemChromium/SwiftShader andisolatedoutputs.
+
+Actualpasscounts:18distinctaffectedcases:
+-Continuepinnedrestore1;
+-NPCpreflight6+existingfinalNPCReady2=8 (existingnavigationprogressfixtureunchanged; noCampaignvictoryclaim);
+-UXsave/export/restore5viewports+quotaretry1=6;
+-Diagnosticpagination1:4938realattacker events/206pages,lastT600Replaynavigation;
+-Tacticalcontext1:desktop/mobile selectedID/tick/realActionsource,usingtest-supportedgenuineEnbuexport;
+-Fullworkbench1:4.2min actualediting/replay/rematch,recoveryandpinnedHero/Skill/Jinreirestore,offlinereloadandconfirmedofflinebattle.
+
+Cheapgroup14passed plus1920caseisolatedrerunpassed23.8s. Initialparallelcommands sharedPlaywrightartifactdirectory and causedtrace-fileENOENT; thislocalorchestrationmistakewascorrectedwithisolatedoutputdirectories. Diagnostic+tacticalcleanrun2passed2.2min; workbenchfirstsetupfailedmissinglocalffmpeg thenofficialffmpeg1013installed andworkbenchcleanPASS4.2min. Noproductfailureattributedtotheselocalsetuperrors.
+
+Logs /workspace/scratch/ci-contract-quick-browser.log,ci-contract-1920-rerun.log,ci-contract-heavy-browser.log,ci-contract-workbench-browser.log. CI40279938934queued asynchronous atpublication. ThisdoesnotclaimnewermainCI/passorC04/C10/C14productacceptance; coordinatorwillverifyactualpostmergeHEADseparately.
