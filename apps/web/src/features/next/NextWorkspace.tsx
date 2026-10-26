@@ -11,7 +11,7 @@ import { buildImprovedRematch } from "./improved-rematch";
 import { actionSourceRange, verifyRunSourceMap } from "./tactical-context";
 import type { BattleAnalysisContext, AnalysisSourceContext } from "./tactical-context";
 import type { ActionSourceMap, DiagnosticEvent } from "../../contracts";
-import { validateNextExperimentAuthorization, validateNextExperimentReplay } from "./experiment-restoration";
+import { validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
 import { matchesPresentedEntity } from "./battle-entity-identity";
 import { loadNextExperimentPayload, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore, PersistenceError } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -653,6 +653,7 @@ export async function prepareNextExperimentStore(
   const restored: BattleRun[] = [];
   for (const item of stored.experiments) {
     validateNextExperimentAuthorization(item.response, item.include_diagnostics);
+    if (item.include_diagnostics) await validateNextExperimentDiagnostics(item.response, item.snapshot);
     const setup = parseSavedNextSetup(item.setup);
     const result = item.response.outcome?.result;
     const sourceReplay = item.response.owner_replays?.attacker ?? item.response.outcome?.presentation_replay;
@@ -1813,10 +1814,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const diagnosticsRequested = exactRun?.includeDiagnostics ?? includeDiagnostics;
       const estimatedCU = exactRun?.estimatedCU ?? activeCompilation?.estimated_cu;
       if (estimatedCU === undefined) throw new Error("The original compile estimate is unavailable. Validate the current Draft before launch.");
-      const response = await core.simulate(snapshot, {
-        include_diagnostics: diagnosticsRequested,
-        ...(diagnosticsRequested ? { diagnostics_side: "attacker" as const } : {}),
-      });
+      const response = diagnosticsRequested
+        ? await core.simulate(snapshot, { include_diagnostics: true, diagnostics_side: "attacker" })
+        : await core.simulate(snapshot, { include_diagnostics: false });
       if (diagnosticsRequested && response.authorized_side !== "attacker") {
         throw new Error("The local Enbu did not confirm attacker authorization for the requested diagnostics.");
       }
@@ -2296,7 +2296,16 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
-            <HeroAtelier nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
+            <HeroAtelier active={active && screen === "workspace" && tab === "formation"} nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
+              skillRunContext={run && sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset) ? {
+                experimentId: run.experimentId,
+                matchId: run.snapshot.context.match_id,
+                ruleset: run.snapshot.attacker.ruleset,
+                authorizedSide: run.response.authorized_side,
+                ownerReplay: run.response.owner_replays?.attacker ?? null,
+                submittedHeroes: run.snapshot.attacker.configuration.heroes,
+                tick: displayState?.tick ?? -1,
+              } : null}
               onActiveSlotChange={setActiveSlot} onScreenChange={setAtelierScreen} onSlotChange={changeSlot}
               onSquadPattern={applySquadPattern} onMoveSquad={moveSquad}
               onReady={() => { setExactRun(null); setScreen("ready"); }} onJinrei={() => editScreen("jinrei")}

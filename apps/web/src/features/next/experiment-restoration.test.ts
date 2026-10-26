@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { MatchResult, PresentationReplay } from "../../contracts";
-import { validateNextExperimentReplay } from "./experiment-restoration";
+import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
+import { validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
 
 const result: MatchResult = {
   match_id: "match-a",
@@ -19,6 +19,52 @@ const replay: PresentationReplay = {
   result_digest: "5bd522f68e9cc8ff06a012155945442ec94eb42042661765ab0cf3255ed58e0b",
   frames: [],
 };
+
+const diagnosticsSnapshot = (): SimulationSnapshot => ({
+  attacker: { program: { content_digest: "attacker-program" }, "\uE000": "bmp-key", "\u{10000}": "supplementary-key" },
+  context: { match_id: "match-a", world_identity: { world_id: "world" } },
+  defender: { program: { content_digest: "defender-program" } },
+} as unknown as SimulationSnapshot);
+
+function compareScalars(left: string, right: string): number {
+  const leftPoints = Array.from(left, (character) => character.codePointAt(0)!);
+  const rightPoints = Array.from(right, (character) => character.codePointAt(0)!);
+  for (let index = 0; index < Math.min(leftPoints.length, rightPoints.length); index += 1) {
+    if (leftPoints[index] !== rightPoints[index]) return leftPoints[index]! - rightPoints[index]!;
+  }
+  return leftPoints.length - rightPoints.length;
+}
+
+function canonicalForTest(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalForTest).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort(compareScalars).map((key) => `${JSON.stringify(key)}:${canonicalForTest(record[key])}`).join(",")}}`;
+}
+
+async function sha256(value: string): Promise<string> {
+  const result = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(result), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function responseWithDiagnostics(snapshot: SimulationSnapshot): Promise<SimulationResponse> {
+  const snapshotValue = { attacker: snapshot.attacker, context: snapshot.context, defender: snapshot.defender };
+  return {
+    authorized_side: "attacker",
+    outcome: { result, presentation_replay: replay },
+    restricted_diagnostics: {
+      identity: {
+        schema_version: 1,
+        side: "attacker",
+        match_id: "match-a",
+        result_digest: replay.result_digest,
+        snapshot_digest: await sha256(canonicalForTest(snapshotValue)),
+        program_digest: "attacker-program",
+      },
+      events: [], cu_by_side: { attacker: 1, defender: 0 }, final_memory_by_side: { attacker: {}, defender: {} },
+    },
+  };
+}
 
 describe("Next experiment replay restoration identity", () => {
   it("matches the producer's SHA-256 of the serialized MatchResult, not its final-state digest", async () => {
@@ -56,6 +102,43 @@ describe("Next experiment replay restoration identity", () => {
       .rejects.toThrow("Replay match identity differs from the stored Enbu result.");
     await expect(validateNextExperimentReplay({ ...replay, perspective: "defender" }, result, "match-a"))
       .rejects.toThrow("Stored replay perspective is not authorized for this attacker workspace.");
+  });
+});
+
+describe("Next experiment diagnostics lineage", () => {
+  it("accepts the exact authorized Run using serde-compatible Unicode scalar key order", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const response = await responseWithDiagnostics(snapshot);
+    await expect(validateNextExperimentDiagnostics(response, snapshot)).resolves.toBeUndefined();
+    const reordered = {
+      defender: snapshot.defender,
+      context: snapshot.context,
+      attacker: { "\u{10000}": "supplementary-key", program: { content_digest: "attacker-program" }, "\uE000": "bmp-key" },
+    } as unknown as SimulationSnapshot;
+    await expect(validateNextExperimentDiagnostics(response, reordered)).resolves.toBeUndefined();
+  });
+
+  it("rejects an identity from another Run, Program, side, or public result", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const response = await responseWithDiagnostics(snapshot);
+    const diagnostics = response.restricted_diagnostics!;
+    const sideMismatch = { ...response, restricted_diagnostics: { ...diagnostics, identity: { ...diagnostics.identity, side: "defender" as const } } };
+    await expect(validateNextExperimentDiagnostics(sideMismatch, snapshot)).rejects.toThrow(/side does not match/);
+    const programMismatch = { ...response, restricted_diagnostics: { ...diagnostics, identity: { ...diagnostics.identity, program_digest: "other-program" } } };
+    await expect(validateNextExperimentDiagnostics(programMismatch, snapshot)).rejects.toThrow(/Program digest/);
+    const otherRun = { ...snapshot, context: { ...snapshot.context, match_id: "match-b" } } as SimulationSnapshot;
+    await expect(validateNextExperimentDiagnostics(response, otherRun)).rejects.toThrow(/snapshot digest/);
+    const resultMismatch = { ...response, restricted_diagnostics: { ...diagnostics, identity: { ...diagnostics.identity, result_digest: "other-result" } } };
+    await expect(validateNextExperimentDiagnostics(resultMismatch, snapshot)).rejects.toThrow(/result digest/);
+    const replayMismatch = { ...response, outcome: { ...response.outcome, presentation_replay: { ...replay, match_id: "match-b" } } };
+    await expect(validateNextExperimentDiagnostics(replayMismatch, snapshot)).rejects.toThrow(/immutable Run and public replay/);
+  });
+
+  it("rejects legacy owner diagnostics without identity", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const response = await responseWithDiagnostics(snapshot);
+    const legacy = { ...response, restricted_diagnostics: { events: [], cu_by_side: {}, final_memory_by_side: {} } } as unknown as SimulationResponse;
+    await expect(validateNextExperimentDiagnostics(legacy, snapshot)).rejects.toThrow(/no Run identity/);
   });
 });
 

@@ -97,6 +97,7 @@ function diagnosticMarkup(diagnostics: RestrictedDiagnostics | undefined): strin
 
 function traceEvents(count: number): RestrictedDiagnostics {
   return {
+    identity: { schema_version: 1, side: "attacker", match_id: "diagnostics-test", result_digest: "digest", snapshot_digest: "snapshot", program_digest: "program" },
     events: Array.from({ length: count }, (_, sequence) => ({ tick: sequence, sequence, side: "attacker", action_id: null, entity_id: null, record: { kind: "runtime_notice", value: { code: `own-${sequence}`, details: {} } } })),
     cu_by_side: { attacker: 1, defender: 1 },
     final_memory_by_side: { attacker: {}, defender: {} },
