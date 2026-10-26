@@ -10,6 +10,7 @@ if (!process.env.SENKEI_CHROMIUM_EXECUTABLE) throw new Error('Set SENKEI_CHROMIU
 
 const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const sourceShort = sourceRevision.slice(0, 12);
+const dirtyWorktreeAtCapture = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim();
 const suffix = `lod-visual-${sourceShort}`;
 const output = resolve(`test-results/art-production/${suffix}`);
 const evidence = resolve(`docs/evidence/art-production/${suffix}`);
@@ -47,7 +48,8 @@ const angles = [
 const manifest = {
   schema: 'senkei-art-lod-visual-evidence/v1',
   sourceRevision,
-  dirtyWorktreeAtCapture: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(),
+  dirtyWorktreeAtCapture,
+  captureOutputCreatedAfterSourceStatusCheck: true,
   url,
   viewport: { width: 1440, height: 1000, deviceScaleFactor: 1, captureTarget: 'production Hero Detail preview canvas' },
   browser: browser.version(),
