@@ -79,10 +79,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Parse Playwright specs before CI shards
+        run: node scripts/ci/validate-browser-spec-syntax.mjs
       - name: Check generated replay contract types
         run: npm run contract:types && git diff --exit-code -- packages/replay-contract/src/generated.ts
       - run: npm test
-      - run: node --test scripts/ci/verify-browser-captures.test.mjs scripts/ci/verify-first-run-coverage.test.mjs
+      - run: node --test scripts/ci/validate-browser-spec-syntax.test.mjs scripts/ci/verify-browser-captures.test.mjs scripts/ci/verify-first-run-coverage.test.mjs
       - run: npm run build
 
   browser-build:
@@ -100,6 +102,8 @@ jobs:
           cache: npm
       - run: sudo apt-get update && sudo apt-get install --yes lld
       - run: npm ci
+      - name: Parse Playwright specs before Campaign fixture generation
+        run: node scripts/ci/validate-browser-spec-syntax.mjs
       - run: bash scripts/wasm/build.sh
       - run: npm run build
       - name: Build the native dispatcher for Campaign browser fixtures
