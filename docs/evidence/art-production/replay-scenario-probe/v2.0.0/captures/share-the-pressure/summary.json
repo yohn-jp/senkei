@@ -1,0 +1,131 @@
+{
+  "case_id": "share-the-pressure",
+  "match_id": "art-natural-share-the-pressure",
+  "ruleset": {
+    "digest": "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f",
+    "id": "senkei.next",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "max_ticks": 600,
+  "outcome": "draw",
+  "termination_reason": "time_limit",
+  "final_tick": 600,
+  "final_state_digest": "3e5aa9baf7722de0ed4a84620a50c35e4f5e7ed3da6ab3e86aad83ed1a8d8794",
+  "replay_result_digest": "4673f61d8c59225b1255aba405c0da30437d2d5ed0470ef18cdc114bd1dba91d",
+  "source_sha256": {
+    "player": "b869fb6dc3fc3f98485d9fd27f7b137233ddb84b9b2ee5c9e0ce810910d6bda6",
+    "npc": "636599f8c41befe8193d863e39a68a2dac4e936e328069fe894b7de873bfa5ab"
+  },
+  "request_sha256_uncompressed_json": "1f70084a3a481996756e7036ca797af3aef7daf80b5275ef0505600e944062ed",
+  "request_sha256_canonical_json": "3f4f2fab3581d39c7c385c68c71c055be3cc0acc9d2deee5d990c1aa6f8855e2",
+  "public_replay_sha256_uncompressed_json": "99c0984d0f147c26341c627dc73d67e612c97372dce4b43b0909f9e4e5935495",
+  "public_replay_sha256_canonical_json": "f91249a10ab254753090ee541744edb4f2bfe29e1d5808492a8c6bd04964ecd0",
+  "owner_replay_sha256_uncompressed_json": "40079f7f34872c5addab2d6b4652f2603bcfcf80851d27adc2b41cad8ecfab1e",
+  "owner_replay_sha256_canonical_json": "c02369f6cb9d602f93d97858ac288109dc4233f33aa3b16f7882dd1dc96d29c0",
+  "frame_count": 601,
+  "frame_event_count": 1701,
+  "frame_event_counts": {
+    "next.attack": 1467,
+    "next.death": 212,
+    "next.level_up": 12,
+    "next.objective_destroyed": 1,
+    "next.observation_capture": 1,
+    "next.skill_acquired": 8
+  },
+  "observed_F01_R01_events": [
+    {
+      "tick": 33,
+      "event": "next.death",
+      "catalog_id": "R01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": null
+    },
+    {
+      "tick": 79,
+      "event": "next.level_up",
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "skill_id": null
+    },
+    {
+      "tick": 79,
+      "event": "next.skill_acquired",
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "skill_id": "f01_a_passive"
+    },
+    {
+      "tick": 115,
+      "event": "next.death",
+      "catalog_id": "F01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": null
+    },
+    {
+      "tick": 164,
+      "event": "next.level_up",
+      "catalog_id": "F01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": null
+    },
+    {
+      "tick": 164,
+      "event": "next.skill_acquired",
+      "catalog_id": "F01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": "f01_a_passive"
+    },
+    {
+      "tick": 190,
+      "event": "next.level_up",
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "skill_id": null
+    },
+    {
+      "tick": 212,
+      "event": "next.death",
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "skill_id": null
+    },
+    {
+      "tick": 224,
+      "event": "next.level_up",
+      "catalog_id": "R01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": null
+    },
+    {
+      "tick": 224,
+      "event": "next.skill_acquired",
+      "catalog_id": "R01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": "r01_a_passive"
+    }
+  ],
+  "observed_F01_R01_respawns": [
+    {
+      "tick": 242,
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "new_entity_id": "visible-199",
+      "node": "A.BASE"
+    }
+  ]
+}
