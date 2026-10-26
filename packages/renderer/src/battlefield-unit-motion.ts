@@ -21,7 +21,10 @@ export function effectiveTrackPoint(entity: DisplayEntity, replay: Replay): Worl
   const from = replay.scene.nodes?.find((node) => node.id === logical.node)?.position;
   const to = replay.scene.nodes?.find((node) => node.id === logical.edgeTo)?.position;
   const edge = from && to ? (replay.scene.routes ?? []).find((route) => polylineEndpointsMatch(route.points, from, to)) : undefined;
-  if (!from || !to || edge?.region !== "lane" || edge.bridgeSite || logical.crossing === "bridge")
+  // Normal bridges permit CENTER in the crossing interval; expanded bridges
+  // also permit LEFT and RIGHT. The published track identifies the lateral
+  // position without reading hidden bridge state or playback history.
+  if (!from || !to || edge?.region !== "lane")
     return entity.position;
 
   let tangent = polylineTangentAtClosestPoint(edge.points, entity.position);

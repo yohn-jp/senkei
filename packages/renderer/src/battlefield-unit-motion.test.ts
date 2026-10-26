@@ -3,6 +3,7 @@ import type { Entity, Event, Replay } from "@senkei/replay-contract";
 import {
   BattlefieldUnitMotionIndex,
   battlefieldUnitPose,
+  effectiveTrackPoint,
 } from "./battlefield-unit-motion";
 
 const hero: Entity = {
@@ -78,6 +79,24 @@ describe("Replay-derived battlefield unit motion", () => {
     expect(motion.at(1, "hero")).toEqual({ dx: 0, dy: -1.6 });
     // The index has no input for NodeDisplayLayout or model offsets.
     expect(motion.at(2, "hero")).toBeUndefined();
+  });
+
+  it("keeps LEFT and RIGHT separate on expanded fixed-bridge crossing tracks", () => {
+    const replay = testReplay([]);
+    const bridgeReplay = {
+      ...replay,
+      scene: {
+        ...replay.scene,
+        routes: [{ id: "bot-edge", region: "lane", bridgeSite: "BOT", bridgeKind: "lane",
+          points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
+      },
+    } as Replay;
+    const left = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "LEFT" as const } };
+    const right = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "RIGHT" as const } };
+    const center = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "CENTER" as const } };
+    expect(effectiveTrackPoint(left, bridgeReplay)).toEqual({ x: 2, y: 0.8 });
+    expect(effectiveTrackPoint(right, bridgeReplay)).toEqual({ x: 2, y: -0.8 });
+    expect(effectiveTrackPoint(center, bridgeReplay)).toEqual({ x: 2, y: 0 });
   });
 
   it("does not animate a ford timer update when the public position is unchanged", () => {
