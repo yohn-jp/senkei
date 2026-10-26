@@ -332,7 +332,7 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
 /// Rebuild a verified package from retained, untrusted JSON inputs and rerun
 /// the original match with the current deterministic engine.
 fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
-    let request: ReproducePayload = decode(payload, "payload")?;
+    let request: ReproducePayload = decode_strict(payload, "payload")?;
     let diagnostics_side = requested_diagnostics_side(
         request.include_diagnostics,
         request.diagnostics_side,
@@ -360,7 +360,7 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
 
 /// Validate retained assets and the exact Run input without executing match ticks.
 fn preflight_reproduction(payload: Value) -> Result<(Value, u64), ApiError> {
-    let request: PreflightReproductionPayload = decode(payload, "payload")?;
+    let request: PreflightReproductionPayload = decode_strict(payload, "payload")?;
     let rules = validate_reproduction_assets(request.assets)?;
     validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
     let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
@@ -631,6 +631,43 @@ fn decode<T: DeserializeOwned>(value: Value, path: &str) -> Result<T, ApiError> 
             format!("payload could not be deserialized: {error}"),
         )
     })
+}
+
+/// Deserialize reproduction requests while reporting fields that Serde would
+/// otherwise silently ignore in nested model structs. The retained digest is
+/// computed over the typed projection, so ignored input must never disappear
+/// before identity checks. Known optional/null/default fields still use their
+/// declared Serde behavior.
+fn decode_strict<T: DeserializeOwned>(value: Value, path: &str) -> Result<T, ApiError> {
+    let encoded = serde_json::to_string(&value).map_err(|error| {
+        api_error(
+            ApiErrorCode::InvalidRequest,
+            Some(path),
+            format!("payload could not be serialized for strict decoding: {error}"),
+        )
+    })?;
+    let mut deserializer = serde_json::Deserializer::from_str(&encoded);
+    let mut ignored_path = None;
+    let decoded = serde_ignored::deserialize(&mut deserializer, |field| {
+        if ignored_path.is_none() {
+            ignored_path = Some(field.to_string());
+        }
+    })
+    .map_err(|error| {
+        api_error(
+            ApiErrorCode::InvalidRequest,
+            Some(path),
+            format!("payload could not be deserialized: {error}"),
+        )
+    })?;
+    if let Some(ignored_path) = ignored_path {
+        return Err(api_error(
+            ApiErrorCode::InvalidRequest,
+            Some(path),
+            format!("payload contains unsupported field: {ignored_path}"),
+        ));
+    }
+    Ok(decoded)
 }
 
 fn encode<T: serde::Serialize>(value: &T, path: &str) -> Result<Value, ApiError> {

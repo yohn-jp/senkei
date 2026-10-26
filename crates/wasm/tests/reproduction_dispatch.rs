@@ -389,6 +389,72 @@ fn reproduction_rejects_tampered_package_world_snapshot_and_missing_world() {
 }
 
 #[test]
+fn reproduction_rejects_unknown_fields_recursively_before_hash_projection() {
+    let (valid, _) = valid_reproduction_request();
+
+    let mut package = valid.clone();
+    package["assets"]["rule_package"]["future_semantics"] = json!({ "damage": 99 });
+    let rejected = dispatch("reproduce", package);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_semantics"));
+
+    let mut side = valid.clone();
+    side["snapshot"]["attacker"]["future_input"] = json!({ "program": "ignored" });
+    let rejected = dispatch("reproduce", side);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_input"));
+
+    let mut identity = preflight_request_from(&valid);
+    identity["snapshot"]["context"]["world_identity"]["future_compiler"] = json!({ "patch": 7 });
+    let rejected = dispatch("preflight_reproduction", identity);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_compiler"));
+
+    let mut context = preflight_request_from(&valid);
+    context["snapshot"]["context"]["future_policy"] = json!({ "max_ticks": 0 });
+    let rejected = dispatch("preflight_reproduction", context);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_policy"));
+
+    let mut nested_array = valid.clone();
+    nested_array["snapshot"]["attacker"]["configuration"]["heroes"]["value"][0]["future_slot_input"] = json!({ "level": 9 });
+    let rejected = dispatch("reproduce", nested_array);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_slot_input"));
+
+    let mut nested_package_array = valid.clone();
+    nested_package_array["assets"]["rule_package"]["phases"][0]["future_phase_policy"] = json!({ "order": 1 });
+    let rejected = dispatch("reproduce", nested_package_array);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_phase_policy"));
+
+    let mut nested_package_map = valid.clone();
+    let entity_types = nested_package_map["assets"]["rule_package"]["world"]["entity_types"]
+        .as_object_mut()
+        .unwrap();
+    entity_types.values_mut().next().unwrap()["future_entity_schema"] = json!({ "field": "ignored" });
+    let rejected = dispatch("reproduce", nested_package_map);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+    assert!(rejected["error"]["message"].as_str().unwrap().contains("future_entity_schema"));
+}
+
+#[test]
+fn reproduction_accepts_known_optional_null_extension_field() {
+    let (mut valid, baseline) = valid_reproduction_request();
+    valid["assets"]["catalog_metadata_extension"] = Value::Null;
+    let reproduced = dispatch("reproduce", valid);
+    assert_eq!(reproduced["ok"], true, "known optional null stays equivalent to an absent extension");
+    assert_eq!(reproduced["result"], baseline);
+}
+
+#[test]
 fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension() {
     let (valid, _) = valid_reproduction_request();
 

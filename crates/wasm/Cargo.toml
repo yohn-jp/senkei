@@ -16,6 +16,7 @@ path = "src/bin/dispatch.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+serde_ignored.workspace = true
 senkei-model = { path = "../senkei-model" }
 senritsu = { path = "../senritsu" }
 senkei-world = { path = "../senkei-world" }
