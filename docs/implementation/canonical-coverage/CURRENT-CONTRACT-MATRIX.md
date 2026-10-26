@@ -1,3 +1,5 @@
+**Latest preservation state:** [Emergency handoff 2026-10-26](EMERGENCY-HANDOFF-2026-10-26.md). Workers are stopped; the older active-owner and CI observations below are historical.
+
 # Current selected contract matrix
 
 Observed 2026-10-26 at main `5c84c85e4a935dae4881af87eb2b8f607987c786`, with GitHub states and active-worker reports checked directly. This is a current overlay for selected rows in [GAPS-AND-BOUNDARIES.md](GAPS-AND-BOUNDARIES.md), not a new exhaustive inventory. The historical 47-document extraction, source baseline and source-unit counts remain untouched; source units are not unique contract counts. No global completion or release-readiness claim follows from this matrix.

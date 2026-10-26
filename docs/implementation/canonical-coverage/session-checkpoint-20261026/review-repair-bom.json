@@ -1,0 +1,89 @@
+{
+  "preflightEnvelopes": [
+    {
+      "api_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "request_id": "review-4",
+      "ok": true,
+      "result": null,
+      "error": null
+    },
+    {
+      "api_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "request_id": "review-5",
+      "ok": false,
+      "result": null,
+      "error": {
+        "code": "invalid_snapshot",
+        "message": "Hero `F01` has no configured skill path `invalid-value`",
+        "path": "attacker.configuration.heroes.value[0].value.skill_path",
+        "details": {
+          "preflight_field": "skill_path",
+          "preflight_record_index": "0",
+          "preflight_side": "attacker",
+          "preflight_slot_id": "﻿",
+          "preflight_squad_id": "squad-0"
+        }
+      }
+    }
+  ],
+  "good": null,
+  "bad": {
+    "error": {
+      "code": "invalid_snapshot",
+      "message": "Hero `F01` has no configured skill path `invalid-value`",
+      "path": "attacker.configuration.heroes.value[0].value.skill_path",
+      "details": {
+        "preflight_field": "skill_path",
+        "preflight_record_index": "0",
+        "preflight_side": "attacker",
+        "preflight_slot_id": "﻿",
+        "preflight_squad_id": "squad-0"
+      }
+    }
+  },
+  "classified": {
+    "status": "invalid",
+    "stage": "snapshot_preflight",
+    "input": "draft",
+    "inputKey": "same",
+    "side": "attacker",
+    "target": {
+      "kind": "hero",
+      "recordIndex": 0,
+      "slotId": "﻿",
+      "field": "skill_path",
+      "squadId": "squad-0"
+    },
+    "message": "Hero `F01` has no configured skill path `invalid-value`",
+    "workerCode": null,
+    "apiError": {
+      "code": "invalid_snapshot",
+      "message": "Hero `F01` has no configured skill path `invalid-value`",
+      "path": "attacker.configuration.heroes.value[0].value.skill_path",
+      "details": {
+        "preflight_field": "skill_path",
+        "preflight_record_index": "0",
+        "preflight_side": "attacker",
+        "preflight_slot_id": "﻿",
+        "preflight_squad_id": "squad-0"
+      }
+    },
+    "repair": {
+      "kind": "own_hero",
+      "slotId": "﻿",
+      "recordIndex": 0,
+      "field": "skill_path",
+      "screen": "skills"
+    },
+    "revalidation": "compile_and_preflight"
+  },
+  "resolved": null
+}

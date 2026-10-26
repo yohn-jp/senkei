@@ -1,3 +1,5 @@
+**Latest preservation state:** [Emergency handoff 2026-10-26](EMERGENCY-HANDOFF-2026-10-26.md). Workers are stopped; the older active-owner and CI observations below are historical.
+
 # Integration checkpoint at main 5c84c85
 
 Observed 2026-10-26 against committed main `5c84c85e4a935dae4881af87eb2b8f607987c786`. This overlay supersedes the historical PR-state statements in this directory. It does not regenerate the [47-document source register](CLAUSE-INDEX.md), whose source baseline remains `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Its 2,682 source units are not distinct contracts or verified requirements. No exhaustive four-category contract totals, global completion, or release readiness is asserted.
