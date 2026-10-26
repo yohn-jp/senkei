@@ -182,17 +182,18 @@
     "next_scope": "EN-03 artifact retention/resolution and remaining Art gates continue in same parent session."
   },
   "en03_candidate": {
-    "source_revision": "9bc8cd4",
+    "source_revision": "227c95b",
     "integration_state": "Candidate branch only; not yet accepted on main",
-    "unit_tests": 325,
+    "unit_tests": 326,
     "typecheck": "PASS",
     "production_build": "PASS",
     "generated_contract_types": "UNCHANGED",
     "ci_helper_tests": 11,
-    "wasm_sha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e",
+    "wasm_sha256": "a800276ce18ec23e7b5cfe0a2d86e9ab1ee64a52ba5c8c665b556aa307208b73",
     "independent_reviews": {
-      "typescript": "No P1/P2 found; real mixed-package and Campaign import-credit acceptance still pending",
-      "core": "P2 nested unknown fields silently dropped before digest validation; assigned to Artifact Coordinator for repair"
+      "typescript": "No P1/P2 found; imported credit and Draft isolation paths reviewed. Real mixed-package E2E not executed.",
+      "core": "Nested unknown structs, tagged enum contents, and named sort terms repaired; both endpoint regressions pass. Known optional/null behavior retained.",
+      "actor_orders": "Two P2 findings repaired: preserve per-capability trace order; apply authored cross-capability selection only to participating actor domains. Reviewer found no additional actor-order blocker at 3b14a93."
     },
     "browser_shard": {
       "source_revision": "6be3196",
@@ -200,7 +201,28 @@
       "failed": 2,
       "scope": "journeys-ui subset, one worker; failures assigned to stale reproduce capture and import completion instrumentation, repairs not yet verified"
     },
-    "native_workspace": "RUNNING"
+    "native_workspace": {
+      "full_run_source": "994a20c",
+      "passed": 248,
+      "failed": 3,
+      "ignored": 0,
+      "failures": "Editor producer fixtures retained old engine/catalog identity; regenerated with scripts/jinrei-editor-fixtures.sh --write.",
+      "repaired_adapter_source": "227c95b",
+      "repaired_adapter_tests_passed": 4,
+      "final_strict_source": "4e78abd",
+      "final_strict_dispatch_tests_passed": 12,
+      "scope": "Full run plus focused repairs; not a claim of an additional full run at 227c95b."
+    },
+    "native_dispatcher_sha256": "83bebe35dda7bc889064eb95ff1cc455e9cde88fbef945c896425a82a6a031f7",
+    "crates_tree": "57132b600c73803bee68e8114d78dea382deb9e2",
+    "conformance_initial": {
+      "passed": 7,
+      "native_repeat_and_real_wasm": "PASS",
+      "request_diff": "Engine 1.3->1.4 and internal replay schema 1.0->1.1 only",
+      "golden_summary_diff": "UNCHANGED; outcome, ticks, state digest, CU and event summaries unchanged."
+    },
+    "next_conformance": "RUNNING: formal 16 native scenario tests passed; generated Next Native/WASM adapter comparison is in progress.",
+    "final_browser": "RUNNING: fresh a800 Enbu export, incompatible import preservation and Core-down export passed; quota wait instrumentation repair and C08 follow-up in progress."
   },
   "art_preservation": {
     "remote_branch": "art/3d-production",
@@ -215,5 +237,9 @@
     "run_id": 40314233352,
     "state": "NOT_PASS",
     "reason": "journeys-ui reached the 40-minute limit; other individual jobs passed, aggregate browser smoke failed. Shard partition and once-only Native fixture preparation repair is in progress."
+  },
+  "current_user_preferences": {
+    "priority": "Product implementation, integration and acceptance first; Art runs independently.",
+    "images": "Do not add repetitive captures to Git. Preserve raw captures locally; commit only necessary source, compact judgments, hashes and reproduction steps. Existing history is preserved."
   }
 }
