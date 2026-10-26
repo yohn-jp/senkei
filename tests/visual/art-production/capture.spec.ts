@@ -30,6 +30,10 @@ async function orbit(page: Page, canvas: Locator, yaw: number) {
 }
 
 test("actual Hero Detail golden candidates and production battlefield", async ({ page, browser }) => {
+  // Two real 3D previews across multiple angles, animation poses and viewports,
+  // followed by a full Rust/WASM battle, cannot complete under Playwright's
+  // 60-second default on the CI software GPU. Keep every capture and assertion.
+  test.setTimeout(900_000);
   mkdirSync(output, { recursive: true });
   const captures: Capture[] = [];
   const errors: string[] = [];
