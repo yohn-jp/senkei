@@ -127,7 +127,8 @@ export function createNextCampaignScenarios(ruleset: RulePackage): readonly Loca
       roster: ["F04", "F06", "R01", "R03", "R06"],
       squads: [3, 2],
       destinations: ["B.BASE", "B.BASE", "B.BASE", "B.BASE", "B.BASE"],
-      startNodes: ["B.TOP.T2", "B.MID.T2", "B.BOT.T2", "B.MID.T1", "B.TOP.T1"],
+      // Keep the two retreat groups at their authored leading-member anchors.
+      startNodes: ["B.TOP.T2", "B.TOP.T2", "B.TOP.T2", "B.MID.T1", "B.MID.T1"],
     },
   ];
 
