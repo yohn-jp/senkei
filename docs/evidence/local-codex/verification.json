@@ -182,8 +182,8 @@
     "next_scope": "EN-03 artifact retention/resolution and remaining Art gates continue in same parent session."
   },
   "en03_candidate": {
-    "source_revision": "227c95b",
-    "integration_state": "Candidate branch only; not yet accepted on main",
+    "source_revision": "1c52beb",
+    "integration_state": "Reviewed product packet accepted for parent publication to main; Art remains separate.",
     "unit_tests": 326,
     "typecheck": "PASS",
     "production_build": "PASS",
@@ -221,8 +221,90 @@
       "request_diff": "Engine 1.3->1.4 and internal replay schema 1.0->1.1 only",
       "golden_summary_diff": "UNCHANGED; outcome, ticks, state digest, CU and event summaries unchanged."
     },
-    "next_conformance": "RUNNING: formal 16 native scenario tests passed; generated Next Native/WASM adapter comparison is in progress.",
-    "final_browser": "RUNNING: fresh a800 Enbu export, incompatible import preservation and Core-down export passed; quota wait instrumentation repair and C08 follow-up in progress."
+    "next_conformance": {
+      "native_scenario_tests_passed": 16,
+      "native_repeat_and_real_wasm_cases_passed": 7,
+      "command": "SENKEI_NATIVE_DISPATCHER=<immutable 83bebe35 dispatcher> SENKEI_WASM_PATH=<a800276c module> CARGO_TARGET_DIR=/dev/shm/senkei-native-epoch3 NEXT_BALANCE_REPORT=target/local-codex/next-final/report.json NEXT_ADAPTER_FIXTURE_DIR=target/local-codex/next-final/adapter bash scripts/balance/run-next.sh",
+      "scope": "Actual public, authorized owner, 600-tick workbench and matching invalid-input rejection; canonical paired World adapter checked."
+    },
+    "final_browser": {
+      "wasm_sha256": "a800276ce18ec23e7b5cfe0a2d86e9ab1ee64a52ba5c8c665b556aa307208b73",
+      "fresh_export_sha256": "7d504f754837108d4cbab620b4c1c28f790f02e38004b0312ede0b26fc55e718",
+      "import_safety": "All four cases accepted: three initial PASS; quota assertion initially timed out at 5s before replay finished, localized 120s wait then actual quota-write preservation PASS.",
+      "improved_rematch": "PASS, actual exact Ready plus self-only improved battle; 1440/390 Draft preservation",
+      "run_classification": "PASS, exact/improved/changed conditions",
+      "campaign_reference": "2/2 PASS, context/opponent changed valid Reference Runs: no Exact Ready challenge; actual preflight/start remains Reference; no credit, original Run hash and Draft preserved.",
+      "quick_matrix": {
+        "source_revision": "d80781f43832c3c50d2f11bcf86ce49c7c3bd71c",
+        "passed": 5,
+        "viewports": [
+          [
+            320,
+            844
+          ],
+          [
+            390,
+            844
+          ],
+          [
+            430,
+            932
+          ],
+          [
+            1440,
+            900
+          ],
+          [
+            1920,
+            1080
+          ]
+        ],
+        "scope": "Same final Core/Cargo tree and module; source precedes the two-prop Campaign Reference display repair."
+      }
+    },
+    "raw_wasm": {
+      "cases_passed": 16,
+      "same_native_and_wasm_response": true,
+      "fixture_sha256": "ed97a016f17a436db86b4e84361164dcfce024d5c1b61961d0444782cb794194",
+      "fixture_kind": "Test-authored Catalog extension; not production policy.",
+      "checks": [
+        "Unknown DomainValue/DomainType/RuleExpression/TransitionPrimitive/IntentSortTerm fields reject in reproduce and preflight_reproduction",
+        "Known null and optional bounds deserialize before identity mismatch rejection",
+        "Valid retained extension preflight and reproduce match Native exactly"
+      ]
+    },
+    "ci_partition": {
+      "journeys": 93,
+      "duplicate_missing_extra": 0,
+      "groups": {
+        "analysis": 1,
+        "workbench": 1,
+        "quick": 1,
+        "ui": 49,
+        "campaign": 20,
+        "retention": 5,
+        "rematch": 3,
+        "skill": 6,
+        "import": 7
+      },
+      "legacy_shard_browser_checks": {
+        "wasm": "c90 intermediate Core epoch",
+        "campaign": 20,
+        "retention": 5,
+        "rematch": 3,
+        "skill": 6,
+        "ui": 47,
+        "scope": "Intermediate evidence only. Two UI instrumentation fixes and two Campaign import/Reference repairs are included in the accepted packet."
+      }
+    },
+    "review_findings_repaired": [
+      "Nested ignored fields, including tagged variant payloads and nested sort terms",
+      "Preserve unrelated per-capability diagnostic order when actor metadata exists",
+      "Do not apply cross-capability order to unconfigured domains or single-capability candidate groups",
+      "Replay/editor fixture versions and hashes regenerated from actual producers",
+      "Browser instrumentation follows reproduce and waits for actual validation before quota write",
+      "Exact Ready derives Campaign association from verified eligibility; execution credit already revalidates eligibility"
+    ]
   },
   "art_preservation": {
     "remote_branch": "art/3d-production",
