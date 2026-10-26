@@ -13,6 +13,7 @@ import type { RulesetIdentity, WorldIdentityRef } from "./generated";
 
 const WORLD: WorldIdentityRef = {
   world_id: "fixture-world", schema_version: { major: 1, minor: 0, patch: 0 },
+  compiler_version: { major: 1, minor: 0, patch: 0 },
   minimum_compiler: { major: 1, minor: 0, patch: 0 }, maximum_compiler_exclusive: null,
   validation_profile_id: null, validation_profile_version: null,
   logic_digest: "d".repeat(64), presentation_digest: "e".repeat(64),
@@ -33,6 +34,14 @@ const TEST_PRESENTATION_WORLD: TestPresentationWorld = { river: { anchors: [
 const value = (kind: "integer" | "string", value: number | string): DomainValue => ({ kind, value } as DomainValue);
 const viewEntity = (entity_type: string, fields: Record<string, DomainValue>) => ({ entity_type, owner: "attacker", fields });
 
+it("emits Replay 0.4 and requires Core Replay 1.1.0", () => {
+  expect(project().schemaVersion).toBe("0.4");
+  expect(() => project(
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, { major: 1, minor: 0, patch: 0 },
+  )).toThrow("Unsupported core replay version");
+});
+
 function project(edges: readonly { from:string; to:string; length:number; region:string; blocked:boolean; id?:string; bridge_site?:string; bridge_kind?:string; crossing_start?:number; crossing_end?:number; ford?:boolean }[] = [
   { from: "attacker", to: "camp", length: 250, region: "jungle", blocked: false },
   { from: "camp", to: "defender", length: 250, region: "jungle", blocked: true },
@@ -40,7 +49,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
   attacker: { x: 0, y: 0, region: "base" },
   camp: { x: 250, y: 125, region: "jungle" },
   defender: { x: 500, y: 250, region: "base" },
-}, presentationWorld: TestPresentationWorld = TEST_PRESENTATION_WORLD, lanes: Record<string, string[]> = { mid: ["attacker", "camp", "defender"] }, sourceWorld: WorldIdentityRef | null = WORLD, packageWorld: WorldIdentityRef | null = WORLD, mapWorld: WorldIdentityRef | null = packageWorld, sourceRuleset: RulesetIdentity | null = RULESET, presentationNodes: Record<string, { x: number; y: number }> = Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { x: node.x, y: node.y }])), presentationPaths: Record<string, { points: { x: number; y: number }[] }> = {}) {
+}, presentationWorld: TestPresentationWorld = TEST_PRESENTATION_WORLD, lanes: Record<string, string[]> = { mid: ["attacker", "camp", "defender"] }, sourceWorld: WorldIdentityRef | null = WORLD, packageWorld: WorldIdentityRef | null = WORLD, mapWorld: WorldIdentityRef | null = packageWorld, sourceRuleset: RulesetIdentity | null = RULESET, presentationNodes: Record<string, { x: number; y: number }> = Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { x: node.x, y: node.y }])), presentationPaths: Record<string, { points: { x: number; y: number }[] }> = {}, sourceSchemaVersion: { major: number; minor: number; patch: number } = { major: 1, minor: 1, patch: 0 }) {
   const edgePaths = Object.fromEntries(edges.map(edge => [edge.id || `${edge.from}-${edge.to}`, presentationPaths[edge.id || `${edge.from}-${edge.to}`] ?? {
     points: [{ x: presentationNodes[edge.from]?.x ?? nodes[edge.from]?.x ?? 0, y: presentationNodes[edge.from]?.y ?? nodes[edge.from]?.y ?? 0 },
       { x: presentationNodes[edge.to]?.x ?? nodes[edge.to]?.x ?? 0, y: presentationNodes[edge.to]?.y ?? nodes[edge.to]?.y ?? 0 }],
@@ -79,7 +88,7 @@ function project(edges: readonly { from:string; to:string; length:number; region
     },
   } as unknown as RulePackage;
   const replay = {
-    schema_version: { major: 1, minor: 0, patch: 0 },
+    schema_version: sourceSchemaVersion,
     match_id: "match-1",
     ...(sourceRuleset ? { ruleset: sourceRuleset } : {}),
     ...(sourceWorld ? { world_identity: sourceWorld } : {}),
@@ -479,9 +488,12 @@ describe("Next map graph projection", () => {
 
 it("rejects incomplete or mismatched paired World identity", () => {
   const wrong = { ...WORLD, presentation_digest: "f".repeat(64) };
+  const otherCompiler = { ...WORLD, compiler_version: { major: 1, minor: 0, patch: 1 } };
   expect(() => project(undefined, undefined, undefined, undefined, undefined, { ...WORLD, logic_digest: "f".repeat(64) }, WORLD, WORLD))
     .toThrow("World identities do not match");
   expect(() => project(undefined, undefined, undefined, undefined, undefined, WORLD, WORLD, wrong))
+    .toThrow("World identities do not match");
+  expect(() => project(undefined, undefined, undefined, undefined, undefined, otherCompiler, WORLD, WORLD))
     .toThrow("World identities do not match");
   expect(() => project(undefined, undefined, undefined, undefined, undefined, null, WORLD, WORLD))
     .toThrow("complete RulePackage and paired World identity");

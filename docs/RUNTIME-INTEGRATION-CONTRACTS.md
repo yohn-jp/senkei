@@ -38,7 +38,7 @@ Enbu RestrictedDiagnostics ── 別個の認可済み経路 ──→ Editor T
 
 Compile済みWorldのpaired identityは、最低限次を含む。
 
-- 安定した `world_id`、World schema version、compiler compatibility bounds、任意のvalidation-profile ID/version。
+- 安定した `world_id`、World schema version、実際に使用したWorld Compiler版、compiler compatibility bounds、任意のvalidation-profile ID/version。
 - 正規化されたTopology・Metric・Terrain semantics投影を表す `worldLogicDigest`。
 - 正規化されたPresentation投影を表す `worldPresentationDigest`。
 
@@ -60,7 +60,7 @@ Enbuの整数progressではcrossing intervalの両端を含める。進行方向
 
 ### 2.3 Match、Replay、互換性
 
-権威あるmatch identityは、両Senkei snapshot（configuration、initial tactical memory）、各programのruleset referenceとbytecode／content digest、完全なRulePackage／RulePlan identity、World logic identity、使用したWorld Compiler実版とvalidation-profile version、interpretationまたは結果に影響するmodel・Enbu・primitive set・Jinrei language／AST／IR／bytecode・CU schedule・replay schemaの各versionを束縛する。Replay／表示の再構築では追加で `worldPresentationDigest` とpresentation adapterが受け入れるReplay schemaを束縛する。Match IDとresult digestは出力をmatchへつなぐが、入力identityの代わりにはならない。
+権威あるmatch identityは、両Senkei snapshot（configuration、initial tactical memory）、各programのruleset referenceとbytecode／content digest、完全なRulePackage／RulePlan identity、World logic identity、`WorldIdentityRef.compiler_version`で示す実World Compiler版とvalidation-profile version、interpretationまたは結果に影響するmodel・Enbu・primitive set・Jinrei language／AST／IR／bytecode・CU schedule・replay schemaの各versionを束縛する。Replay／表示の再構築では追加で `worldPresentationDigest` とpresentation adapterが受け入れるReplay schemaを束縛する。Match IDとresult digestは出力をmatchへつなぐが、入力identityの代わりにはならない。
 
 `MatchResult`と公開`PresentationReplay`は、それぞれのpublic contractが認可するfieldだけを含む。Replayは解釈に必要な完全なRulePackage／World referenceを記録し、承認されたstatic sceneが必要ならWorldの両digestも保持する。Readerは非対応schemaとreference不一致を拒否し、互換mapを推測しない。Presentation-only変更で再描画が必要になっても、記録されたmatch resultは変えない。
 
@@ -143,13 +143,13 @@ producer／consumer契約を満たすにはend-to-endでidentityを照合し、�
 
 | 現行producer／public type | 現行identity／version | targetとの境界差 |
 | --- | --- | --- |
-| `senkei-world::VerifiedWorld`／`WorldIdentity` | Compiler 1.0.0。paired identityとCanonical Simulation／Presentation投影。公開`WorldResolver`はexact identityをcontent-addressed keyとして解決する。 | 組込WorldはNative／WASMへ同梱する。追加artifactの永続storeは明示resolverのcaller責務。 |
+| `senkei-world::VerifiedWorld`／`WorldIdentity` | `compiler_version` 1.0.0を含むpaired identityとCanonical Simulation／Presentation投影。公開`WorldResolver`はexact identityをcontent-addressed keyとして解決する。 | 組込WorldはNative／WASMへ同梱する。追加artifactの永続storeは明示resolverのcaller責務。 |
 | `senkei_model::NextRules`／`BattleMap` (`senritsu::next_world`由来) | Mechanics 2.0.0。WorldIdentityRef、logical/presentation node positions、bases／routes／towers、versioned edge facts、canonical Presentation payloadを持つ。 | Senritsu validationはresolved canonical projection全体を照合する。Enbuのcrossing interval消費は別の適合テストで確認する。 |
 | `senkei_model::RulePackage`／検証済み`RulePlan` | canonical package digestはself digestとWorld presentation-only fieldsを除いたlogical rule contentをhashする。World logic identityとsemantic catalog digestを保持する。 | Presentation repro identityはpaired World referenceに含むが、simulation package digestには含めない。 |
 | `senritsu::DomainCatalog`／`CatalogCompatibilityKey` | Catalog schema 1.1.0。Package/engine/language/IR identity、catalog digest、metadata extension digestを持つ。semantic projectionはRulePackageに束縛し、presentation-only説明等はcatalog identityに残す。 | match実行側はVerifiedRulePlanとCatalogCompatibilityKeyを完全照合する。 |
 | `senkei-behavior::BehaviorResolver` | Behavior runtime 1.0.0。constructorでCatalogCompatibilityKeyをexact checkし、authored Behavior extensionを要求。汎用profile composition／candidate arbitrationは宣言済みmetadata、capability、arbitration、caller提供legalityを使う。 | Worldを調べたり、combat／pathfinding factを推測したり、effectをcommitしない。現行next packageにproduction Behavior profileはなく、合意済みDefault／subject／arbitrationがEnbu統合済みとの根拠にはならない。 |
-| `MatchContext`、`SimulationArtifact`、`ReproductionContext` | MatchContextとPresentationReplayはpaired World identityを持つ。ReplayはRulesetRefも持つ。Owner outputsはside keyed。 | Full reproductionにはpackage／World artifact自体を保持または解決する。 |
-| Rust core `PresentationReplay`、JS `packages/replay-contract` | Rust DTOはWorld identityとRulePackage ID/version/digestを表現する。JS Replay 0.3のheaderは同じpaired World identityとRulesetRefを保持する。Next adapterはsource Replayとpackageの完全一致を要求し、静的sceneは検証済みcanonical Presentation payloadから生成する。 | Readerは未知schema、missing identity、mismatchをrejectする。 |
+| `MatchContext`、`SimulationArtifact`、`ReproductionContext` | MatchContextとPresentationReplayは実`compiler_version`を含むpaired World identityを持つ。ReplayはRulesetRefも持つ。Owner outputsはside keyed。 | Full reproductionにはpackage／World artifact自体を保持または解決する。 |
+| Rust core `PresentationReplay`、JS `packages/replay-contract` | Rust DTOはWorld identityとRulePackage ID/version/digestを表現する。JS Replay 0.4のheaderは実`compiler_version`を含むpaired World identityとRulesetRefを保持する。Next adapterはsource Replayとpackageの完全一致を要求し、静的sceneは検証済みcanonical Presentation payloadから生成する。 | Readerは未知schema、missing identity、mismatchをrejectする。 |
 | Web Worker／core-WASM client | Worker protocol 1とcore API 1.0.0は独立したwire contract。 | Protocol versionだけでは各message境界に必要なCatalog key、World identity、RulePackage／Program digestを代替しない。 |
 
 artifact resolverを越える保存・配布とEnbu interval消費のend-to-end適合検証は残る。各検証境界は必須identityを照合し、missing／mismatchを拒否する。match-affecting Behavior extensionを参照するpackageは、そのextensionが実行時に解決・照合されるまでverified planとして受理しない。

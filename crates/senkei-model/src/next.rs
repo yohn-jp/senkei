@@ -25,6 +25,9 @@ pub struct NextRules {
 pub struct WorldIdentityRef {
     pub world_id: String,
     pub schema_version: Version,
+    /// Exact implementation version that compiled this World artifact.
+    /// Compatibility bounds remain separate and never substitute for it.
+    pub compiler_version: Version,
     pub minimum_compiler: Version,
     pub maximum_compiler_exclusive: Option<Version>,
     pub validation_profile_id: Option<String>,

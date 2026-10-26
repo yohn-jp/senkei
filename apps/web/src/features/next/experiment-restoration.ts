@@ -78,6 +78,15 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** SHA-256 of the complete input tuple, encoded like serde_json::Value. */
+export async function reproductionSnapshotDigest(snapshot: SimulationSnapshot): Promise<string> {
+  return sha256Hex(canonicalJson({
+    attacker: snapshot.attacker,
+    context: snapshot.context,
+    defender: snapshot.defender,
+  }));
+}
+
 /** Binds imported owner diagnostics to the exact Run, public result and authorized Program. */
 export async function validateNextExperimentDiagnostics(
   response: SimulationResponse,
@@ -108,8 +117,7 @@ export async function validateNextExperimentDiagnostics(
   if (typeof programDigest !== "string" || identity.program_digest !== programDigest) {
     throw new Error("Stored diagnostics Program digest does not match the authorized Run Program.");
   }
-  const snapshotValue = { attacker: snapshot.attacker, context: snapshot.context, defender: snapshot.defender };
-  const actualSnapshotDigest = await sha256Hex(canonicalJson(snapshotValue));
+  const actualSnapshotDigest = await reproductionSnapshotDigest(snapshot);
   if (identity.snapshot_digest !== actualSnapshotDigest) {
     throw new Error("Stored diagnostics snapshot digest does not match the complete immutable Run input.");
   }
@@ -132,5 +140,39 @@ export async function validateNextExperimentReplay(
   const digest = Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("");
   if (replay.result_digest !== digest) {
     throw new Error("Replay result digest does not match the immutable Enbu result.");
+  }
+}
+
+function reproductionResponseView(response: SimulationResponse): unknown {
+  return {
+    authorized_side: response.authorized_side,
+    result: response.outcome?.result,
+    presentation_replay: response.outcome?.presentation_replay,
+    owner_replay: response.owner_replay,
+    owner_replays: response.owner_replays,
+    restricted_diagnostics: response.restricted_diagnostics,
+  };
+}
+
+/** Confirms that a same-runtime replay reproduces the exact stored local response. */
+export async function validateNextExperimentReproduction(
+  actualResponse: SimulationResponse,
+  storedResponse: SimulationResponse,
+  snapshot: SimulationSnapshot,
+  includeDiagnostics: boolean,
+): Promise<void> {
+  for (const response of [actualResponse, storedResponse]) {
+    validateNextExperimentAuthorization(response, includeDiagnostics);
+    const result = response.outcome?.result;
+    const replay = response.outcome?.presentation_replay;
+    if (!result || !replay) {
+      throw new Error("Reproduction response is missing its authoritative result or public replay.");
+    }
+    await validateNextExperimentReplay(replay, result, snapshot.context.match_id);
+    if (includeDiagnostics) await validateNextExperimentDiagnostics(response, snapshot);
+  }
+
+  if (canonicalJson(reproductionResponseView(actualResponse)) !== canonicalJson(reproductionResponseView(storedResponse))) {
+    throw new Error("Reproduced Enbu result, replay, or authorized local projection differs from the stored Run.");
   }
 }

@@ -94,7 +94,7 @@ export function presentationToGraphics(
   match: MatchResult,
   engineVersion = ruleset.minimum_engine_version,
 ): Replay {
-  if (source.schema_version.major !== 1 || source.schema_version.minor !== 0 || source.schema_version.patch !== 0)
+  if (source.schema_version.major !== 1 || source.schema_version.minor !== 1 || source.schema_version.patch !== 0)
     throw new ReplayError("Unsupported core replay version");
   if (source.match_id !== match.match_id || !ruleset.next) throw new ReplayError("Replay context mismatch");
   const next = ruleset.next;
@@ -218,7 +218,7 @@ export function presentationToGraphics(
     }
   }
   emit({ type:"match-end", tick:result.tick, order:order++, result });
-  return decodeReplay({ schemaVersion:"0.3", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},ruleset:ruleset.ruleset,world:sourceWorld,view:source.perspective ?? "public" },
+  return decodeReplay({ schemaVersion:"0.4", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},ruleset:ruleset.ruleset,world:sourceWorld,view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-battlefield-2",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
     ...(fogFrames.length ? { fog: { worldUnitsPerRenderUnit: scale, frames: fogFrames } } : {}),
     scene:{ bounds:{min:{x:Math.min(...extent.map(point=>point.x))-3,y:Math.min(...extent.map(point=>point.y))-3},max:{x:Math.max(...extent.map(point=>point.x))+3,y:Math.max(...extent.map(point=>point.y))+3}},
@@ -317,6 +317,7 @@ function stableIdentity(value: WorldIdentityRef): string {
   return JSON.stringify({
     world_id: value.world_id,
     schema_version: stableVersion(value.schema_version),
+    compiler_version: stableVersion(value.compiler_version),
     minimum_compiler: stableVersion(value.minimum_compiler),
     maximum_compiler_exclusive: value.maximum_compiler_exclusive && stableVersion(value.maximum_compiler_exclusive),
     validation_profile_id: value.validation_profile_id,

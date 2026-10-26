@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
-import { validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
+import { reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay, validateNextExperimentReproduction } from "./experiment-restoration";
 
 const result: MatchResult = {
   match_id: "match-a",
@@ -66,6 +66,24 @@ async function responseWithDiagnostics(snapshot: SimulationSnapshot): Promise<Si
   };
 }
 
+async function responseForReproduction(snapshot: SimulationSnapshot, includeDiagnostics: boolean): Promise<SimulationResponse> {
+  const publicReplay = { ...replay, perspective: undefined };
+  if (!includeDiagnostics) return { outcome: { result, presentation_replay: publicReplay } };
+  const source = await responseWithDiagnostics(snapshot);
+  const diagnostics = source.restricted_diagnostics!;
+  return {
+    ...source,
+    outcome: { result, presentation_replay: publicReplay },
+    owner_replay: replay,
+    owner_replays: { attacker: replay },
+    restricted_diagnostics: {
+      ...diagnostics,
+      cu_by_side: { attacker: diagnostics.cu_by_side.attacker },
+      final_memory_by_side: { attacker: diagnostics.final_memory_by_side.attacker },
+    } as SimulationResponse["restricted_diagnostics"],
+  };
+}
+
 describe("Next experiment replay restoration identity", () => {
   it("matches the producer's SHA-256 of the serialized MatchResult, not its final-state digest", async () => {
     await expect(validateNextExperimentReplay(replay, result, "match-a")).resolves.toBeUndefined();
@@ -106,6 +124,25 @@ describe("Next experiment replay restoration identity", () => {
 });
 
 describe("Next experiment diagnostics lineage", () => {
+  it("uses the Rust serde_json canonical snapshot digest, including Unicode scalar key ordering", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const digest = await reproductionSnapshotDigest(snapshot);
+    const independentlyCanonicalized = await sha256(canonicalForTest({
+      attacker: snapshot.attacker,
+      context: snapshot.context,
+      defender: snapshot.defender,
+    }));
+    expect(digest).toBe(independentlyCanonicalized);
+    expect(digest).toBe((await responseWithDiagnostics(snapshot)).restricted_diagnostics?.identity.snapshot_digest);
+
+    const reordered = {
+      defender: snapshot.defender,
+      context: snapshot.context,
+      attacker: { "\u{10000}": "supplementary-key", program: { content_digest: "attacker-program" }, configuration: { "10": "ten", "2": "two" }, "\uE000": "bmp-key" },
+    } as unknown as SimulationSnapshot;
+    expect(await reproductionSnapshotDigest(reordered)).toBe(digest);
+  });
+
   it("accepts the exact authorized Run using serde-compatible Unicode scalar key order", async () => {
     const snapshot = diagnosticsSnapshot();
     const response = await responseWithDiagnostics(snapshot);
@@ -139,6 +176,37 @@ describe("Next experiment diagnostics lineage", () => {
     const response = await responseWithDiagnostics(snapshot);
     const legacy = { ...response, restricted_diagnostics: { events: [], cu_by_side: {}, final_memory_by_side: {} } } as unknown as SimulationResponse;
     await expect(validateNextExperimentDiagnostics(legacy, snapshot)).rejects.toThrow(/no Run identity/);
+  });
+});
+
+describe("Next experiment reproduction comparison", () => {
+  it("accepts identical same-runtime result, public replay, and authorized projections", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const publicResponse = await responseForReproduction(snapshot, false);
+    await expect(validateNextExperimentReproduction(publicResponse, publicResponse, snapshot, false)).resolves.toBeUndefined();
+
+    const localResponse = await responseForReproduction(snapshot, true);
+    await expect(validateNextExperimentReproduction(localResponse, localResponse, snapshot, true)).resolves.toBeUndefined();
+  });
+
+  it("rejects a changed public replay frame or owner diagnostics after verifying each Run identity", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const publicResponse = await responseForReproduction(snapshot, false);
+    const changedReplay = { ...publicResponse.outcome.presentation_replay, frames: [{ tick: 1, events: [], visible_state: null }] };
+    await expect(validateNextExperimentReproduction(
+      publicResponse,
+      { ...publicResponse, outcome: { ...publicResponse.outcome, presentation_replay: changedReplay } },
+      snapshot,
+      false,
+    )).rejects.toThrow(/differs from the stored Run/);
+
+    const localResponse = await responseForReproduction(snapshot, true);
+    const changedDiagnostics = {
+      ...localResponse,
+      restricted_diagnostics: { ...localResponse.restricted_diagnostics!, events: [{ tick: 1, side: "attacker", diagnostic: "changed" }] },
+    } as unknown as SimulationResponse;
+    await expect(validateNextExperimentReproduction(localResponse, changedDiagnostics, snapshot, true))
+      .rejects.toThrow(/differs from the stored Run/);
   });
 });
 

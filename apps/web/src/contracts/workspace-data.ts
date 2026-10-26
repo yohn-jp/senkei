@@ -1,10 +1,12 @@
 import type {
   CoreJsonValue,
+  ReproductionAssets,
   SimulationResponse,
   SimulationSnapshot,
 } from "./core";
 import type {
   ComponentVersions,
+  ContentDigest,
   MatchResult,
   RulePackage,
   TacticalProgram,
@@ -67,6 +69,10 @@ export interface LocalNextExperiment {
   readonly match_id: string;
   readonly created_at: string;
   readonly snapshot: SimulationSnapshot;
+  /** Private immutable inputs needed to reproduce this exact run. */
+  readonly reproduction_assets: ReproductionAssets;
+  /** SHA-256 of canonical JSON for attacker, context, and defender inputs. */
+  readonly snapshot_digest: ContentDigest;
   readonly response: SimulationResponse;
   /** Browser-owned Next setup captured with the submitted match snapshots. */
   readonly setup: CoreJsonValue;
@@ -76,8 +82,7 @@ export interface LocalNextExperiment {
 
 /** Bounded store: at most the latest experiment and one prior comparison run. */
 export interface LocalNextExperimentStore {
-  readonly format_version: 1;
-  readonly ruleset_digest: string;
+  readonly format_version: 2;
   readonly experiments: readonly LocalNextExperiment[];
 }
 

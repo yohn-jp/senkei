@@ -1,4 +1,4 @@
-# PresentationReplay v0.1–0.3
+# PresentationReplay v0.1–0.4
 
 `replay.schema.json` (JSON Schema 2020-12) is the language independent wire authority. `npm run contract:types` generates `src/generated.ts`; CI checks regeneration. Every object rejects extra properties, including diagnostics/source/IR. IDs are opaque public presentation IDs; arbitrary text still requires a trusted allowlist producer, and validation does not confer official provenance.
 
@@ -26,11 +26,11 @@ Empty initial views are valid under fog. Unit debris lasts for the death cue;
 destroyed structure ruins can remain for the match.
 
 Replay 0.3 carries `header.ruleset` (ID, version, digest) and the complete
-paired `header.world` reference (World/schema/compiler/profile and logic plus
-presentation digests). The adapter requires exact identity equality between
-the Enbu replay, RulePackage and runtime BattleMap before projecting scene or
-entities. Executed local/official 0.3 replays without both references are
-rejected; sample fixtures remain identity-free.
+paired `header.world` reference (World/schema/compiler compatibility/profile
+and logic plus presentation digests). The adapter requires exact identity
+equality between the Enbu replay, RulePackage and runtime BattleMap before
+projecting scene or entities. Executed local/official 0.3 replays without both
+references are rejected; sample fixtures remain identity-free.
 
 Replay 0.3 adds the versioned battlefield topology (`scene.nodes`, edge IDs,
 bridge-site and ford metadata, the river line, and the lane-track offset),
@@ -39,3 +39,9 @@ observation state. `facility-state` applies confirmed structure/capture updates
 at their recorded tick. A missing or disappeared facility remains unknown; the
 renderer does not fill it with a default intact bridge or neutral capture state.
 The Next adapter receives the actual Enbu engine version from MatchContext.
+
+Replay 0.4 adds `header.world.compiler_version`, the exact World Compiler
+version used to compile that World. Compatibility bounds do not substitute for
+the recorded compiler version. New executed 0.4 replays require this field;
+the reader continues to accept the old 0.3 identity shape without converting
+it to a 0.4 identity.

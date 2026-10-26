@@ -72,7 +72,7 @@ export type Event =
     };
 
 export interface PresentationReplay {
-  schemaVersion: "0.1" | "0.2" | "0.3";
+  schemaVersion: "0.1" | "0.2" | "0.3" | "0.4";
   header: {
     origin: "sample" | "official" | "local";
     title: string;
@@ -82,7 +82,7 @@ export interface PresentationReplay {
       digest: string;
     };
     ruleset?: RulesetIdentity;
-    world?: WorldIdentityRef;
+    world?: WorldIdentityRef | LegacyWorldIdentityRef;
     view: "public" | "attacker" | "defender";
   };
   presentation: {
@@ -179,6 +179,17 @@ export interface Version {
   patch: number;
 }
 export interface WorldIdentityRef {
+  world_id: string;
+  schema_version: Version;
+  compiler_version: Version;
+  minimum_compiler: Version;
+  maximum_compiler_exclusive: Version | null;
+  validation_profile_id: string | null;
+  validation_profile_version: Version | null;
+  logic_digest: string;
+  presentation_digest: string;
+}
+export interface LegacyWorldIdentityRef {
   world_id: string;
   schema_version: Version;
   minimum_compiler: Version;

@@ -3,6 +3,7 @@ import type {
   BenchmarkOutcome,
   CompileOutcome,
   CoreApiError,
+  ReproductionAssets,
   CoreVersion,
   EditorCompilerEnvelope,
   RulesetRef,
@@ -12,7 +13,7 @@ import type {
   TacticalInput,
   WorkerFailure,
 } from "./core";
-import type { RulePackage } from "./core-model";
+import type { ContentDigest, RulePackage } from "./core-model";
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import { WEB_WORKER_PROTOCOL_VERSION } from "./core";
 
@@ -24,6 +25,10 @@ interface WorkerRequestBase {
 export type WebWorkerRequest =
   | (WorkerRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
+      readonly payload: Record<string, never>;
+    })
+  | (WorkerRequestBase & {
+      readonly operation: "next_reproduction_assets";
       readonly payload: Record<string, never>;
     })
   | (WorkerRequestBase & {
@@ -58,6 +63,22 @@ export type WebWorkerRequest =
       readonly payload: { readonly snapshot: SimulationSnapshot } & SimulationRequestPayload;
     })
   | (WorkerRequestBase & {
+      readonly operation: "reproduce";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot: SimulationSnapshot;
+        readonly snapshot_digest: ContentDigest;
+      } & SimulationRequestPayload;
+    })
+  | (WorkerRequestBase & {
+      readonly operation: "preflight_reproduction";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot: SimulationSnapshot;
+        readonly snapshot_digest: ContentDigest;
+      };
+    })
+  | (WorkerRequestBase & {
       readonly operation: "preflight";
       readonly payload: { readonly snapshot: SimulationSnapshot };
     })
@@ -77,6 +98,11 @@ export type WebWorkerResponse =
       readonly operation: "initial_ruleset" | "next_ruleset";
       readonly ok: true;
       readonly result: RulePackage;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "next_reproduction_assets";
+      readonly ok: true;
+      readonly result: ReproductionAssets;
     })
   | (WorkerResponseBase & {
       readonly operation: "editor_catalog";
@@ -114,6 +140,16 @@ export type WebWorkerResponse =
       readonly result: SimulationResponse;
     })
   | (WorkerResponseBase & {
+      readonly operation: "reproduce";
+      readonly ok: true;
+      readonly result: SimulationResponse;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "preflight_reproduction";
+      readonly ok: true;
+      readonly result: null;
+    })
+  | (WorkerResponseBase & {
       readonly operation: "preflight";
       readonly ok: true;
       readonly result: null;
@@ -136,6 +172,10 @@ interface WebCoreApiRequestBase {
 export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
+      readonly payload: Record<string, never>;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "next_reproduction_assets";
       readonly payload: Record<string, never>;
     })
   | (WebCoreApiRequestBase & {
@@ -175,6 +215,22 @@ export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "simulate";
       readonly payload: SimulationSnapshot & SimulationRequestPayload;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "reproduce";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot_digest: ContentDigest;
+        readonly snapshot: SimulationSnapshot;
+      } & SimulationRequestPayload;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "preflight_reproduction";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot_digest: ContentDigest;
+        readonly snapshot: SimulationSnapshot;
+      };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "preflight";

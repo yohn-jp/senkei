@@ -21,6 +21,10 @@ test("C08 keeps original non-target inputs for a real improved battle and preser
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   if (process.env.SENKEI_TACTICAL_EXPERIMENT) {
+    // The import handler requires the current Core and Next package. The navigation
+    // shell appears before that runtime is loaded, so wait for the home journey
+    // before opening Library and importing the retained Run.
+    await expect(page.getByTestId("journey-home")).toBeVisible({ timeout: 60_000 });
     await page.getByTestId("nav-library").click();
     const library = page.getByTestId("next-library");
     await library.getByLabel("Import Next experiment file", { exact: true }).setInputFiles(process.env.SENKEI_TACTICAL_EXPERIMENT);

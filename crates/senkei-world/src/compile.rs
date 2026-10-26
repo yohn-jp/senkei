@@ -233,6 +233,7 @@ pub fn compile(definition: WorldDefinition) -> Result<VerifiedWorld, Vec<WorldIs
         identity: WorldIdentity {
             world_id: definition.id,
             schema_version: definition.schema_version,
+            compiler_version: crate::COMPILER_VERSION,
             compatibility: definition.compatibility,
             validation_profile: definition.validation_profile,
             logic_digest,

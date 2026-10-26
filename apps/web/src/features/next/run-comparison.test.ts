@@ -6,7 +6,7 @@ const version = { major: 1, minor: 0, patch: 0 };
 const ruleset = { id: "next", version, digest: "rule-digest" };
 function snapshot(): SimulationSnapshot {
   const side = (id: string) => ({ schema_version: version, id, revision: "1", ruleset, configuration: { heroes: { kind: "list", value: [] } }, program: { language_version: version, ir_version: version, bytecode_version: version, cost_schedule_id: "cu", cost_schedule_version: version, ruleset, content_digest: "program", bytecode: [1, 2] }, initial_memory: {} });
-  return structuredClone({ attacker: side("own"), defender: side("opponent"), context: { schema_version: version, match_id: "match-1", ruleset, world_identity: { world_id: "world", schema_version: version, minimum_compiler: version, maximum_compiler_exclusive: null, validation_profile_id: null, validation_profile_version: null, logic_digest: "world-logic", presentation_digest: "world-art" }, versions: Object.fromEntries(["model", "engine", "ruleset", "jinrei_language", "structured_ast", "typed_ir", "bytecode", "cost_schedule", "replay_schema"].map(key => [key, version])), initial_world: { entities: {}, global_fields: {}, collections: {} }, max_ticks: 600, host_limits: { max_input_bytes: 100000, max_entities: 100, max_events: 1000, max_diagnostic_events: 1000, max_output_bytes: 100000 } } }) as unknown as SimulationSnapshot;
+  return structuredClone({ attacker: side("own"), defender: side("opponent"), context: { schema_version: version, match_id: "match-1", ruleset, world_identity: { world_id: "world", schema_version: version, compiler_version: version, minimum_compiler: version, maximum_compiler_exclusive: null, validation_profile_id: null, validation_profile_version: null, logic_digest: "world-logic", presentation_digest: "world-art" }, versions: Object.fromEntries(["model", "engine", "ruleset", "jinrei_language", "structured_ast", "typed_ir", "bytecode", "cost_schedule", "replay_schema"].map(key => [key, version])), initial_world: { entities: {}, global_fields: {}, collections: {} }, max_ticks: 600, host_limits: { max_input_bytes: 100000, max_entities: 100, max_events: 1000, max_diagnostic_events: 1000, max_output_bytes: 100000 } } }) as unknown as SimulationSnapshot;
 }
 function compare(a: SimulationSnapshot, b: SimulationSnapshot) { return classifyRunComparison({ snapshot: a }, { snapshot: b }); }
 function mutate(input: SimulationSnapshot, path: string, value: unknown): SimulationSnapshot {
@@ -43,7 +43,7 @@ describe("completed Run input comparison", () => {
     ["defender.program.bytecode", [1, 3]], ["defender.program.language_version.patch", 1],
     ["defender.id", "different-opponent"], ["defender.revision", "2"], ["attacker.id", "another-army"],
     ["context.initial_world.global_fields", { seed: { kind: "integer", value: 7 } }],
-    ["context.world_identity.logic_digest", "other-world"], ["context.ruleset.digest", "other-rules"],
+    ["context.world_identity.logic_digest", "other-world"], ["context.world_identity.compiler_version.patch", 1], ["context.ruleset.digest", "other-rules"],
     ["context.versions.engine.patch", 1], ["context.max_ticks", 300],
     ["context.host_limits.max_diagnostic_events", 10], ["context.host_limits.max_input_bytes", 99],
     ["attacker.program.cost_schedule_version.patch", 1], ["attacker.program.language_version.patch", 1],
@@ -54,7 +54,7 @@ describe("completed Run input comparison", () => {
     expect(compare(a, b).category).toBe("reference");
     expect(compare(a, b).changes.some(change => !change.ownTarget)).toBe(true);
   });
-  it.each(["context.world_identity", "context.world_identity.logic_digest", "context.ruleset.digest", "context.versions.engine", "context.host_limits.max_events", "attacker.initial_memory", "defender.program.bytecode", "context.match_id"])("never claims equal conditions when required %s is absent", path => {
+  it.each(["context.world_identity", "context.world_identity.compiler_version", "context.world_identity.logic_digest", "context.ruleset.digest", "context.versions.engine", "context.host_limits.max_events", "attacker.initial_memory", "defender.program.bytecode", "context.match_id"])("never claims equal conditions when required %s is absent", path => {
     const missing = mutate(snapshot(), path, undefined);
     expect(compare(missing, missing)).toMatchObject({ category: "reference" });
     expect(compare(missing, missing).unavailable.length).toBeGreaterThan(0);
