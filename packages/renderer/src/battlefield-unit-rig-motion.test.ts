@@ -327,7 +327,7 @@ describe("additive named Hero rig motion", () => {
         const torsoBreath = vertexPositions(selectedRig.joints.torso!);
         const capeSway = selectedRig.joints.cape ? vertexPositions(selectedRig.joints.cape) : undefined;
         if (selectedRig.joints.cape) {
-          const chestBounds = torsoSurfaceBounds(selectedRig.joints.torso!);
+          const chestBounds = new THREE.Box3().setFromObject(selectedRig.joints.torso!);
           const capeBounds = capeWorldBounds(selectedRig, selectedLod);
           expect(capeBounds.max.z).toBeLessThan(chestBounds.max.z + 0.015);
         }
@@ -336,6 +336,62 @@ describe("additive named Hero rig motion", () => {
         expect(maximumDisplacement(torsoStill, torsoBreath)).toBeGreaterThan(0.07);
         if (capeStill && capeSway) expect(maximumDisplacement(capeStill, capeSway)).toBeGreaterThan(0.06);
       }
+    }
+  });
+
+  it("lets the cape lag deterministic idle breath and signed gait while staying behind the chest", () => {
+    const idleMotion = (idlePhase: number) => battlefieldUnitRigMotion({
+      walk: 0,
+      strike: 0,
+      skill: 0,
+      hit: 0,
+      attackLean: 0,
+      death: 0,
+      idle: 1,
+      idlePhase,
+    }, true);
+
+    for (const heroId of ["F01", "R01"]) {
+      const model = new THREE.Group();
+      const entity = previewEntity(heroId);
+      const rig = buildBattlefieldHero(model, entity, 0x71847b, entity.appearanceKey!);
+      const lod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD)!;
+      const idleAngles: number[][] = [];
+
+      for (let level = 0; level < 3; level++) {
+        const selectedRig = rig.lodRigs![level]!;
+        const selectedLod = lod.levels[level]!.object;
+        lod.levels.forEach((item, index) => { item.object.visible = index === level; });
+        for (const idlePhase of [Math.PI / 2, Math.PI * 1.5]) {
+          applyBattlefieldUnitLodMotion(rig, level, idleMotion(idlePhase));
+          const chestBounds = new THREE.Box3().setFromObject(selectedRig.joints.torso!);
+          const capeBounds = capeWorldBounds(selectedRig, selectedLod);
+          expect(capeBounds.max.z).toBeLessThan(chestBounds.max.z + 0.015);
+          if (selectedRig.joints.cape) idleAngles.push([
+            selectedRig.joints.torso!.rotation.y,
+            selectedRig.joints.cape.rotation.y,
+          ]);
+        }
+
+        const gaitAngles: number[][] = [];
+        for (const elapsedSeconds of [0.15625, 0.46875]) {
+          applyHeroPreviewMotion(selectedRig, model, "move", elapsedSeconds, false, entity.id);
+          const chestBounds = new THREE.Box3().setFromObject(selectedRig.joints.torso!);
+          const capeBounds = capeWorldBounds(selectedRig, selectedLod);
+          expect(capeBounds.max.z).toBeLessThan(chestBounds.max.z + 0.015);
+          if (selectedRig.joints.cape) gaitAngles.push([
+            selectedRig.joints.cape.rotation.y,
+            selectedRig.joints.cape.rotation.z,
+          ]);
+        }
+        if (selectedRig.joints.cape) {
+          expect(Math.abs(gaitAngles[0]![0] - gaitAngles[1]![0])).toBeGreaterThan(0.2);
+          expect(Math.abs(gaitAngles[0]![1] - gaitAngles[1]![1])).toBeGreaterThan(0.2);
+        }
+      }
+
+      expect(Math.abs(idleAngles[0]![1] - idleAngles[1]![1]))
+        .toBeGreaterThan(Math.abs(idleAngles[0]![0] - idleAngles[1]![0]) + 0.15);
     }
   });
 
@@ -398,6 +454,7 @@ describe("additive named Hero rig motion", () => {
         const frames: number[][] = [];
         const armAngles: number[][] = [];
         const legAngles: number[][] = [];
+        const bodyCapeAngles: number[][] = [];
         expect(isDescendant(selectedRig.weaponPivots.main!, selectedRig.joints["arm.right"]!)).toBe(true);
 
         for (const elapsedSeconds of sampleTimes) {
@@ -414,6 +471,11 @@ describe("additive named Hero rig motion", () => {
             selectedRig.joints["leg.right"]!.rotation.x,
             selectedRig.joints.pelvis?.rotation.z ?? 0,
             selectedRig.joints.torso!.rotation.z,
+          ]);
+          if (selectedRig.joints.cape) bodyCapeAngles.push([
+            selectedRig.joints.torso!.rotation.z,
+            selectedRig.joints.cape.rotation.y,
+            selectedRig.joints.cape.rotation.z,
           ]);
           if (heroId === "F01")
             expect(weaponPenetratesBody(selectedRig.weaponPivots.main!, selectedRig.joints.torso!), `weapon penetrates F01 torso at LOD ${level}, t=${elapsedSeconds}`).toBe(false);
@@ -434,6 +496,10 @@ describe("additive named Hero rig motion", () => {
         expect(maximumDisplacement(armAngles[2]!, armAngles[3]!)).toBeGreaterThan(0.2);
         expect(maximumDisplacement(legAngles[1]!, legAngles[2]!)).toBeGreaterThan(0.08);
         expect(maximumDisplacement(legAngles[2]!, legAngles[3]!)).toBeGreaterThan(0.08);
+        if (bodyCapeAngles.length) {
+          expect(bodyCapeAngles[3]![2]).toBeGreaterThan(bodyCapeAngles[2]![2] + 0.025);
+          expect(bodyCapeAngles[3]![2]).toBeGreaterThan(bodyCapeAngles[3]![0] + 0.015);
+        }
       }
     }
   });
@@ -453,6 +519,7 @@ describe("additive named Hero rig motion", () => {
         const capeFrames: number[][] = [];
         const armFrames: number[][] = [];
         const bodyAngles: number[][] = [];
+        const capeAngles: number[][] = [];
         for (const elapsedSeconds of sampleTimes) {
           applyHeroPreviewMotion(selectedRig, model, "hit", elapsedSeconds, false);
           frames.push(vertexPositions(selectedLod));
@@ -465,6 +532,11 @@ describe("additive named Hero rig motion", () => {
             selectedRig.joints["leg.left"]!.rotation.x,
             selectedRig.joints["leg.right"]!.rotation.x,
           ]);
+          if (selectedRig.joints.cape) capeAngles.push([
+            selectedRig.joints.torso!.rotation.z,
+            selectedRig.joints.cape.rotation.y,
+            selectedRig.joints.cape.rotation.z,
+          ]);
         }
         expect(maximumDisplacement(frames[0]!, frames[2]!)).toBeGreaterThan(0.12);
         if (capeFrames.length) expect(maximumDisplacement(capeFrames[0]!, capeFrames[2]!)).toBeGreaterThan(0.12);
@@ -472,6 +544,7 @@ describe("additive named Hero rig motion", () => {
         expect(maximumDisplacement(frames[2]!, frames[3]!)).toBeGreaterThan(0.025);
         expect(maximumDisplacement(bodyAngles[0]!, bodyAngles[2]!)).toBeGreaterThan(0.12);
         expect(maximumDisplacement(bodyAngles[2]!, bodyAngles[3]!)).toBeGreaterThan(0.12);
+        if (capeAngles.length) expect(capeAngles[3]![2]).toBeGreaterThan(capeAngles[3]![0] + 0.2);
         expect(frames[0]).toEqual(frames[4]);
       }
     }

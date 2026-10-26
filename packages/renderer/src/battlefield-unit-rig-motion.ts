@@ -22,6 +22,10 @@ const rotation = (x = 0, y = 0, z = 0): BattlefieldRotationDelta => ({
   z: zero(z),
 });
 
+function delayedPhase(phase: number, delay: number): number {
+  return Math.sin(Math.PI * THREE.MathUtils.clamp((phase - delay) / (1 - delay), 0, 1));
+}
+
 /**
  * Converts confirmed, tick-indexed action channels into additive named-rig
  * offsets. These values assume the model units used by Replay's world scale.
@@ -50,6 +54,9 @@ export function battlefieldUnitRigMotion(
   const attackPrep = strikePhase < 0.5 ? Math.sin(Math.PI * strikePhase * 2) : 0;
   const attackFollowThrough = strikePhase > 0.5 ? Math.sin(Math.PI * (strikePhase - 0.5) * 2) : 0;
   const hitRecovery = hitPhase > 0.5 ? Math.sin(Math.PI * (hitPhase - 0.5) * 2) : 0;
+  const capeAttackLag = strike * delayedPhase(strikePhase, 0.22);
+  const capeHitLag = hit * delayedPhase(hitPhase, 0.18);
+  const capeWalkLag = Math.sin(step * 3.8) * 0.24;
 
   return {
     joints: {
@@ -91,16 +98,17 @@ export function battlefieldUnitRigMotion(
           -attackPrep * 0.1 + attackFollowThrough * 0.14 + idleWeightShift * 0.05,
           attackPrep * 0.12 + attackFollowThrough * 0.18 - hit * 0.24 + hitRecovery * 0.12 + idleWeightShift * 0.04)
         : rotation(death * 0.12),
-      // The cape extends along local -Z, so a positive X rotation swings it
-      // through the torso toward the camera. Hit recoil keeps the cloth folded
-      // behind the body. Y/Z rotation adds a delayed sideways follow without
-      // bringing its surface through the chest.
+      // The cape extends along local -Z. Its delayed response trails the Hero's
+      // attack and hit phases, while signed gait and idle waves add a separate
+      // follow-through. Negative X keeps the panel folded behind the torso.
       cape: heroMotion
-        ? rotation(Math.abs(step) * 0.18 + death * 0.36 - attackPrep * 0.18 - attackFollowThrough * 0.28 - hit * 0.35 - hitRecovery * 0.2
-            - idle * (0.13 + (0.5 + idleClothWave * 0.5) * 0.09),
-          attackPrep * -0.16 + attackFollowThrough * 0.2 + hit * 0.12 + hitRecovery * 0.18 + idleClothWave * 0.18 + idleDelayedFold * 0.04,
-          attackPrep * -0.2 + attackFollowThrough * 0.16 + hit * 0.1 + hitRecovery * 0.2
-            + idle * Math.sin(idlePhase * (1.75 / BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY) - 1.1) * 0.12 + idleDelayedFold * 0.08)
+        ? rotation(-Math.abs(step) * 0.12 + death * 0.36 - attackPrep * 0.18 - attackFollowThrough * 0.28 - hit * 0.35 - hitRecovery * 0.2
+            - idle * (0.16 + (0.5 + idleClothWave * 0.5) * 0.1) - capeAttackLag * 0.14 - capeHitLag * 0.14,
+          attackPrep * -0.14 + attackFollowThrough * 0.18 + hit * 0.12 + hitRecovery * 0.18
+            + idleClothWave * 0.22 + idleDelayedFold * 0.08 + capeAttackLag * 0.12 + capeHitLag * 0.1 + capeWalkLag * 0.72,
+          attackPrep * -0.2 + attackFollowThrough * 0.18 + hit * 0.1 + hitRecovery * 0.2
+            + idle * Math.sin(idlePhase * (1.75 / BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY) - 1.1) * 0.14
+            + idleDelayedFold * 0.12 + capeAttackLag * 0.42 + capeHitLag * 0.26 + capeWalkLag * 0.6)
         : rotation(Math.abs(step) * 0.18 + death * -0.06),
     },
     weaponPivots: {
