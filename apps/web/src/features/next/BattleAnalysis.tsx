@@ -43,6 +43,8 @@ export interface BattleAnalysisProps {
   readonly onEdit: (target: BattleAnalysisEditTarget) => void;
   /** Reopens Ready with the immutable, validated snapshot used for this Run. */
   readonly onExactRematch: () => void;
+  /** Reopens Ready with own changes and every other input fixed to this Run. */
+  readonly onImprovedRematch?: () => void;
   /** Reopens Ready with the current editable Draft and sends it through current validation. */
   readonly onRevisedRematch: () => void;
   readonly campaignScenario: LocalPveScenario | null;
@@ -245,6 +247,7 @@ export function BattleAnalysis({
   onBattle,
   onEdit,
   onExactRematch,
+  onImprovedRematch,
   onRevisedRematch,
   campaignScenario,
   campaignFeedback,
@@ -423,8 +426,12 @@ export function BattleAnalysis({
       </div>
 
       <section aria-label="次の改善・再戦" className="battle-analysis-next-step">
-        <div><span className="battle-analysis-eyebrow">NEXT ACTION</span><h4>{draftChanged ? "編集Draftから新しい試合を検証" : "この試合の条件を選んで再戦"}</h4><p>{draftChanged ? "同条件再戦は保存済みRun Snapshotを使い、変更後再戦は現在DraftをReadyで再検証してから実行します。" : "同条件再戦は今回のSnapshotを再検証します。Hero・Skill・Squad・Jinreiを編集すると変更後再戦が選べます。"}</p></div>
-        <div className="battle-analysis-rematch-actions"><button disabled={busy} onClick={onExactRematch} type="button">同条件で再戦 · Run Snapshot</button><button disabled={busy || !draftChanged} onClick={onRevisedRematch} type="button">変更後の条件を検証 · 現在Draft</button></div>
+        <div><span className="battle-analysis-eyebrow">NEXT ACTION</span><h4>再戦の比較条件を選ぶ</h4><p>同条件再戦は元Run全体を再実行します。改良比較は自軍の変更対象以外を元Runに固定し、新しい条件での対戦は現在の相手選択とDraftを使います。いずれもReadyで再検証します。</p></div>
+        <div className="battle-analysis-rematch-actions">
+          <button disabled={busy} onClick={onExactRematch} type="button">同条件で再戦 · Run Snapshot</button>
+          {onImprovedRematch && <button disabled={busy || !draftChanged} onClick={onImprovedRematch} type="button">改良した戦型を比較 · 元Run条件固定</button>}
+          <button disabled={busy} onClick={onRevisedRematch} type="button">新しい条件で対戦 · 現在Draft</button>
+        </div>
       </section>
     </section>
   );
