@@ -1218,11 +1218,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setPreflightFailure(null);
     setExactRun(null);
   };
-  useEffect(() => {
-    if (entryMode !== "campaign" || !selectedScenarioId || unlockedScenarioSet.has(selectedScenarioId)) return;
-    const firstUnlocked = campaignScenarios.find((scenario) => unlockedScenarioSet.has(scenario.id));
-    if (firstUnlocked) setSelectedScenarioId(firstUnlocked.id);
-  }, [campaignScenarios, entryMode, selectedScenarioId, unlockedScenarioSet]);
+  // Preserve an explicitly restored Campaign selection even when its
+  // challenge is currently locked. Preflight rejects locked challenges and
+  // shows the reason instead of silently substituting another opponent.
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
@@ -1874,7 +1872,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const classifiedCause = cause instanceof PreflightProblem ? cause.classificationCause ?? cause : cause;
       const problem = classifyPreflightProblem(classifiedCause, {
         stage: preflightStage.current,
-        input: exactRun ? "original_run" : "draft",
+        input: frozenRematch?.kind === "exact" ? "original_run" : "draft",
         inputKey: key,
         scenarioId: entryMode === "campaign" ? selectedScenario?.id ?? null : null,
         slots: {
