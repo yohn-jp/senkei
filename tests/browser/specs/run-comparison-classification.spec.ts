@@ -36,7 +36,7 @@ test("C08 classifies real exact, own-tactics and changed-opponent Runs without r
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await page.locator("#next-tab-analysis").click();
-  await analysis.getByRole("button", { name: /変更後の条件を検証 · 現在Draft/ }).click();
+  await analysis.getByRole("button", { name: /改良した戦型を比較 · 元Run条件固定/ }).click();
   await finishMatch(page);
   await expect(comparison).toHaveAttribute("data-comparison-kind", "improved");
   await expect(comparison).toContainText("自軍のJinrei Program");

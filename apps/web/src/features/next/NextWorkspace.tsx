@@ -4,6 +4,7 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
+import { buildImprovedRematch } from "./improved-rematch";
 import { actionSourceRange, verifyRunSourceMap } from "./tactical-context";
 import type { BattleAnalysisContext, AnalysisSourceContext } from "./tactical-context";
 import type { ActionSourceMap, DiagnosticEvent } from "../../contracts";
@@ -706,7 +707,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [storageAttempt, setStorageAttempt] = useState(0);
   const [savedRaw, setSavedRaw] = useState<string | null>(null);
   const [recoveryRaw, setRecoveryRaw] = useState<string | null>(null);
-  const [exactRun, setExactRun] = useState<BattleRun | null>(null);
+  const [frozenRematch, setFrozenRematch] = useState<{ kind: "exact" | "improved"; run: BattleRun } | null>(null);
+  const exactRun = frozenRematch?.run ?? null;
+  const setExactRun = useCallback((value: BattleRun | null) => setFrozenRematch(value ? { kind: "exact", run: value } : null), []);
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
@@ -735,6 +738,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const editorCompileRevision = useRef(0);
   const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
+  const runRef = useRef(run);
+  runRef.current = run;
   const [baselineRun, setBaselineRun] = useState<BattleRun | null>(null);
   const [analysisContext, setAnalysisContext] = useState<BattleAnalysisContext | null>(null);
   const [analysisSource, setAnalysisSource] = useState<AnalysisSourceContext | null>(null);
@@ -1676,9 +1681,6 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
     }
     const campaignScenario = entryMode === "campaign" ? selectedScenario : null;
-    if (entryMode === "campaign" && (!campaignScenario || !unlockedScenarioSet.has(campaignScenario.id))) {
-      throw new PreflightProblem("選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。", "invalid");
-    }
     const key = launchKey;
     if (exactRun) {
       if (!sameRulesetRef(exactRun.snapshot.attacker.ruleset, packageValue.ruleset)) {
@@ -1688,6 +1690,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       if (launchKeyRef.current !== key) throw new PreflightProblem("再戦対象が変更されました。再検証してください。", "unverified");
       setPrepared({ key, snapshot: exactRun.snapshot });
       return exactRun.snapshot;
+    }
+    if (entryMode === "campaign" && (!campaignScenario || !unlockedScenarioSet.has(campaignScenario.id))) {
+      throw new PreflightProblem("選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。", "invalid");
     }
     const playerCompilation = activeCompilation ?? await compileTactics(draft.program_input.kind === "text"
       ? { kind: "text", source: draft.program_input.source, ruleset_ref: draft.ruleset }
@@ -1786,6 +1791,39 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   };
 
   const rematch = (): void => { setExactRun(null); if (run) setScreen("ready"); };
+
+  const improveRematch = async (): Promise<void> => {
+    if (operationInFlight.current || !run) return;
+    const base = run;
+    const key = launchKey;
+    operationInFlight.current = true;
+    setChecking(true);
+    setError(null);
+    try {
+      const current = draftRef.current;
+      if (!core || !packageValue || !current) throw new Error("Coreと現在Draftの読込後に、改良比較を再試行してください。");
+      const ownCompilation = activeCompilation ?? await compileTactics(current.program_input.kind === "text"
+        ? { kind: "text", source: current.program_input.source, ruleset_ref: current.ruleset }
+        : { kind: "structured_ast", ast: current.program_input.ast, ruleset_ref: current.ruleset });
+      if (launchKeyRef.current !== key || runRef.current !== base) throw new Error("比較元または現在条件が変更されました。改良比較を再試行してください。");
+      const derived = buildImprovedRematch(base.snapshot, makeSideSnapshot(current, ownCompilation.program, slots));
+      if (derived.status === "rejected") {
+        throw new Error(`元Runの固定条件を保持できません（${derived.reason}: ${derived.paths.join(", ")}）。「新しい条件で対戦」で現在条件を検証してください。`);
+      }
+      if (derived.comparison.category !== "improved") throw new Error("自軍の変更対象が元Runと同じです。「同条件で再戦」を使うか、Hero・Skill・Squad・Jinreiを変更してください。");
+      const currentSetup = buildSavedSetup();
+      if (!currentSetup) throw new Error("現在Draftの保存対象を取得できません。Draftを保持して再試行してください。");
+      setFrozenRematch({ kind: "improved", run: { ...base, snapshot: derived.snapshot,
+        setup: { ...base.setup, saved_at: currentSetup.saved_at, draft: currentSetup.draft,
+          slots: currentSetup.slots, formation_shape: currentSetup.formation_shape },
+        estimatedCU: ownCompilation.estimated_cu } });
+      setPrepared(null);
+      setPreflightFailure(null);
+      setScreen("ready");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "改良比較の入力を準備できませんでした。現在Draftは保持されています。");
+    } finally { operationInFlight.current = false; setChecking(false); }
+  };
 
   const editScreen = (target: AtelierScreen | "jinrei"): void => {
     setExactRun(null);
@@ -2133,9 +2171,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       </section>
       </details>
 
-      {exactRun && screen === "ready" && <div className="next-exact-rematch" role="status"><strong>同条件再戦 · 元Runの確定Snapshot</strong><p>表示中の編成と戦術は元の試合のものです。編集中Draftは保持されています。</p><button type="button" onClick={() => setExactRun(null)}>現在のDraftで準備する</button></div>}
+      {exactRun && screen === "ready" && <div className="next-exact-rematch" role="status"><strong>{frozenRematch?.kind === "improved" ? "改良比較 · 自軍以外は元Runに固定" : "同条件再戦 · 元Runの確定Snapshot"}</strong><p>{frozenRematch?.kind === "improved" ? "自軍のHero・Skill・Squad・Jinreiの変更対象だけを差し替えます。相手・World・初期状態・上限・実行版・Match IDは元Runの値です。" : "表示中の編成と戦術は元の試合のものです。"} 編集中Draftと現在の対戦選択は保持されています。</p><button type="button" onClick={() => setExactRun(null)}>現在のDraftで準備する</button></div>}
       <p className="journey-draft-status" hidden={screen === "workspace" && tab === "battle"}>{draft?.id} · {draftIsSaved ? "保存済み" : savedSetup ? "未保存の変更あり" : "未保存Draft"} · {activeCompilation ? "Compiled" : compilation ? "Compile失効" : "未コンパイル"}</p>
-      <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={entryMode} setEntryMode={setEntryMode}
+      <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={exactRun ? exactRun.setup.campaign_scenario_id ? "campaign" : "quick" : entryMode} setEntryMode={mode => { setExactRun(null); setEntryMode(mode); }}
         slots={exactRun?.setup.slots ?? slots} rivalSlots={exactRun?.setup.rival_slots ?? rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={exactRun?.setup.draft ?? draft}
         ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError}
         compiled={Boolean(exactRun || activeCompilation)} compilationCU={exactRun?.estimatedCU ?? activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
@@ -2150,7 +2188,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           setSlots(playerSlots); setRivalSlots(defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS));
           setFormationShape("single"); updateDraft(createTacticDraft(packageValue, nextRules, "attacker"));
           setPrepared(null); setPreflightFailure(null); setScreen("preset");
-        }} scenarios={campaignScenarios} selectedScenarioId={selectedScenario?.id ?? ""}
+        }} scenarios={campaignScenarios} selectedScenarioId={exactRun ? exactRun.setup.campaign_scenario_id ?? "" : selectedScenario?.id ?? ""}
         onScenarioChange={selectCampaignScenario} unlockedScenarioIds={unlockedScenarioIds}
         latestScenarioFeedback={campaignFeedback} />
       <div className="journey-workspace" hidden={screen !== "workspace"}>
@@ -2314,18 +2352,17 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
-            <BattleAnalysis context={analysisContext} traceSourceStatus={traceSourceStatus} onTraceSource={inspectTraceSource} run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy}
+            <BattleAnalysis context={analysisContext} traceSourceStatus={traceSourceStatus} onTraceSource={inspectTraceSource} run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy || checking}
               onReplayEvent={inspectReplayEvent}
               onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}
               onBattle={() => setTab("battle")} onEdit={editScreen}
               campaignScenario={campaignFeedback?.scenario ?? null} campaignFeedback={campaignFeedback}
               onExactRematch={() => { if (run) {
                 setExactRun(run);
-                if (run.setup.campaign_scenario_id) { setEntryMode("campaign"); setSelectedScenarioId(run.setup.campaign_scenario_id); }
-                else setEntryMode("quick");
                 setPrepared(null);
                 setScreen("ready");
               } }}
+              onImprovedRematch={() => void improveRematch()}
               onRevisedRematch={rematch} />
           </section>
         </div>

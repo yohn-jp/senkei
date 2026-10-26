@@ -64,7 +64,7 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
     await page.screenshot({ path: resolve(evidenceDirectory, `${viewport.name}.png`), fullPage: true });
     if (viewport.width <= 430) {
       await expect(analysis.getByRole("combobox", { name: "HeroでTimelineを絞り込む" })).toBeVisible();
-      await expect(analysis.getByRole("button", { name: /変更後の条件を検証/ })).toBeDisabled();
+      await expect(analysis.getByRole("button", { name: /改良した戦型を比較/ })).toBeDisabled();
     }
   }
 
@@ -81,8 +81,8 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await analysisTab.click();
   await expect(analysis.getByText("現在のDraftに変更があります。", { exact: false })).toBeVisible();
-  await expect(analysis.getByRole("button", { name: /変更後の条件を検証 · 現在Draft/ })).toBeEnabled();
-  await analysis.getByRole("button", { name: /変更後の条件を検証 · 現在Draft/ }).click();
+  await expect(analysis.getByRole("button", { name: /改良した戦型を比較 · 元Run条件固定/ })).toBeEnabled();
+  await analysis.getByRole("button", { name: /改良した戦型を比較 · 元Run条件固定/ }).click();
   await expect(page.getByTestId("journey-ready")).toBeVisible();
   await launchCurrentReady(page);
 
