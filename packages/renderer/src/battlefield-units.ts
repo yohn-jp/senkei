@@ -171,7 +171,7 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     assetKey,
     appearanceKey,
     generator: UNIT_GENERATOR,
-    generatorVersion: 4,
+    generatorVersion: 5,
     sourceFiles: [
       "packages/renderer/src/battlefield-units.ts",
       "packages/renderer/src/battlefield-unit-geometry.ts",
@@ -262,7 +262,11 @@ class UnitBuilder {
         ...Object.entries(this.joints).filter(([key]) => retainedNames.has(key) || key.startsWith("leg.")).map(([, group]) => group),
         ...Object.values(this.weaponPivots),
       ]);
-      const merged = new Map<THREE.Group, { pieces: THREE.BufferGeometry[]; responses: number[] }>();
+      const merged = new Map<THREE.Group, {
+        pieces: THREE.BufferGeometry[];
+        responses: number[];
+        capeRanges: { startVertex: number; vertexCount: number }[];
+      }>();
       for (const { group, surfaces } of this.buckets.values()) {
         let target = group;
         const relative = new THREE.Matrix4();
@@ -271,11 +275,13 @@ class UnitBuilder {
           relative.premultiply(target.matrix);
           target = target.parent as THREE.Group;
         }
-        const destination = merged.get(target) ?? { pieces: [], responses: [] };
+        const destination = merged.get(target) ?? { pieces: [], responses: [], capeRanges: [] };
         for (const [surface, surfacePieces] of surfaces) for (const geometry of surfacePieces) {
           geometry.applyMatrix4(relative);
+          const vertexStart = destination.responses.length / 3;
           destination.pieces.push(geometry);
           const vertexCount = geometry.index?.count ?? geometry.getAttribute("position").count;
+          if (group.name === "joint.cape") destination.capeRanges.push({ startVertex: vertexStart, vertexCount });
           const [roughness, metalness, emissive] = unitSurfaceResponse(surface);
           for (let index = 0; index < vertexCount; index++) destination.responses.push(roughness, metalness, emissive);
         }
@@ -285,6 +291,7 @@ class UnitBuilder {
         if (!batch.pieces.length) continue;
         const geometry = mergeColoredGeometry(batch.pieces);
         geometry.setAttribute("senkeiSurfaceResponse", new THREE.Float32BufferAttribute(batch.responses, 3));
+        if (batch.capeRanges.length) geometry.userData.bakedCapeRanges = batch.capeRanges;
         const mesh = new THREE.Mesh(geometry, BAKED_UNIT_MATERIAL);
         mesh.name = `${group.name}.baked`;
         mesh.receiveShadow = true;
@@ -359,29 +366,43 @@ function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: n
     ? [[-0.26, 1.92], [0.26, 1.92], [0.38, 1.25], [0.32, 0.88], [0.12, 0.72], [0.05, 0.96], [-0.06, 0.73], [-0.18, 1.02], [-0.35, 0.86], [-0.4, 1.28]]
     : [[-0.26 * spread, 1.94], [0.26 * spread, 1.94], [0.37 * spread, 1.24], [0.4 * spread, lower], [0.2 * spread, lower + 0.08], [0, lower - 0.05], [-0.18 * spread, lower + 0.12], [-0.4 * spread, lower]];
   if (folded) {
-    // Broad cloth folds sweep away from the body; retain a real closed edge.
+    // Let the cloth gather at the shoulders, billow at mid-back, then taper
+    // into two lifted folds and a pair of low hem tails.
     const rows = [
-      { y: 1.94, width: 0.24 * spread, z: 0.02 },
-      { y: 1.58, width: 0.31 * spread, z: -0.04 },
-      { y: 1.02, width: 0.34 * spread, z: -0.15 },
-      { y: lower, width: 0.43 * spread, z: -0.24 },
+      { y: 1.94, width: 0.22, z: 0.035, centerX: 0 },
+      { y: 1.56, width: 0.3, z: -0.06, centerX: -0.018 },
+      { y: 1.08, width: 0.38, z: -0.15, centerX: -0.025 },
+      { y: 0.73, width: 0.35, z: -0.27, centerX: 0.012 },
+      { y: lower, width: 0.3, z: -0.36, centerX: 0.045 },
     ];
     const vertices: number[] = [];
     const indices: number[] = [];
     const columns = [-1, -0.64, -0.28, 0, 0.3, 0.65, 1];
+    const folds = [0.012, -0.052, 0.038, -0.078, 0.056, -0.045, 0.012];
+    const hem = [0.035, -0.075, 0.04, 0.13, 0.055, -0.09, 0.025];
     for (const back of [false, true]) {
       rows.forEach((row, r) => columns.forEach((column, c) => {
-        const fold = [0.02, -0.035, 0.025, -0.045, 0.025, -0.035, 0.02][c];
-        const hem = r === rows.length - 1 ? [0.09, 0.02, 0.06, -0.04, 0.04, 0, 0.08][c] : 0;
-        vertices.push(column * row.width, row.y + hem, row.z + fold * (0.3 + r / 3) + (back ? -0.028 : 0));
+        const hemWave = r === rows.length - 1 ? hem[c] : 0;
+        const foldDepth = folds[c] * (0.45 + r * 0.2);
+        vertices.push(
+          row.centerX * spread + column * row.width * spread,
+          row.y + hemWave,
+          row.z + foldDepth + (back ? -0.028 : 0),
+        );
       }));
     }
-    const count = rows.length * columns.length;
+    const columnsPerRow = columns.length;
+    const count = rows.length * columnsPerRow;
     for (let r = 0; r < rows.length - 1; r++) for (let c = 0; c < columns.length - 1; c++) {
-      const a = r * columns.length + c, b = a + 1, d = a + columns.length, e = d + 1;
+      const a = r * columnsPerRow + c, b = a + 1, d = a + columnsPerRow, e = d + 1;
       indices.push(a, d, b, b, d, e, a + count, b + count, d + count, b + count, e + count, d + count);
     }
-    const perimeter = [0, 1, 2, 3, 4, 5, 6, 13, 20, 27, 26, 25, 24, 23, 22, 21, 14, 7];
+    const perimeter = [
+      ...Array.from({ length: columnsPerRow }, (_, column) => column),
+      ...Array.from({ length: rows.length - 1 }, (_, row) => (row + 1) * columnsPerRow + columnsPerRow - 1),
+      ...Array.from({ length: columnsPerRow - 1 }, (_, column) => (rows.length - 1) * columnsPerRow + columnsPerRow - 2 - column),
+      ...Array.from({ length: rows.length - 2 }, (_, row) => (rows.length - 2 - row) * columnsPerRow),
+    ];
     perimeter.forEach((a, index) => {
       const b = perimeter[(index + 1) % perimeter.length];
       indices.push(a, b, a + count, b, b + count, a + count);

@@ -63,6 +63,38 @@ function worldBounds(root: THREE.Object3D): THREE.Box3 {
   return new THREE.Box3().setFromObject(root);
 }
 
+interface CapeVertexRange {
+  startVertex: number;
+  vertexCount: number;
+}
+
+function capeVertices(level: THREE.Group, world = false): THREE.Vector3[] {
+  level.updateMatrixWorld(true);
+  const cape = level.getObjectByName("joint.cape");
+  if (cape) {
+    const capeMeshes = meshes(cape);
+    if (capeMeshes.length) return capeMeshes.flatMap(mesh => {
+      const positions = mesh.geometry.getAttribute("position");
+      return Array.from({ length: positions.count }, (_, index) => {
+        const point = new THREE.Vector3().fromBufferAttribute(positions, index);
+        return world ? mesh.localToWorld(point) : point;
+      });
+    });
+  }
+
+  return meshes(level).flatMap(mesh => {
+    const ranges = mesh.geometry.userData.bakedCapeRanges as CapeVertexRange[] | undefined;
+    if (!ranges) return [];
+    const positions = mesh.geometry.getAttribute("position");
+    return ranges.flatMap(({ startVertex, vertexCount }) =>
+      Array.from({ length: vertexCount }, (_, offset) => {
+        const point = new THREE.Vector3().fromBufferAttribute(positions, startVertex + offset);
+        return world ? mesh.localToWorld(point) : point;
+      }),
+    );
+  });
+}
+
 describe("Battlefield unit models", () => {
   it("keeps focused targets detailed while reducing untracked LOD by screen occupancy", () => {
     expect(battlefieldUnitLodLevel(10, true, false)).toBe(0);
@@ -118,15 +150,62 @@ describe("Battlefield unit models", () => {
     expect(names).toHaveProperty("size", 12);
   });
 
-  it("gives golden capes a swept depth and channeler sleeves a cloth silhouette", () => {
+  it("gives golden capes a tapered, waved cloth silhouette in all LODs without body or hand penetration", () => {
     for (const id of ["F01", "R01"]) {
       const root = new THREE.Group();
       const key = `senkei.next.hero.${id.toLowerCase()}`;
       const rig = buildBattlefieldHero(root, entity(id, key, id), 0x347e83, key);
-      const cape = rig.joints.cape;
-      const capeMesh = meshes(cape)[0];
-      capeMesh.geometry.computeBoundingBox();
-      expect(capeMesh.geometry.boundingBox!.getSize(new THREE.Vector3()).z).toBeGreaterThan(0.2);
+      const levels = lodLevels(root);
+      expect(levels).toHaveLength(3);
+      for (const [levelIndex, level] of levels.entries()) {
+        const points = capeVertices(level);
+        expect(points.length, `${id} LOD ${levelIndex} has cape vertices`).toBeGreaterThan(0);
+        if (levelIndex === 0) {
+          const capeMesh = meshes(level.getObjectByName("joint.cape")!)[0];
+          expect((capeMesh.material as THREE.MeshStandardMaterial).roughness).toBe(0.92);
+          expect((capeMesh.material as THREE.MeshStandardMaterial).metalness).toBe(0.02);
+        } else {
+          const capeMesh = meshes(level).find(mesh => mesh.geometry.userData.bakedCapeRanges);
+          expect(capeMesh).toBeDefined();
+          const response = capeMesh!.geometry.getAttribute("senkeiSurfaceResponse");
+          const ranges = capeMesh!.geometry.userData.bakedCapeRanges as CapeVertexRange[];
+          for (const { startVertex, vertexCount } of ranges) for (let index = startVertex; index < startVertex + vertexCount; index++) {
+            expect(response.getX(index)).toBeCloseTo(0.92);
+            expect(response.getY(index)).toBeCloseTo(0.02);
+            expect(response.getZ(index)).toBe(0);
+          }
+        }
+        const top = points.filter(point => point.y > 1.8);
+        const middle = points.filter(point => point.y > 0.9 && point.y < 1.25);
+        const hem = points.filter(point => point.y < 0.8);
+        const halfWidth = (vertices: readonly THREE.Vector3[]) => Math.max(...vertices.map(point => Math.abs(point.x)));
+        expect(halfWidth(middle), `${id} LOD ${levelIndex} flares below the shoulder`).toBeGreaterThan(halfWidth(top) * 1.35);
+        expect(halfWidth(middle), `${id} LOD ${levelIndex} tapers toward the hem`).toBeGreaterThan(halfWidth(hem) * 1.03);
+
+        const centerHem = hem.filter(point => Math.abs(point.x) < 0.06).map(point => point.y);
+        const outerTails = hem.filter(point => Math.abs(point.x) > 0.08 && Math.abs(point.x) < 0.3).map(point => point.y);
+        expect(centerHem.length).toBeGreaterThan(0);
+        expect(outerTails.length).toBeGreaterThan(0);
+        expect(Math.min(...centerHem), `${id} LOD ${levelIndex} has a lifted central notch`).toBeGreaterThan(Math.min(...outerTails) + 0.12);
+        expect(Math.max(...points.map(point => point.z)) - Math.min(...points.map(point => point.z)), `${id} LOD ${levelIndex} has a swept rear drape`).toBeGreaterThan(0.38);
+
+        const worldPoints = capeVertices(level, true);
+        const torso = rig.lodRigs![levelIndex].joints.torso;
+        const torsoBack = worldBounds(torso).min.z;
+        const capeAboveWaist = worldPoints.filter(point => point.y < 1.7);
+        expect(Math.max(...capeAboveWaist.map(point => point.z)), `${id} LOD ${levelIndex} cloth stays behind the torso`).toBeLessThan(torsoBack - 0.02);
+        if (levelIndex === 0) {
+          const hand = rig.lodRigs![levelIndex].joints["hand.right"];
+          const handBounds = worldBounds(hand);
+          const capeBehindHand = worldPoints.filter(point =>
+            point.x >= handBounds.min.x && point.x <= handBounds.max.x &&
+            point.y >= handBounds.min.y && point.y <= handBounds.max.y,
+          );
+          expect(capeBehindHand.length).toBeGreaterThan(0);
+          expect(Math.max(...capeBehindHand.map(point => point.z)), `${id} cape stays behind the hand at overlapping height`).toBeLessThan(handBounds.min.z - 0.01);
+        }
+        if (levelIndex > 0) expect(meshes(level).length, `${id} LOD ${levelIndex} stays within the low mesh budget`).toBeLessThanOrEqual(8);
+      }
       if (id === "R01") {
         for (const side of ["left", "right"]) {
           const arm = rig.joints[`arm.${side}`];
@@ -229,7 +308,7 @@ describe("Battlefield unit models", () => {
       assetKey: "hero.f01",
       appearanceKey: "senkei.next.hero.f01",
       generator: "senkei.battlefield-unit.v1",
-      generatorVersion: 4,
+      generatorVersion: 5,
       lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
       source: "project-authored-procedural-geometry",
     }));
