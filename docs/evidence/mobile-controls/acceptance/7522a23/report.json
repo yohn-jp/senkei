@@ -1,0 +1,178 @@
+{
+  "sourceRevision": "7522a23813632d0494f8bc2ef3c89f9d2364fc4b",
+  "wasmSha256": "ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a",
+  "scenario": "fresh confirmed local Enbu match",
+  "tested": [
+    "Tactical/Cinematic mode",
+    "Vision/Lanes/Engagements layer toggles",
+    "tick preservation",
+    "touch targets",
+    "horizontal overflow",
+    "page errors"
+  ],
+  "observations": [
+    {
+      "width": 320,
+      "height": 844,
+      "tick": "60",
+      "layerTargets": [
+        {
+          "x": 0,
+          "right": 72.78125,
+          "y": 226,
+          "height": 44
+        },
+        {
+          "x": 78.78125,
+          "right": 150.953125,
+          "y": 226,
+          "height": 44
+        },
+        {
+          "x": 156.953125,
+          "right": 284.546875,
+          "y": 226,
+          "height": 44
+        }
+      ],
+      "modeTargetHeights": [
+        44,
+        44
+      ]
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "tick": "60",
+      "layerTargets": [
+        {
+          "x": 0,
+          "right": 72.78125,
+          "y": 215,
+          "height": 44
+        },
+        {
+          "x": 78.78125,
+          "right": 150.953125,
+          "y": 215,
+          "height": 44
+        },
+        {
+          "x": 156.953125,
+          "right": 284.546875,
+          "y": 215,
+          "height": 44
+        }
+      ],
+      "modeTargetHeights": [
+        44,
+        44
+      ]
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "tick": "60",
+      "layerTargets": [
+        {
+          "x": 0,
+          "right": 72.78125,
+          "y": 215,
+          "height": 44
+        },
+        {
+          "x": 78.78125,
+          "right": 150.953125,
+          "y": 215,
+          "height": 44
+        },
+        {
+          "x": 156.953125,
+          "right": 284.546875,
+          "y": 215,
+          "height": 44
+        }
+      ],
+      "modeTargetHeights": [
+        44,
+        44
+      ]
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "tick": "60",
+      "layerTargets": [
+        {
+          "x": 276.015625,
+          "right": 364.765625,
+          "y": 185.640625,
+          "height": 36
+        },
+        {
+          "x": 370.765625,
+          "right": 458.8125,
+          "y": 185.640625,
+          "height": 36
+        },
+        {
+          "x": 464.8125,
+          "right": 616.203125,
+          "y": 185.640625,
+          "height": 36
+        }
+      ],
+      "modeTargetHeights": [
+        36,
+        36
+      ]
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "tick": "60",
+      "layerTargets": [
+        {
+          "x": 276.015625,
+          "right": 364.765625,
+          "y": 185.640625,
+          "height": 36
+        },
+        {
+          "x": 370.765625,
+          "right": 458.8125,
+          "y": 185.640625,
+          "height": 36
+        },
+        {
+          "x": 464.8125,
+          "right": 616.203125,
+          "y": 185.640625,
+          "height": 36
+        }
+      ],
+      "modeTargetHeights": [
+        36,
+        36
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "browser": {
+    "engine": "Chromium 156.0.8078.47",
+    "renderer": "SwiftShader",
+    "environment": "Nix/Linux headless browser; no physical-device or physical-GPU claim"
+  },
+  "visualReview": {
+    "result": "PASS",
+    "reviewedScreenshots": 5,
+    "finding": "Presentation and layer controls remain in bounds. At widths 320/390/430, each layer label and both mode buttons are 44px high and layer labels stay on one row. Desktop layout remains on one row. This is visual review of control fit, not art acceptance."
+  },
+  "captureSha256": {
+    "battle-1440x900.png": "e83d7aea887c17abdf85d8b5d32a437fce1fd79842f2dddfaee8a4656d83d78a",
+    "battle-1920x1080.png": "54c378ad245da6791088544b5e38532217f322f4493b9e3c904c885a2d95a21d",
+    "battle-320x844.png": "ae5379c23ebf3d5c73e344b0900be47c013248b3414e755e2824ff7de586d3be",
+    "battle-390x844.png": "9af747d28855a8f7d2da84b8a94ae2af9b2574889ae438dc3f81c70e7c2dcd35",
+    "battle-430x932.png": "a0c14ea508872d28e7fac4b4363ec3cc0927e5ec171ace1d57939f7f0af756e9"
+  }
+}
