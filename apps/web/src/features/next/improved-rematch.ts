@@ -20,7 +20,7 @@ function cloneJson<T>(input: T): T {
     const array = Array.isArray(value);
     if (!array && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new TypeError("Non-JSON object");
     const properties = Object.getOwnPropertyDescriptors(value);
-    if (Object.getOwnPropertySymbols(value).length || (array && Object.keys(value).length !== value.length)) throw new TypeError("Non-JSON properties");
+    if (Object.getOwnPropertySymbols(value).length || (array && (Object.keys(value).length !== value.length || Object.keys(value).some((key, index) => key !== String(index))))) throw new TypeError("Non-JSON properties");
     ancestors.add(value);
     for (const [key, property] of Object.entries(properties)) {
       if (array && key === "length") continue;

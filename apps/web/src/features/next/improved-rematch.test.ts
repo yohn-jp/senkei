@@ -83,6 +83,10 @@ describe("immutable original-context improved rematch producer", () => {
     const base = original(), own = changed(base.attacker, "future", value);
     expect(buildImprovedRematch(base, own)).toMatchObject({ status: "rejected", reason: "non_json_input" });
   });
+  it("rejects sparse arrays whose extra properties would otherwise mask a missing index", () => {
+    const base = original(), array = Object.assign(new Array(1), { ignored: "would be dropped" });
+    expect(buildImprovedRematch(base, changed(base.attacker, "future", array))).toMatchObject({ status: "rejected", reason: "non_json_input" });
+  });
   it("rejects cycles and returns no input aliases", () => {
     const base = original(), own = structuredClone(base.attacker) as any; own.cycle = own;
     expect(buildImprovedRematch(base, own).status).toBe("rejected");
