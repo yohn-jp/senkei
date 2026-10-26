@@ -87,6 +87,8 @@ test("UX-C12 retains an unsaved Jinrei Draft through Home return and an emulated
       const editorLayout = document.querySelector<HTMLElement>(".next-jinrei-panel .editor-layout")!;
       const editorConfiguration = document.querySelector<HTMLElement>(".next-jinrei-panel .editor-configuration")!;
       const editorTactics = document.querySelector<HTMLElement>(".next-jinrei-panel .editor-tactics")!;
+      const primaryNav = sidebar.querySelector<HTMLElement>(".primary-nav")!;
+      const primaryNavItems = Array.from(primaryNav.querySelectorAll<HTMLElement>(".nav-item"));
       const bounds = (element: HTMLElement) => {
         const box = element.getBoundingClientRect();
         return { x: box.x, y: box.y, width: box.width, height: box.height };
@@ -103,6 +105,7 @@ test("UX-C12 retains an unsaved Jinrei Draft through Home return and an emulated
         appSidebar: bounds(sidebar),
         appShellColumns: getComputedStyle(document.querySelector<HTMLElement>(".app-shell")!).gridTemplateColumns,
         appSidebarNavDisplay: getComputedStyle(sidebar.querySelector<HTMLElement>(".primary-nav")!).display,
+        primaryNav: { ...bounds(primaryNav), itemHeights: primaryNavItems.map(item => item.getBoundingClientRect().height) },
         nextTabs: bounds(nextTabs),
         nextTabsDisplay: getComputedStyle(nextTabs).display,
         nextTabsPosition: getComputedStyle(nextTabs).position,
