@@ -1499,9 +1499,12 @@ fn potential_conflict_groups(
             let mut component = BTreeSet::from([seed]);
             loop {
                 let connected = remaining.iter().filter(|candidate| component.iter().any(|member| {
-                    let left = &domain.capabilities[member];
-                    let right = &domain.capabilities[*candidate];
-                    !left.phases.is_disjoint(&right.phases) && can_write_different_values(member, candidate)
+                    // An executor returns one accepted intent set per side
+                    // and tick. Enbu evaluates that same set across all
+                    // transition phases, so disjoint capability phase sets
+                    // do not prove that two intents cannot be composed
+                    // together or write the same Behavior field.
+                    can_write_different_values(member, candidate)
                 })).cloned().collect::<Vec<_>>();
                 if connected.is_empty() { break; }
                 for capability in connected {
@@ -3139,11 +3142,27 @@ mod tests {
             [PhaseId::new("first")].into_iter().collect();
         domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().phases =
             [PhaseId::new("second")].into_iter().collect();
-        assert!(required_intent_orders(&extension, &domain).is_empty(),
-            "capabilities that cannot be active in the same phase do not need a shared order");
+        let disjoint_phase_orders = required_intent_orders(&extension, &domain);
+        assert_eq!(disjoint_phase_orders.len(), 1,
+            "phase-disjoint capabilities can still co-occur in the accepted intents for one tick");
+        assert_eq!(disjoint_phase_orders[0].capabilities,
+            [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect());
 
-        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().phases =
-            [PhaseId::new("first")].into_iter().collect();
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection.clear();
+        issues.clear();
+        validate_behavior_orders(&extension, &domain, &mut issues);
+        assert!(issues.iter().any(|issue| issue.path.ends_with("intentSelection")
+            && issue.message.contains("missing one complete actor-local order")),
+            "catalog validation rejects a missing order even when capability phases are disjoint");
+
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection =
+            vec![test_order_declaration(&disjoint_phase_orders[0])];
+        issues.clear();
+        validate_behavior_orders(&extension, &domain, &mut issues);
+        assert!(!issues.iter().any(|issue| issue.path.ends_with("intentSelection")
+            && issue.message.contains("missing one complete actor-local order")),
+            "a complete actor-local order covers the disjoint-phase candidates");
+
         domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().arguments[0].value_type =
             DomainType::Entity { entity_type: Some(TypeId::new("squad")) };
         let mut scopes = extension.entity_scopes.clone();
