@@ -10,6 +10,7 @@ mkdir -p "$(dirname "${report_path}")"
 mkdir -p "${fixture_dir}"
 rm -f "${report_path}"
 rm -f "${fixture_dir}"/*.request.json
+rm -f "${fixture_dir}/strategic-measurements.json"
 
 # Write all measured outcomes before historical assertions, so a changed
 # baseline cannot discard the evidence needed to explain the failure.
@@ -21,6 +22,21 @@ NEXT_ADAPTER_FIXTURE_DIR="${fixture_dir}" \
   :
 else
   status=$?
+  # Keep compact, citable measurements in the log as well as the artifact.
+  if [[ -s "${fixture_dir}/strategic-measurements.json" ]]; then
+    node --input-type=module - "${fixture_dir}/strategic-measurements.json" <<'JS'
+import { readFileSync } from "node:fs";
+const report = JSON.parse(readFileSync(process.argv[2], "utf8"));
+for (const item of report.cases) {
+  console.log("STRATEGIC_MEASUREMENT " + JSON.stringify({
+    case_id: item.case_id, outcome: item.outcome, final_tick: item.final_tick,
+    termination_reason: item.termination_reason, termination_class: item.termination_class,
+    final_state_digest: item.final_state_digest, cu_by_side: item.cu_by_side,
+    bases: item.owner_structure_state.filter(entity => entity.kind === "base"),
+  }));
+}
+JS
+  fi
   # The existing always-uploaded adapter artifact retains exact inputs and
   # runtimes for offline reproduction. No failing check becomes a pass.
   git -C "${repo_root}" rev-parse HEAD > "${fixture_dir}/failure-source-revision.txt"

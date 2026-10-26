@@ -100,7 +100,15 @@ async function verify(directory, expectedSourceSha) {
 
 const [mode, directory, expectedSourceSha] = process.argv.slice(2);
 if (mode === "prepare" && directory) {
-  await prepare(directory);
+  try {
+    await prepare(directory);
+  } catch (error) {
+    if (error?.message === "The actual native fixture did not win.") {
+      const { diagnoseNativeCampaign } = await import("./diagnose-native-campaign.mjs");
+      await diagnoseNativeCampaign().catch(cause => console.error("Campaign diagnosis failed:", cause));
+    }
+    throw error;
+  }
 } else if (mode === "verify" && directory && expectedSourceSha) {
   await verify(directory, expectedSourceSha);
 } else {
