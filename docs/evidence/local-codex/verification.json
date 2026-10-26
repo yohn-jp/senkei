@@ -323,5 +323,32 @@
   "current_user_preferences": {
     "priority": "Product implementation, integration and acceptance first; Art runs independently.",
     "images": "Do not add repetitive captures to Git. Preserve raw captures locally; commit only necessary source, compact judgments, hashes and reproduction steps. Existing history is preserved."
+  },
+  "user_stop": {
+    "state": "Stopped at the explicit user request; no further implementation, captures or tests.",
+    "main_revision": "9378c441d6c93d450e4fe6b436990abf7471fad4",
+    "saved_unverified_test_repairs": "af678e3d090a653c12165518b10814a9147689e1 on session/integration; not main",
+    "ci": {
+      "run_id": 40335356757,
+      "conclusion": "cancelled at user request",
+      "successful_jobs": [
+        "Native Rust build and tests",
+        "Native and real WebAssembly conformance",
+        "Web application build",
+        "Production browser build"
+      ],
+      "browser_shards": {
+        "success": 8,
+        "failure": 11,
+        "cancelled": 2
+      },
+      "known_failure_groups": [
+        "Six visual and two verification shards use stale simulate-only Worker capture; saved repair commits 7257b8c / 5953282.",
+        "Analysis/rematch/compile checks expire during actual retained-Run reproduction; measured ~92s per 600-tick run. Local wait repairs af678e3 preserve behavior assertions; not browser-accepted after stop."
+      ]
+    },
+    "local_capture_repair_trial": "Stopped at build-revision mismatch before acceptance (built 1c52beb, expected 5953282); rebuilt afterward, no rerun at user stop.",
+    "art": "Partial, not adopted. Latest work remains on art/3d-production; no new raw image/video payloads committed after the user instruction.",
+    "completion": "Both Goals are incomplete; work stopped by user request, not completion."
   }
 }

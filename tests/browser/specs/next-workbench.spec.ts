@@ -294,7 +294,8 @@ test("real WASM Next workbench supports editing, replay, rematch, mobile and off
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Jinrei source" })).toHaveValue(editedSource);
     await page.getByRole("button", {name:"Compile tactics"}).click();
-    await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible();
+    // Offline cold restore queues two retained Run reproductions before this editor compile.
+    await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 180_000 });
     await page.locator("#next-tab-battle").click();
     await page.getByRole("button", {name:/Launch local battle|New local battle/i}).click();
     await completePreflight(page);

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
 import { completePreflight } from "../helpers/preflight";
+import { reproductionSnapshotDigest } from "../../../apps/web/src/features/next/experiment-restoration";
 
 type JsonRecord = Record<string, any>;
 type Viewport = { readonly name: string; readonly width: number; readonly height: number };
@@ -552,24 +553,31 @@ async function createScenarioSnapshots(canonicalOnlyRun: boolean): Promise<void>
 async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: JsonRecord): Promise<ReplayRun> {
   const pageErrors: string[] = [];
   const wasmResponses: { status: number; url: string }[] = [];
+  const controlledSnapshotDigest = controlledSnapshot
+    ? await reproductionSnapshotDigest(controlledSnapshot as Parameters<typeof reproductionSnapshotDigest>[0])
+    : null;
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.context().on("response", (response) => {
     if (new URL(response.url()).pathname.endsWith("/wasm/senkei_wasm.wasm")) {
       wasmResponses.push({ status: response.status(), url: response.url() });
     }
   });
-  await page.addInitScript((snapshot: JsonRecord | null) => {
+  await page.addInitScript(({ snapshot, snapshotDigest }: { snapshot: JsonRecord | null; snapshotDigest: string | null }) => {
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
         const request = message as { operation?: unknown; request_id?: unknown; payload?: Record<string, unknown> } | null;
         let outgoing = message;
-        if (request?.operation === "simulate") {
+        if (request?.operation === "simulate" || request?.operation === "reproduce") {
           const target = window as typeof window & { __visualRequest?: unknown; __visualResponse?: unknown };
           if (snapshot) {
-            const modified = structuredClone(message) as { payload?: Record<string, unknown> };
+            const modified = structuredClone(message) as { operation?: unknown; payload?: Record<string, unknown> };
             if (!modified.payload) throw new Error("Visual scenario simulation has no payload.");
             modified.payload.snapshot = structuredClone(snapshot);
+            if (modified.operation === "reproduce") {
+              if (!snapshotDigest) throw new Error("Visual reproduction has no canonical snapshot digest.");
+              modified.payload.snapshot_digest = snapshotDigest;
+            }
             outgoing = modified;
           }
           target.__visualRequest = structuredClone(outgoing);
@@ -605,7 +613,7 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
       }
     }
     Object.defineProperty(window, "Worker", { configurable: true, value: CapturingWorker });
-  }, controlledSnapshot ?? null);
+  }, { snapshot: controlledSnapshot ?? null, snapshotDigest: controlledSnapshotDigest });
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(baseURL, { waitUntil: "networkidle" });
@@ -630,7 +638,9 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   });
   const capturedRequest = requiredRecord(captured.request, "Worker request");
   const capturedResponse = requiredRecord(captured.response, "Worker response");
-  if (capturedRequest.operation !== "simulate") throw new Error("The local UI did not issue a real Enbu simulation.");
+  if (capturedRequest.operation !== "simulate" && capturedRequest.operation !== "reproduce") {
+    throw new Error("The local UI did not issue a real Enbu simulation or reproduction.");
+  }
   if (capturedResponse.ok !== true) throw new Error("The real Worker/WASM simulation did not succeed.");
   const requestId = requiredString(capturedRequest.request_id, "Worker request ID");
   const responseRequestId = requiredString(capturedResponse.request_id, "Worker response request ID");
@@ -638,6 +648,13 @@ async function launchBattle(page: Page, baseURL: string, controlledSnapshot?: Js
   expect(wasmResponses.some((response) => response.status === 200), "the browser loaded the actual WASM binary").toBe(true);
   const requestPayload = requiredRecord(capturedRequest.payload, "Worker request payload");
   const requestSnapshot = requiredRecord(requestPayload.snapshot, "Worker snapshot");
+  if (capturedRequest.operation === "reproduce") {
+    const requestSnapshotDigest = requiredString(requestPayload.snapshot_digest, "Worker reproduction snapshot digest");
+    const actualSnapshotDigest = await reproductionSnapshotDigest(requestSnapshot as Parameters<typeof reproductionSnapshotDigest>[0]);
+    if (requestSnapshotDigest !== actualSnapshotDigest) {
+      throw new Error("The real Worker reproduction does not bind the exact simulation snapshot digest.");
+    }
+  }
   const requestContext = requiredRecord(requestSnapshot.context, "Worker snapshot context");
   const requestedMatchId = requiredString(requestContext.match_id, "Worker snapshot match ID");
   const rulesetResponse = requiredRecord(captured.rulesetResponse, "WASM next_ruleset response");
