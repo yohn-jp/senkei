@@ -1,0 +1,7 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+const directory = resolve(process.env.SENKEI_ART_OUTPUT ?? "test-results/art-production/captures");
+const manifest = JSON.parse(readFileSync(resolve(directory, "manifest.json"), "utf8"));
+const escape = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
+writeFileSync(resolve(directory, "index.html"), `<!doctype html><html lang="en"><meta charset="utf-8"><title>Senkei captured art evidence</title><style>body{background:#182126;color:#eee;font:16px system-ui;margin:24px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%;background:#253138}pre{white-space:pre-wrap;font-size:12px}</style><h1>Captured production art evidence</h1><p>${escape(manifest.acceptance)}</p><p>Status: ${escape(manifest.status)} · Browser ${escape(manifest.browser)}</p><main>${manifest.captures.map(capture => `<figure><a href="${escape(capture.image)}"><img src="${escape(capture.image)}" alt="${escape(capture.label)}"></a><figcaption>${escape(capture.label)}</figcaption><details><summary>Captured metadata</summary><pre>${escape(JSON.stringify(capture.attributes, null, 2))}</pre></details></figure>`).join("")}</main><details><summary>Manifest</summary><pre>${escape(JSON.stringify(manifest, null, 2))}</pre></details></html>`);
+console.log(resolve(directory, "index.html"));

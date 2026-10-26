@@ -123,6 +123,39 @@ export interface BattlefieldUnitPose {
   readonly attackLean: number;
   /** Confirmed destroy event. Disappear never produces this signal. */
   readonly death: number;
+  /** Replay-tick-driven presentation breathing; the caller enables it for the current visible Hero. */
+  readonly idle?: number;
+  /** Deterministic idle oscillator angle in radians. */
+  readonly idlePhase?: number;
+}
+
+export const BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY = 2.6;
+const TWO_PI = Math.PI * 2;
+
+function stableEntityPhaseOffset(entityId: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < entityId.length; index++) {
+    hash ^= entityId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) / 0x1_0000_0000) * TWO_PI;
+}
+
+function phaseAtElapsedSeconds(elapsedSeconds: number, entityId: string): number {
+  const phase = elapsedSeconds * BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY + stableEntityPhaseOffset(entityId);
+  return ((phase % TWO_PI) + TWO_PI) % TWO_PI;
+}
+
+/** A stable Hero breathing phase derived only from Replay tick, tick duration, and entity ID. */
+export function battlefieldUnitIdlePhase(tick: number, entityId: string, tickDurationMs: number): number {
+  if (!Number.isInteger(tick) || !Number.isFinite(tickDurationMs) || tickDurationMs <= 0) return 0;
+  return phaseAtElapsedSeconds(tick * tickDurationMs / 1000, entityId);
+}
+
+/** Catalog previews use their explicit sample time but the same Hero oscillator and ID offset. */
+export function battlefieldUnitIdlePhaseAtSeconds(elapsedSeconds: number, entityId: string): number {
+  if (!Number.isFinite(elapsedSeconds)) return stableEntityPhaseOffset(entityId);
+  return phaseAtElapsedSeconds(elapsedSeconds, entityId);
 }
 
 /**
@@ -137,6 +170,7 @@ export function battlefieldUnitPose(
   moving: boolean,
   animate: boolean,
   phase: number,
+  tickDurationMs?: number,
 ): BattlefieldUnitPose {
   let attack = false;
   let basicAttack = false;
@@ -154,6 +188,10 @@ export function battlefieldUnitPose(
   const actionPhase = animate ? phase : (moving || attack || skill || hit || destroyed ? 0.5 : 0);
   const walkPhase = animate ? tick + phase : tick + 0.5;
   const sample = Math.sin(actionPhase * Math.PI);
+  const hasIdleClock = Number.isInteger(tick) && tickDurationMs !== undefined
+    && Number.isFinite(tickDurationMs) && tickDurationMs > 0;
+  const idle = hasIdleClock
+    && !moving && !attack && !skill && !hit && !destroyed;
   return {
     walk: moving && !attack && !skill ? Math.sin(walkPhase * Math.PI) * 0.34 : 0,
     strike: attack ? sample : 0,
@@ -162,5 +200,7 @@ export function battlefieldUnitPose(
     attackLean: basicAttack ? sample * 0.16 : 0,
     // Death settles into a held pose; disappear (fog/visibility loss) is not death.
     death: destroyed ? (animate ? Math.max(0, Math.min(1, phase)) : 1) : 0,
+    idle: idle ? 1 : 0,
+    idlePhase: idle && tickDurationMs !== undefined ? battlefieldUnitIdlePhase(tick, entityId, tickDurationMs) : 0,
   };
 }

@@ -1,18 +1,18 @@
 import * as THREE from "three";
 export { createHeroModelPreview } from "./renderer-hero-model-preview";
 import { fitBattlefieldCameraFrame } from "./battlefield-camera";
-import { KnownBaseSites } from "./base-sites";
+import { findScreenLabelPosition, KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { BattlefieldFog } from "./battlefield-fog";
 import { buildBattlefieldLaneGuides } from "./battlefield-lane-guides";
 import { applyBattlefieldInformationLayers, type BattlefieldInformationLayers } from "./battlefield-information-layers";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
-import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
+import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
-import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
+import { battlefieldUnitGroundingOffset, battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
@@ -1493,10 +1493,6 @@ export class Battlefield {
   }
   private attachRig(group: THREE.Group, rig: BattlefieldUnitRig) {
     group.userData.animationRig = rig;
-    group.userData.rigRest = new Map(
-      [...Object.values(rig.joints), ...Object.values(rig.weaponPivots)]
-        .map(joint => [joint, joint.rotation.clone()]),
-    );
     const materials = new Set<THREE.Material>();
     group.traverse(object => {
       if (object instanceof THREE.Mesh)
@@ -2391,11 +2387,21 @@ export class Battlefield {
       this.camera.updateMatrixWorld();
       const cameraUp = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
       for (const g of this.units.values()) {
+        const priorDeathGroundOffset = Number(g.userData.heroDeathGroundOffset ?? 0);
+        if (priorDeathGroundOffset) {
+          g.position.y -= priorDeathGroundOffset;
+          delete g.userData.heroDeathGroundOffset;
+        }
         if (g.userData.to) {
           if (this.replay.scene.routes?.length || !this.playing || this.reducedMotion)
             g.position.copy(g.userData.to);
           else g.position.lerpVectors(g.userData.from, g.userData.to, phase);
         }
+        const entity = this.state?.entities[g.userData.entityId];
+        const heroEntity = Boolean(entity && this.isHero(entity));
+        const idleTickDurationMs = heroEntity && entity && !entity.destroyed
+          ? this.replay.presentation.tickDurationMs
+          : undefined;
         const actionPose = battlefieldUnitPose(
           this.state?.tick ?? 0,
           this.state?.cues ?? [],
@@ -2403,11 +2409,17 @@ export class Battlefield {
           Boolean(g.userData.walking),
           this.playing && !this.reducedMotion,
           phase,
+          idleTickDurationMs,
         );
         g.userData.actionPose = actionPose;
-        const rigMotion = battlefieldUnitRigMotion(actionPose);
+        const actionPhase = this.playing && !this.reducedMotion ? phase : 0.5;
+        const rigPose = {
+          ...actionPose,
+          ...(actionPose.strike > 0 ? { strikePhase: actionPhase } : {}),
+          ...(actionPose.hit > 0 ? { hitPhase: actionPhase } : {}),
+        };
+        const rigMotion = battlefieldUnitRigMotion(rigPose, heroEntity);
         const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
-        const entity = this.state?.entities[g.userData.entityId];
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);
           const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
@@ -2462,26 +2474,18 @@ export class Battlefield {
             }
             g.userData.focusOpacity = opacity;
           }
-          const rest = g.userData.rigRest as Map<THREE.Group, THREE.Euler>;
-          for (const [joint, rotation] of rest) joint.rotation.copy(rotation);
-          for (const [name, delta] of Object.entries(rigMotion.joints)) {
-            const joint = rig.joints[name];
-            if (joint) {
-              joint.rotation.x += delta.x;
-              joint.rotation.y += delta.y;
-              joint.rotation.z += delta.z;
-            }
-          }
-          for (const [name, delta] of Object.entries(rigMotion.weaponPivots)) {
-            const pivot = rig.weaponPivots[name];
-            if (pivot) {
-              pivot.rotation.x += delta.x;
-              pivot.rotation.y += delta.y;
-              pivot.rotation.z += delta.z;
-            }
-          }
+          applyBattlefieldUnitLodMotion(rig, g.userData.lodLevel ?? 0, rigMotion);
         }
         g.rotation.z = rigMotion.rootZ;
+        if (rig && heroEntity && actionPose.death > 0) {
+          const lod = g.children.find(child => child instanceof THREE.LOD) as THREE.LOD | undefined;
+          const visible = lod?.levels.find(({ object }) => object.visible)?.object;
+          if (visible) {
+            const offset = battlefieldUnitGroundingOffset(visible, g.position.y);
+            g.position.y += offset;
+            g.userData.heroDeathGroundOffset = offset;
+          }
+        }
         const collapsing =
           this.playing &&
           !this.reducedMotion &&
@@ -2540,6 +2544,7 @@ export class Battlefield {
       const hostRect = this.host.getBoundingClientRect();
       const labelPlacements: WorldLabelPlacement[] = [];
       const overlaps = screenRectsOverlap;
+      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       const cueCameraSignature = [
         ...this.camera.position.toArray(),
         ...this.camera.quaternion.toArray(),
@@ -2578,8 +2583,17 @@ export class Battlefield {
           if (projected.right >= hostRect.left && projected.left <= hostRect.right && projected.bottom >= hostRect.top && projected.top <= hostRect.bottom)
             this.protectedSilhouetteRects.push(projected);
         }
+        for (const rect of this.baseSites.projectedSilhouetteRects()) {
+          const projected = {
+            left: hostRect.left + rect.left,
+            right: hostRect.left + rect.right,
+            top: hostRect.top + rect.top,
+            bottom: hostRect.top + rect.bottom,
+          };
+          if (projected.right >= hostRect.left && projected.left <= hostRect.right && projected.bottom >= hostRect.top && projected.top <= hostRect.bottom)
+            this.protectedSilhouetteRects.push(projected);
+        }
       }
-      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       for (const element of this.host.querySelectorAll<HTMLElement>(".base-site-label")) {
         if (element.hidden) continue;
         const start = element.getBoundingClientRect();
@@ -2590,22 +2604,16 @@ export class Battlefield {
           [-96, -42], [96, -42], [-96, 42], [96, 42],
           [0, -84], [0, 84], [-192, 0], [192, 0],
         ] as const;
-        let placed: DOMRect | undefined;
-        for (const [dx, dy] of shifts) {
-          const candidate = {
-            left: start.left + dx, right: start.right + dx,
-            top: start.top + dy, bottom: start.bottom + dy,
-          };
-          if (candidate.left < hostRect.left + 4 || candidate.right > hostRect.right - 4 ||
-            candidate.top < hostRect.top + 4 || candidate.bottom > hostRect.bottom - 4 ||
-            overlapsProtectedSilhouette(candidate, this.protectedSilhouetteRects)) continue;
-          placed = start;
-          element.style.left = `${left + dx}px`;
-          element.style.top = `${top + dy}px`;
-          break;
-        }
+        const placed = findScreenLabelPosition(
+          { left: start.left, right: start.right, top: start.top, bottom: start.bottom },
+          shifts,
+          { left: hostRect.left + 4, right: hostRect.right - 4, top: hostRect.top + 4, bottom: hostRect.bottom - 4 },
+          this.protectedSilhouetteRects,
+        );
         if (!placed) element.hidden = true;
         else {
+          element.style.left = `${left + placed.left - start.left}px`;
+          element.style.top = `${top + placed.top - start.top}px`;
           const rect = element.getBoundingClientRect();
           labelPlacements.push({ element, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, priority: 0 });
         }

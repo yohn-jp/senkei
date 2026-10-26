@@ -1,0 +1,4973 @@
+{
+  "schema": "senkei-art-lod-visual-evidence/v1",
+  "sourceRevision": "de605f037a9e55e682e6ab75fd6becc47ed5fa7f",
+  "dirtyWorktreeAtCapture": "",
+  "captureOutputCreatedAfterSourceStatusCheck": true,
+  "url": "http://127.0.0.1:4188/",
+  "viewport": {
+    "width": 1440,
+    "height": 1000,
+    "deviceScaleFactor": 1,
+    "captureTarget": "production Hero Detail preview canvas"
+  },
+  "browser": "156.0.8078.47",
+  "executable": "/nix/store/r0f9i35n3r7rng8162xih4c1dag0s1vw-chromium-156.0.8078.47/bin/chromium",
+  "renderer": "Chromium/SwiftShader software GPU",
+  "reducedMotion": "no-preference",
+  "captureKind": "production createHeroModelPreview / buildBattlefieldHero with its generated LOD child explicitly selected by the inspection-only lab override; not Battlefield integration",
+  "sampling": "All action samples reset the pose button, wait the requested elapsed time and two animation frames, then capture the actual full canvas. Static front/quarter/rear views use the inspection-only deterministic azimuth control at the same radius and elevation. Each file records the selected LOD child, visibility vector, camera, inspection azimuth, pose, rootY, material profile, baked senkeiSurfaceResponse vertex count and unique vectors, dimensions and SHA-256.",
+  "poseSamples": {
+    "idle": [
+      0,
+      0.924,
+      1.848,
+      2.772,
+      3.696
+    ],
+    "move": [
+      0,
+      0.15625,
+      0.3125,
+      0.46875,
+      0.625
+    ],
+    "attack": [
+      0,
+      0.3625,
+      0.725,
+      1.0875,
+      1.45
+    ],
+    "hit": [
+      0,
+      0.2,
+      0.4,
+      0.6,
+      0.8
+    ],
+    "death": [
+      0,
+      0.225,
+      0.45,
+      0.675,
+      0.9,
+      1.35,
+      1.8
+    ]
+  },
+  "lods": [
+    {
+      "name": "full",
+      "index": 0,
+      "visible": "true,false,false"
+    },
+    {
+      "name": "medium",
+      "index": 1,
+      "visible": "false,true,false"
+    },
+    {
+      "name": "far",
+      "index": 2,
+      "visible": "false,false,true"
+    }
+  ],
+  "staticAngles": [
+    {
+      "name": "front",
+      "yawRadians": 0
+    },
+    {
+      "name": "quarter",
+      "yawRadians": 0.7853981633974483
+    },
+    {
+      "name": "rear",
+      "yawRadians": 3.141592653589793
+    }
+  ],
+  "captures": [
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-full-idle-0000ms.png",
+      "rawImage": "F01-full-idle-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0026",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0174,0.0000,-0.0388:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0026",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0174,0.0000,-0.0388:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "cda8e590c97ccb2cacfcec1ae664a100180ca3edc8c7eb12e363e9c69f6b7677"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0.924,
+      "image": "images/F01-full-idle-0924ms.png",
+      "rawImage": "F01-full-idle-0924ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0503",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0303,0.0000,-0.0171:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0503",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0303,0.0000,-0.0171:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "fd738c7d5a7a2b573692c350e8ba0586d91d5fb07790219a6fe25ee29c1406bd"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 1.848,
+      "image": "images/F01-full-idle-1848ms.png",
+      "rawImage": "F01-full-idle-1848ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,-0.0397",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0597,0.0000,-0.0581:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,-0.0397",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0597,0.0000,-0.0581:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "15acc341802755c31745384f5fc811249538e81193c42d3f413b26b7b45d73fe"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 2.772,
+      "image": "images/F01-full-idle-2772ms.png",
+      "rawImage": "F01-full-idle-2772ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,-0.0157",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0357,0.0000,-0.0471:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,-0.0157",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0357,0.0000,-0.0471:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "91ad7a22bbd49a193c4598b0973aa3dc897c94cfab4fcccc6e2746fdea9c8758"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 3.696,
+      "image": "images/F01-full-idle-3696ms.png",
+      "rawImage": "F01-full-idle-3696ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0549",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0349,0.0000,-0.0151:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0549",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0349,0.0000,-0.0151:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "cbaeb1292219e506c08151d07a345b5b681192b64fc2d0601fd44eb4d9d62e89"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-full-move-0000ms.png",
+      "rawImage": "F01-full-move-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.0185,0.0000,0.0000:0.0687,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.0185,0.0000,0.0000:0.0687,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "a2c28d6bd086bdc784b2ee47daf34205be130871dbe3d3de7ee4789be4871898"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.15625,
+      "image": "images/F01-full-move-0156ms.png",
+      "rawImage": "F01-full-move-0156ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.2550,0.0000,0.0000:0.1988,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.2550,0.0000,0.0000:0.1988,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "573fcc94674ae9076d9e887a779d5c2bfebfcf05a752c472701593a346ae427a"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.3125,
+      "image": "images/F01-full-move-0313ms.png",
+      "rawImage": "F01-full-move-0313ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "-0.1605,0.0000,0.0000:-0.0298,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.1605,0.0000,0.0000:-0.0298,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "eafb9cc66709839f6ac885bde1f891d197ddc7c5b1229244c2c324e18f1147fa"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.46875,
+      "image": "images/F01-full-move-0469ms.png",
+      "rawImage": "F01-full-move-0469ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "-0.4081,0.0000,0.0000:-0.1660,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.4081,0.0000,0.0000:-0.1660,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "d51cea3b044f555e52c925e4d77b23a1142cd1f00648e51187ee7b04cc21089a"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.625,
+      "image": "images/F01-full-move-0625ms.png",
+      "rawImage": "F01-full-move-0625ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.0152,0.0000,0.0000:0.0669,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.0152,0.0000,0.0000:0.0669,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "7fa7d46c72e1d7da59a275501ae7b727a758f6c223f8f5edb7de7319a8e36735"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-full-attack-0000ms.png",
+      "rawImage": "F01-full-attack-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0354,-0.0389",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.1827,0.0000,0.0662:0.0423,0.0000,-0.2899",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0354,-0.0389",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.1827,0.0000,0.0662:0.0423,0.0000,-0.2899",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "883046475f9c44eaba8162d34927145b0e1fc230e34c27e7526a74868b3e051f"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 0.3625,
+      "image": "images/F01-full-attack-0363ms.png",
+      "rawImage": "F01-full-attack-0363ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.2477,-0.2189",
+      "poseSample": "-0.0700,0.0000,0.0000:-1.3264,0.0000,0.6788:0.1853,0.0000,-0.1070",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.2477,-0.2189",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-1.3264,0.0000,0.6788:0.1853,0.0000,-0.1070",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "2d368d379497d5115a67df470649c33747f129b92d0ee8e3ce83e414469dd595"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 0.725,
+      "image": "images/F01-full-attack-0725ms.png",
+      "rawImage": "F01-full-attack-0725ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.1803,0.0265",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.7621,0.0000,0.5375:-0.2437,0.0000,-0.1041",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.1803,0.0265",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.7621,0.0000,0.5375:-0.2437,0.0000,-0.1041",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "63a9e216442295b625374c11e69f4d76fdd07eaeb861980d8418ee34fe01fa36"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 1.0875,
+      "image": "images/F01-full-attack-1088ms.png",
+      "rawImage": "F01-full-attack-1088ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0277,0.2176",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0091,0.0000,0.9293:-0.3414,0.0000,0.0942",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0277,0.2176",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0091,0.0000,0.9293:-0.3414,0.0000,0.0942",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "0bbf039a77f2aebfba5de11a39dd6f1f30afa5d490f14d0c33f664d701c47ff6"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 1.45,
+      "image": "images/F01-full-attack-1450ms.png",
+      "rawImage": "F01-full-attack-1450ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0329,-0.0362",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.1684,0.0000,0.0587:0.0394,0.0000,-0.2920",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0329,-0.0362",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.1684,0.0000,0.0587:0.0394,0.0000,-0.2920",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "632eee30d397af276cd5b4867ea08cfb9618d4b02e57d8dd8bafa480f3a7ffed"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "hit",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-full-hit-0000ms.png",
+      "rawImage": "F01-full-hit-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0160,0.0417",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0056,0.0000,-0.0977:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "hit",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0160,0.0417",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0056,0.0000,-0.0977:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "564ce2445670679b5c7be2aa16049953269105df0f89197a897ea90409606d6a"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "hit",
+      "requestedElapsedSeconds": 0.2,
+      "image": "images/F01-full-hit-0200ms.png",
+      "rawImage": "F01-full-hit-0200ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0777,0.2021",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.1044,0.0000,-0.3199:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "hit",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0777,0.2021",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.1044,0.0000,-0.3199:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "06fdcb18f1993e29da4c8b86039d412eeb49848c6f9f96869f16f2db4f65dae7"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "hit",
+      "requestedElapsedSeconds": 0.4,
+      "image": "images/F01-full-hit-0400ms.png",
+      "rawImage": "F01-full-hit-0400ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0988,0.2569",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.1744,0.0000,-0.4562:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "hit",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0988,0.2569",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.1744,0.0000,-0.4562:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "9105d10f234c371b7938f96586a287ac2c254d07381c9bf69a99685126f1db66"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "hit",
+      "requestedElapsedSeconds": 0.6,
+      "image": "images/F01-full-hit-0600ms.png",
+      "rawImage": "F01-full-hit-0600ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0574,0.1493",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.1847,0.0000,-0.4348:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "hit",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0574,0.1493",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.1847,0.0000,-0.4348:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "d603bf5cee005dbfcaf315f08f11c42e58ea50081ed8304f37dbe9a5b86b8d44"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "hit",
+      "requestedElapsedSeconds": 0.8,
+      "image": "images/F01-full-hit-0800ms.png",
+      "rawImage": "F01-full-hit-0800ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "-0.0133,0.0345",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0012,0.0000,-0.0878:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "hit",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "-0.0133,0.0345",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0012,0.0000,-0.0878:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "04e76113acfd8b88a168e3122f96e2a0d270041f55e02deb18292c6c99f25c09"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-full-death-0000ms.png",
+      "rawImage": "F01-full-death-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "-0.0140",
+      "bodyPoseSample": "0.0032,0.0000",
+      "poseSample": "-0.0698,0.0000,0.0000:0.0208,0.0000,-0.0405:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0032,0.0000",
+        "data-root-y": "-0.0140",
+        "data-pose-sample": "-0.0698,0.0000,0.0000:0.0208,0.0000,-0.0405:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "c2f425231e51e2f59f8fc3bcc930578a960f094416c61c7f6e8132f5e6579106"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 0.225,
+      "image": "images/F01-full-death-0225ms.png",
+      "rawImage": "F01-full-death-0225ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0569",
+      "bodyPoseSample": "0.2858,0.0000",
+      "poseSample": "-0.0503,0.0000,0.0000:0.0910,0.0000,-0.0834:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.2858,0.0000",
+        "data-root-y": "0.0569",
+        "data-pose-sample": "-0.0503,0.0000,0.0000:0.0910,0.0000,-0.0834:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "4db67d0044146f519180231b2400eb662f724fd7460e78099707405f5a2826c0"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 0.45,
+      "image": "images/F01-full-death-0450ms.png",
+      "rawImage": "F01-full-death-0450ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.2027",
+      "bodyPoseSample": "0.7907,0.0000",
+      "poseSample": "-0.0155,0.0000,0.0000:0.2163,0.0000,-0.1600:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.7907,0.0000",
+        "data-root-y": "0.2027",
+        "data-pose-sample": "-0.0155,0.0000,0.0000:0.2163,0.0000,-0.1600:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "a0690b491d4e46e47c16b0972998350a9bf633f217aec85e9ef970b12bffd65c"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 0.675,
+      "image": "images/F01-full-death-0675ms.png",
+      "rawImage": "F01-full-death-0675ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.3049",
+      "bodyPoseSample": "1.2887,0.0000",
+      "poseSample": "0.0189,0.0000,0.0000:0.3400,0.0000,-0.2355:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "1.2887,0.0000",
+        "data-root-y": "0.3049",
+        "data-pose-sample": "0.0189,0.0000,0.0000:0.3400,0.0000,-0.2355:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "f139cfe1e1a9133f059cefc73f11aa5592619cf62cdca20378d6645ed3c07b2a"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 0.9,
+      "image": "images/F01-full-death-0900ms.png",
+      "rawImage": "F01-full-death-0900ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.4252",
+      "bodyPoseSample": "1.4500,0.0000",
+      "poseSample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "1.4500,0.0000",
+        "data-root-y": "0.4252",
+        "data-pose-sample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "97d152876bbdf28a81a131452632f1ed30cb217ef5c8e17862bc0ddacd2196ab"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 1.35,
+      "image": "images/F01-full-death-1350ms.png",
+      "rawImage": "F01-full-death-1350ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.4252",
+      "bodyPoseSample": "1.4500,0.0000",
+      "poseSample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "1.4500,0.0000",
+        "data-root-y": "0.4252",
+        "data-pose-sample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "97d152876bbdf28a81a131452632f1ed30cb217ef5c8e17862bc0ddacd2196ab"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "motion",
+      "pose": "death",
+      "requestedElapsedSeconds": 1.8,
+      "image": "images/F01-full-death-1800ms.png",
+      "rawImage": "F01-full-death-1800ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.4252",
+      "bodyPoseSample": "1.4500,0.0000",
+      "poseSample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "death",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "1.4500,0.0000",
+        "data-root-y": "0.4252",
+        "data-pose-sample": "0.0300,0.0000,0.0000:0.3800,0.0000,-0.2600:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]"
+      },
+      "sha256": "97d152876bbdf28a81a131452632f1ed30cb217ef5c8e17862bc0ddacd2196ab"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "static",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0,
+      "angle": "front",
+      "image": "images/F01-full-static-front.png",
+      "rawImage": "F01-full-static-front.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "0.0000,2.6000,6.6727,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0232",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0032,0.0000,-0.0295:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "inspectionAzimuth": 0,
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "0.0000,2.6000,6.6727,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0232",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0032,0.0000,-0.0295:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]",
+        "data-inspection-azimuth": "0.000000"
+      },
+      "sha256": "e18032b9935cb9348f460d98ca22a59d8b16ed47d89feeede1d6051cac4fa8da"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "static",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0,
+      "angle": "quarter",
+      "image": "images/F01-full-static-quarter.png",
+      "rawImage": "F01-full-static-quarter.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "4.7183,2.6000,4.7183,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0215",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0015,0.0000,-0.0302:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "inspectionAzimuth": 0.785398,
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "4.7183,2.6000,4.7183,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0215",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0015,0.0000,-0.0302:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]",
+        "data-inspection-azimuth": "0.785398"
+      },
+      "sha256": "d2aa5198eef842364fa640aa147179d555c17c1474765762f2a6d3542643696d"
+    },
+    {
+      "hero": "F01",
+      "lod": "full",
+      "lodIndex": 0,
+      "lodChild": "battlefield-hero-f01.full",
+      "lodVisible": "true,false,false",
+      "kind": "static",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0,
+      "angle": "rear",
+      "image": "images/F01-full-static-rear.png",
+      "rawImage": "F01-full-static-rear.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "0.0000,2.6000,-6.6727,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0202",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0002,0.0000,-0.0308:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true",
+          "slots": 14
+        },
+        {
+          "profile": "cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true",
+          "slots": 5
+        },
+        {
+          "profile": "leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true",
+          "slots": 18
+        },
+        {
+          "profile": "skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true",
+          "slots": 1
+        }
+      ],
+      "surfaceResponseAttributes": [],
+      "inspectionAzimuth": 3.141593,
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "0.0000,2.6000,-6.6727,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0202",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0002,0.0000,-0.0308:0.0000,0.0000,-0.3200",
+        "data-lod-override": "full",
+        "data-lod-index": "0",
+        "data-lod-level": "full",
+        "data-lod-child": "battlefield-hero-f01.full",
+        "data-lod-visible": "true,false,false",
+        "data-lod-material-profile": "[{\"profile\":\"armor|MeshStandardMaterial|metalness=0.36|roughness=0.52|vertexColors=true|flatShading=true\",\"slots\":14},{\"profile\":\"cloth|MeshStandardMaterial|metalness=0.02|roughness=0.92|vertexColors=true|flatShading=true\",\"slots\":5},{\"profile\":\"leather|MeshStandardMaterial|metalness=0.02|roughness=0.82|vertexColors=true|flatShading=true\",\"slots\":18},{\"profile\":\"skin|MeshStandardMaterial|metalness=0|roughness=0.78|vertexColors=true|flatShading=true\",\"slots\":1}]",
+        "data-lod-surface-response": "[]",
+        "data-inspection-azimuth": "3.141593"
+      },
+      "sha256": "82c48cb79d66d77d8cdde81c0b4ecb9e91cd05baa4e3c5f04a83992269f5409a"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-medium-idle-0000ms.png",
+      "rawImage": "F01-medium-idle-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0084",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0116,0.0000,-0.0362:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0084",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0116,0.0000,-0.0362:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "eff45ab23ff499ff331fd16eb81116e65f37e2305855fda71d199fb5b6c429e3"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 0.924,
+      "image": "images/F01-medium-idle-0924ms.png",
+      "rawImage": "F01-medium-idle-0924ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0487",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0287,0.0000,-0.0179:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0487",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0287,0.0000,-0.0179:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "7e3324fd36fdb0645ecfb2f9e97aa3702f951d72d931cde9c95030faab85c6ea"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 1.848,
+      "image": "images/F01-medium-idle-1848ms.png",
+      "rawImage": "F01-medium-idle-1848ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,-0.0418",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0618,0.0000,-0.0590:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,-0.0418",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0618,0.0000,-0.0590:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "1c8242fad8bc896d982e32b5bc9152858de74491b3ad5957da87446853236187"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 2.772,
+      "image": "images/F01-medium-idle-2772ms.png",
+      "rawImage": "F01-medium-idle-2772ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,-0.0172",
+      "poseSample": "-0.0700,0.0000,0.0000:0.0372,0.0000,-0.0478:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,-0.0172",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:0.0372,0.0000,-0.0478:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "5fb328246d82d5daeb3ef11321887be2004b7e5591db746628ba876d210bbea2"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "idle",
+      "requestedElapsedSeconds": 3.696,
+      "image": "images/F01-medium-idle-3696ms.png",
+      "rawImage": "F01-medium-idle-3696ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0550",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.0350,0.0000,-0.0150:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "idle",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0550",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.0350,0.0000,-0.0150:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "fc340310d482fb88142f1216073c6b7f05fb1c3530feab6b4c433cfed0e165aa"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-medium-move-0000ms.png",
+      "rawImage": "F01-medium-move-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.0762,0.0000,0.0000:0.1004,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.0762,0.0000,0.0000:0.1004,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "3354f1d5803725cfbe1ea0cba30fcf79a5c84a8a71ea760f5afee29481d16b72"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.15625,
+      "image": "images/F01-medium-move-0156ms.png",
+      "rawImage": "F01-medium-move-0156ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.2621,0.0000,0.0000:0.2026,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.2621,0.0000,0.0000:0.2026,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "0898a3ad8a0b160bb98760d67bcf9727f6255598f1055e2d951ac33f490529e3"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.3125,
+      "image": "images/F01-medium-move-0313ms.png",
+      "rawImage": "F01-medium-move-0313ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "-0.1569,0.0000,0.0000:-0.0278,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.1569,0.0000,0.0000:-0.0278,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "ce771f0c8fb3f527b8ed8a7553555e232a8bedf4fb237e60aa40540358065a09"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.46875,
+      "image": "images/F01-medium-move-0469ms.png",
+      "rawImage": "F01-medium-move-0469ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "-0.3993,0.0000,0.0000:-0.1611,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.3993,0.0000,0.0000:-0.1611,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "804cab9ab8506d1bfe489f70fe302f98bb76fbabe4880ede7b1471cfab4680fc"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "move",
+      "requestedElapsedSeconds": 0.625,
+      "image": "images/F01-medium-move-0625ms.png",
+      "rawImage": "F01-medium-move-0625ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0000,0.0000",
+      "poseSample": "0.0974,0.0000,0.0000:0.1121,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "move",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0000,0.0000",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "0.0974,0.0000,0.0000:0.1121,0.0000,-0.0400:0.0000,0.0000,-0.3200",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "2c79f03157abff198d851021404015b7caa2f46591a8a88a2702a5575e67ba3e"
+    },
+    {
+      "hero": "F01",
+      "lod": "medium",
+      "lodIndex": 1,
+      "lodChild": "battlefield-hero-f01.medium",
+      "lodVisible": "false,true,false",
+      "kind": "motion",
+      "pose": "attack",
+      "requestedElapsedSeconds": 0,
+      "image": "images/F01-medium-attack-0000ms.png",
+      "rawImage": "F01-medium-attack-0000ms.png",
+      "width": 1200,
+      "height": 661,
+      "camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+      "rootY": "0.0000",
+      "bodyPoseSample": "0.0638,-0.0697",
+      "poseSample": "-0.0700,0.0000,0.0000:-0.3445,0.0000,0.1511:0.0756,0.0000,-0.2658",
+      "materialProfile": [
+        {
+          "profile": "baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true",
+          "slots": 8
+        }
+      ],
+      "surfaceResponseAttributes": [
+        {
+          "mesh": "pivot.weapon.off.baked",
+          "vertexCount": 876,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 156
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 456
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 264
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.left.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "pivot.weapon.main.baked",
+          "vertexCount": 408,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 240
+            }
+          ]
+        },
+        {
+          "mesh": "joint.arm.right.baked",
+          "vertexCount": 564,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 396
+            }
+          ]
+        },
+        {
+          "mesh": "joint.torso.baked",
+          "vertexCount": 2142,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 888
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 804
+            },
+            {
+              "vector": [
+                0.78,
+                0,
+                0
+              ],
+              "vertexCount": 342
+            },
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 108
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.left.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "joint.leg.right.baked",
+          "vertexCount": 546,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 378
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 168
+            }
+          ]
+        },
+        {
+          "mesh": "battlefield-hero-f01.medium.baked",
+          "vertexCount": 1236,
+          "itemSize": 3,
+          "uniqueVectors": [
+            {
+              "vector": [
+                0.92,
+                0.02,
+                0
+              ],
+              "vertexCount": 840
+            },
+            {
+              "vector": [
+                0.52,
+                0.36,
+                0
+              ],
+              "vertexCount": 144
+            },
+            {
+              "vector": [
+                0.82,
+                0.02,
+                0
+              ],
+              "vertexCount": 252
+            }
+          ]
+        }
+      ],
+      "canvasAttributes": {
+        "data-engine": "three.js r180",
+        "data-preview-mode": "catalog",
+        "data-preview-ready": "true",
+        "data-catalog-id": "F01",
+        "data-appearance-key": "senkei.next.hero.f01",
+        "data-silhouette-id": "F01",
+        "data-name": "Bannerhold",
+        "data-generator": "senkei.battlefield-unit.v1",
+        "data-pose": "attack",
+        "data-body-profile": "command",
+        "data-chest-style": "command",
+        "data-weapon": "sword-shield",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000",
+        "data-body-pose-sample": "0.0638,-0.0697",
+        "data-root-y": "0.0000",
+        "data-pose-sample": "-0.0700,0.0000,0.0000:-0.3445,0.0000,0.1511:0.0756,0.0000,-0.2658",
+        "data-lod-override": "medium",
+        "data-lod-index": "1",
+        "data-lod-level": "medium",
+        "data-lod-child": "battlefield-hero-f01.medium",
+        "data-lod-visible": "false,true,false",
+        "data-lod-material-profile": "[{\"profile\":\"baked|MeshStandardMaterial|metalness=0|roughness=1|vertexColors=true|flatShading=true\",\"slots\":8}]",
+        "data-lod-surface-response": "[{\"mesh\":\"pivot.weapon.off.baked\",\"vertexCount\":876,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":156},{\"vector\":[0.52,0.36,0],\"vertexCount\":456},{\"vector\":[0.92,0.02,0],\"vertexCount\":264}]},{\"mesh\":\"joint.arm.left.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"pivot.weapon.main.baked\",\"vertexCount\":408,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":168},{\"vector\":[0.52,0.36,0],\"vertexCount\":240}]},{\"mesh\":\"joint.arm.right.baked\",\"vertexCount\":564,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.52,0.36,0],\"vertexCount\":168},{\"vector\":[0.82,0.02,0],\"vertexCount\":396}]},{\"mesh\":\"joint.torso.baked\",\"vertexCount\":2142,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":888},{\"vector\":[0.52,0.36,0],\"vertexCount\":804},{\"vector\":[0.78,0,0],\"vertexCount\":342},{\"vector\":[0.92,0.02,0],\"vertexCount\":108}]},{\"mesh\":\"joint.leg.left.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"joint.leg.right.baked\",\"vertexCount\":546,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.82,0.02,0],\"vertexCount\":378},{\"vector\":[0.52,0.36,0],\"vertexCount\":168}]},{\"mesh\":\"battlefield-hero-f01.medium.baked\",\"vertexCount\":1236,\"itemSize\":3,\"uniqueVectors\":[{\"vector\":[0.92,0.02,0],\"vertexCount\":840},{\"vector\":[0.52,0.36,0],\"vertexCount\":144},{\"vector\":[0.82,0.02,0],\"vertexCount\":252}]}]"
+      },
+      "sha256": "1f0d7059688361dbc3515960ea659c13556dfd43a9dfe599b588091e95821419"
+    }
+  ],
+  "errors": [],
+  "consoleErrors": [],
+  "httpErrors": [],
+  "failedRequests": [],
+  "status": "failed",
+  "failure": "Error: Pose/camera changed across LOD for F01/attack/0: full vs medium",
+  "contactSheets": {
+    "F01-full": {
+      "image": "F01-full-contact.jpg",
+      "sha256": "3ecff8ef283abc8d7794603ee4c330fc9b4aec3f65b230a7002e0cde98d60346"
+    },
+    "F01-medium": {
+      "image": "F01-medium-contact.jpg",
+      "sha256": "673f0415067fa43f6f861128cc87dbb5b2d4dfc261329b463a3f91b27f8e281b"
+    },
+    "F01-far": {
+      "image": "F01-far-contact.jpg",
+      "sha256": "9ada8e9f584f1494eb347933a5f569d04e2206fc6153bb54f6ef2ae00f9f20ea"
+    },
+    "R01-full": {
+      "image": "R01-full-contact.jpg",
+      "sha256": "e805a2ba03fde10b3bc502c08498bbce03df6500b3519b75b31478c6d8dcb318"
+    },
+    "R01-medium": {
+      "image": "R01-medium-contact.jpg",
+      "sha256": "0627789c1b613a7aff47a77de0ef1ef9b1afe33dc8dfbdc7fc86d22380afaa66"
+    },
+    "R01-far": {
+      "image": "R01-far-contact.jpg",
+      "sha256": "9cb2b16131a7101e8dbec0e48d6dda1a79a56007e5d268a93f9a1c833356c8fd"
+    }
+  },
+  "evidenceComposition": {
+    "errors": []
+  }
+}

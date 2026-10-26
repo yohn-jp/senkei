@@ -1,0 +1,20 @@
+{
+  "sourceRevision": "d5cfd807a5a00e492fd0cbb733b9300e0dc0ed5a",
+  "captureKind": "production-preview-isolated-lab-NOT-app-integration",
+  "results": [
+    {
+      "file": "F01-opposite-side-idle.png",
+      "hero": "F01",
+      "browser": "156.0.8078.47",
+      "camera": "-6.6727,2.6000,-0.0000,0.0000,1.0500,0.0000",
+      "sha256": "39a0a302a43b0109d9af48d9c74ab5dff2a73e003fd163dcc572b29a37624fd0"
+    },
+    {
+      "file": "R01-opposite-side-idle.png",
+      "hero": "R01",
+      "browser": "156.0.8078.47",
+      "camera": "-6.6727,2.6000,-0.0000,0.0000,1.0500,0.0000",
+      "sha256": "6d6b91c11b0a0565a2b9c1a10b6ed272a7b668dcfcd0e0db06f5a4dac33c02e0"
+    }
+  ]
+}

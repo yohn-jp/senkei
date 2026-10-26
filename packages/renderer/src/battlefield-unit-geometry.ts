@@ -20,6 +20,9 @@ export interface ProfileRing {
 /** Closed low-poly swept volume used for anatomy, boots, hafts and organic gear. */
 export function profileGeometry(rings: readonly ProfileRing[], sides = 9): THREE.BufferGeometry {
   if (rings.length < 2 || sides < 5) throw new Error("A profile needs two rings and at least five sides");
+  // Limbs are authored shoulder-to-wrist / hip-to-sole, while torsos and
+  // weapons run upward. Normalize the sweep so both expose outward faces.
+  rings = rings[0].y > rings[rings.length - 1].y ? [...rings].reverse() : rings;
   const positions: number[] = [];
   for (const ring of rings) {
     if (!(ring.radiusX > 0) || !(ring.radiusZ > 0)) throw new Error("Profile radii must be positive");
@@ -49,9 +52,9 @@ export function profileGeometry(rings: readonly ProfileRing[], sides = 9): THREE
   positions.push(last.x ?? 0, last.y, last.z ?? 0);
   for (let side = 0; side < sides; side++) {
     const next = (side + 1) % sides;
-    indices.push(bottomCenter, next, side);
+    indices.push(bottomCenter, side, next);
     const top = (rings.length - 1) * sides;
-    indices.push(topCenter, top + side, top + next);
+    indices.push(topCenter, top + next, top + side);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));

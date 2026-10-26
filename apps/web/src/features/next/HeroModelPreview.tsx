@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-type Pose = "idle" | "move" | "attack";
+type Pose = "idle" | "move" | "attack" | "hit" | "death";
 type Preview = { dispose(): void; setPose(pose: Pose): void; resetView(): void };
 
 export function HeroModelPreview({ catalogId, appearanceKey, name }: {
@@ -41,7 +41,7 @@ export function HeroModelPreview({ catalogId, appearanceKey, name }: {
     {error && <div className="next-hero-model-status" role="status"><p>3D preview unavailable: {error}</p><button onClick={() => setAttempt(value => value + 1)} type="button">Retry model</button></div>}
     <div aria-label="Hero animation preview" className="next-hero-model-controls" role="group">
       <span>Animation preview</span>
-      {(["idle", "move", "attack"] as const).map(value => <button aria-label={`Preview ${value} animation`} aria-pressed={pose === value} disabled={!ready} key={value} onClick={() => changePose(value)} type="button">{value[0].toUpperCase() + value.slice(1)}</button>)}
+      {(["idle", "move", "attack", "hit", "death"] as const).map(value => <button aria-label={`Preview ${value} animation`} aria-pressed={pose === value} disabled={!ready} key={value} onClick={() => changePose(value)} type="button">{value[0].toUpperCase() + value.slice(1)}</button>)}
       <button disabled={!ready} onClick={() => preview.current?.resetView()} type="button">Reset view</button>
     </div>
     <p className="next-hero-model-hint">Drag to turn · Scroll or pinch to zoom. The same equipment and model appear on the battlefield.</p>

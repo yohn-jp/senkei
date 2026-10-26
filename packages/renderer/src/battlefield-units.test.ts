@@ -63,6 +63,38 @@ function worldBounds(root: THREE.Object3D): THREE.Box3 {
   return new THREE.Box3().setFromObject(root);
 }
 
+interface CapeVertexRange {
+  startVertex: number;
+  vertexCount: number;
+}
+
+function capeVertices(level: THREE.Group, world = false): THREE.Vector3[] {
+  level.updateMatrixWorld(true);
+  const cape = level.getObjectByName("joint.cape");
+  if (cape) {
+    const capeMeshes = meshes(cape);
+    if (capeMeshes.length) return capeMeshes.flatMap(mesh => {
+      const positions = mesh.geometry.getAttribute("position");
+      return Array.from({ length: positions.count }, (_, index) => {
+        const point = new THREE.Vector3().fromBufferAttribute(positions, index);
+        return world ? mesh.localToWorld(point) : point;
+      });
+    });
+  }
+
+  return meshes(level).flatMap(mesh => {
+    const ranges = mesh.geometry.userData.bakedCapeRanges as CapeVertexRange[] | undefined;
+    if (!ranges) return [];
+    const positions = mesh.geometry.getAttribute("position");
+    return ranges.flatMap(({ startVertex, vertexCount }) =>
+      Array.from({ length: vertexCount }, (_, offset) => {
+        const point = new THREE.Vector3().fromBufferAttribute(positions, startVertex + offset);
+        return world ? mesh.localToWorld(point) : point;
+      }),
+    );
+  });
+}
+
 describe("Battlefield unit models", () => {
   it("keeps focused targets detailed while reducing untracked LOD by screen occupancy", () => {
     expect(battlefieldUnitLodLevel(10, true, false)).toBe(0);
@@ -88,10 +120,10 @@ describe("Battlefield unit models", () => {
       expect(levels[1].name).toContain(".medium");
       expect(levels[2].name).toContain(".far");
       expect(meshes(levels[0]).length).toBeGreaterThan(8);
-      // Full rigs keep per-joint meshes animatable; common distances are flattened below.
+      // Reduced rigs merge surfaces/decorations into the major moving regions.
       expect(meshes(levels[0]).length).toBeLessThanOrEqual(60);
-      expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
-      expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
+      expect(meshes(levels[1]).length).toBeLessThanOrEqual(8);
+      expect(meshes(levels[2]).length).toBeLessThanOrEqual(8);
       expect(minimumWorldY(levels[0]), `${id} neutral pose stays above the ground`).toBeGreaterThanOrEqual(-0.025);
       expect(rig.joints.torso).toBeInstanceOf(THREE.Group);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
@@ -101,11 +133,12 @@ describe("Battlefield unit models", () => {
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
       expect(group.getObjectByName(rig.joints.torso.name)).toBe(rig.joints.torso);
       const fullArmor = meshes(levels[0]).find(mesh => mesh.userData.unitSurface === "armor");
-      const midArmor = meshes(levels[1]).find(mesh => mesh.userData.unitSurface === "armor");
-      const farArmor = meshes(levels[2]).find(mesh => mesh.userData.unitSurface === "armor");
+      const midBaked = meshes(levels[1]).find(mesh => mesh.userData.unitSurface === "baked");
+      const farBaked = meshes(levels[2]).find(mesh => mesh.userData.unitSurface === "baked");
       expect(fullArmor).toBeDefined();
-      expect(midArmor?.material).toBe(fullArmor?.material);
-      expect(farArmor?.material).toBe(fullArmor?.material);
+      expect(midBaked?.material).toBeDefined();
+      expect(farBaked?.material).toBe(midBaked?.material);
+      expect(midBaked?.material).not.toBe(fullArmor?.material);
       for (const mesh of meshes(levels[0])) {
         expect(mesh.castShadow).toBe(true);
         expect(mesh.receiveShadow).toBe(true);
@@ -115,6 +148,162 @@ describe("Battlefield unit models", () => {
         expect(meshes(level).every(mesh => !mesh.castShadow), `${id} reduced LOD skips the shadow-map pass`).toBe(true);
     }
     expect(names).toHaveProperty("size", 12);
+  });
+
+  it("gives golden capes a tapered, waved cloth silhouette in all LODs without body or hand penetration", () => {
+    for (const id of ["F01", "R01"]) {
+      const root = new THREE.Group();
+      const key = `senkei.next.hero.${id.toLowerCase()}`;
+      const rig = buildBattlefieldHero(root, entity(id, key, id), 0x347e83, key);
+      const levels = lodLevels(root);
+      expect(levels).toHaveLength(3);
+      for (const [levelIndex, level] of levels.entries()) {
+        const points = capeVertices(level);
+        expect(points.length, `${id} LOD ${levelIndex} has cape vertices`).toBeGreaterThan(0);
+        if (levelIndex === 0) {
+          const capeMesh = meshes(level.getObjectByName("joint.cape")!)[0];
+          expect((capeMesh.material as THREE.MeshStandardMaterial).roughness).toBe(0.92);
+          expect((capeMesh.material as THREE.MeshStandardMaterial).metalness).toBe(0.02);
+        } else {
+          const capeMesh = meshes(level).find(mesh => mesh.geometry.userData.bakedCapeRanges);
+          expect(capeMesh).toBeDefined();
+          const response = capeMesh!.geometry.getAttribute("senkeiSurfaceResponse");
+          const ranges = capeMesh!.geometry.userData.bakedCapeRanges as CapeVertexRange[];
+          for (const { startVertex, vertexCount } of ranges) for (let index = startVertex; index < startVertex + vertexCount; index++) {
+            expect(response.getX(index)).toBeCloseTo(0.92);
+            expect(response.getY(index)).toBeCloseTo(0.02);
+            expect(response.getZ(index)).toBe(0);
+          }
+        }
+        const top = points.filter(point => point.y > 1.8);
+        const middle = points.filter(point => point.y > 0.9 && point.y < 1.25);
+        const hem = points.filter(point => point.y < 0.8);
+        const halfWidth = (vertices: readonly THREE.Vector3[]) => Math.max(...vertices.map(point => Math.abs(point.x)));
+        expect(Math.min(...points.map(point => point.y)), `${id} LOD ${levelIndex} hem clears the lower legs`).toBeGreaterThan(0.52);
+        expect(halfWidth(middle), `${id} LOD ${levelIndex} flares below the shoulder`).toBeGreaterThan(halfWidth(top) * 1.35);
+        expect(halfWidth(middle), `${id} LOD ${levelIndex} tapers toward the hem`).toBeGreaterThan(halfWidth(hem) * 1.03);
+
+        const centerHem = hem.filter(point => Math.abs(point.x) < 0.06).map(point => point.y);
+        const outerTails = hem.filter(point => Math.abs(point.x) > 0.08 && Math.abs(point.x) < 0.3).map(point => point.y);
+        expect(centerHem.length).toBeGreaterThan(0);
+        expect(outerTails.length).toBeGreaterThan(0);
+        expect(Math.min(...centerHem), `${id} LOD ${levelIndex} has a lifted central notch`).toBeGreaterThan(Math.min(...outerTails) + 0.12);
+        const midBackFold = points.filter(point => Math.abs(point.y - 1.22) < 0.045);
+        expect(Math.max(...midBackFold.map(point => point.y)) - Math.min(...midBackFold.map(point => point.y)), `${id} LOD ${levelIndex} has hanging crosswise drape`).toBeGreaterThan(0.035);
+        expect(Math.max(...midBackFold.map(point => point.z)) - Math.min(...midBackFold.map(point => point.z)), `${id} LOD ${levelIndex} has broad vertical folds`).toBeGreaterThan(0.14);
+        const centerBack = midBackFold.filter(point => Math.abs(point.x) < 0.03);
+        const outerBack = midBackFold.filter(point => Math.abs(point.x) > 0.18);
+        expect(centerBack.length).toBeGreaterThan(0);
+        expect(outerBack.length).toBeGreaterThan(0);
+        const outerMeanZ = outerBack.reduce((sum, point) => sum + point.z, 0) / outerBack.length;
+        expect(Math.max(...centerBack.map(point => point.z)), `${id} LOD ${levelIndex} bows away behind the back`).toBeLessThan(outerMeanZ - 0.1);
+        expect(Math.max(...points.map(point => point.z)) - Math.min(...points.map(point => point.z)), `${id} LOD ${levelIndex} has a swept rear drape`).toBeGreaterThan(0.38);
+
+        const worldPoints = capeVertices(level, true);
+        const torso = rig.lodRigs![levelIndex].joints.torso;
+        const torsoBack = worldBounds(torso).min.z;
+        const capeAboveWaist = worldPoints.filter(point => point.y < 1.7);
+        expect(Math.max(...capeAboveWaist.map(point => point.z)), `${id} LOD ${levelIndex} cloth stays behind the torso`).toBeLessThan(torsoBack - 0.02);
+        if (levelIndex === 0) {
+          const hand = rig.lodRigs![levelIndex].joints["hand.right"];
+          const handBounds = worldBounds(hand);
+          const capeBehindHand = worldPoints.filter(point =>
+            point.x >= handBounds.min.x && point.x <= handBounds.max.x &&
+            point.y >= handBounds.min.y && point.y <= handBounds.max.y,
+          );
+          expect(capeBehindHand.length).toBeGreaterThan(0);
+          expect(Math.max(...capeBehindHand.map(point => point.z)), `${id} cape stays behind the hand at overlapping height`).toBeLessThan(handBounds.min.z - 0.01);
+        }
+        if (levelIndex > 0) expect(meshes(level).length, `${id} LOD ${levelIndex} stays within the low mesh budget`).toBeLessThanOrEqual(8);
+      }
+      if (id === "R01") {
+        for (const side of ["left", "right"]) {
+          const arm = rig.joints[`arm.${side}`];
+          expect(arm.children.some(child => child instanceof THREE.Mesh && child.userData.unitSurface === "armor")).toBe(false);
+        }
+        const chest = root.getObjectByName("armor.chest")!;
+        expect(meshes(chest).some(mesh => mesh.userData.unitSurface === "armor")).toBe(false);
+        const tunic = chest.getObjectByName("armor.chest.cloth") as THREE.Mesh;
+        tunic.geometry.computeBoundingBox();
+        expect(tunic.geometry.boundingBox!.getSize(new THREE.Vector3()).z).toBeGreaterThan(0.4);
+      }
+    }
+  });
+
+  it("retains per-surface material response in the R01 reduced LODs within the draw budget", () => {
+    const root = new THREE.Group();
+    const key = "senkei.next.hero.r01";
+    buildBattlefieldHero(root, entity("R01", key, "R01"), 0x347e83, key);
+    const levels = lodLevels(root);
+    const baked = levels.slice(1).map(level => meshes(level));
+    const expected = ["0.52,0.36,0", "0.92,0.02,0", "0.82,0.02,0", "0.78,0,0", "0.3,0.1,1"];
+
+    expect(baked[0].length).toBeLessThanOrEqual(8);
+    expect(baked[1].length).toBeLessThanOrEqual(8);
+    const sharedBakedMaterial = baked[0][0].material as THREE.MeshStandardMaterial;
+    expect(sharedBakedMaterial).toBe(baked[1][0].material);
+    expect(sharedBakedMaterial.side).toBe(THREE.DoubleSide);
+    expect(sharedBakedMaterial.customProgramCacheKey()).toBe("senkei.baked-unit-surface-response.v1");
+
+    for (const reducedMeshes of baked) {
+      const responses = new Set<string>();
+      for (const mesh of reducedMeshes) {
+        expect(mesh.userData.unitSurface).toBe("baked");
+        expect(mesh.material).toBe(sharedBakedMaterial);
+        const response = mesh.geometry.getAttribute("senkeiSurfaceResponse");
+        expect(response).toBeDefined();
+        expect(response.count).toBe(mesh.geometry.getAttribute("position").count);
+        for (let index = 0; index < response.count; index++) {
+          responses.add([
+            response.getX(index), response.getY(index), response.getZ(index),
+          ].map(value => Math.round(value * 100) / 100).join(","));
+        }
+      }
+      for (const surfaceResponse of expected) expect(responses).toContain(surfaceResponse);
+    }
+
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as Parameters<typeof sharedBakedMaterial.onBeforeCompile>[0];
+    sharedBakedMaterial.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.vertexShader).toContain("attribute vec3 senkeiSurfaceResponse;");
+    expect(shader.vertexShader).toContain("vSenkeiSurfaceResponse = senkeiSurfaceResponse;");
+    expect(shader.fragmentShader).toContain("roughnessFactor = clamp(vSenkeiSurfaceResponse.x, 0.04, 1.0);");
+    expect(shader.fragmentShader).toContain("metalnessFactor = clamp(vSenkeiSurfaceResponse.y, 0.0, 1.0);");
+    expect(shader.fragmentShader).toContain("totalEmissiveRadiance = emissive * vSenkeiSurfaceResponse.z;");
+  });
+
+  it("keeps F01's command cuirass integrated and angles its sword clear of the torso", () => {
+    const root = new THREE.Group();
+    const rig = buildBattlefieldHero(root, entity("F01", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    const chest = root.getObjectByName("armor.chest")!;
+    const armor = chest.getObjectByName("armor.chest.armor") as THREE.Mesh;
+    const positions = armor.geometry.getAttribute("position");
+    const centerBottom = Math.min(...Array.from({ length: positions.count }, (_, index) => ({
+      x: positions.getX(index), y: positions.getY(index),
+    })).filter(point => Math.abs(point.x) < 1e-5).map(point => point.y));
+    expect(centerBottom, "the chest crest should not end in a shield-like point").toBeGreaterThan(0.26);
+    expect(rig.restPose?.["weapon.main"]?.z).toBeCloseTo(-0.32);
+
+    const torso = rig.joints.torso.getObjectByName("joint.torso.leather")!;
+    expect(worldBounds(rig.weaponPivots.main).max.x, "the sword should clear the breastplate's edge").toBeGreaterThan(worldBounds(torso).max.x);
+  });
+
+  it("keeps the golden mouth a narrow facial mark instead of a projecting block", () => {
+    const root = new THREE.Group();
+    const rig = buildBattlefieldHero(root, entity("F01", "senkei.next.hero.f01", "F01"), 0x347e83, "senkei.next.hero.f01");
+    const mouthColor = new THREE.Color(0x684c40);
+    const mouth = new THREE.Box3();
+    for (const mesh of meshes(rig.joints.head)) {
+      const colors = mesh.geometry.getAttribute("color");
+      const positions = mesh.geometry.getAttribute("position");
+      for (let i = 0; i < colors.count; i++) if (Math.abs(colors.getX(i) - mouthColor.r) < 1e-6 && Math.abs(colors.getY(i) - mouthColor.g) < 1e-6) mouth.expandByPoint(new THREE.Vector3().fromBufferAttribute(positions, i));
+    }
+    expect(mouth.isEmpty()).toBe(false);
+    expect(mouth.getSize(new THREE.Vector3()).x).toBeLessThan(0.13);
+    expect(mouth.getSize(new THREE.Vector3()).y).toBeLessThan(0.02);
   });
 
   it("shares the common facet materials and exposes a reproducible appearance record", () => {
@@ -129,10 +318,75 @@ describe("Battlefield unit models", () => {
       assetKey: "hero.f01",
       appearanceKey: "senkei.next.hero.f01",
       generator: "senkei.battlefield-unit.v1",
-      generatorVersion: 1,
+      generatorVersion: 6,
       lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
       source: "project-authored-procedural-geometry",
     }));
+  });
+
+  it("reproduces golden identities, rig transforms and every LOD geometry buffer", () => {
+    for (const [id, name, weapon] of [["F01", "Bannerhold", "sword-shield"], ["R01", "Tempest", "staff"]]) {
+      const build = () => {
+        const group = new THREE.Group();
+        const appearanceKey = `senkei.next.hero.${id.toLowerCase()}`;
+        const rig = buildBattlefieldHero(group, entity(id, appearanceKey, id), 0x347e83, appearanceKey);
+        group.updateMatrixWorld(true);
+        return { group, rig };
+      };
+      const first = build();
+      const second = build();
+      expect(first.group.userData.heroName).toBe(name);
+      expect(first.group.userData.heroWeapon).toBe(weapon);
+      expect(first.group.userData.assetManifest).toEqual(second.group.userData.assetManifest);
+      expect(first.rig.restPose).toEqual(second.rig.restPose);
+      const firstLevels = lodLevels(first.group);
+      const secondLevels = lodLevels(second.group);
+      firstLevels.forEach((level, levelIndex) => {
+        const firstMeshes = meshes(level);
+        const secondMeshes = meshes(secondLevels[levelIndex]);
+        expect(firstMeshes.map(mesh => mesh.name)).toEqual(secondMeshes.map(mesh => mesh.name));
+        firstMeshes.forEach((mesh, meshIndex) => {
+          const other = secondMeshes[meshIndex];
+          expect(mesh.matrixWorld.elements).toEqual(other.matrixWorld.elements);
+          expect(Object.keys(mesh.geometry.attributes)).toEqual(Object.keys(other.geometry.attributes));
+          for (const attribute of ["position", "normal", "color"]) {
+            const values = mesh.geometry.getAttribute(attribute).array;
+            expect(Array.from(values).every(Number.isFinite), `${id} ${mesh.name} ${attribute}`).toBe(true);
+            expect(values).toEqual(other.geometry.getAttribute(attribute).array);
+          }
+          expect(mesh.geometry.index?.array).toEqual(other.geometry.index?.array);
+        });
+      });
+      for (const key of ["main", "off"]) {
+        const pivot = first.rig.weaponPivots[key];
+        expect(pivot.parent).toBe(first.rig.joints[`hand.${key === "main" ? "right" : "left"}`]);
+      }
+      const hand = first.rig.joints["hand.right"];
+      const handMesh = hand.children.find(child => child instanceof THREE.Mesh)!;
+      const weaponLeather = first.rig.weaponPivots.main.children.find(child => child instanceof THREE.Mesh && child.userData.unitSurface === "leather")!;
+      expect(worldBounds(handMesh).intersectsBox(worldBounds(weaponLeather)), `${id} grip intersects the hand`).toBe(true);
+    }
+  });
+
+  it("bends golden shins about the authored kneecaps while keeping the knee attached", () => {
+    for (const id of ["F01", "R01"]) {
+      const group = new THREE.Group();
+      const key = `senkei.next.hero.${id.toLowerCase()}`;
+      const rig = buildBattlefieldHero(group, entity(id, key, id), 0x347e83, key);
+      for (const side of ["left", "right"]) {
+        const leg = rig.joints[`leg.${side}`];
+        const shin = rig.joints[`shin.${side}`];
+        expect(shin.parent).toBe(leg);
+        const kneeInLeg = new THREE.Vector3(0, -0.45, 0);
+        expect(shin.position.distanceTo(kneeInLeg)).toBeLessThan(1e-8);
+        group.updateMatrixWorld(true);
+        const before = shin.getWorldPosition(new THREE.Vector3());
+        shin.rotation.x += 0.4;
+        group.updateMatrixWorld(true);
+        expect(shin.getWorldPosition(new THREE.Vector3()).distanceTo(before)).toBeLessThan(1e-8);
+        expect(leg.localToWorld(kneeInLeg).distanceTo(before)).toBeLessThan(1e-8);
+      }
+    }
   });
 
   it("gives each Hero an authored stance and a distinct shape signature independent of palette colors", () => {
@@ -205,7 +459,7 @@ describe("Battlefield unit models", () => {
       expect(levels).toHaveLength(3);
       levels.forEach((level, index) => {
         signaturesByLevel[index].add(silhouetteBounds(level));
-        if (index > 0) expect(meshes(level).length).toBeLessThanOrEqual(5);
+        if (index > 0) expect(meshes(level).length).toBeLessThanOrEqual(8);
       });
       expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
@@ -228,8 +482,8 @@ describe("Battlefield unit models", () => {
       levels.forEach((level, index) => signaturesByLevel[index].add(silhouetteBounds(level)));
       expect(group.userData.species).toBe(species);
       expect(levels).toHaveLength(3);
-      expect(meshes(levels[1]).length).toBeLessThanOrEqual(5);
-      expect(meshes(levels[2]).length).toBeLessThanOrEqual(5);
+      expect(meshes(levels[1]).length).toBeLessThanOrEqual(9);
+      expect(meshes(levels[2]).length).toBeLessThanOrEqual(9);
       expect(minimumWorldY(levels[0])).toBeGreaterThanOrEqual(-0.025);
       expect(rig.joints.head).toBeInstanceOf(THREE.Group);
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);

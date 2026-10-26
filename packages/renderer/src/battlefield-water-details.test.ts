@@ -52,5 +52,31 @@ describe("Battlefield water details", () => {
     expect(details.getObjectByName("fixed-bridge-ford.upper")).toBeUndefined();
     expect(details.children.some((child) => /deck|rail/i.test(child.name))).toBe(false);
     expect(instancePositions(stones).every((point) => Math.hypot(point.x, point.z) < 2.1)).toBe(true);
+    expect(stones.geometry).toBeInstanceOf(THREE.DodecahedronGeometry);
+    expect((stones.geometry as THREE.DodecahedronGeometry).parameters.detail).toBe(0);
+    const material = stones.material as THREE.MeshStandardMaterial;
+    expect(material.flatShading).toBe(true);
+    expect(material.roughness).toBeGreaterThanOrEqual(0.9);
+    expect(material.metalness).toBe(0);
+    expect(material.transparent).toBe(false);
+    expect(stones.castShadow).toBe(true);
+  });
+
+  it("rebuilds water decoration deterministically without changing Replay data", () => {
+    const replay = replayWithRiverFeatures();
+    const before = JSON.stringify(replay);
+    const first = buildBattlefieldWaterDetails(new THREE.Scene(), replay);
+    const second = buildBattlefieldWaterDetails(new THREE.Scene(), replay);
+    for (const child of first.children as THREE.InstancedMesh[]) {
+      const rebuilt = second.getObjectByName(child.name) as THREE.InstancedMesh;
+      expect(rebuilt.instanceMatrix.array).toEqual(child.instanceMatrix.array);
+      expect(rebuilt.instanceColor?.array).toEqual(child.instanceColor?.array);
+      if (child.name !== "ford-shallow-stones") {
+        const material = child.material as THREE.Material;
+        expect(material.transparent).toBe(true);
+        expect(material.depthWrite).toBe(false);
+      }
+    }
+    expect(JSON.stringify(replay)).toBe(before);
   });
 });

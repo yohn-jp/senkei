@@ -1,25 +1,78 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { DisplayEntity } from "@senkei/replay-contract";
-import { buildBattlefieldHero, type BattlefieldUnitRig } from "./battlefield-units";
+import { buildBattlefieldHero, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 
-export type HeroPreviewPose = "idle" | "move" | "attack";
+import { applyHeroPreviewMotion, type HeroPreviewPose } from "./hero-preview-motion";
+export type { HeroPreviewPose } from "./hero-preview-motion";
 
 export interface HeroModelPreviewOptions {
   catalogId: string;
   appearanceKey: string;
   name: string;
+  /** Inspection-only selection. Omit to preserve the production distance-based LOD. */
+  lodOverride?: HeroPreviewLod;
   onError?: (message: string) => void;
 }
+
+export type HeroPreviewLod = "full" | "medium" | "far";
 
 export interface HeroModelPreviewController {
   dispose(): void;
   setPose(pose: HeroPreviewPose): void;
   resetView(): void;
+  /** Inspection-only deterministic orbit used by the isolated art lab. */
+  setInspectionAzimuth(radians: number): void;
+  /** Freeze an exact elapsed sample for the isolated art lab; live time is the default. */
+  setInspectionElapsedSeconds(seconds: number): void;
 }
 
 const TEAM_COLOR = 0x71847b;
 const GENERATOR = "senkei.battlefield-unit.v1";
+
+function materialProfile(root: THREE.Object3D): string {
+  const counts = new Map<string, number>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const surface = String(object.userData.unitSurface ?? "unlabeled");
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      const standard = material as THREE.MeshStandardMaterial;
+      const key = [
+        surface,
+        material.type,
+        `metalness=${standard.metalness ?? "n/a"}`,
+        `roughness=${standard.roughness ?? "n/a"}`,
+        `vertexColors=${standard.vertexColors ?? false}`,
+        `flatShading=${standard.flatShading ?? false}`,
+      ].join("|");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  });
+  return JSON.stringify([...counts].sort(([left], [right]) => left.localeCompare(right)).map(([profile, slots]) => ({ profile, slots })));
+}
+
+function surfaceResponseProfile(root: THREE.Object3D): string {
+  const meshes: Array<{ mesh: string; vertexCount: number; itemSize: number; uniqueVectors: Array<{ vector: number[]; vertexCount: number }> }> = [];
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const attribute = object.geometry.getAttribute("senkeiSurfaceResponse");
+    if (!attribute) return;
+    const counts = new Map<string, number>();
+    for (let index = 0; index < attribute.count; index++) {
+      const vector = Array.from({ length: attribute.itemSize }, (_, component) =>
+        Number(attribute.array[index * attribute.itemSize + component]!.toFixed(6)));
+      const key = vector.join(",");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    meshes.push({
+      mesh: object.name,
+      vertexCount: attribute.count,
+      itemSize: attribute.itemSize,
+      uniqueVectors: [...counts].map(([key, vertexCount]) => ({ vector: key.split(",").map(Number), vertexCount })),
+    });
+  });
+  return JSON.stringify(meshes);
+}
 
 function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   return {
@@ -36,52 +89,7 @@ function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   } as DisplayEntity;
 }
 
-function setRotation(rig: BattlefieldUnitRig, key: string, group: THREE.Group | undefined, x = 0, y = 0, z = 0): void {
-  if (!group) return;
-  const rest = rig.restPose?.[key] ?? { x: 0, y: 0, z: 0 };
-  group.rotation.set(rest.x + x, rest.y + y, rest.z + z);
-}
-
-function applyPose(rig: BattlefieldUnitRig, pose: HeroPreviewPose, elapsedSeconds: number, reducedMotion: boolean, model: THREE.Group): void {
-  const { joints, weaponPivots } = rig;
-  for (const [key, group] of Object.entries(joints)) setRotation(rig, key, group);
-  for (const [key, group] of Object.entries(weaponPivots)) setRotation(rig, `weapon.${key}`, group);
-  model.position.y = 0;
-
-  if (pose === "idle") {
-    if (!reducedMotion) {
-      const breath = Math.sin(elapsedSeconds * 1.7);
-      setRotation(rig, "torso", joints.torso, breath * 0.025, 0, breath * 0.012);
-      setRotation(rig, "head", joints.head, 0, Math.sin(elapsedSeconds * 0.8) * 0.035, 0);
-      setRotation(rig, "cape", joints.cape, breath * 0.035, 0, 0);
-    }
-    return;
-  }
-
-  if (pose === "move") {
-    const phase = reducedMotion ? 0.45 : elapsedSeconds * Math.PI * 3.2;
-    const gait = Math.sin(phase) * (reducedMotion ? 0.3 : 0.44);
-    setRotation(rig, "leg.left", joints["leg.left"], gait, 0, 0);
-    setRotation(rig, "leg.right", joints["leg.right"], -gait, 0, 0);
-    setRotation(rig, "arm.left", joints["arm.left"], -gait * 0.62, 0, 0);
-    setRotation(rig, "arm.right", joints["arm.right"], gait * 0.62, 0, 0);
-    setRotation(rig, "torso", joints.torso, -0.055 + Math.abs(gait) * 0.035, 0, 0);
-    if (!reducedMotion) model.position.y = Math.abs(Math.sin(phase * 2)) * 0.035;
-    return;
-  }
-
-  const cycle = reducedMotion ? 0.53 : (elapsedSeconds % 1.45) / 1.45;
-  const windup = THREE.MathUtils.smoothstep(cycle, 0.02, 0.29);
-  const strike = THREE.MathUtils.smoothstep(cycle, 0.29, 0.48);
-  const recover = THREE.MathUtils.smoothstep(cycle, 0.48, 0.82);
-  const swing = windup * (1 - strike) + strike * (1 - recover);
-  setRotation(rig, "torso", joints.torso, 0.02 - swing * 0.2, swing * 0.15, -swing * 0.08);
-  setRotation(rig, "arm.right", joints["arm.right"], -0.08 - windup * 0.28 + strike * 0.1, 0, -swing * 0.24);
-  setRotation(rig, "weapon.main", weaponPivots.main, -swing * 0.32, 0, -windup * 0.18 + strike * 0.9);
-  setRotation(rig, "arm.left", joints["arm.left"], 0.08 + swing * 0.12, 0, swing * 0.08);
-}
-
-function disposeScene(scene: THREE.Scene): void {
+export function disposeHeroPreviewScene(scene: THREE.Scene): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   scene.traverse((object) => {
@@ -90,7 +98,7 @@ function disposeScene(scene: THREE.Scene): void {
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
   });
   for (const geometry of geometries) geometry.dispose();
-  for (const material of materials) material.dispose();
+  for (const material of materials) if (!isSharedUnitMaterial(material)) material.dispose();
 }
 
 /**
@@ -186,11 +194,26 @@ export function createHeroModelPreview(
   try {
     rig = buildBattlefieldHero(model, entity, TEAM_COLOR, options.appearanceKey);
   } catch (error) {
-    disposeScene(scene);
+    controls.dispose();
+    disposeHeroPreviewScene(scene);
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
     throw error;
+  }
+  const heroLod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD);
+  const lodProfiles = heroLod?.levels.map(({ object }) => materialProfile(object)) ?? [];
+  const lodSurfaceResponses = heroLod?.levels.map(({ object }) => surfaceResponseProfile(object)) ?? [];
+  let motionRig = rig;
+  if (options.lodOverride) {
+    if (!heroLod) throw new Error("Hero preview LOD override requested, but the generated Hero has no LOD.");
+    const selectedIndex = heroLod.levels.findIndex(({ object }) => object.name.endsWith(`.${options.lodOverride}`));
+    if (selectedIndex < 0) throw new Error(`Hero preview does not contain the requested ${options.lodOverride} LOD.`);
+    const selectedRig = rig.lodRigs?.[selectedIndex];
+    if (!selectedRig) throw new Error(`Hero preview is missing the ${options.lodOverride} LOD rig.`);
+    motionRig = selectedRig;
+    heroLod.autoUpdate = false;
+    heroLod.levels.forEach(({ object }, index) => { object.visible = index === selectedIndex; });
   }
   renderer.domElement.dataset.generator = String(model.userData.battlefieldRig?.generator ?? GENERATOR);
   renderer.domElement.dataset.silhouetteId = String(model.userData.heroSilhouette ?? options.catalogId);
@@ -203,20 +226,36 @@ export function createHeroModelPreview(
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   let pose: HeroPreviewPose = "idle";
   let poseStarted = performance.now();
+  let inspectionElapsedSeconds: number | undefined;
   let disposed = false;
   let observer: ResizeObserver | undefined;
 
   const recordFrame = () => {
     renderer.domElement.dataset.camera = [...camera.position.toArray(), ...controls.target.toArray()].map(value => value.toFixed(4)).join(",");
-    renderer.domElement.dataset.poseSample = [rig.joints["leg.left"], rig.joints["arm.right"], rig.weaponPivots.main]
+    renderer.domElement.dataset.bodyPoseSample = [model.rotation.z, motionRig.joints.torso?.rotation.z ?? 0].map(value => value.toFixed(4)).join(",");
+    renderer.domElement.dataset.rootY = model.position.y.toFixed(4);
+    renderer.domElement.dataset.poseSample = [motionRig.joints["leg.left"], motionRig.joints["arm.right"], motionRig.weaponPivots.main]
       .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
+    if (inspectionElapsedSeconds === undefined) delete renderer.domElement.dataset.elapsedSeconds;
+    else renderer.domElement.dataset.elapsedSeconds = inspectionElapsedSeconds.toFixed(6);
+    if (heroLod) {
+      const selectedIndex = heroLod.levels.findIndex(({ object }) => object.visible);
+      const selected = heroLod.levels[selectedIndex]?.object;
+      renderer.domElement.dataset.lodOverride = options.lodOverride ?? "automatic";
+      renderer.domElement.dataset.lodIndex = String(selectedIndex);
+      renderer.domElement.dataset.lodLevel = selected?.name.split(".").at(-1) ?? "none";
+      renderer.domElement.dataset.lodChild = selected?.name ?? "none";
+      renderer.domElement.dataset.lodVisible = heroLod.levels.map(({ object }) => String(object.visible)).join(",");
+      renderer.domElement.dataset.lodMaterialProfile = selectedIndex >= 0 ? lodProfiles[selectedIndex] ?? "[]" : "[]";
+      renderer.domElement.dataset.lodSurfaceResponse = selectedIndex >= 0 ? lodSurfaceResponses[selectedIndex] ?? "[]" : "[]";
+    }
   };
   const render = () => {
     if (!disposed) { renderer.render(scene, camera); recordFrame(); }
   };
   const animate = (time: number) => {
     if (disposed) return;
-    applyPose(rig, pose, Math.max(0, (time - poseStarted) / 1000), false, model);
+    applyHeroPreviewMotion(motionRig, model, pose, inspectionElapsedSeconds ?? Math.max(0, (time - poseStarted) / 1000), false, entity.id);
     controls.update();
     renderer.render(scene, camera);
     recordFrame();
@@ -254,7 +293,7 @@ export function createHeroModelPreview(
     observer.observe(host);
   } else window.addEventListener("resize", resize);
   resize();
-  if (reducedMotion) applyPose(rig, pose, 0, true, model);
+  if (reducedMotion) applyHeroPreviewMotion(motionRig, model, pose, 0, true, entity.id);
   else renderer.setAnimationLoop(animate);
   render();
 
@@ -262,11 +301,18 @@ export function createHeroModelPreview(
     setPose(nextPose) {
       pose = nextPose;
       poseStarted = performance.now();
+      inspectionElapsedSeconds = undefined;
+      delete renderer.domElement.dataset.elapsedSeconds;
       renderer.domElement.dataset.pose = nextPose;
-      if (reducedMotion) {
-        applyPose(rig, pose, 0, true, model);
-        render();
-      }
+      applyHeroPreviewMotion(motionRig, model, pose, 0, reducedMotion, entity.id);
+      render();
+    },
+    setInspectionElapsedSeconds(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Hero preview inspection elapsed time must be a finite nonnegative number.");
+      inspectionElapsedSeconds = seconds;
+      applyHeroPreviewMotion(motionRig, model, pose, seconds, reducedMotion, entity.id);
+      recordFrame();
+      render();
     },
     resetView() {
       const damping = controls.enableDamping;
@@ -278,6 +324,23 @@ export function createHeroModelPreview(
       camera.updateProjectionMatrix();
       controls.update();
       controls.enableDamping = damping;
+      delete renderer.domElement.dataset.inspectionAzimuth;
+      render();
+    },
+    setInspectionAzimuth(radians) {
+      if (!Number.isFinite(radians)) throw new Error("Hero preview inspection azimuth must be finite.");
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.target.copy(initialTarget);
+      const horizontalRadius = Math.hypot(initialCamera.x - initialTarget.x, initialCamera.z - initialTarget.z);
+      camera.position.set(
+        initialTarget.x + Math.sin(radians) * horizontalRadius,
+        initialCamera.y,
+        initialTarget.z + Math.cos(radians) * horizontalRadius,
+      );
+      controls.update();
+      controls.enableDamping = damping;
+      renderer.domElement.dataset.inspectionAzimuth = radians.toFixed(6);
       render();
     },
     dispose() {
@@ -290,7 +353,7 @@ export function createHeroModelPreview(
       controls.dispose();
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
-      disposeScene(scene);
+      disposeHeroPreviewScene(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

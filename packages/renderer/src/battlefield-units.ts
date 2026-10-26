@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { BattlefieldRigMotion } from "./battlefield-unit-rig-motion";
 import type { DisplayEntity } from "@senkei/replay-contract";
 import {
   mergeColoredGeometry,
@@ -54,7 +55,7 @@ const HERO_BODY_PROPORTIONS: Record<HeroBodyProfile, HeroBodyProportions> = {
 };
 
 const HERO_SHAPES: Record<string, ShapeSpec> = {
-  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
+  f01: { id: "F01", name: "Bannerhold", weapon: "sword-shield", headgear: "helm", cloth: 0x365a66, armor: 0x8c9b9c, accent: 0xc7a966, build: 1.03, mantle: true, bodyProfile: "command", stance: { "arm.left": [-0.12, 0, 0.12], "arm.right": [0.02, 0, -0.04], "weapon.main": [0, 0, -0.32], "leg.left": [-0.07, 0, 0], "leg.right": [0.05, 0, 0] } },
   f02: { id: "F02", name: "Stoneheart", weapon: "tower-shield", headgear: "bastion", cloth: 0x465963, armor: 0x75868c, accent: 0xb99760, build: 1.18, mantle: true, bodyProfile: "bastion", stance: { torso: [0.015, 0, 0], "arm.left": [-0.18, 0, 0.18], "arm.right": [0.04, 0, -0.08], "leg.left": [-0.03, 0, 0], "leg.right": [0.03, 0, 0] } },
   f03: { id: "F03", name: "Breach", weapon: "spear", headgear: "crest", cloth: 0x705d43, armor: 0x9a9a88, accent: 0xd1af6d, build: 0.95, mantle: false, bodyProfile: "breacher", stance: { torso: [0.095, 0, 0], "arm.left": [-0.06, 0, 0.12], "arm.right": [-0.12, 0, -0.12], "weapon.main": [0, 0, -0.18] } },
   f04: { id: "F04", name: "Rook", weapon: "twin-blades", headgear: "duelist", cloth: 0x566b70, armor: 0x8e9893, accent: 0xc4a879, build: 0.82, mantle: false, bodyProfile: "duelist", stance: { torso: [0.015, 0.1, 0], "arm.left": [-0.12, 0, -0.34], "arm.right": [-0.08, 0, 0.34], "leg.left": [0.03, 0, 0], "leg.right": [-0.03, 0, 0], "weapon.main": [0.04, 0, -0.34], "weapon.off": [0.04, 0, 0.34] } },
@@ -69,11 +70,29 @@ const HERO_SHAPES: Record<string, ShapeSpec> = {
 };
 
 export interface BattlefieldUnitRig {
+  /** Ordered rigs for the mutually exclusive visible LOD levels. */
+  lodRigs?: readonly BattlefieldUnitRig[];
   joints: Record<string, THREE.Group>;
   weaponPivots: Record<string, THREE.Group>;
   anchors: Record<string, THREE.Object3D>;
   /** Neutral local Euler rotations. Replay animation channels add offsets to these values. */
   restPose?: Readonly<Record<string, Readonly<{ x: number; y: number; z: number }>>>;
+}
+
+/** Selects and poses only the visible level, using authored rotations on every sample. */
+export function applyBattlefieldUnitLodMotion(rig: BattlefieldUnitRig, level: number, motion: BattlefieldRigMotion): BattlefieldUnitRig {
+  const selected = rig.lodRigs?.[Math.min(Math.max(0, level), rig.lodRigs.length - 1)] ?? rig;
+  for (const [name, joint] of Object.entries(selected.joints)) {
+    const rest = selected.restPose?.[name];
+    const delta = motion.joints[name] ?? motion.joints[name.replace(/\.(front|back)$/, "")];
+    if (rest) joint.rotation.set(rest.x + (delta?.x ?? 0), rest.y + (delta?.y ?? 0), rest.z + (delta?.z ?? 0));
+  }
+  for (const [name, pivot] of Object.entries(selected.weaponPivots)) {
+    const rest = selected.restPose?.[`weapon.${name}`];
+    const delta = motion.weaponPivots[name];
+    if (rest) pivot.rotation.set(rest.x + (delta?.x ?? 0), rest.y + (delta?.y ?? 0), rest.z + (delta?.z ?? 0));
+  }
+  return selected;
 }
 
 interface Bucket {
@@ -91,12 +110,58 @@ const SHARED_UNIT_MATERIALS: UnitMaterials = {
   glow: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.1, roughness: 0.3, emissive: 0x49361c, emissiveIntensity: 0.2, flatShading: true }),
 };
 
+const BAKED_UNIT_MATERIAL = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  vertexColors: true,
+  metalness: 0,
+  roughness: 1,
+  emissive: SHARED_UNIT_MATERIALS.glow.emissive,
+  emissiveIntensity: SHARED_UNIT_MATERIALS.glow.emissiveIntensity,
+  flatShading: true,
+  side: THREE.DoubleSide,
+});
+
+BAKED_UNIT_MATERIAL.onBeforeCompile = shader => {
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      "#include <common>",
+      "#include <common>\nattribute vec3 senkeiSurfaceResponse;\nvarying vec3 vSenkeiSurfaceResponse;",
+    )
+    .replace(
+      "#include <begin_vertex>",
+      "#include <begin_vertex>\nvSenkeiSurfaceResponse = senkeiSurfaceResponse;",
+    );
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "#include <common>",
+      "#include <common>\nvarying vec3 vSenkeiSurfaceResponse;",
+    )
+    .replace(
+      "#include <roughnessmap_fragment>",
+      "#include <roughnessmap_fragment>\nroughnessFactor = clamp(vSenkeiSurfaceResponse.x, 0.04, 1.0);",
+    )
+    .replace(
+      "#include <metalnessmap_fragment>",
+      "#include <metalnessmap_fragment>\nmetalnessFactor = clamp(vSenkeiSurfaceResponse.y, 0.0, 1.0);",
+    )
+    .replace(
+      "#include <emissivemap_fragment>",
+      "#include <emissivemap_fragment>\ntotalEmissiveRadiance = emissive * vSenkeiSurfaceResponse.z;",
+    );
+};
+BAKED_UNIT_MATERIAL.customProgramCacheKey = () => "senkei.baked-unit-surface-response.v1";
+
+function unitSurfaceResponse(surface: UnitSurface): readonly [number, number, number] {
+  const material = SHARED_UNIT_MATERIALS[surface];
+  return [material.roughness, material.metalness, surface === "glow" ? 1 : 0];
+}
+
 function createUnitMaterials(): UnitMaterials {
   return SHARED_UNIT_MATERIALS;
 }
 
 export function isSharedUnitMaterial(material: THREE.Material): boolean {
-  return Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
+  return material === BAKED_UNIT_MATERIAL || Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
 }
 
 const UNIT_GENERATOR = "senkei.battlefield-unit.v1";
@@ -106,7 +171,13 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     assetKey,
     appearanceKey,
     generator: UNIT_GENERATOR,
-    generatorVersion: 1,
+    generatorVersion: 6,
+    sourceFiles: [
+      "packages/renderer/src/battlefield-units.ts",
+      "packages/renderer/src/battlefield-unit-geometry.ts",
+    ],
+    geometry: { profileWinding: "outward-closed", facetNormals: "per-face" },
+    rig: { version: 1, level: "full", neutralPose: "authored-local-euler" },
     lod,
     surfaces: [...SURFACES],
     animation: "replay-confirmed-unit-rig.v1",
@@ -123,7 +194,7 @@ class UnitBuilder {
   private readonly buckets = new Map<THREE.Group, Bucket>();
   private readonly materials: UnitMaterials;
 
-  constructor(readonly root: THREE.Group, materials: UnitMaterials = createUnitMaterials(), private readonly detail: DetailLevel = "full") {
+  constructor(readonly root: THREE.Group, materials: UnitMaterials = createUnitMaterials(), readonly detail: DetailLevel = "full") {
     this.buckets.set(root, { group: root, surfaces: new Map() });
     this.materials = materials;
   }
@@ -181,46 +252,67 @@ class UnitBuilder {
 
   finish(flatten = false): BattlefieldUnitRig {
     if (flatten) {
-      const merged = new Map<UnitSurface, THREE.BufferGeometry[]>();
+      // Keep the silhouette's major moving regions, baking decorative parts,
+      // head, hands and shins into their nearest retained animation ancestor.
+      // One response-encoded vertex-colored mesh per region bounds Hero draws to eight
+      // (quadrupeds to nine) without collapsing cloth, leather or glow into armor response.
+      const retainedNames = new Set(["torso", "arm.left", "arm.right", "leg.left", "leg.right"]);
+      const retained = new Set<THREE.Group>([
+        this.root,
+        ...Object.entries(this.joints).filter(([key]) => retainedNames.has(key) || key.startsWith("leg.")).map(([, group]) => group),
+        ...Object.values(this.weaponPivots),
+      ]);
+      const merged = new Map<THREE.Group, {
+        pieces: THREE.BufferGeometry[];
+        responses: number[];
+        capeRanges: { startVertex: number; vertexCount: number }[];
+      }>();
       for (const { group, surfaces } of this.buckets.values()) {
+        let target = group;
         const relative = new THREE.Matrix4();
-        for (let cursor: THREE.Object3D | null = group; cursor && cursor !== this.root; cursor = cursor.parent) {
-          cursor.updateMatrix();
-          relative.premultiply(cursor.matrix);
+        while (!retained.has(target)) {
+          target.updateMatrix();
+          relative.premultiply(target.matrix);
+          target = target.parent as THREE.Group;
         }
-        for (const [surface, pieces] of surfaces) {
-          const destination = merged.get(surface) ?? [];
-          for (const geometry of pieces) {
-            geometry.applyMatrix4(relative);
-            destination.push(geometry);
-          }
-          merged.set(surface, destination);
+        const destination = merged.get(target) ?? { pieces: [], responses: [], capeRanges: [] };
+        for (const [surface, surfacePieces] of surfaces) for (const geometry of surfacePieces) {
+          geometry.applyMatrix4(relative);
+          const vertexStart = destination.responses.length / 3;
+          destination.pieces.push(geometry);
+          const vertexCount = geometry.index?.count ?? geometry.getAttribute("position").count;
+          if (group.name === "joint.cape") destination.capeRanges.push({ startVertex: vertexStart, vertexCount });
+          const [roughness, metalness, emissive] = unitSurfaceResponse(surface);
+          for (let index = 0; index < vertexCount; index++) destination.responses.push(roughness, metalness, emissive);
         }
+        merged.set(target, destination);
       }
-      this.root.clear();
-      for (const surface of SURFACES) {
-        const pieces = merged.get(surface);
-        if (!pieces?.length) continue;
-        const mesh = new THREE.Mesh(mergeColoredGeometry(pieces), this.materials[surface]);
-        mesh.name = `${this.root.name}.${surface}`;
-        mesh.castShadow = true;
+      for (const [group, batch] of merged) {
+        if (!batch.pieces.length) continue;
+        const geometry = mergeColoredGeometry(batch.pieces);
+        geometry.setAttribute("senkeiSurfaceResponse", new THREE.Float32BufferAttribute(batch.responses, 3));
+        if (batch.capeRanges.length) geometry.userData.bakedCapeRanges = batch.capeRanges;
+        const mesh = new THREE.Mesh(geometry, BAKED_UNIT_MATERIAL);
+        mesh.name = `${group.name}.baked`;
         mesh.receiveShadow = true;
-        mesh.userData.unitSurface = surface;
-        this.root.add(mesh);
-      }
-      this.root.userData.bakedLod = true;
-      return { joints: {}, weaponPivots: {}, anchors: {} };
-    }
-    for (const { group, surfaces } of this.buckets.values()) {
-      for (const surface of SURFACES) {
-        const parts = surfaces.get(surface);
-        if (!parts?.length) continue;
-        const mesh = new THREE.Mesh(mergeColoredGeometry(parts), this.materials[surface]);
-        mesh.name = `${group.name}.${surface}`;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.userData.unitSurface = surface;
+        mesh.userData.unitSurface = "baked";
         group.add(mesh);
+      }
+      for (const name of Object.keys(this.joints)) if (!retained.has(this.joints[name])) delete this.joints[name];
+      this.root.userData.bakedLod = true;
+      this.root.userData.lodShading = "shared-vertex-color-material-response";
+    } else {
+      for (const { group, surfaces } of this.buckets.values()) {
+        for (const surface of SURFACES) {
+          const parts = surfaces.get(surface);
+          if (!parts?.length) continue;
+          const mesh = new THREE.Mesh(mergeColoredGeometry(parts), this.materials[surface]);
+          mesh.name = `${group.name}.${surface}`;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.userData.unitSurface = surface;
+          group.add(mesh);
+        }
       }
     }
     this.root.userData.battlefieldRig = {
@@ -267,14 +359,65 @@ function createAnchor(builder: UnitBuilder, root: THREE.Group, key: string, posi
   return anchor;
 }
 
-function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: number, spread: number, pattern: "long" | "short" | "leaf" = "long"): void {
+function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: number, spread: number, pattern: "long" | "short" | "leaf" = "long", folded = false): void {
   const cape = builder.part("joint.cape", root, [0, 0, -0.24]);
   const lower = pattern === "short" ? 0.73 : 0.37;
   const points: readonly (readonly [number, number])[] = pattern === "leaf"
     ? [[-0.26, 1.92], [0.26, 1.92], [0.38, 1.25], [0.32, 0.88], [0.12, 0.72], [0.05, 0.96], [-0.06, 0.73], [-0.18, 1.02], [-0.35, 0.86], [-0.4, 1.28]]
     : [[-0.26 * spread, 1.94], [0.26 * spread, 1.94], [0.37 * spread, 1.24], [0.4 * spread, lower], [0.2 * spread, lower + 0.08], [0, lower - 0.05], [-0.18 * spread, lower + 0.12], [-0.4 * spread, lower]];
-  builder.panel(cape, "cloth", points, cloth, [0, 0, 0], 0.045, 0.025);
-  builder.panel(cape, "cloth", [[-0.035, 1.74], [0.035, 1.74], [0.06, lower + 0.05], [0, lower + 0.16], [-0.045, lower + 0.05]], team, [0, 0, 0.028], 0.018, 0.01);
+  if (folded) {
+    // Keep the mantle clear of the lower legs: it gathers at the shoulders,
+    // opens briefly over the back, then narrows into two lifted tail points.
+    const foldedHemY = pattern === "long" ? 0.72 : lower;
+    const rows = [
+      { y: 1.94, width: 0.18, z: 0.035, centerX: 0, standOff: 0.025 },
+      { y: 1.58, width: 0.25, z: -0.08, centerX: -0.025, standOff: 0.075 },
+      { y: 1.22, width: 0.29, z: -0.16, centerX: -0.018, standOff: 0.12 },
+      { y: 0.94, width: 0.24, z: -0.29, centerX: 0.025, standOff: 0.1 },
+      { y: foldedHemY, width: 0.16, z: -0.43, centerX: 0.02, standOff: 0.045 },
+    ];
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    const columns = [-1, -0.64, -0.28, 0, 0.3, 0.65, 1];
+    const folds = [0.012, -0.075, 0.05, -0.11, 0.08, -0.065, 0.012];
+    const hangingFolds = [0.015, -0.025, 0.03, -0.018, 0.025, -0.028, 0.012];
+    const drapeByRow = [0.08, 0.34, 0.72, 1, 0.66];
+    const hem = [0.015, -0.14, 0.035, 0.16, 0.045, -0.15, 0.02];
+    for (const back of [false, true]) {
+      rows.forEach((row, r) => columns.forEach((column, c) => {
+        const hemWave = r === rows.length - 1 ? hem[c] : 0;
+        const foldDepth = folds[c] * (0.5 + r * 0.22);
+        vertices.push(
+          row.centerX * spread + column * row.width * spread,
+          row.y + hemWave + hangingFolds[c] * drapeByRow[r],
+          row.z + foldDepth - row.standOff * (1 - column * column) + (back ? -0.028 : 0),
+        );
+      }));
+    }
+    const columnsPerRow = columns.length;
+    const count = rows.length * columnsPerRow;
+    for (let r = 0; r < rows.length - 1; r++) for (let c = 0; c < columns.length - 1; c++) {
+      const a = r * columnsPerRow + c, b = a + 1, d = a + columnsPerRow, e = d + 1;
+      indices.push(a, d, b, b, d, e, a + count, b + count, d + count, b + count, e + count, d + count);
+    }
+    const perimeter = [
+      ...Array.from({ length: columnsPerRow }, (_, column) => column),
+      ...Array.from({ length: rows.length - 1 }, (_, row) => (row + 1) * columnsPerRow + columnsPerRow - 1),
+      ...Array.from({ length: columnsPerRow - 1 }, (_, column) => (rows.length - 1) * columnsPerRow + columnsPerRow - 2 - column),
+      ...Array.from({ length: rows.length - 2 }, (_, row) => (rows.length - 2 - row) * columnsPerRow),
+    ];
+    perimeter.forEach((a, index) => {
+      const b = perimeter[(index + 1) % perimeter.length];
+      indices.push(a, b, a + count, b, b + count, a + count);
+    });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    builder.add(cape, "cloth", geometry, cloth);
+  } else {
+    builder.panel(cape, "cloth", points, cloth, [0, 0, 0], 0.045, 0.025);
+    builder.panel(cape, "cloth", [[-0.035, 1.74], [0.035, 1.74], [0.06, lower + 0.05], [0, lower + 0.16], [-0.045, lower + 0.05]], team, [0, 0, 0.028], 0.018, 0.01);
+  }
   const clasp = builder.part("cape.clasp", root, [0, 1.78, -0.18]);
   builder.sphere(clasp, "armor", [0.08, 0.09, 0.045], 0xc5a66b, [0, 0, 0]);
 }
@@ -296,8 +439,15 @@ function addHeroChestArmor(
 
   switch (style) {
     case "command":
-      plate([[-0.28, 0.49], [-0.22, 0.68], [0, 0.76], [0.22, 0.68], [0.28, 0.49], [0.16, 0.22], [0, 0.14], [-0.16, 0.22]]);
-      plate([[-0.055, 0.59], [0, 0.68], [0.055, 0.59], [0.035, 0.3], [0, 0.22], [-0.035, 0.3]], 0, 0.065, 0.022);
+      // Shape the breastplate around the ribs and waist; a pointed outline
+      // made the whole chest read like a second, body-sized shield.
+      plate([
+        [-0.26, 0.66], [-0.2, 0.73], [-0.1, 0.77], [0, 0.74], [0.1, 0.77], [0.2, 0.73], [0.26, 0.66],
+        [0.23, 0.53], [0.19, 0.46], [0.17, 0.31], [0.1, 0.27], [0, 0.29], [-0.1, 0.27], [-0.17, 0.31],
+        [-0.19, 0.46], [-0.23, 0.53],
+      ], 0, 0.02, 0.065);
+      // The command crest is a narrow relief line, not another shield plate.
+      builder.panel(chest, "armor", [[-0.018, 0.68], [0, 0.72], [0.018, 0.68], [0.013, 0.34], [0, 0.3], [-0.013, 0.34]], palette.accent, [0, 0, 0.065], 0.014, 0.006);
       break;
     case "bastion":
       plate([[-0.34, 0.52], [-0.3, 0.7], [-0.16, 0.75], [0, 0.67], [0.16, 0.75], [0.3, 0.7], [0.34, 0.52], [0.24, 0.2], [0, 0.12], [-0.24, 0.2]], 0, 0.02, 0.095);
@@ -321,10 +471,24 @@ function addHeroChestArmor(
       plate([[-0.29, 0.58], [-0.2, 0.7], [0.1, 0.62], [0.22, 0.42], [0.1, 0.18], [-0.12, 0.25]], 0, 0.02, 0.07);
       leather([[-0.27, 0.7], [-0.18, 0.73], [0.27, 0.22], [0.18, 0.19]], 0, 0.08);
       break;
-    case "channeler":
-      cloth([[-0.21, 0.68], [0, 0.74], [0.21, 0.68], [0.18, 0.3], [0.26, 0.16], [-0.25, 0.16], [-0.18, 0.3]]);
-      plate([[-0.1, 0.57], [0, 0.66], [0.1, 0.57], [0.075, 0.35], [0, 0.28], [-0.075, 0.35]], 0, 0.075, 0.035);
+    case "channeler": {
+      // A shaped, closed cloth shell follows the torso instead of a flat
+      // shield-like bib. Its circumferential facets carry the tunic volume.
+      builder.profile(chest, "cloth", [
+        { y: 0.16, radiusX: 0.25, radiusZ: 0.19 },
+        { y: 0.27, radiusX: 0.33, radiusZ: 0.215 },
+        { y: 0.44, radiusX: 0.36, radiusZ: 0.225 },
+        { y: 0.58, radiusX: 0.3, radiusZ: 0.205 },
+        { y: 0.7, radiusX: 0.21, radiusZ: 0.165 },
+      ], palette.cloth, [0, 0, -0.14], [0, 0, 0], 9);
+      // A narrow woven stole and two low-contrast folds keep the cloth readable
+      // without giving it the hard, centered edge of a cuirass.
+      builder.panel(chest, "cloth", [[-0.045, 0.68], [0.045, 0.68], [0.055, 0.22], [0, 0.16], [-0.055, 0.22]], palette.accent, [0, 0, 0.09], 0.01, 0.004);
+      const fold = new THREE.Color(palette.cloth).multiplyScalar(0.88).getHex();
+      builder.panel(chest, "cloth", [[-0.18, 0.54], [-0.145, 0.57], [-0.1, 0.21], [-0.13, 0.18]], fold, [0, 0, 0.065], 0.006, 0.002);
+      builder.panel(chest, "cloth", [[0.14, 0.57], [0.175, 0.54], [0.13, 0.18], [0.1, 0.21]], fold, [0, 0, 0.065], 0.006, 0.002);
       break;
+    }
     case "marksman":
       plate([[-0.22, 0.64], [0.22, 0.64], [0.18, 0.48], [-0.18, 0.48]], 0, 0.02);
       leather([[-0.29, 0.68], [-0.2, 0.71], [0.2, 0.2], [0.1, 0.17]], 0, 0.08);
@@ -357,8 +521,10 @@ function addHumanoidBody(
   options: { scale: number; cape: boolean; bulk?: number; simple?: boolean; chestStyle?: HeroBodyProfile },
 ): { torso: THREE.Group; head: THREE.Group; mainPivot: THREE.Group; offPivot: THREE.Group } {
   const bulk = (options.bulk ?? 1) * palette.build;
+  const channeler = options.chestStyle === "channeler";
+  const golden = options.chestStyle === "command" || channeler;
   root.scale.setScalar(options.scale);
-  if (options.cape) addCape(builder, root, palette.cloth, palette.team, bulk, "long");
+  if (options.cape) addCape(builder, root, palette.cloth, palette.team, bulk, "long", golden);
 
   const pelvis = builder.part("joint.pelvis", root, [0, 0.89, 0]);
   builder.profile(pelvis, "leather", [
@@ -370,7 +536,13 @@ function addHumanoidBody(
     { y: 0.15, radiusX: 0.31 * bulk, radiusZ: 0.2 },
     { y: 0.2, radiusX: 0.32 * bulk, radiusZ: 0.2 },
   ], palette.accent);
-  for (const side of [-1, 1]) {
+  if (channeler) builder.profile(pelvis, "cloth", [
+    { y: -0.57, radiusX: 0.39 * bulk, radiusZ: 0.24 },
+    { y: -0.35, radiusX: 0.37 * bulk, radiusZ: 0.23 },
+    { y: -0.05, radiusX: 0.28 * bulk, radiusZ: 0.19 },
+    { y: 0.17, radiusX: 0.24 * bulk, radiusZ: 0.17 },
+  ], palette.cloth, [0, 0, 0.015], [0, 0, 0], 10);
+  for (const side of channeler ? [] : [-1, 1]) {
     builder.panel(pelvis, "cloth", [[-0.12, 0.12], [0.12, 0.12], [0.17, -0.24], [0, -0.31], [-0.16, -0.21]], palette.cloth, [side * 0.16 * bulk, 0.03, 0.14], 0.035, 0.025, [0, side * 0.1, side * 0.03]);
     if (!options.simple) builder.panel(pelvis, "armor", [[-0.09, 0.11], [0.09, 0.11], [0.11, -0.12], [0, -0.18], [-0.1, -0.13]], palette.armor, [side * 0.25 * bulk, 0.05, 0.09], 0.045, 0.03, [0, side * 0.55, 0]);
   }
@@ -399,21 +571,23 @@ function addHumanoidBody(
       { y: -0.32, radiusX: 0.13 * bulk, radiusZ: 0.13 },
       { y: -0.45, radiusX: 0.1 * bulk, radiusZ: 0.11 },
     ], 0x484640);
-    if (!options.simple) {
+    if (!options.simple && !channeler) {
       builder.panel(leg, "armor", [[-0.085, 0.1], [0.085, 0.1], [0.1, -0.11], [0, -0.17], [-0.095, -0.11]], palette.armor, [0, -0.19, 0.11], 0.045, 0.025);
       builder.sphere(leg, "armor", [0.11 * bulk, 0.095, 0.13], palette.accent, [0, -0.45, 0.07]);
-    } else builder.sphere(leg, "armor", [0.105, 0.09, 0.12], palette.armor, [0, -0.43, 0.065]);
-    const shin = builder.part(`joint.shin.${side < 0 ? "left" : "right"}`, leg, [0, -0.13, 0]);
+    } else if (!channeler) builder.sphere(leg, "armor", [0.105, 0.09, 0.12], palette.armor, [0, -0.43, 0.065]);
+    // Bend at the kneecap, retaining the authored neutral surface positions.
+    // The old pivot sat high inside the thigh and swept the entire boot outward.
+    const shin = builder.part(`joint.shin.${side < 0 ? "left" : "right"}`, leg, [0, -0.45, 0]);
     builder.profile(shin, "leather", [
-      { y: -0.02, radiusX: 0.095, radiusZ: 0.105 },
-      { y: -0.25, radiusX: 0.083, radiusZ: 0.1 },
-      { y: -0.56, radiusX: 0.075, radiusZ: 0.085 },
+      { y: 0.3, radiusX: 0.095, radiusZ: 0.105 },
+      { y: 0.07, radiusX: 0.083, radiusZ: 0.1 },
+      { y: -0.24, radiusX: 0.075, radiusZ: 0.085 },
     ], 0x453e37);
-    builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, -0.09, 0.08], 0.042, 0.02);
+    if (!channeler) builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, 0.23, 0.08], 0.042, 0.02);
     builder.profile(shin, "leather", [
-      { y: -0.58, radiusX: 0.11, radiusZ: 0.17 },
-      { y: -0.73, x: 0, z: 0.055, radiusX: 0.12, radiusZ: 0.22 },
-      { y: -0.77, x: 0, z: 0.06, radiusX: 0.1, radiusZ: 0.2 },
+      { y: -0.26, radiusX: 0.11, radiusZ: 0.17 },
+      { y: -0.41, x: 0, z: 0.055, radiusX: 0.12, radiusZ: 0.22 },
+      { y: -0.45, x: 0, z: 0.06, radiusX: 0.1, radiusZ: 0.2 },
     ], 0x51453b);
     legs.push(leg);
   }
@@ -422,6 +596,13 @@ function addHumanoidBody(
   for (const side of [-1, 1]) {
     const label = side < 0 ? "left" : "right";
     const arm = builder.part(`joint.arm.${label}`, torso, [side * 0.38 * bulk, 0.52, 0]);
+    if (channeler) {
+      builder.profile(arm, "cloth", [
+        { y: 0.09, radiusX: 0.1, radiusZ: 0.12 },
+        { y: -0.06, radiusX: 0.145, radiusZ: 0.145 },
+        { y: -0.3, radiusX: 0.14, radiusZ: 0.13 },
+      ], palette.cloth);
+    } else {
     builder.sphere(arm, "armor", [0.185 * bulk, 0.16, 0.17], palette.armor, [0, 0, 0.015]);
     builder.panel(arm, "armor", [[-0.13, 0.12], [0.12, 0.12], [0.17, -0.04], [0.08, -0.17], [-0.13, -0.08]], palette.accent, [0, 0.005, 0.105], 0.045, 0.03, [0, 0, side * 0.08]);
     builder.profile(arm, "leather", [
@@ -429,13 +610,14 @@ function addHumanoidBody(
       { y: -0.2, radiusX: 0.13, radiusZ: 0.12 },
       { y: -0.33, radiusX: 0.1, radiusZ: 0.1 },
     ], palette.cloth);
+    }
     const forearm = builder.part(`joint.forearm.${label}`, arm, [0, -0.31, 0]);
-    builder.profile(forearm, "leather", [
+    builder.profile(forearm, channeler ? "cloth" : "leather", [
       { y: 0.02, radiusX: 0.095, radiusZ: 0.1 },
       { y: -0.16, radiusX: 0.115, radiusZ: 0.11 },
       { y: -0.34, radiusX: 0.085, radiusZ: 0.085 },
     ], palette.cloth);
-    if (!options.simple) builder.panel(forearm, "armor", [[-0.08, 0.14], [0.08, 0.14], [0.07, -0.12], [0, -0.19], [-0.075, -0.12]], palette.armor, [0, -0.085, 0.085], 0.045, 0.024, [0, 0, side * -0.06]);
+    if (!options.simple && !channeler) builder.panel(forearm, "armor", [[-0.08, 0.14], [0.08, 0.14], [0.07, -0.12], [0, -0.19], [-0.075, -0.12]], palette.armor, [0, -0.085, 0.085], 0.045, 0.024, [0, 0, side * -0.06]);
     builder.profile(forearm, "leather", [
       { y: -0.33, radiusX: 0.08, radiusZ: 0.09 },
       { y: -0.38, radiusX: 0.11, radiusZ: 0.1 },
@@ -446,23 +628,69 @@ function addHumanoidBody(
   }
 
   const head = builder.part("joint.head", torso, [0, 0.69, 0]);
-  builder.profile(head, "skin", [
+  const faceRings: readonly ProfileRing[] = [
     { y: 0.04, radiusX: 0.12, radiusZ: 0.105, z: 0.012 },
     { y: 0.13, radiusX: 0.17, radiusZ: 0.14, z: 0.012 },
-    { y: 0.3, radiusX: 0.18, radiusZ: 0.145, z: 0.0 },
+    { y: 0.3, radiusX: 0.18, radiusZ: 0.145, z: 0 },
     { y: 0.43, radiusX: 0.145, radiusZ: 0.13, z: -0.005 },
     { y: 0.51, radiusX: 0.08, radiusZ: 0.08, z: -0.005 },
-  ], 0xb98c70);
+  ];
+  builder.profile(head, "skin", faceRings, 0xb98c70);
   builder.sphere(head, "skin", [0.045, 0.065, 0.06], 0xb98c70, [-0.168, 0.24, 0]);
   builder.sphere(head, "skin", [0.045, 0.065, 0.06], 0xb98c70, [0.168, 0.24, 0]);
-  builder.sphere(head, "leather", [0.032, 0.025, 0.017], 0x252c2d, [-0.067, 0.265, 0.132]);
-  builder.sphere(head, "leather", [0.032, 0.025, 0.017], 0x252c2d, [0.067, 0.265, 0.132]);
-  builder.panel(head, "skin", [[-0.018, 0.08], [0.018, 0.08], [0.045, -0.035], [-0.045, -0.035]], 0xa97760, [0, 0.2, 0.145], 0.022, 0.009);
-  if (!options.simple) {
-    builder.panel(head, "leather", [[-0.12, 0.03], [0.12, 0.03], [0.105, -0.025], [-0.105, -0.025]], 0x684c40, [0, 0.125, 0.14], 0.025, 0.008);
-    builder.panel(head, "leather", [[-0.105, 0.04], [-0.035, 0.04], [-0.02, 0.022], [-0.105, 0.02]], 0x403b36, [-0.067, 0.286, 0.145], 0.018, 0.006);
-    builder.panel(head, "leather", [[0.035, 0.04], [0.105, 0.04], [0.105, 0.02], [0.02, 0.022]], 0x403b36, [0.067, 0.286, 0.145], 0.018, 0.006);
+  // Surface marks share the actual faceted face plane rather than sit on boxes.
+  // Match the nine-sided head sweep (and its reduced LOD segment counts).
+  const faceSides = builder.detail === "far" ? 5 : builder.detail === "medium" ? 7 : 9;
+  const frontAt = (x: number, y: number) => {
+    const row = Math.max(0, faceRings.findIndex(ring => ring.y >= y) - 1);
+    const lo = faceRings[row], hi = faceRings[row + 1];
+    const t = (y - lo.y) / (hi.y - lo.y);
+    const rx = THREE.MathUtils.lerp(lo.radiusX, hi.radiusX, t);
+    const rz = THREE.MathUtils.lerp(lo.radiusZ, hi.radiusZ, t);
+    const z = THREE.MathUtils.lerp(lo.z ?? 0, hi.z ?? 0, t);
+    let front = -Infinity;
+    for (let i = 0; i < faceSides; i++) {
+      const a = (i + 0.5) / faceSides * Math.PI * 2;
+      const b = (i + 1.5) / faceSides * Math.PI * 2;
+      const ax = Math.cos(a) * rx, bx = Math.cos(b) * rx;
+      if (x < Math.min(ax, bx) || x > Math.max(ax, bx) || Math.abs(ax - bx) < 1e-8) continue;
+      const u = (x - ax) / (bx - ax);
+      front = Math.max(front, z + THREE.MathUtils.lerp(Math.sin(a), Math.sin(b), u) * rz);
+    }
+    return front;
+  };
+  const mark = (outline: readonly (readonly [number, number])[], color: number) => {
+    // Subdivide every patch so its triangles follow the face's plane breaks.
+    const contour = outline.map(([x, y]) => new THREE.Vector2(x, y));
+    const triangles = THREE.ShapeUtils.triangulateShape(contour, []);
+    const vertices: number[] = [];
+    const append = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, depth: number) => {
+      if (depth > 0) {
+        const ab = a.clone().lerp(b, 0.5), bc = b.clone().lerp(c, 0.5), ca = c.clone().lerp(a, 0.5);
+        append(a, ab, ca, depth - 1); append(ab, b, bc, depth - 1);
+        append(ca, bc, c, depth - 1); append(ab, bc, ca, depth - 1);
+      } else for (const point of [a, b, c]) vertices.push(point.x, point.y, frontAt(point.x, point.y) + 0.0015);
+    };
+    triangles.forEach(([a, b, c]) => append(contour[a], contour[b], contour[c], 2));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    builder.add(head, "leather", geometry, color);
+  };
+  for (const side of [-1, 1]) {
+    const x = side * 0.067;
+    mark([[x - 0.028, 0.264], [x - 0.016, 0.276], [x + 0.02, 0.275], [x + 0.029, 0.264], [x + 0.012, 0.254], [x - 0.016, 0.254]], 0x252c2d);
+    if (!options.simple) mark([[x - 0.029, 0.296], [x + 0.026, 0.295], [x + 0.026, 0.286], [x - 0.029, 0.287]], 0x403b36);
   }
+  // Compact nose wedge grows from the bridge and rejoins the cheek plane.
+  const nose = new THREE.BufferGeometry();
+  nose.setAttribute("position", new THREE.Float32BufferAttribute([
+    -0.018, 0.254, 0.139, -0.028, 0.195, 0.148, 0, 0.202, 0.185,
+    0.018, 0.254, 0.139, 0, 0.202, 0.185, 0.028, 0.195, 0.148,
+    -0.018, 0.254, 0.139, 0, 0.202, 0.185, 0.018, 0.254, 0.139,
+    -0.028, 0.195, 0.148, 0.028, 0.195, 0.148, 0, 0.202, 0.185,
+  ], 3));
+  builder.add(head, "skin", nose, 0xb1856b);
+  if (!options.simple) mark([[-0.055, 0.143], [-0.02, 0.146], [0.02, 0.146], [0.055, 0.143], [0.025, 0.137], [-0.025, 0.137]], 0x684c40);
 
   const mainPivot = builder.part("pivot.weapon.main", arms[1], [0, -0.005, 0.015]);
   const offPivot = builder.part("pivot.weapon.off", arms[0], [0, -0.005, 0.015]);
@@ -655,7 +883,7 @@ function addHeadgear(builder: UnitBuilder, head: THREE.Group, shape: ShapeSpec, 
       break;
     case "hood":
       builder.panel(helm, "cloth", [[-0.23, 0.25], [-0.2, 0.52], [-0.11, 0.7], [0.1, 0.72], [0.22, 0.51], [0.24, 0.22], [0.15, 0.11], [0, 0.19], [-0.15, 0.1]], palette.cloth, [0, 0, -0.045], 0.075, 0.035);
-      builder.panel(helm, "leather", [[-0.15, 0.29], [0.15, 0.29], [0.13, 0.22], [-0.13, 0.22]], palette.accent, [0, 0, 0.125], 0.025, 0.008);
+      builder.profile(helm, "cloth", [{ y: 0.02, radiusX: 0.16, radiusZ: 0.13 }, { y: 0.09, radiusX: 0.18, radiusZ: 0.14 }], palette.cloth);
       break;
     case "marksman":
       builder.profile(helm, "leather", [
@@ -840,6 +1068,7 @@ function attachLod(group: THREE.Group, name: string, entries: readonly { distanc
   lod.autoUpdate = true;
   let fullRig: BattlefieldUnitRig = { joints: {}, weaponPivots: {}, anchors: {} };
   const levels: string[] = [];
+  const lodRigs: BattlefieldUnitRig[] = [];
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index];
     const level = new THREE.Group();
@@ -850,13 +1079,14 @@ function attachLod(group: THREE.Group, name: string, entries: readonly { distanc
       // shadow, while avoiding a second high cost draw pass for tiny units.
       level.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = false; });
     }
+    lodRigs.push(rig);
     if (index === 0) fullRig = rig;
     levels.push(level.name);
     lod.addLevel(level, entry.distance);
   }
   group.add(lod);
   group.userData.battlefieldLod = { levels, distances: entries.map(({ distance }) => distance) };
-  return fullRig;
+  return { ...fullRig, lodRigs };
 }
 
 function buildBattlefieldHeroLevel(
@@ -901,8 +1131,8 @@ function buildBattlefieldHeroLevel(
 
 /**
  * Adds an articulated Hero at the supplied group's local ground origin. The parent owns
- * world position and facing; the model faces local +Z. Returns references in the full LOD
- * for deterministic movement/combat presentation.
+ * world position and facing; the model faces local +Z. Returns full-detail references
+ * plus the reduced rigs for deterministic movement/combat at every LOD.
  */
 export function buildBattlefieldHero(
   group: THREE.Group,

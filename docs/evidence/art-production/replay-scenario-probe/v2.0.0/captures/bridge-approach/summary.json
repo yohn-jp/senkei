@@ -1,0 +1,63 @@
+{
+  "case_id": "bridge-approach",
+  "match_id": "art-natural-bridge-approach",
+  "ruleset": {
+    "digest": "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f",
+    "id": "senkei.next",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "max_ticks": 600,
+  "outcome": "draw",
+  "termination_reason": "time_limit",
+  "final_tick": 600,
+  "final_state_digest": "5387700c4874b66334e592997b1773050624d306a1e68f5532afdc4847d6396a",
+  "replay_result_digest": "5424c60db077057fe4250342af2b88054bab2e275f1effe3e7819eaa72025dc9",
+  "source_sha256": {
+    "player": "b869fb6dc3fc3f98485d9fd27f7b137233ddb84b9b2ee5c9e0ce810910d6bda6",
+    "npc": "72af4cc69578be6d2e45184276490adf74dd00854241b1cf9e1f6bcd53ab947d"
+  },
+  "request_sha256_uncompressed_json": "7f233bc6585f83bc80d2643ddfc86f60cadfc63163625445159e1e8ec9f2448d",
+  "request_sha256_canonical_json": "7381dc24347f7dadf4a96c086442708e289d2001bb3075cee4abc490b2788691",
+  "public_replay_sha256_uncompressed_json": "0384b575d483703eea0eebc69433cf59271650040640256b4990feffd92911a0",
+  "public_replay_sha256_canonical_json": "cd0e0decf60458afae69f3c527d337a6cde54e276a20203e407f6cd176b872b1",
+  "owner_replay_sha256_uncompressed_json": "f6ed6dc8d1767ee1223fa5a165ca93be6623786f54bf2a2b4f4041791c29371f",
+  "owner_replay_sha256_canonical_json": "9161de92b13113eb39f5f625c41bc014eca30da44ff417c011396c3fc128664c",
+  "frame_count": 601,
+  "frame_event_count": 1695,
+  "frame_event_counts": {
+    "next.attack": 1486,
+    "next.death": 209
+  },
+  "observed_F01_R01_events": [
+    {
+      "tick": 33,
+      "event": "next.death",
+      "catalog_id": "R01",
+      "owner": "defender",
+      "slot_id": null,
+      "skill_id": null
+    },
+    {
+      "tick": 66,
+      "event": "next.death",
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "skill_id": null
+    }
+  ],
+  "observed_F01_R01_respawns": [
+    {
+      "tick": 86,
+      "catalog_id": "F01",
+      "owner": "attacker",
+      "slot_id": "slot-1",
+      "new_entity_id": "visible-73",
+      "node": "A.BASE"
+    }
+  ]
+}
