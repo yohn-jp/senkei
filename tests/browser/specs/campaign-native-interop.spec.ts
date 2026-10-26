@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "vite";
 import { expect, test } from "@playwright/test";
-import { campaignCore } from "../helpers/campaign-core";
+import { campaignCore, campaignRepositoryRoot } from "../helpers/campaign-core";
 import { nativeCampaignFixture, nativeCampaignStore } from "../helpers/native-campaign-fixture";
 import { completePreflight } from "../helpers/preflight";
 test.use({ actionTimeout: 20_000 });
@@ -17,7 +17,7 @@ test("Genuine native Campaign Experiment preserves exact IDs and wins an unchang
   const store = nativeCampaignStore(fixture, ownCompile.estimated_cu);
   const setup = store.experiments[0].setup;
   const definition = fixture.snapshot.attacker;
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: campaignRepositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { parseSavedNextSetup } = await server.ssrLoadModule("/apps/web/src/features/next/NextWorkspace.tsx");
     expect(parseSavedNextSetup(setup)).toEqual(setup);

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { expect, test } from "@playwright/test";
-import { campaignCore } from "../helpers/campaign-core";
+import { campaignCore, campaignRepositoryRoot } from "../helpers/campaign-core";
 import { nativeCampaignFixture, nativeCampaignStore } from "../helpers/native-campaign-fixture";
 import { completePreflight } from "../helpers/preflight";
 test.use({ actionTimeout: 20_000 });
@@ -10,7 +10,7 @@ test("Published first-march own setup wins a genuine Campaign rematch and prepar
   const fixture = await nativeCampaignFixture("first-march"), core = await campaignCore();
   const compilation = core("compile_text", { ruleset_ref: fixture.rules.ruleset, source: fixture.source });
   expect(compilation.program.content_digest).toBe(fixture.snapshot.attacker.program.content_digest);
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: campaignRepositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { verifyCampaignAssociation } = await server.ssrLoadModule("/apps/web/src/features/next/NextWorkspace.tsx");
     const { createNextCampaignScenarios } = await server.ssrLoadModule("/scenarios/next/campaign.ts");
