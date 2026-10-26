@@ -101,11 +101,12 @@ describe("Battlefield unit models", () => {
       expect(rig.anchors.head).toBeInstanceOf(THREE.Group);
       expect(group.getObjectByName(rig.joints.torso.name)).toBe(rig.joints.torso);
       const fullArmor = meshes(levels[0]).find(mesh => mesh.userData.unitSurface === "armor");
-      const midArmor = meshes(levels[1]).find(mesh => mesh.userData.unitSurface === "armor");
-      const farArmor = meshes(levels[2]).find(mesh => mesh.userData.unitSurface === "armor");
+      const midBaked = meshes(levels[1]).find(mesh => mesh.userData.unitSurface === "baked");
+      const farBaked = meshes(levels[2]).find(mesh => mesh.userData.unitSurface === "baked");
       expect(fullArmor).toBeDefined();
-      expect(midArmor?.material).toBe(fullArmor?.material);
-      expect(farArmor?.material).toBe(fullArmor?.material);
+      expect(midBaked?.material).toBeDefined();
+      expect(farBaked?.material).toBe(midBaked?.material);
+      expect(midBaked?.material).not.toBe(fullArmor?.material);
       for (const mesh of meshes(levels[0])) {
         expect(mesh.castShadow).toBe(true);
         expect(mesh.receiveShadow).toBe(true);
@@ -138,6 +139,51 @@ describe("Battlefield unit models", () => {
         expect(tunic.geometry.boundingBox!.getSize(new THREE.Vector3()).z).toBeGreaterThan(0.4);
       }
     }
+  });
+
+  it("retains per-surface material response in the R01 reduced LODs within the draw budget", () => {
+    const root = new THREE.Group();
+    const key = "senkei.next.hero.r01";
+    buildBattlefieldHero(root, entity("R01", key, "R01"), 0x347e83, key);
+    const levels = lodLevels(root);
+    const baked = levels.slice(1).map(level => meshes(level));
+    const expected = ["0.52,0.36,0", "0.92,0.02,0", "0.82,0.02,0", "0.78,0,0", "0.3,0.1,1"];
+
+    expect(baked[0].length).toBeLessThanOrEqual(8);
+    expect(baked[1].length).toBeLessThanOrEqual(8);
+    const sharedBakedMaterial = baked[0][0].material as THREE.MeshStandardMaterial;
+    expect(sharedBakedMaterial).toBe(baked[1][0].material);
+    expect(sharedBakedMaterial.side).toBe(THREE.DoubleSide);
+    expect(sharedBakedMaterial.customProgramCacheKey()).toBe("senkei.baked-unit-surface-response.v1");
+
+    for (const reducedMeshes of baked) {
+      const responses = new Set<string>();
+      for (const mesh of reducedMeshes) {
+        expect(mesh.userData.unitSurface).toBe("baked");
+        expect(mesh.material).toBe(sharedBakedMaterial);
+        const response = mesh.geometry.getAttribute("senkeiSurfaceResponse");
+        expect(response).toBeDefined();
+        expect(response.count).toBe(mesh.geometry.getAttribute("position").count);
+        for (let index = 0; index < response.count; index++) {
+          responses.add([
+            response.getX(index), response.getY(index), response.getZ(index),
+          ].map(value => Math.round(value * 100) / 100).join(","));
+        }
+      }
+      for (const surfaceResponse of expected) expect(responses).toContain(surfaceResponse);
+    }
+
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as Parameters<typeof sharedBakedMaterial.onBeforeCompile>[0];
+    sharedBakedMaterial.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.vertexShader).toContain("attribute vec3 senkeiSurfaceResponse;");
+    expect(shader.vertexShader).toContain("vSenkeiSurfaceResponse = senkeiSurfaceResponse;");
+    expect(shader.fragmentShader).toContain("roughnessFactor = clamp(vSenkeiSurfaceResponse.x, 0.04, 1.0);");
+    expect(shader.fragmentShader).toContain("metalnessFactor = clamp(vSenkeiSurfaceResponse.y, 0.0, 1.0);");
+    expect(shader.fragmentShader).toContain("totalEmissiveRadiance = emissive * vSenkeiSurfaceResponse.z;");
   });
 
   it("keeps F01's command cuirass integrated and angles its sword clear of the torso", () => {

@@ -110,12 +110,58 @@ const SHARED_UNIT_MATERIALS: UnitMaterials = {
   glow: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.1, roughness: 0.3, emissive: 0x49361c, emissiveIntensity: 0.2, flatShading: true }),
 };
 
+const BAKED_UNIT_MATERIAL = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  vertexColors: true,
+  metalness: 0,
+  roughness: 1,
+  emissive: SHARED_UNIT_MATERIALS.glow.emissive,
+  emissiveIntensity: SHARED_UNIT_MATERIALS.glow.emissiveIntensity,
+  flatShading: true,
+  side: THREE.DoubleSide,
+});
+
+BAKED_UNIT_MATERIAL.onBeforeCompile = shader => {
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      "#include <common>",
+      "#include <common>\nattribute vec3 senkeiSurfaceResponse;\nvarying vec3 vSenkeiSurfaceResponse;",
+    )
+    .replace(
+      "#include <begin_vertex>",
+      "#include <begin_vertex>\nvSenkeiSurfaceResponse = senkeiSurfaceResponse;",
+    );
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "#include <common>",
+      "#include <common>\nvarying vec3 vSenkeiSurfaceResponse;",
+    )
+    .replace(
+      "#include <roughnessmap_fragment>",
+      "#include <roughnessmap_fragment>\nroughnessFactor = clamp(vSenkeiSurfaceResponse.x, 0.04, 1.0);",
+    )
+    .replace(
+      "#include <metalnessmap_fragment>",
+      "#include <metalnessmap_fragment>\nmetalnessFactor = clamp(vSenkeiSurfaceResponse.y, 0.0, 1.0);",
+    )
+    .replace(
+      "#include <emissivemap_fragment>",
+      "#include <emissivemap_fragment>\ntotalEmissiveRadiance = emissive * vSenkeiSurfaceResponse.z;",
+    );
+};
+BAKED_UNIT_MATERIAL.customProgramCacheKey = () => "senkei.baked-unit-surface-response.v1";
+
+function unitSurfaceResponse(surface: UnitSurface): readonly [number, number, number] {
+  const material = SHARED_UNIT_MATERIALS[surface];
+  return [material.roughness, material.metalness, surface === "glow" ? 1 : 0];
+}
+
 function createUnitMaterials(): UnitMaterials {
   return SHARED_UNIT_MATERIALS;
 }
 
 export function isSharedUnitMaterial(material: THREE.Material): boolean {
-  return Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
+  return material === BAKED_UNIT_MATERIAL || Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
 }
 
 const UNIT_GENERATOR = "senkei.battlefield-unit.v1";
@@ -208,15 +254,15 @@ class UnitBuilder {
     if (flatten) {
       // Keep the silhouette's major moving regions, baking decorative parts,
       // head, hands and shins into their nearest retained animation ancestor.
-      // One vertex-colored mesh per region bounds Hero draws to eight (quadrupeds to nine);
-      // a lower LOD never pays for the full rig's per-surface mesh split.
+      // One response-encoded vertex-colored mesh per region bounds Hero draws to eight
+      // (quadrupeds to nine) without collapsing cloth, leather or glow into armor response.
       const retainedNames = new Set(["torso", "arm.left", "arm.right", "leg.left", "leg.right"]);
       const retained = new Set<THREE.Group>([
         this.root,
         ...Object.entries(this.joints).filter(([key]) => retainedNames.has(key) || key.startsWith("leg.")).map(([, group]) => group),
         ...Object.values(this.weaponPivots),
       ]);
-      const merged = new Map<THREE.Group, THREE.BufferGeometry[]>();
+      const merged = new Map<THREE.Group, { pieces: THREE.BufferGeometry[]; responses: number[] }>();
       for (const { group, surfaces } of this.buckets.values()) {
         let target = group;
         const relative = new THREE.Matrix4();
@@ -225,24 +271,29 @@ class UnitBuilder {
           relative.premultiply(target.matrix);
           target = target.parent as THREE.Group;
         }
-        const destination = merged.get(target) ?? [];
-        for (const pieces of surfaces.values()) for (const geometry of pieces) {
+        const destination = merged.get(target) ?? { pieces: [], responses: [] };
+        for (const [surface, surfacePieces] of surfaces) for (const geometry of surfacePieces) {
           geometry.applyMatrix4(relative);
-          destination.push(geometry);
+          destination.pieces.push(geometry);
+          const vertexCount = geometry.index?.count ?? geometry.getAttribute("position").count;
+          const [roughness, metalness, emissive] = unitSurfaceResponse(surface);
+          for (let index = 0; index < vertexCount; index++) destination.responses.push(roughness, metalness, emissive);
         }
         merged.set(target, destination);
       }
-      for (const [group, pieces] of merged) {
-        if (!pieces.length) continue;
-        const mesh = new THREE.Mesh(mergeColoredGeometry(pieces), this.materials.armor);
-        mesh.name = `${group.name}.armor`;
+      for (const [group, batch] of merged) {
+        if (!batch.pieces.length) continue;
+        const geometry = mergeColoredGeometry(batch.pieces);
+        geometry.setAttribute("senkeiSurfaceResponse", new THREE.Float32BufferAttribute(batch.responses, 3));
+        const mesh = new THREE.Mesh(geometry, BAKED_UNIT_MATERIAL);
+        mesh.name = `${group.name}.baked`;
         mesh.receiveShadow = true;
-        mesh.userData.unitSurface = "armor";
+        mesh.userData.unitSurface = "baked";
         group.add(mesh);
       }
       for (const name of Object.keys(this.joints)) if (!retained.has(this.joints[name])) delete this.joints[name];
       this.root.userData.bakedLod = true;
-      this.root.userData.lodShading = "shared-vertex-color";
+      this.root.userData.lodShading = "shared-vertex-color-material-response";
     } else {
       for (const { group, surfaces } of this.buckets.values()) {
         for (const surface of SURFACES) {
