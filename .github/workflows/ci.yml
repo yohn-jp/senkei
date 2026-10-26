@@ -24,7 +24,8 @@ jobs:
       # Full canonical battles exercise hundreds of ticks, including mirrored
       # base assaults; use the same optimized core as the WASM/browser build.
       - run: cargo build --workspace --release --locked
-      - run: cargo test --workspace --release --locked
+      # A failed Enbu target must not prevent the independent Jinrei and ABI tests.
+      - run: cargo test --workspace --release --locked --no-fail-fast
 
   conformance:
     name: Native and real WebAssembly conformance

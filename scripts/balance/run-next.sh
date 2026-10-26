@@ -37,10 +37,12 @@ for (const item of report.cases) {
 }
 JS
   fi
-  # The existing always-uploaded adapter artifact retains exact inputs and
-  # runtimes for offline reproduction. No failing check becomes a pass.
+  # Retain exact executable source and runtimes without copying unrelated
+  # art/evidence archives. No failing check becomes a pass.
   git -C "${repo_root}" rev-parse HEAD > "${fixture_dir}/failure-source-revision.txt"
-  git -C "${repo_root}" archive --format=tar.gz --output="${fixture_dir}/failure-source.tar.gz" HEAD
+  git -C "${repo_root}" archive --format=tar.gz --output="${fixture_dir}/failure-source.tar.gz" HEAD \
+    apps crates packages scenarios scripts tests Cargo.toml Cargo.lock package.json package-lock.json \
+    vite.config.ts vitest.config.ts playwright.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json tsconfig.graphics.json
   if [[ -s "${wasm_path}" ]]; then
     cp "${wasm_path}" "${fixture_dir}/failure-senkei.wasm"
   fi
