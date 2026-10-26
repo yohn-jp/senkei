@@ -179,6 +179,7 @@ describe("Battlefield unit models", () => {
         const middle = points.filter(point => point.y > 0.9 && point.y < 1.25);
         const hem = points.filter(point => point.y < 0.8);
         const halfWidth = (vertices: readonly THREE.Vector3[]) => Math.max(...vertices.map(point => Math.abs(point.x)));
+        expect(Math.min(...points.map(point => point.y)), `${id} LOD ${levelIndex} hem clears the lower legs`).toBeGreaterThan(0.52);
         expect(halfWidth(middle), `${id} LOD ${levelIndex} flares below the shoulder`).toBeGreaterThan(halfWidth(top) * 1.35);
         expect(halfWidth(middle), `${id} LOD ${levelIndex} tapers toward the hem`).toBeGreaterThan(halfWidth(hem) * 1.03);
 
@@ -187,6 +188,8 @@ describe("Battlefield unit models", () => {
         expect(centerHem.length).toBeGreaterThan(0);
         expect(outerTails.length).toBeGreaterThan(0);
         expect(Math.min(...centerHem), `${id} LOD ${levelIndex} has a lifted central notch`).toBeGreaterThan(Math.min(...outerTails) + 0.12);
+        const midBackFold = points.filter(point => Math.abs(point.y - 1.22) < 1e-6);
+        expect(Math.max(...midBackFold.map(point => point.z)) - Math.min(...midBackFold.map(point => point.z)), `${id} LOD ${levelIndex} has broad vertical folds`).toBeGreaterThan(0.14);
         expect(Math.max(...points.map(point => point.z)) - Math.min(...points.map(point => point.z)), `${id} LOD ${levelIndex} has a swept rear drape`).toBeGreaterThan(0.38);
 
         const worldPoints = capeVertices(level, true);
@@ -308,7 +311,7 @@ describe("Battlefield unit models", () => {
       assetKey: "hero.f01",
       appearanceKey: "senkei.next.hero.f01",
       generator: "senkei.battlefield-unit.v1",
-      generatorVersion: 5,
+      generatorVersion: 6,
       lod: ["battlefield-hero-f01.full", "battlefield-hero-f01.medium", "battlefield-hero-f01.far"],
       source: "project-authored-procedural-geometry",
     }));

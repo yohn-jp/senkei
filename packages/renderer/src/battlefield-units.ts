@@ -171,7 +171,7 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     assetKey,
     appearanceKey,
     generator: UNIT_GENERATOR,
-    generatorVersion: 5,
+    generatorVersion: 6,
     sourceFiles: [
       "packages/renderer/src/battlefield-units.ts",
       "packages/renderer/src/battlefield-unit-geometry.ts",
@@ -366,24 +366,25 @@ function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: n
     ? [[-0.26, 1.92], [0.26, 1.92], [0.38, 1.25], [0.32, 0.88], [0.12, 0.72], [0.05, 0.96], [-0.06, 0.73], [-0.18, 1.02], [-0.35, 0.86], [-0.4, 1.28]]
     : [[-0.26 * spread, 1.94], [0.26 * spread, 1.94], [0.37 * spread, 1.24], [0.4 * spread, lower], [0.2 * spread, lower + 0.08], [0, lower - 0.05], [-0.18 * spread, lower + 0.12], [-0.4 * spread, lower]];
   if (folded) {
-    // Let the cloth gather at the shoulders, billow at mid-back, then taper
-    // into two lifted folds and a pair of low hem tails.
+    // Keep the mantle clear of the lower legs: it gathers at the shoulders,
+    // opens briefly over the back, then narrows into two lifted tail points.
+    const foldedHemY = pattern === "long" ? 0.72 : lower;
     const rows = [
-      { y: 1.94, width: 0.22, z: 0.035, centerX: 0 },
-      { y: 1.56, width: 0.3, z: -0.06, centerX: -0.018 },
-      { y: 1.08, width: 0.38, z: -0.15, centerX: -0.025 },
-      { y: 0.73, width: 0.35, z: -0.27, centerX: 0.012 },
-      { y: lower, width: 0.3, z: -0.36, centerX: 0.045 },
+      { y: 1.94, width: 0.18, z: 0.035, centerX: 0 },
+      { y: 1.58, width: 0.25, z: -0.08, centerX: -0.025 },
+      { y: 1.22, width: 0.29, z: -0.16, centerX: -0.018 },
+      { y: 0.94, width: 0.24, z: -0.29, centerX: 0.025 },
+      { y: foldedHemY, width: 0.16, z: -0.43, centerX: 0.02 },
     ];
     const vertices: number[] = [];
     const indices: number[] = [];
     const columns = [-1, -0.64, -0.28, 0, 0.3, 0.65, 1];
-    const folds = [0.012, -0.052, 0.038, -0.078, 0.056, -0.045, 0.012];
-    const hem = [0.035, -0.075, 0.04, 0.13, 0.055, -0.09, 0.025];
+    const folds = [0.012, -0.075, 0.05, -0.11, 0.08, -0.065, 0.012];
+    const hem = [0.015, -0.14, 0.035, 0.16, 0.045, -0.15, 0.02];
     for (const back of [false, true]) {
       rows.forEach((row, r) => columns.forEach((column, c) => {
         const hemWave = r === rows.length - 1 ? hem[c] : 0;
-        const foldDepth = folds[c] * (0.45 + r * 0.2);
+        const foldDepth = folds[c] * (0.5 + r * 0.22);
         vertices.push(
           row.centerX * spread + column * row.width * spread,
           row.y + hemWave,
