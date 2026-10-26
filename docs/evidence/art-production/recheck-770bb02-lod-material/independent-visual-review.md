@@ -5,10 +5,10 @@ Reviewer: `visual_auditor` on `session/art-audit`.
 ## Capture provenance
 
 - Exact source revision: `770bb02d0c99aa65232950e92a68106d581b343e`.
-- Manifest: `/home/sophia/src/senkei-art-fix/test-results/art-production/lod-material/head-770bb02/manifest.json`.
+- Manifest: [captured manifest](manifest.json).
 - Manifest SHA-256: `2e77a216dd2d9b5b4c4f94c98f4397fe6bf011fdd8fba3518e2305c51129d8ab`.
 - Renderer: Chromium `156.0.8078.47` / SwiftShader software GPU; 1440 × 1000 viewport.
-- Capture kind: isolated production-builder LOD comparison, not app integration. All six raw PNG SHA-256 values below were recomputed and match the manifest.
+- Capture kind: isolated production-builder LOD comparison, not app integration. All six full-resolution raw PNGs are committed under [images](images/); their SHA-256 values were recomputed and match the manifest.
 - The captured source worktree had two untracked comparison-harness files (`tools/art/lod-material-compare.html` and `.ts`); the manifest sourceRevision remains the exact source commit above.
 
 ## Selected-child and pose verification
@@ -54,7 +54,7 @@ The images show a subtle far-LOD response. They do not isolate the roughness/met
 
 ## Raw PNG SHA-256
 
-All paths below are relative to `/home/sophia/src/senkei-art-fix/test-results/art-production/lod-material/head-770bb02/`.
+The image names below are relative to [images](images/).
 
 | Image | Selected child | Pose | SHA-256 |
 | --- | --- | --- | --- |

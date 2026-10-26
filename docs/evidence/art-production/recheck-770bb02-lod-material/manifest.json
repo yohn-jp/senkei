@@ -1,0 +1,143 @@
+{
+  "schema": "senkei-r01-lod-material-evidence/v1",
+  "sourceRevision": "770bb02d0c99aa65232950e92a68106d581b343e",
+  "dirtyWorktree": "?? tools/art/lod-material-compare.html\n?? tools/art/lod-material-compare.ts",
+  "captureHarnessFiles": [
+    "tools/art/lod-material-compare.html",
+    "tools/art/lod-material-compare.ts"
+  ],
+  "browser": "156.0.8078.47",
+  "renderer": "Chromium/SwiftShader software GPU",
+  "captureKind": "isolated-production-builder-lod-comparison-not-app-integration",
+  "viewport": {
+    "width": 1440,
+    "height": 1000,
+    "deviceScaleFactor": 1
+  },
+  "camera": "production Hero preview default camera, fixed across all captures",
+  "poseTiming": {
+    "reducedMotion": true,
+    "idleSeconds": 0,
+    "attackSeconds": 0,
+    "attackAction": "held peak"
+  },
+  "selectedLodDistances": [
+    0,
+    18,
+    46
+  ],
+  "acceptance": "UNVERIFIED: raw images await visual review; capture completion is not acceptance",
+  "status": "captured-awaiting-visual-review",
+  "captures": [
+    {
+      "label": "R01-full-idle",
+      "image": "R01-full-idle.png",
+      "sha256": "e01ce5a753c352299ea4549c982c2aeb5cf8ef2885e7901c69a8093e3ff71537",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "0",
+        "data-selected-lod-child": "battlefield-hero-r01.full",
+        "data-pose": "idle",
+        "data-active-mesh-count": "26",
+        "data-material-responses": "[{\"surface\":\"cloth\",\"metalness\":0.02,\"roughness\":0.92,\"side\":2,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"armor\",\"metalness\":0.36,\"roughness\":0.52,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"leather\",\"metalness\":0.02,\"roughness\":0.82,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"glow\",\"metalness\":0.1,\"roughness\":0.3,\"side\":0,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2},{\"surface\":\"skin\",\"metalness\":0,\"roughness\":0.78,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1}]",
+        "data-response-vectors": "[]",
+        "data-draw-calls": "27",
+        "data-triangles": "1992",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    },
+    {
+      "label": "R01-medium-idle",
+      "image": "R01-medium-idle.png",
+      "sha256": "9d42ae670efda2b34607a606f1d60d48908df8c99e5c22771322c21c2b2a13cd",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "1",
+        "data-selected-lod-child": "battlefield-hero-r01.medium",
+        "data-pose": "idle",
+        "data-active-mesh-count": "7",
+        "data-material-responses": "[{\"surface\":\"baked\",\"metalness\":0,\"roughness\":1,\"side\":2,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2}]",
+        "data-response-vectors": "[\"0.3,0.1,1\",\"0.52,0.36,0\",\"0.78,0,0\",\"0.82,0.02,0\",\"0.92,0.02,0\"]",
+        "data-draw-calls": "8",
+        "data-triangles": "1604",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    },
+    {
+      "label": "R01-far-idle",
+      "image": "R01-far-idle.png",
+      "sha256": "12bd7a70407c821ccc6e40168eb14aa54196e1e2d59a77a11f2aa90d292294ea",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "2",
+        "data-selected-lod-child": "battlefield-hero-r01.far",
+        "data-pose": "idle",
+        "data-active-mesh-count": "7",
+        "data-material-responses": "[{\"surface\":\"baked\",\"metalness\":0,\"roughness\":1,\"side\":2,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2}]",
+        "data-response-vectors": "[\"0.3,0.1,1\",\"0.52,0.36,0\",\"0.78,0,0\",\"0.82,0.02,0\",\"0.92,0.02,0\"]",
+        "data-draw-calls": "8",
+        "data-triangles": "1156",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    },
+    {
+      "label": "R01-full-attack",
+      "image": "R01-full-attack.png",
+      "sha256": "78eda6d6e67c350db5846e5abb0a43ee5e2f6dd4196d24cc3eb1e9d40272ec6b",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "0",
+        "data-selected-lod-child": "battlefield-hero-r01.full",
+        "data-pose": "attack",
+        "data-active-mesh-count": "26",
+        "data-material-responses": "[{\"surface\":\"cloth\",\"metalness\":0.02,\"roughness\":0.92,\"side\":2,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"armor\",\"metalness\":0.36,\"roughness\":0.52,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"leather\",\"metalness\":0.02,\"roughness\":0.82,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1},{\"surface\":\"glow\",\"metalness\":0.1,\"roughness\":0.3,\"side\":0,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2},{\"surface\":\"skin\",\"metalness\":0,\"roughness\":0.78,\"side\":0,\"emissive\":\"#000000\",\"emissiveIntensity\":1}]",
+        "data-response-vectors": "[]",
+        "data-draw-calls": "27",
+        "data-triangles": "1992",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    },
+    {
+      "label": "R01-medium-attack",
+      "image": "R01-medium-attack.png",
+      "sha256": "b8a05cca4852b5afb80154d0972da97dc8e76491720bef545925fd189538817b",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "1",
+        "data-selected-lod-child": "battlefield-hero-r01.medium",
+        "data-pose": "attack",
+        "data-active-mesh-count": "7",
+        "data-material-responses": "[{\"surface\":\"baked\",\"metalness\":0,\"roughness\":1,\"side\":2,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2}]",
+        "data-response-vectors": "[\"0.3,0.1,1\",\"0.52,0.36,0\",\"0.78,0,0\",\"0.82,0.02,0\",\"0.92,0.02,0\"]",
+        "data-draw-calls": "8",
+        "data-triangles": "1604",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    },
+    {
+      "label": "R01-far-attack",
+      "image": "R01-far-attack.png",
+      "sha256": "c26c7d41cb44a8ec42db5aaa5c9c7301ba0890fa2aa3cfc44e4344e7b4b3e59f",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-preview-ready": "true",
+        "data-selected-lod-index": "2",
+        "data-selected-lod-child": "battlefield-hero-r01.far",
+        "data-pose": "attack",
+        "data-active-mesh-count": "7",
+        "data-material-responses": "[{\"surface\":\"baked\",\"metalness\":0,\"roughness\":1,\"side\":2,\"emissive\":\"#49361c\",\"emissiveIntensity\":0.2}]",
+        "data-response-vectors": "[\"0.3,0.1,1\",\"0.52,0.36,0\",\"0.78,0,0\",\"0.82,0.02,0\",\"0.92,0.02,0\"]",
+        "data-draw-calls": "8",
+        "data-triangles": "1156",
+        "data-camera": "3.5500,2.6000,5.6500,0.0000,1.0500,0.0000"
+      }
+    }
+  ],
+  "errors": [],
+  "consoleErrors": []
+}
