@@ -1,0 +1,14 @@
+{
+  "revision": "4d4ada7e13bd26e2aee6c293b43718d39e8daf20",
+  "actualResult": "Confirmed result · Attacker Victory",
+  "beforeRetry": "攻略記録 1 / 6 · 解放 2",
+  "afterRetry": "攻略記録 0 / 6 · 解放 1",
+  "storedBefore": "{\"format_version\":2,\"ruleset_digest\":\"c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f\",\"unlocked_scenario_ids\":[\"first-march\"],\"completed_scenario_ids\":[],\"history_incomplete\":false}",
+  "storedAfter": "{\"format_version\":2,\"ruleset_digest\":\"c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f\",\"unlocked_scenario_ids\":[\"first-march\"],\"completed_scenario_ids\":[],\"history_incomplete\":false}",
+  "wasm": [
+    "http://127.0.0.1:4214/wasm/senkei_wasm.wasm?rev=e15cc7add78827aff1af977fe0be2a5f32ff766142ae4a97dfc67204b9a9bd1a",
+    "http://127.0.0.1:4214/wasm/senkei_wasm.wasm?rev=e15cc7add78827aff1af977fe0be2a5f32ff766142ae4a97dfc67204b9a9bd1a",
+    "http://127.0.0.1:4214/wasm/senkei_wasm.wasm?rev=e15cc7add78827aff1af977fe0be2a5f32ff766142ae4a97dfc67204b9a9bd1a"
+  ],
+  "errors": []
+}
