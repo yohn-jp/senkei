@@ -1,0 +1,332 @@
+{
+  "schema": "senkei-art-native-scenario-probe/v1",
+  "probe_repository": "/home/sophia/src/senkei",
+  "source_head": "7a0c0ff180420694a0a8d6de3587fef110582d71",
+  "native_build_source_head": "62a3e19",
+  "native_build_crates_tree": "3356b4e92785f7cd72dbde533d62348cd9408345",
+  "core_tree": "94667bef9a94dc2b06398af48a32ea859302d13d",
+  "wasm_source_tree": "568db8756c98bd7e1029526a0bebbd329f429d40",
+  "native_dispatcher": {
+    "path": "/dev/shm/senkei-native-epoch3/release/senkei-wasm-dispatch",
+    "sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+    "retained_copy": {
+      "path": "/home/sophia/src/senkei/target/local-codex/native/392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+      "sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e"
+    }
+  },
+  "wasm_artifact": {
+    "path": "/home/sophia/src/senkei/apps/web/public/wasm/senkei_wasm.wasm",
+    "sha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e",
+    "present_at_rerun": true
+  },
+  "ruleset": {
+    "digest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+    "id": "senkei.next",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "replay_schema_version": {
+    "major": 1,
+    "minor": 1,
+    "patch": 0
+  },
+  "campaign_code_sha256": "478cf09c652159a5c752705bc27b3e9a5d14077c96ad023b1d97373cc529bb0c",
+  "campaign_source_fixtures_sha256": "6bdfd6e122ad336e2cea4bff90a40d0653dab0c2cc483eb97ae68fa4d58ecc75",
+  "cases": [
+    {
+      "case_id": "read-the-map",
+      "match_id": "art-natural-read-the-map",
+      "ruleset": {
+        "digest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+        "id": "senkei.next",
+        "version": {
+          "major": 2,
+          "minor": 0,
+          "patch": 0
+        }
+      },
+      "max_ticks": 600,
+      "outcome": "draw",
+      "termination_reason": "time_limit",
+      "final_tick": 600,
+      "final_state_digest": "68f98bd8a27469d5f143efa93e301dd7e6409316e8f1ddfdd725bbda6eb423cc",
+      "replay_result_digest": "12c94e7cbaaeaec51ab4cf24bece51e157be01fff2d7d42ea090f71747c919ff",
+      "request_sha256_uncompressed_json": "e7684cb81f0554152216f6c2ee37103d8cbe59ec1602766f2eb1d469d478acd3",
+      "request_sha256_canonical_json": "4149d2dbd944e1dcbce5c6da7f14c360497ab55458f8f521cbaa457a48b54a8c",
+      "public_replay_sha256_uncompressed_json": "4491680195133df2d7f403a15025ec734bb0e1a0f97a85f627d9562268f1cc23",
+      "public_replay_sha256_canonical_json": "24f5a0bace168364b7fffbba430969b470f3dae862100e64d08622458c5e4b50",
+      "owner_replay_sha256_uncompressed_json": "54e55921bea170f45cc08c466e23d52672c4d52933fcc776d66d35060f0228cf",
+      "owner_replay_sha256_canonical_json": "098928d10fe0d7a573024277028e537702f0699c7fdaa28b5348ca4a1179fa9c",
+      "source_sha256": {
+        "player": "b869fb6dc3fc3f98485d9fd27f7b137233ddb84b9b2ee5c9e0ce810910d6bda6",
+        "npc": "8e646ad65230bfa540d3b8b90ee26ec1672cf744433bb55ad16a3e818dcd14ad"
+      },
+      "frame_count": 601,
+      "observed_events": {
+        "frame_event_counts": {
+          "next.attack": 1613,
+          "next.death": 220,
+          "next.level_up": 3,
+          "next.skill_acquired": 2
+        },
+        "F01_R01_events": [
+          {
+            "tick": 77,
+            "event": "next.death",
+            "catalog_id": "R01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 81,
+            "event": "next.death",
+            "catalog_id": "F01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 114,
+            "event": "next.level_up",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          },
+          {
+            "tick": 114,
+            "event": "next.skill_acquired",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": "f01_a_passive"
+          },
+          {
+            "tick": 176,
+            "event": "next.death",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          }
+        ],
+        "F01_R01_respawns": [
+          {
+            "tick": 201,
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "new_entity_id": "visible-148",
+            "node": "A.BASE"
+          }
+        ]
+      },
+      "native_dispatcher_sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+      "elapsed_seconds": 22.72
+    },
+    {
+      "case_id": "share-the-pressure",
+      "match_id": "art-natural-share-the-pressure",
+      "ruleset": {
+        "digest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+        "id": "senkei.next",
+        "version": {
+          "major": 2,
+          "minor": 0,
+          "patch": 0
+        }
+      },
+      "max_ticks": 600,
+      "outcome": "draw",
+      "termination_reason": "time_limit",
+      "final_tick": 600,
+      "final_state_digest": "3e5aa9baf7722de0ed4a84620a50c35e4f5e7ed3da6ab3e86aad83ed1a8d8794",
+      "replay_result_digest": "4673f61d8c59225b1255aba405c0da30437d2d5ed0470ef18cdc114bd1dba91d",
+      "request_sha256_uncompressed_json": "990af9bbd7211ad6e6767c5a3eada57610e8e20105a461c937bd7c1ca1d02f50",
+      "request_sha256_canonical_json": "04415cbed35a0bbb127c8b2018f3e8dbc09a8fe9c4e7b811022003c9c496d5b9",
+      "public_replay_sha256_uncompressed_json": "7326f19f1949f9274e6fb579bf79635dc17f44eaf9c04284abe3dca6027d3e68",
+      "public_replay_sha256_canonical_json": "4e5633a889562602c4249cc85c2ed7747191d4114c4c8087435799c6b814d262",
+      "owner_replay_sha256_uncompressed_json": "6bcf7f6dff2ab6d1039c581b085dcce5202246922eb22dfad710b09d9556bfdd",
+      "owner_replay_sha256_canonical_json": "619c93a810ac7b7ddb22b68904d3356cb55600385488c034921a4a2a1fa74f16",
+      "source_sha256": {
+        "player": "b869fb6dc3fc3f98485d9fd27f7b137233ddb84b9b2ee5c9e0ce810910d6bda6",
+        "npc": "636599f8c41befe8193d863e39a68a2dac4e936e328069fe894b7de873bfa5ab"
+      },
+      "frame_count": 601,
+      "observed_events": {
+        "frame_event_counts": {
+          "next.attack": 1467,
+          "next.death": 212,
+          "next.level_up": 12,
+          "next.objective_destroyed": 1,
+          "next.observation_capture": 1,
+          "next.skill_acquired": 8
+        },
+        "F01_R01_events": [
+          {
+            "tick": 33,
+            "event": "next.death",
+            "catalog_id": "R01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 79,
+            "event": "next.level_up",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          },
+          {
+            "tick": 79,
+            "event": "next.skill_acquired",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": "f01_a_passive"
+          },
+          {
+            "tick": 115,
+            "event": "next.death",
+            "catalog_id": "F01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 164,
+            "event": "next.level_up",
+            "catalog_id": "F01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 164,
+            "event": "next.skill_acquired",
+            "catalog_id": "F01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": "f01_a_passive"
+          },
+          {
+            "tick": 190,
+            "event": "next.level_up",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          },
+          {
+            "tick": 212,
+            "event": "next.death",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          },
+          {
+            "tick": 224,
+            "event": "next.level_up",
+            "catalog_id": "R01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 224,
+            "event": "next.skill_acquired",
+            "catalog_id": "R01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": "r01_a_passive"
+          }
+        ],
+        "F01_R01_respawns": [
+          {
+            "tick": 242,
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "new_entity_id": "visible-199",
+            "node": "A.BASE"
+          }
+        ]
+      },
+      "native_dispatcher_sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+      "elapsed_seconds": 21.52
+    },
+    {
+      "case_id": "bridge-approach",
+      "match_id": "art-natural-bridge-approach",
+      "ruleset": {
+        "digest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+        "id": "senkei.next",
+        "version": {
+          "major": 2,
+          "minor": 0,
+          "patch": 0
+        }
+      },
+      "max_ticks": 600,
+      "outcome": "draw",
+      "termination_reason": "time_limit",
+      "final_tick": 600,
+      "final_state_digest": "5387700c4874b66334e592997b1773050624d306a1e68f5532afdc4847d6396a",
+      "replay_result_digest": "5424c60db077057fe4250342af2b88054bab2e275f1effe3e7819eaa72025dc9",
+      "request_sha256_uncompressed_json": "c8e8c0244a835231ca47e8684e37626ee04e1660cf695ae917cdf6646cf51d01",
+      "request_sha256_canonical_json": "d6345daca508b0877e1c63706d99757c475dfed354a1df7644bc77bbb500afe9",
+      "public_replay_sha256_uncompressed_json": "74c77943c74f78492bc29179853df384d6329e95bc1ec860cb124a7bd33f4322",
+      "public_replay_sha256_canonical_json": "b330248cc87d7d4637f79966c25942f28c006027a2942caa4a744e3e6fb93a64",
+      "owner_replay_sha256_uncompressed_json": "5b351d497bc9db6f5f553c0196a0c35b3552fb70a0ba84740a9f88390772e50c",
+      "owner_replay_sha256_canonical_json": "931d5b97325725f4c6004729e8b5384c5622e57ee5a19d38034f9a34817c044a",
+      "source_sha256": {
+        "player": "b869fb6dc3fc3f98485d9fd27f7b137233ddb84b9b2ee5c9e0ce810910d6bda6",
+        "npc": "72af4cc69578be6d2e45184276490adf74dd00854241b1cf9e1f6bcd53ab947d"
+      },
+      "frame_count": 601,
+      "observed_events": {
+        "frame_event_counts": {
+          "next.attack": 1486,
+          "next.death": 209
+        },
+        "F01_R01_events": [
+          {
+            "tick": 33,
+            "event": "next.death",
+            "catalog_id": "R01",
+            "owner": "defender",
+            "slot_id": null,
+            "skill_id": null
+          },
+          {
+            "tick": 66,
+            "event": "next.death",
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "skill_id": null
+          }
+        ],
+        "F01_R01_respawns": [
+          {
+            "tick": 86,
+            "catalog_id": "F01",
+            "owner": "attacker",
+            "slot_id": "slot-1",
+            "new_entity_id": "visible-73",
+            "node": "A.BASE"
+          }
+        ]
+      },
+      "native_dispatcher_sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+      "elapsed_seconds": 26.88
+    }
+  ]
+}

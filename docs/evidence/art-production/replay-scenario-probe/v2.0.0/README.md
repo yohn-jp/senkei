@@ -16,22 +16,27 @@ The inputs, exact fixture sources, public replay, attacker-owner replay, per-cas
 
 This proves natural Hero skill acquisition, death, and respawn from the existing campaign lineups and tactics. These time-limit draws are event coverage, not win-rate or active-skill-use evidence.
 
-## Reproduction
+## Core/Replay 0.4 recapture
 
-Use the saved dispatcher at the path below. The script verifies its SHA256 and the expected package digest before running; it does not build or use shared `node_modules`.
+On 2026-10-26, all three unchanged campaign recipes were rerun through Native dispatcher SHA-256 `392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e` from build source `62a3e19` (`crates` tree `3356b4e92785f7cd72dbde533d62348cd9408345`). The probe repository was `session/integration` at `7a0c0ff180420694a0a8d6de3587fef110582d71`; its `crates` tree matched the Native build source. The paired WASM was SHA-256 `c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e`. The refreshed `senkei.next` ruleset digest is `e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a`; Replay writer schema is 1.1.0.
+
+The rerun preserved each saved lineup, skill path, unchanged Jinrei source, attacker/defender base placement, and 600-tick limit. F01 died and respawned in the same slot at `A.BASE` in `read-the-map` (176→201), `share-the-pressure` (212→242), and `bridge-approach` (66→86). R01 death was observed at ticks 77, 33, and 33 respectively. F01 acquired its passive skill at tick 114 in `read-the-map` and tick 79 in `share-the-pressure`; the three cases still produced no active `next.skill` event, so active-skill animation remains unverified by this probe. Final-state and replay digests match the prior Core run for all three cases, despite the ruleset digest change. Request, public replay, owner replay, event, and source hashes are recorded in [`captures/core-replay-0.4/manifest.json`](captures/core-replay-0.4/manifest.json).
+
+The saved `read-the-map` request was then dispatched a second time through the same binary. The complete result, public replay, and authorized attacker replay were exactly JSON-equal to the first run; hashes and scope are in [`determinism-core-replay-0.4.json`](determinism-core-replay-0.4.json). This verifies Native simulation determinism for that exact input, not renderer or screenshot determinism.
+
+Raw request/replay gzip files are retained locally as ignored data for the next browser capture; they are regenerated from the tracked source fixtures and exact dispatcher rather than committed. The runner refuses to overwrite existing artifacts with different bytes; use a fresh output directory for any recapture. The verified Native binary was retained at `/home/sophia/src/senkei/target/local-codex/native/392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e`. To rerun, select that immutable binary or another build from the recorded Native source commit and use the repository that contains the source:
 
 ```sh
-SENKEI_NATIVE_DISPATCHER=/home/sophia/src/senkei/target/release/senkei-wasm-dispatch \
-  python3 docs/evidence/art-production/replay-scenario-probe/v2.0.0/run_probe.py
-```
-
-The original capture was produced from main commit `c03854f`. The saved release artifact was later removed while reclaiming storage. For the planned post-integration Core/Replay 0.4 recapture, keep the baseline files intact and choose a fresh output directory:
-
-```sh
-SENKEI_NATIVE_DISPATCHER=/home/sophia/src/senkei/target/release/senkei-wasm-dispatch \
-  python3 docs/evidence/art-production/replay-scenario-probe/v2.0.0/run_probe.py \
+SENKEI_REPO_ROOT=/path/to/senkei \
+SENKEI_NATIVE_SOURCE_HEAD=62a3e19 \
+SENKEI_NATIVE_DISPATCHER=/path/to/senkei-wasm-dispatch \
+python3 docs/evidence/art-production/replay-scenario-probe/v2.0.0/run_probe.py \
   --allow-different-dispatcher \
-  --out-dir docs/evidence/art-production/replay-scenario-probe/v2.0.0/captures/core-replay-0.4
+  --out-dir /tmp/senkei-art-core-replay-0.4-rerun
 ```
 
-That mode accepts a rebuilt dispatcher and a refreshed `senkei.next` package digest while retaining the same three campaign recipes, source files, lineup, skill paths, base placement, and default context limit. The new output records its actual source commit, binary, WASM, ruleset, input, and replay hashes.
+The script verifies that the Native build source and probe repository have the same `crates` tree, and records the probe repository HEAD plus paired WASM hash. Physical-GPU rendering and live Battlefield screenshots are separate acceptance evidence.
+
+## Original Core capture
+
+The baseline capture was produced from `c03854f`; its saved dispatcher was later removed while reclaiming storage, so that exact binary cannot be rerun. Its recorded hashes remain a historical comparison point. Reproduction for the current Core/Replay 0.4 is documented above. The runner does not build Core or use shared `node_modules`.

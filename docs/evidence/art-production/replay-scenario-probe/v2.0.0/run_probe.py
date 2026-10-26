@@ -6,6 +6,7 @@ import argparse
 import collections
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -13,7 +14,7 @@ import subprocess
 import sys
 import time
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(os.environ.get("SENKEI_REPO_ROOT", Path(__file__).resolve().parents[5])).expanduser().resolve()
 DEFAULT_DISPATCHER = Path("/home/sophia/src/senkei/target/release/senkei-wasm-dispatch")
 EXPECTED_DISPATCHER_SHA256 = "707ffe100a21fb80eff50b56ad394f050954e4e64b0a9ce09da4cbaf1a978bf3"
 EXPECTED_RULESET_DIGEST = "c045f65b261939c866f7a08c18fe4d0dca24c81a0fdb07a4728f50eeb74e688f"
@@ -58,12 +59,21 @@ def canonical_json(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+def write_once(path: Path, content: bytes) -> None:
+    if path.exists():
+        if path.read_bytes() != content:
+            raise RuntimeError(f"refusing to overwrite different existing artifact: {path}")
+        return
+    path.write_bytes(content)
+
+
 def write_gzip_json(path: Path, value: object) -> dict[str, object]:
     raw = compact_json(value)
-    with path.open("wb") as target:
-        with gzip.GzipFile(filename="", fileobj=target, mode="wb", mtime=0, compresslevel=9) as zipped:
-            zipped.write(raw)
-    compressed = path.read_bytes()
+    output = io.BytesIO()
+    with gzip.GzipFile(filename="", fileobj=output, mode="wb", mtime=0, compresslevel=9) as zipped:
+        zipped.write(raw)
+    compressed = output.getvalue()
+    write_once(path, compressed)
     return {
         "sha256_uncompressed_json": digest(raw),
         "sha256_compressed": digest(compressed),
@@ -231,6 +241,21 @@ def main() -> int:
         raise RuntimeError(f"unexpected Next package digest: {ruleset_ref['digest']}")
     if ruleset_ref["id"] != "senkei.next" or ruleset_ref["version"].get("major") != 2:
         raise RuntimeError(f"unexpected Next package identity: {ruleset_ref}")
+    native_source_head = os.environ.get("SENKEI_NATIVE_SOURCE_HEAD")
+    native_crates_tree = None
+    if native_source_head:
+        native_crates_tree = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", f"{native_source_head}:crates"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        probe_crates_tree = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD:crates"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        if native_crates_tree != probe_crates_tree:
+            raise RuntimeError(
+                f"native source crates tree {native_crates_tree} differs from probe repository HEAD tree {probe_crates_tree}"
+            )
     next_rules = package["next"]
     heroes_by_id = {hero["id"]: hero for hero in next_rules["heroes"]}
 
@@ -312,7 +337,10 @@ def main() -> int:
             "native_dispatcher_sha256": binary_sha,
             "elapsed_seconds": elapsed,
         }
-        (case_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        write_once(
+            case_dir / "summary.json",
+            (json.dumps(summary, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        )
         summaries.append(summary)
         print(json.dumps(summary, ensure_ascii=False), flush=True)
 
@@ -324,7 +352,10 @@ def main() -> int:
     }
     manifest = {
         "schema": "senkei-art-native-scenario-probe/v1",
+        "probe_repository": str(ROOT),
         "source_head": subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip(),
+        "native_build_source_head": native_source_head,
+        "native_build_crates_tree": native_crates_tree,
         "core_tree": subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD:crates/enbu"], text=True, capture_output=True, check=True).stdout.strip(),
         "wasm_source_tree": subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD:crates/wasm"], text=True, capture_output=True, check=True).stdout.strip(),
         "native_dispatcher": {"path": str(dispatcher), "sha256": binary_sha},
@@ -335,7 +366,10 @@ def main() -> int:
         "campaign_source_fixtures_sha256": digest((ROOT / "scenarios/next/source-fixtures.json").read_bytes()),
         "cases": summaries,
     }
-    (args.out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_once(
+        args.out_dir / "manifest.json",
+        (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+    )
     return 0
 
 

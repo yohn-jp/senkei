@@ -1,0 +1,21 @@
+{
+  "schema": "senkei-art-native-replay-repeat/v1",
+  "case_id": "read-the-map",
+  "source_head": "7a0c0ff180420694a0a8d6de3587fef110582d71",
+  "native_build_source_head": "62a3e19",
+  "native_build_crates_tree": "3356b4e92785f7cd72dbde533d62348cd9408345",
+  "native_dispatcher_sha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+  "input_request_compressed_sha256": "ac40b57f8b938adcedbadb386c5a950812ffb2a253095e96270650253394317d",
+  "input_request_canonical_sha256": "4149d2dbd944e1dcbce5c6da7f14c360497ab55458f8f521cbaa457a48b54a8c",
+  "repeat_checks": {
+    "result": "exact JSON equality",
+    "public_replay": "exact JSON equality",
+    "attacker_owner_replay": "exact JSON equality",
+    "authorized_side": "attacker"
+  },
+  "final_state_digest": "68f98bd8a27469d5f143efa93e301dd7e6409316e8f1ddfdd725bbda6eb423cc",
+  "public_replay_result_digest": "12c94e7cbaaeaec51ab4cf24bece51e157be01fff2d7d42ea090f71747c919ff",
+  "public_replay_canonical_sha256": "24f5a0bace168364b7fffbba430969b470f3dae862100e64d08622458c5e4b50",
+  "attacker_owner_replay_canonical_sha256": "098928d10fe0d7a573024277028e537702f0699c7fdaa28b5348ca4a1179fa9c",
+  "scope": "Repeated Native simulation of the exact saved 600-tick request. Browser renderer pose, camera, LOD transitions, and pixel reproducibility remain unverified."
+}
