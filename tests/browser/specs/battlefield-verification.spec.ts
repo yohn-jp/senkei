@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
+import { reproductionSnapshotDigest } from "../../../apps/web/src/features/next/experiment-restoration";
 import { completePreflight } from "../helpers/preflight";
 
 test.use({ video: "on" });
@@ -860,7 +861,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   rmSync(outputDirectory, { recursive: true, force: true });
   mkdirSync(outputDirectory, { recursive: true });
   const controlledScenario = process.env.BATTLEFIELD_CONTROLLED_SCENARIO;
-  if (controlledScenario && controlledScenario !== "cue" && controlledScenario !== "farm") {
+  if (controlledScenario && controlledScenario !== "cue" && controlledScenario !== "farm" && controlledScenario !== "art-active-skill") {
     throw new Error(`Unsupported BATTLEFIELD_CONTROLLED_SCENARIO: ${controlledScenario}`);
   }
   const controlledSnapshotPath = process.env.BATTLEFIELD_CONTROLLED_SNAPSHOT_PATH;
@@ -913,6 +914,9 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     throw new Error("The visible-cluster capture uses the ordinary real Next match in its own focused run.");
   }
   const captureProfile = controlledScenario ? `controlled-${controlledScenario}-snapshot` : tacticProfile;
+  const controlledSnapshotDigest = controlledSnapshot
+    ? await reproductionSnapshotDigest(controlledSnapshot as Parameters<typeof reproductionSnapshotDigest>[0])
+    : null;
   const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
   if (clusterInspectorOnly && (
     captureViewports.length !== 2 ||
@@ -935,18 +939,18 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
   });
 
   // Capture the actual workbench worker request and reply. Controlled scenarios
-  // replace only its simulation snapshot; the real Core Worker and WASM create
+  // replace only its immutable reproduction snapshot; the real Core Worker and WASM create
   // the result, and the renderer receives only the resulting presentation replay.
   const workerScenario = controlledScenario && controlledSnapshot
-    ? { name: controlledScenario, snapshot: controlledSnapshot }
+    ? { name: controlledScenario, snapshot: controlledSnapshot, snapshotDigest: controlledSnapshotDigest }
     : null;
-  await page.addInitScript((injectedScenario: { name: string; snapshot: JsonRecord } | null) => {
+  await page.addInitScript((injectedScenario: { name: string; snapshot: JsonRecord; snapshotDigest: string | null } | null) => {
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
         const request = message as { operation?: unknown; request_id?: unknown; payload?: { snapshot?: unknown } } | null;
         let outgoing = message;
-        if (request?.operation === "simulate") {
+        if (request?.operation === "simulate" || request?.operation === "reproduce") {
           const target = window as typeof window & {
             __battlefieldSimRequest?: unknown;
             __battlefieldOriginalSimRequest?: unknown;
@@ -956,16 +960,21 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
             const transferCount = Array.isArray(transfer) ? transfer.length : transfer?.transfer?.length ?? 0;
             if (transferCount > 0) throw new Error("Controlled snapshot replacement does not support transferred simulation payloads.");
             const original = structuredClone(message);
-            const modified = structuredClone(message) as { operation?: unknown; payload?: { snapshot?: unknown } };
-            if (!modified.payload) throw new Error("Simulation request has no payload to receive the controlled snapshot.");
+            const modified = structuredClone(message) as { operation?: unknown; payload?: { snapshot?: unknown; snapshot_digest?: unknown } };
+            if (!modified.payload) throw new Error("Reproduction request has no payload to receive the controlled snapshot.");
             modified.payload.snapshot = structuredClone(injectedScenario.snapshot);
+            if (modified.operation === "reproduce") {
+              if (!injectedScenario.snapshotDigest) throw new Error("Controlled reproduction snapshot has no canonical digest.");
+              modified.payload.snapshot_digest = injectedScenario.snapshotDigest;
+            }
             outgoing = modified;
             target.__battlefieldOriginalSimRequest = original;
             target.__battlefieldScenarioInjection = {
               name: injectedScenario.name,
               originalMatchId: (request.payload?.snapshot as JsonRecord | undefined)?.context?.match_id ?? null,
               injectedMatchId: injectedScenario.snapshot.context?.match_id ?? null,
-              target: "real-Core-Worker-simulate-snapshot",
+              snapshotDigest: injectedScenario.snapshotDigest,
+              target: "real-Core-Worker-reproduction-snapshot",
             };
           }
           target.__battlefieldSimRequest = structuredClone(outgoing);
@@ -989,7 +998,7 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
             const target = window as typeof window & { __battlefieldRulesetResponse?: unknown };
             target.__battlefieldRulesetResponse = structuredClone(data);
           }
-          if (data?.operation === "simulate") {
+          if (data?.operation === "simulate" || data?.operation === "reproduce") {
             const target = window as typeof window & { __battlefieldSimResponse?: unknown };
             target.__battlefieldSimResponse = structuredClone(data);
           }
@@ -1062,16 +1071,17 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       scenarioInjection: current.__battlefieldScenarioInjection ?? null,
     };
   });
-  expect(captured.request, "the UI must have submitted an actual local simulation request").not.toBeNull();
-  expect(captured.response, "the real worker must have returned the local simulation result").not.toBeNull();
-  expect(captured.request!.operation).toBe("simulate");
-  expect(captured.response!.operation).toBe("simulate");
+  expect(captured.request, "the UI must have submitted an actual local reproduction request").not.toBeNull();
+  expect(captured.response, "the real worker must have returned the local reproduction result").not.toBeNull();
+  expect(captured.request!.operation).toBe("reproduce");
+  expect(captured.response!.operation).toBe("reproduce");
   expect(captured.response!.ok).toBe(true);
   expect(captured.response!.request_id).toBe(captured.request!.request_id);
   expect(captured.request!.payload.snapshot.context.match_id).toBeTruthy();
   if (controlledScenario) {
     expect(captured.scenarioInjection?.name).toBe(controlledScenario);
-    expect(captured.scenarioInjection?.target).toBe("real-Core-Worker-simulate-snapshot");
+    expect(captured.scenarioInjection?.target).toBe("real-Core-Worker-reproduction-snapshot");
+    expect(captured.request!.payload.snapshot_digest).toBe(captured.scenarioInjection?.snapshotDigest);
     expect(captured.scenarioInjection?.originalMatchId).toBeTruthy();
     expect(captured.scenarioInjection?.injectedMatchId).toBe(captured.request!.payload.snapshot.context.match_id);
     expect(captured.originalRequest?.payload.snapshot.context.match_id).toBe(captured.scenarioInjection?.originalMatchId);
