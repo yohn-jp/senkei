@@ -1,4 +1,12 @@
-# Canonical coverage — Wave 1 checkpoint
+# Canonical coverage — clause register and implementation evidence
+
+Current source-clause inventory: [CLAUSE-INDEX.md](CLAUSE-INDEX.md), pinned to main `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. It covers all 47 root documents with exact line citations, including the runtime integration authority omitted from the root README index. [GAPS-AND-BOUNDARIES.md](GAPS-AND-BOUNDARIES.md) separates concrete source gaps, acceptance still awaiting proof, and undefined producer decisions. The machine-readable [source inventory](source-inventory.json) records source fingerprints; it is not a final requirement count.
+
+The four classifications are `DEFINED/MISSING`, `INCOMPLETE`, `VERIFIED`, and `UNDEFINED/DEFERRED`. **INCOMPLETE may mean acceptance verification is incomplete while implementation exists.** The implementation column states whether source was found, absent, or only identified as an inspection lead. `Verification: NOT_CHECKED` remains separate. Code/test presence alone never receives VERIFIED. References, illustrative code and historical reports are explicitly outside four-way normative counts.
+
+Current authorization continues beyond the first Wave. The fixed-Wave tables and evidence below are historical checkpoints, not a continuing stop rule. PR22's defined UX-C and UX-X operations remain in this task even when canonical text retains proposal/future wording. Their genuinely undecided rules remain deferred. No authoritative final implemented/missing/undefined totals or goal-completion claim is made: exact source coverage is complete, while semantic deduplication, mixed-paragraph splitting and clause-specific implementation/acceptance evidence remain open.
+
+## Historical first-Wave checkpoint
 
 Baseline main: `1a86f41c47a974dff5e4a4d4edb8b37fbe481207`.
 
@@ -13,7 +21,7 @@ This is an initial contract-family inventory, not exhaustive clause-level comple
 | Baseline | 320px Follow sheet sticky heading target occlusion | next-workspace.css, focused browser regression | existing renderer/Replay |
 | Coordinator | coverage inventory and integration review | this directory | domain audits |
 
-No dynamic implementation additions. Full UX-C09 restore confirmation is a separate remaining gap. Native/TS tests, browser automation, physical devices, visual review, PR CI and integrated main each require independent evidence.
+This table records the bounded first Wave. Full UX-C09 restore confirmation is a separate remaining gap. Native/TS tests, browser automation, physical devices, visual review, PR CI and integrated main each require independent evidence.
 
 ## Baseline observations
 
