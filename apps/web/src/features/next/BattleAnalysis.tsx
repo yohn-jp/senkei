@@ -13,6 +13,7 @@ import type {
   RestrictedDiagnostics,
 } from "../../contracts";
 import "./battle-analysis.css";
+import { canonicalInputKey, classifyRunComparison } from "./run-comparison";
 
 export interface BattleAnalysisRun {
   readonly snapshot: SimulationSnapshot;
@@ -211,27 +212,11 @@ function diagnosticSummary(event: RestrictedDiagnostics["events"][number]): stri
 }
 
 function fullIdentity(run: BattleAnalysisRun): string {
-  return JSON.stringify(run.snapshot);
+  return canonicalInputKey(run.snapshot);
 }
 
 function changedInputs(previous: BattleAnalysisRun, current: BattleAnalysisRun): string[] {
-  const oldSnapshot = previous.snapshot;
-  const newSnapshot = current.snapshot;
-  const changes: string[] = [];
-  if (previous.setup?.campaign_scenario_id !== current.setup?.campaign_scenario_id) changes.push("Campaign challenge");
-  if (JSON.stringify(oldSnapshot.attacker.configuration) !== JSON.stringify(newSnapshot.attacker.configuration)) changes.push("自軍の5 Hero・Skill・Squad・Node設定");
-  if (oldSnapshot.attacker.program.content_digest !== newSnapshot.attacker.program.content_digest) changes.push("自軍のJinrei Program");
-  if (JSON.stringify(oldSnapshot.defender.configuration) !== JSON.stringify(newSnapshot.defender.configuration)
-    || oldSnapshot.defender.program.content_digest !== newSnapshot.defender.program.content_digest) changes.push("Opponent setup identity");
-  if (JSON.stringify(oldSnapshot.context.initial_world) !== JSON.stringify(newSnapshot.context.initial_world)) changes.push("Worldの初期状態");
-  if (JSON.stringify(oldSnapshot.context.versions) !== JSON.stringify(newSnapshot.context.versions)
-    || JSON.stringify(oldSnapshot.context.ruleset) !== JSON.stringify(newSnapshot.context.ruleset)) changes.push("Ruleset / Engine identity");
-  if (oldSnapshot.context.match_id !== newSnapshot.context.match_id && changes.length === 0) changes.push("Match identity");
-  return changes;
-}
-
-function compareLabel(previous: BattleAnalysisRun, current: BattleAnalysisRun): string {
-  return fullIdentity(previous) === fullIdentity(current) ? "同じEnbu Snapshot" : "入力を変更したRun";
+  return classifyRunComparison(previous, current).changes.map(change => change.label);
 }
 
 function ownEventCount(events: readonly GraphicsEvent[], id: string, attribution: Map<string, EntityAttribution>): number {
@@ -291,8 +276,7 @@ export function BattleAnalysis({
   const currentPage = Math.min(page, pageCount - 1);
   const pageRows = rows.slice(currentPage * EVENT_PAGE_SIZE, (currentPage + 1) * EVENT_PAGE_SIZE);
   const comparedRun = baselineRun && run ? baselineRun : null;
-  const comparisonIsExact = comparedRun ? fullIdentity(comparedRun) === fullIdentity(run!) : false;
-  const comparisonChanges = comparedRun && run && !comparisonIsExact ? changedInputs(comparedRun, run) : [];
+  const comparison = useMemo(() => comparedRun && run ? classifyRunComparison(comparedRun, run) : null, [comparedRun, run]);
   const countsByHero = useMemo(() => new Map(roster.map((hero) => [hero.slot, ownEventCount(events, hero.slot, attribution)])), [attribution, events, roster]);
   const timelineAttributionCount = attribution.size;
 
@@ -387,16 +371,23 @@ export function BattleAnalysis({
             {run.sourceReplay.perspective === "attacker" && <p className="battle-analysis-boundary">The trace is a local-only Enbu channel. Defender diagnostics, private enemy Jinrei and hidden enemy state are not shown.</p>}
           </section>
 
-          <section aria-label="Previous and current match comparison" className="battle-analysis-card battle-analysis-comparison">
+          <section aria-label="Previous and current match comparison" className="battle-analysis-card battle-analysis-comparison" data-comparison-kind={comparison?.category}>
             <header><div><span className="battle-analysis-eyebrow">PREVIOUS RUN · CURRENT RUN</span><h4>試合を比較</h4></div></header>
             {comparedRun ? <>
-              <p className="battle-analysis-comparison-label">{compareLabel(comparedRun, run)}</p>
+              <p className="battle-analysis-comparison-label">{comparison?.category === "exact"
+                ? comparison.snapshotIdentical ? "同じEnbu Snapshot" : "同じ実行条件（Match IDのみ異なる）"
+                : <><span>入力を変更したRun</span> · {comparison?.category === "improved" ? "改良比較 · 自軍のみ変更" : "参考比較 · 条件が異なる／未確認"}</>}</p>
               <div className="battle-analysis-comparison-values">
                 <div><small>PREVIOUS</small><strong>{resultLabel(comparedRun.response.outcome.result.outcome)}</strong><span>{comparedRun.response.outcome.result.final_tick} ticks · {comparedRun.response.outcome.result.cu_spent.attacker} CU</span></div>
                 <span aria-hidden="true">→</span>
                 <div><small>CURRENT</small><strong>{resultLabel(result.outcome)}</strong><span>{result.final_tick} ticks · {result.cu_spent.attacker} CU</span></div>
               </div>
-              {comparisonIsExact ? <p className="battle-analysis-boundary">Both completed Runs used the same complete SimulationSnapshot identity.</p> : comparisonChanges.length ? <ul className="battle-analysis-change-list">{comparisonChanges.map((change) => <li key={change}>{change}</li>)}</ul> : <p className="battle-analysis-boundary">Run identity differs. No more specific change was exposed by the submitted snapshots.</p>}
+              {comparison?.category === "exact" && comparison.snapshotIdentical && <p className="battle-analysis-boundary">Both completed Runs used the same complete SimulationSnapshot identity.</p>}
+              {comparison?.category === "improved" && <p className="battle-analysis-boundary">自軍の変更対象以外は基準Runと一致しています。結果の改善そのものを保証する分類ではありません。</p>}
+              {comparison?.category === "reference" && <p className="battle-analysis-boundary">参考比較です。自軍だけを変えた同条件の比較とは判定できません。</p>}
+              {comparison?.matchIdChanged && <p className="battle-analysis-boundary">Match IDは異なります。IDだけを実行条件差とは扱いませんが、Coreが実行時Entity IDを導出するため、出力の完全一致は保証しません。</p>}
+              {Boolean(comparison?.changes.length) && <ul className="battle-analysis-change-list">{comparison!.changes.map((change) => <li key={change.path}>{change.label}</li>)}</ul>}
+              {Boolean(comparison?.unavailable.length) && <p className="battle-analysis-boundary" role="status">条件Identityを確認できません: {comparison!.unavailable.join(", ")}</p>}
               <p>Tick差 {result.final_tick - comparedRun.response.outcome.result.final_tick > 0 ? "+" : ""}{result.final_tick - comparedRun.response.outcome.result.final_tick} · 自軍CU差 {result.cu_spent.attacker - comparedRun.response.outcome.result.cu_spent.attacker > 0 ? "+" : ""}{result.cu_spent.attacker - comparedRun.response.outcome.result.cu_spent.attacker}</p>
             </> : <p className="battle-analysis-unavailable">比較可能な前回Runはありません。現在のDraftや保存版を過去の試合結果として扱いません。</p>}
           </section>
