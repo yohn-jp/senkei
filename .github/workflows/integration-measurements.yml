@@ -1,0 +1,40 @@
+name: Inspect integration measurements
+on:
+  push:
+    branches: [integration/verify-measurements]
+    paths: [.github/workflows/integration-measurements.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: gameplay-evidence-next-scenarios
+          run-id: 40413193700
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+      - name: Read exact-source measurements
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('evidence')
+          sources = list(root.rglob('failure-source-revision.txt'))
+          assert len(sources) == 1, sources
+          source = sources[0].read_text().strip()
+          assert source == '9bf4dbab69754535a64d120413e43df0f35fcc90', source
+          reports = list(root.rglob('strategic-measurements.json'))
+          assert len(reports) == 1, reports
+          report = json.loads(reports[0].read_text())
+          assert report['case_count'] == 8
+          print('MEASUREMENT_SOURCE', source)
+          print('PACKAGE_DIGEST', report['package_digest'])
+          for case in report['cases']:
+              row = {key: case.get(key) for key in ['case_id', 'outcome', 'termination_class', 'termination_reason', 'final_tick', 'final_state_digest', 'cu_by_side']}
+              row['bases'] = [item for item in case['owner_structure_state'] if str(item.get('catalog_id', {}).get('value', '')).startswith('base.')]
+              print('STRATEGIC_MEASUREMENT', json.dumps(row, separators=(',', ':')))
+          PY
