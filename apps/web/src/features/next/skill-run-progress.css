@@ -1,0 +1,4 @@
+.skill-run-context { margin-block: 1rem; padding: 1rem; border: 1px solid #455846; border-radius: .4rem; background: #142125; color: #e3e9e3; overflow-wrap: anywhere; }
+.skill-run-context p { margin-block: .5rem; }
+.skill-run-context ul { display: grid; gap: .6rem; padding-inline-start: 1.2rem; }
+.skill-run-context li > span, .skill-run-context li > small { display: block; margin-block-start: .2rem; }
