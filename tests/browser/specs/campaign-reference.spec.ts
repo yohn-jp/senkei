@@ -51,7 +51,8 @@ for (const change of ["context", "opponent"] as const) test(`Relabeling a custom
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
   await library.getByLabel("Import Next experiment file").setInputFiles({ name: "reference-attempt.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(importStore)) });
-  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled({ timeout: 60_000 });
+  // Import reproduces the modified, real 600-tick Native Run in the browser Core before it can be opened.
+  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled({ timeout: 180_000 });
   await expect(library.locator(".next-library-experiment-list")).not.toContainText(fixture.scenario.title);
   await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
   const analysis = page.getByTestId("battle-analysis");
