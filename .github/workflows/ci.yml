@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SENKEI_NATIVE_DISPATCHER: target/release/senkei-wasm-dispatch
+      NEXT_STRATEGIC_REPORT: target/next-balance/strategic-measurements.json
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -50,7 +51,11 @@ jobs:
       - name: Determinism — native and real WebAssembly adapters
         run: node tests/conformance/compare-adapters.mjs
       - name: Gameplay — fixed Next scenario matrix and adapter parity
-        run: bash scripts/balance/run-next.sh
+        run: |
+          mkdir -p target/next-balance
+          rm -f "$NEXT_STRATEGIC_REPORT"
+          git rev-parse HEAD > target/next-balance/source-revision.txt
+          bash scripts/balance/run-next.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -58,6 +63,8 @@ jobs:
           compression-level: 0
           path: |
             target/next-balance/latest.json
+            target/next-balance/strategic-measurements.json
+            target/next-balance/source-revision.txt
             target/next-balance/adapter/
           if-no-files-found: ignore
 
@@ -96,6 +103,23 @@ jobs:
       - run: npm run build
       - name: Build the native dispatcher for Campaign browser fixtures
         run: cargo build --locked --release -p senkei-wasm --bin senkei-wasm-dispatch
+      - name: Preserve exact runtime for integration failure reproduction
+        run: |
+          mkdir -p target/integration-runtime
+          git rev-parse HEAD > target/integration-runtime/source-revision.txt
+          git archive --format=tar.gz --output=target/integration-runtime/source.tar.gz HEAD apps crates packages scenarios scripts tests Cargo.toml Cargo.lock package.json package-lock.json vite.config.ts vitest.config.ts playwright.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json tsconfig.graphics.json
+          cmp apps/web/public/wasm/senkei_wasm.wasm dist/web/wasm/senkei_wasm.wasm
+          sha256sum target/release/senkei-wasm-dispatch apps/web/public/wasm/senkei_wasm.wasm dist/web/wasm/senkei_wasm.wasm dist/web/index.html target/integration-runtime/source.tar.gz > target/integration-runtime/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          # Diagnostic artifacts are not an accepted production-browser-build.
+          name: integration-runtime-diagnostics
+          retention-days: 3
+          path: |
+            target/integration-runtime/
+            target/release/senkei-wasm-dispatch
+            apps/web/public/wasm/
+            dist/web/
       # Cargo cache can restore target/browser-scenarios/campaign-native from an older run.
       # Remove only that generated cache before the strict immutable producer runs.
       - name: Remove cached Campaign fixture output
