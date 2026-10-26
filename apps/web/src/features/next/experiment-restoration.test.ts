@@ -80,7 +80,7 @@ async function responseForReproduction(snapshot: SimulationSnapshot, includeDiag
       ...diagnostics,
       cu_by_side: { attacker: diagnostics.cu_by_side.attacker },
       final_memory_by_side: { attacker: diagnostics.final_memory_by_side.attacker },
-    },
+    } as SimulationResponse["restricted_diagnostics"],
   };
 }
 
@@ -192,7 +192,7 @@ describe("Next experiment reproduction comparison", () => {
   it("rejects a changed public replay frame or owner diagnostics after verifying each Run identity", async () => {
     const snapshot = diagnosticsSnapshot();
     const publicResponse = await responseForReproduction(snapshot, false);
-    const changedReplay = { ...publicResponse.outcome.presentation_replay, frames: [{ tick: 1, events: [] }] };
+    const changedReplay = { ...publicResponse.outcome.presentation_replay, frames: [{ tick: 1, events: [], visible_state: null }] };
     await expect(validateNextExperimentReproduction(
       publicResponse,
       { ...publicResponse, outcome: { ...publicResponse.outcome, presentation_replay: changedReplay } },

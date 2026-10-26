@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LocalNextExperimentStore, ReproductionAssets } from "../../contracts";
+import type { LocalNextExperimentStore, ReproductionAssets, RulesetRef, TacticalProgram } from "../../contracts";
 import { NEXT_EXPERIMENT_STORE_MAX_BYTES, PersistenceError, assertNextExperimentImportSize, loadNextExperimentPayload, loadNextExperimentStore, parseNextExperimentStore, saveNextExperimentStore, serializeNextExperimentStore } from "../persistence/repository";
 
 const version = { major: 1, minor: 0, patch: 0 } as const;
-const ruleset = { id: "senkei.next", version, digest: "a".repeat(64) };
+const ruleset: RulesetRef = { id: "senkei.next", version, digest: "a".repeat(64) };
 const worldIdentity = {
   world_id: "world-a",
   schema_version: version,
@@ -15,7 +15,7 @@ const worldIdentity = {
   logic_digest: "b".repeat(64),
   presentation_digest: "c".repeat(64),
 };
-const program = {
+const program: TacticalProgram = {
   language_version: version,
   ir_version: version,
   bytecode_version: version,

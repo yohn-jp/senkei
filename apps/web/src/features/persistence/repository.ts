@@ -1,4 +1,4 @@
-import type { CoreJsonValue, ReproductionAssets } from "../../contracts/core";
+import type { CoreJsonValue, ReproductionAssets, SimulationSnapshot } from "../../contracts/core";
 import type {
   LocalSenkeiDocument,
   LocalSenkeiDocumentSummary,
@@ -372,7 +372,7 @@ function assertDomainRecord(value: Record<string, unknown>, path: string): void 
   for (const [key, child] of Object.entries(value)) assertDomainValue(child, `${path}.${key}`);
 }
 
-function assertSimulationSnapshot(value: unknown, path: string): void {
+function assertSimulationSnapshot(value: unknown, path: string): asserts value is SimulationSnapshot {
   if (!isRecord(value) || !isRecord(value.attacker) || !isRecord(value.defender) || !isRecord(value.context)) {
     throw new PersistenceError("invalid_data", `${path} must contain attacker, defender, and context snapshots.`);
   }
@@ -580,18 +580,19 @@ function assertWorldIdentityRef(value: unknown, path: string): void {
   if (!isRecord(value) || typeof value.world_id !== "string" ||
       typeof value.logic_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.logic_digest) ||
       typeof value.presentation_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.presentation_digest) ||
-      (value.maximum_compiler_exclusive !== null && value.maximum_compiler_exclusive !== undefined && !isRecord(value.maximum_compiler_exclusive)) ||
-      (value.validation_profile_id !== null && value.validation_profile_id !== undefined && typeof value.validation_profile_id !== "string") ||
-      (value.validation_profile_version !== null && value.validation_profile_version !== undefined && !isRecord(value.validation_profile_version))) {
+      (value.maximum_compiler_exclusive !== null && !isRecord(value.maximum_compiler_exclusive)) ||
+      (value.validation_profile_id !== null && typeof value.validation_profile_id !== "string") ||
+      (value.validation_profile_version !== null && !isRecord(value.validation_profile_version)) ||
+      ((value.validation_profile_id === null) !== (value.validation_profile_version === null))) {
     throw new PersistenceError("invalid_data", `${path} is a malformed paired World identity.`);
   }
   for (const key of ["schema_version", "compiler_version", "minimum_compiler"]) {
     assertVersion(value[key], `${path}.${key}`);
   }
-  if (value.maximum_compiler_exclusive !== null && value.maximum_compiler_exclusive !== undefined) {
+  if (value.maximum_compiler_exclusive !== null) {
     assertVersion(value.maximum_compiler_exclusive, `${path}.maximum_compiler_exclusive`);
   }
-  if (value.validation_profile_version !== null && value.validation_profile_version !== undefined) {
+  if (value.validation_profile_version !== null) {
     assertVersion(value.validation_profile_version, `${path}.validation_profile_version`);
   }
 }
@@ -612,12 +613,12 @@ function sameWorldIdentity(left: unknown, right: unknown): boolean {
     sameVersion(left.schema_version, right.schema_version) &&
     sameVersion(left.compiler_version, right.compiler_version) &&
     sameVersion(left.minimum_compiler, right.minimum_compiler) &&
-    (left.maximum_compiler_exclusive === null || left.maximum_compiler_exclusive === undefined
-      ? right.maximum_compiler_exclusive === null || right.maximum_compiler_exclusive === undefined
+    (left.maximum_compiler_exclusive === null
+      ? right.maximum_compiler_exclusive === null
       : sameVersion(left.maximum_compiler_exclusive, right.maximum_compiler_exclusive)) &&
     left.validation_profile_id === right.validation_profile_id &&
-    (left.validation_profile_version === null || left.validation_profile_version === undefined
-      ? right.validation_profile_version === null || right.validation_profile_version === undefined
+    (left.validation_profile_version === null
+      ? right.validation_profile_version === null
       : sameVersion(left.validation_profile_version, right.validation_profile_version)) &&
     left.logic_digest === right.logic_digest &&
     left.presentation_digest === right.presentation_digest;
@@ -1381,20 +1382,21 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
     }
     const label = `Next experiment ${index + 1}`;
     assertReproductionAssets(experiment.reproduction_assets, `${label}.reproduction_assets`);
-    assertSimulationSnapshot(experiment.snapshot, `${label}.snapshot`);
+    const snapshotValue = experiment.snapshot;
+    assertSimulationSnapshot(snapshotValue, `${label}.snapshot`);
     const packageRuleset = experiment.reproduction_assets.rule_package.ruleset;
     const snapshotRulesets = [
-      experiment.snapshot.context.ruleset,
-      experiment.snapshot.attacker.ruleset,
-      experiment.snapshot.attacker.program.ruleset,
-      experiment.snapshot.defender.ruleset,
-      experiment.snapshot.defender.program.ruleset,
+      snapshotValue.context.ruleset,
+      snapshotValue.attacker.ruleset,
+      snapshotValue.attacker.program.ruleset,
+      snapshotValue.defender.ruleset,
+      snapshotValue.defender.program.ruleset,
     ];
     if (snapshotRulesets.some((ruleset) => !sameRulesetRef(ruleset, packageRuleset))) {
       throw new PersistenceError("invalid_data", `${label} snapshot ruleset identity does not match its retained RulePackage.`);
     }
     const packageWorld = experiment.reproduction_assets.rule_package.next?.world_identity;
-    if (!packageWorld || !sameWorldIdentity(experiment.snapshot.context.world_identity, packageWorld)) {
+    if (!packageWorld || !sameWorldIdentity(snapshotValue.context.world_identity, packageWorld)) {
       throw new PersistenceError("invalid_data", `${label} snapshot World identity does not match its retained RulePackage and World Definition.`);
     }
     assertJsonValue(experiment, label, MAX_EXPORT_NODES);
