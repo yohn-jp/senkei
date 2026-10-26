@@ -1,0 +1,34 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test } from "@playwright/test";
+
+for (const width of [390, 1440]) test(`Skill Tree distinguishes actual Run observations from Draft plans at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const entry = "/@fs" + resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures/skill-atelier-harness.tsx");
+  await page.route("**/skill-atelier-harness", route => route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">import R from '/@react-refresh'; R.injectIntoGlobalHook(window); window.$RefreshReg$=()=>{}; window.$RefreshSig$=()=>t=>t; window.__vite_plugin_react_preamble_installed__=true; await import(${JSON.stringify(entry)});</script></body></html>` }));
+  await page.goto("/skill-atelier-harness");
+  const context = page.getByRole("complementary", { name: "Run skill acquisition context" });
+  await expect(context).toContainText("Match campaign-first-march-clear · Tick 85", { timeout: 30_000 });
+  const passive = context.getByRole("listitem").filter({ has: page.getByText("Second Wind", { exact: true }) });
+  await expect(passive).toContainText("Planned · Acquired");
+  await expect(page.locator(".ha-branch.is-selected")).toContainText("Second Wind");
+  await page.screenshot({ path: info.outputPath(`skill-tree-observed-${width}.png`), fullPage: true });
+  await page.getByRole("button", { name: "Observe T0", exact: true }).click();
+  await expect(context).toContainText("Tick 0"); await expect(passive).toContainText("Planned · Not acquired");
+  await page.getByRole("button", { name: "Use public-only Run", exact: true }).click();
+  await expect(context).toContainText("Unavailable"); await expect(passive).toContainText("Unknown");
+  await expect(page.getByRole("status", { name: "Draft writes" })).toHaveText("0");
+  await page.getByRole("button", { name: "Observe T85", exact: true }).click();
+  await expect(passive).toContainText("Planned · Acquired");
+  await page.getByRole("button", { name: "Choose Path B for slot-1", exact: true }).click();
+  await expect(context).toContainText("Draft slot differs"); await expect(passive).toContainText("Other branch · Unknown");
+  await expect(page.getByRole("status", { name: "Draft writes" })).toHaveText("1");
+  await page.getByRole("tab", { name: /^Hero Collection/ }).click();
+  await page.getByRole("tab", { name: /^Skill Tree/ }).click();
+  await expect(context).toContainText("Draft slot differs");
+  await expect(page.getByRole("status", { name: "Run unchanged" })).toHaveText("true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  await page.screenshot({ path: info.outputPath(`skill-tree-${width}.png`), fullPage: true });
+  await page.getByRole("button", { name: "Clear Run context", exact: true }).click();
+  await expect(context).toContainText("No confirmed Run");
+});

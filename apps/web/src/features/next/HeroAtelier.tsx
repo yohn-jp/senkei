@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { HeroDefinition, NextRules, SkillDefinition } from "../../contracts";
 import { HeroModelPreview } from "./HeroModelPreview";
+import { SkillRunProgressContext } from "./SkillRunProgressContext";
+import { deriveSkillRunProgress } from "./skill-run-progress";
+import type { SkillRunProgressInput } from "./skill-run-progress";
 import "./hero-atelier.css";
 import { resolveHeroRepair } from "./repair-focus";
 import type { HeroRepairFocusRequest } from "./repair-focus";
@@ -15,10 +18,13 @@ export interface HeroAtelierSlot {
   readonly skill_path: string;
 }
 export type HeroAtelierScreen = "collection" | "detail" | "skills" | "squads";
+export type HeroAtelierRunContext = Omit<SkillRunProgressInput, "slot" | "hero">;
 export interface HeroAtelierProps {
   /** True while this workspace is visible, including any of its internal screens. */
   readonly active?: boolean;
   readonly repairFocus?: HeroRepairFocusRequest | null;
+  /** Already validated immutable Run context; never the editable Draft. */
+  readonly skillRunContext?: HeroAtelierRunContext | null;
   readonly nextRules: NextRules;
   readonly slots: readonly HeroAtelierSlot[];
   readonly activeSlot: number;
@@ -98,7 +104,7 @@ export function heroAdoption(hero: HeroDefinition, slot: HeroAtelierSlot, index:
 }
 
 export function HeroAtelier({
-  active = false, repairFocus, nextRules, slots, activeSlot, screen, onActiveSlotChange, onScreenChange, onSlotChange,
+  active = false, repairFocus, skillRunContext, nextRules, slots, activeSlot, screen, onActiveSlotChange, onScreenChange, onSlotChange,
   onSquadPattern, onMoveSquad, onReady, onJinrei, canActivate, activateArgumentIds,
 }: HeroAtelierProps): ReactElement {
   const [filters, setFilters] = useState({ placement: "all", role: "all", trait: "all" });
@@ -152,6 +158,8 @@ export function HeroAtelier({
   const currentSlot = slots[activeSlot] ?? null;
   const assignedHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
   const currentHero = candidate ?? assignedHero;
+  const skillRunProgress = skillRunContext && currentSlot && assignedHero
+    ? deriveSkillRunProgress({ ...skillRunContext, slot: currentSlot, hero: assignedHero }) : null;
   const adoption = candidate && currentSlot ? heroAdoption(candidate, currentSlot, activeSlot, assignedHero?.name ?? "Unknown Hero", true) : null;
   const changeScreen = (next: HeroAtelierScreen): void => { setCandidateId(null); onScreenChange(next); };
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
@@ -313,6 +321,8 @@ export function HeroAtelier({
           </article>;
         })}</div>
         <p className="ha-plan-note">Planned skills are not acquired skills. The battle's Hero progression and actual level unlock each selected skill.</p>
+        {skillRunProgress ? <SkillRunProgressContext progress={skillRunProgress} />
+          : <aside className="skill-run-context" aria-label="Run skill acquisition context"><strong>Run skill acquisition · Unavailable</strong><p>No confirmed Run is available for this Skill Tree. The editable branch shows an acquisition plan; current acquisitions are unknown.</p></aside>}
         <footer className="ha-footer"><span>Selected path: {selectedSkills(currentHero, currentSlot.skill_path)}</span><div><button className="next-secondary-button" onClick={() => changeScreen("collection")} type="button">Collection</button><button className="next-secondary-button" onClick={() => changeScreen("squads")} type="button">Arrange Squads <b>→</b></button><button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
       </div> : <div className="ha-empty">Select a populated Hero slot to plan its skill tree.</div>}
     </div>}
