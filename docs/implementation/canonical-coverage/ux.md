@@ -44,3 +44,7 @@ Authority order: docs/README → PLAYER-JOURNEY → PRE-BATTLE-FLOWS/SCREENS →
 3. Fixed baseline owner: next-workspace.css only (mobile sheet sticky controls). NPC legality is a next-wave candidate, outside fixed Wave 1.
 
 Remaining target-specific repair, replay/analysis context, trace pagination/source correspondence, three-way comparison, campaign completion history and broad return-context modeling require separate bounded waves; no speculative wire-field semantics or gameplay definitions are authorized by this audit.
+
+## Wave 1 journey evidence (separate worktree)
+
+`/workspace/wt-journey` fixes only I01/I03. New browser tests reproduce both failures before edits, then pass 4/4 in Chromium at 390/1440. C01 now preserves prepared Ready through primary return and Back. I03 marks a saved Campaign→Starter condition change dirty while retaining saved bytes. Existing Campaign picker tests pass 4/4 at 320/390/430/1440. Build/typecheck and Vitest 174/174 pass. Screenshots: `/workspace/scratch/journey-evidence`. This does not complete UX-C09 restore overwrite review/cancel, all C12 origins, physical-device UX-C16, or any other gap in the baseline matrix.

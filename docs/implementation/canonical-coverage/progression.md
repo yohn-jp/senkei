@@ -2,7 +2,7 @@
 
 Baseline: `/workspace/senkei`, main `1a86f41`. Read `docs/README.md` first, then EQUIPMENT, HERO-RELATIONSHIPS, REWARDS-AND-LIBRA, PROGRESSION-UX, DESIGN-DECISIONS, PRODUCT, ONLINE, DELIVERY. Code-only audit, no live browser acceptance claimed. Source-tree broad search covered apps/packages/crates/tests; no equipment ownership, reward settlement, Libra ledger, market, persistent relationship, gacha, or episode subsystem exists. Battle XP/skills and in-match Squad maturity exist and are distinct.
 
-Status: **defined gap** means specified future behavior absent; **undefined** means implementation requires an expressly undecided contract; **existing foundation** is reusable infrastructure without the progression feature; **scope respected** means intentionally absent under the local phase. PROGRESSION-UX is explicitly an agreement proposal; do not claim UX-X cases are current G2 defects or approved implementation details.
+Status: **defined gap** means specified future behavior absent; **undefined** means implementation requires an expressly undecided contract; **existing foundation** is reusable infrastructure without the progression feature; **scope respected** means intentionally absent under the local phase. The task explicitly includes PR22 UX-X acceptance. Treat defined operations as required; proposal labels do not remove that task scope. Undefined underlying rules remain blocked.
 
 | ID | Authority | Owner | Existing | Status | Dependency | Verification |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ Status: **defined gap** means specified future behavior absent; **undefined** me
 | UX-X07 | PROGRESSION-UX §§4,6 | X08 pair + S07 preview | Current Squad assignment has existing maturity rules; no persistent relations | Defined future acceptance; derived rules undefined | REL-01/02 + explicit preview/apply contract | Permanent relationship vs maturity vs locked ability; join/split/Solo distinct; viewing never increases power |
 | UX-X08 | PROGRESSION-UX §§1,3–6 | All X surfaces | Existing core/catalog recovery is unrelated; X surfaces absent | Defined future acceptance; blocked | Real data/services or approved local domain; adopted status vocabulary | Locked/missing/offline/unconnected/uncertain each has usable next action; never expose inert navigation |
 | SCOPE-01 | PRODUCT §§5–6; DELIVERY §§1,3; ONLINE §§1,5,7; DESIGN-DECISIONS remaining decisions | Product / shell / core | Fully local Next execution + same rules compile/preflight existing | Scope respected in audited subsystem | None; progression must not introduce online prerequisite | No auth/payment/ticket/official-ranking requirement for PvE; no assumed Cloudflare/EOS/GS2/central authority |
-| SCOPE-02 | docs/README scope + PROGRESSION-UX §§1,6 | Delivery/governance | `docs/implementation/UX-FLOW-GAP-REVIEW.md` explicitly separates F01–05 and future UX-X | Scope respected | Additional implementation authority needed; no silent G2 expansion | Keep proposed/undefined/implemented/visually verified separate |
+| SCOPE-02 | docs/README scope + PROGRESSION-UX §§1,6 | Delivery/governance | `docs/implementation/UX-FLOW-GAP-REVIEW.md` explicitly separates F01–05 and future UX-X | Scope respected | Task authorizes defined extension work; underlying undefined rules remain blocked | Keep proposed/undefined/implemented/visually verified separate |
 
 ## Exact unresolved decision sources
 
