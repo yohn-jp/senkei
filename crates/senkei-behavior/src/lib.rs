@@ -10,7 +10,7 @@ use senkei_model::{
     SortDirection, TacticalDiagnostic, TacticalExecutionOutput, Truth,
 };
 use senritsu::catalog::{
-    AggregationPolicy, BehaviorProfileMetadata, BehaviorScope,
+    AggregationPolicy, BehaviorOrderDeclaration, BehaviorProfileMetadata, BehaviorScope,
     CapabilityDefinition, CatalogCompatibilityKey, DomainCatalog, MetadataStatus, ProfileLayer,
 };
 use serde::{Deserialize, Serialize};
@@ -280,7 +280,7 @@ impl BehaviorResolver {
             &mut trace,
         )?;
         let (selected_explicit, explicit_conflict) = self.select_one(
-            side,
+            actor, side,
             explicit,
             CandidateSource::Explicit,
             &mut trace,
@@ -305,7 +305,7 @@ impl BehaviorResolver {
                 &mut trace,
             )?;
             let (selected_default, default_conflict) = self.select_one(
-                side,
+                actor, side,
                 defaults,
                 CandidateSource::Default,
                 &mut trace,
@@ -494,6 +494,7 @@ impl BehaviorResolver {
             }
             eligible_intents.push(intent.clone());
         }
+        if self.profiles.cross_capability_order.is_some() { unique_action_ids(&eligible_intents)?; }
         let arbitration = arbitrate_by_ruleset(&eligible_intents, side, &self.arbitration)?;
         for intent in arbitration.rejected {
             rejected.push(RejectedOverride {
@@ -539,11 +540,22 @@ impl BehaviorResolver {
                 .map(|(_, value)| value.clone())
                 .collect::<BTreeSet<_>>();
             if unique_values.len() > 1 {
-                return Err(BehaviorError::UnresolvedCandidateConflict);
+                let declarations = self.profiles.cross_capability_order.as_ref()
+                    .and_then(|contract| contract.field_writers.get(&field))
+                    .ok_or(BehaviorError::UnresolvedCandidateConflict)?;
+                let ordered = self.authored_order(actor, side, candidates.iter().map(|(intent, _)| intent.clone()).collect(), declarations)?;
+                for intent in ordered.rejected {
+                    rejected.push(RejectedOverride { action_id: intent.action_id,
+                        reason: RejectionReason::FieldOrderRejected(field.clone()) });
+                }
+                let winner = &ordered.selected[0];
+                candidates.retain(|(intent, _)| intent.action_id == winner.action_id);
             }
-            if let Some((intent, value)) = candidates.first() {
+            if let Some((_, value)) = candidates.first() {
                 overrides.insert(field.clone(), value.clone());
-                sources.insert(field, format!("jinrei:{}", intent.action_id));
+                // Equal writes compose one value; provenance names every contributor,
+                // rather than choosing a winner by container or canonical name order.
+                sources.insert(field, candidates.iter().map(|(intent, _)| format!("jinrei:{}", intent.action_id)).collect::<Vec<_>>().join(" + "));
             }
         }
         let unknown_conditions = execution
@@ -647,8 +659,35 @@ impl BehaviorResolver {
         Ok(result)
     }
 
+    fn authored_order(
+        &self, actor: &ProfileActor, side: CombatantSide, mut candidates: Vec<Intent>,
+        declarations: &[BehaviorOrderDeclaration],
+    ) -> Result<ArbitrationResult, BehaviorError> {
+        unique_action_ids(&candidates)?;
+        let applicable = declarations.iter().filter(|declaration| declaration.scope == actor.scope
+            && candidates.iter().all(|intent| declaration.capabilities.contains(&intent.capability)
+                && self.capabilities.get(&intent.capability).is_some_and(|definition|
+                    definition.actor_argument.and_then(|index| definition.arguments.get(index as usize))
+                        .is_some_and(|argument| argument.value_type == (DomainType::Entity { entity_type: Some(declaration.actor_type.clone()) }))))).collect::<Vec<_>>();
+        if applicable.len() != 1 { return Err(BehaviorError::UnresolvedCandidateConflict); }
+        let ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 } = &applicable[0].arbitration.resolution else {
+            return Err(BehaviorError::UnresolvedCandidateConflict);
+        };
+        // Every nullable key must have an actual value. Missing never ranks first/last.
+        if candidates.iter().any(|intent| sort_by.iter().any(|term| key_value(intent, side, &term.key).is_none())) {
+            return Err(BehaviorError::UnresolvedCandidateConflict);
+        }
+        candidates.sort_by(|left, right| compare_declared(left, side, right, side, sort_by));
+        if candidates.windows(2).any(|pair| compare_declared(&pair[0], side, &pair[1], side, sort_by) == Ordering::Equal) {
+            return Err(BehaviorError::UnresolvedCandidateConflict);
+        }
+        let rejected = candidates.split_off(1);
+        Ok(ArbitrationResult { selected: candidates, rejected })
+    }
+
     fn select_one(
         &self,
+        actor: &ProfileActor,
         side: CombatantSide,
         candidates: Vec<Intent>,
         source: CandidateSource,
@@ -657,7 +696,15 @@ impl BehaviorResolver {
         if candidates.is_empty() {
             return Ok((None, false));
         }
-        let accepted = arbitrate_by_ruleset(&candidates, side, &self.arbitration)?;
+        if self.profiles.cross_capability_order.is_some() { unique_action_ids(&candidates)?; }
+        let mut accepted = arbitrate_by_ruleset(&candidates, side, &self.arbitration)?;
+        if accepted.selected.len() > 1 {
+            if let Some(contract) = &self.profiles.cross_capability_order {
+                let ordered = self.authored_order(actor, side, accepted.selected, &contract.intent_selection)?;
+                accepted.selected = ordered.selected;
+                accepted.rejected.extend(ordered.rejected);
+            }
+        }
         for intent in accepted.rejected {
             trace.push(DecisionTrace::CandidateRejected {
                 action_id: intent.action_id,
@@ -838,6 +885,7 @@ pub enum RejectionReason {
     ProfileTypeMismatch,
     OverrideForbidden,
     ConflictingProfileOverrides,
+    FieldOrderRejected(String),
     CallerRejected(String),
     PermissionDenied(String),
     RulePlanArbitration,
@@ -1247,13 +1295,25 @@ fn key_value(intent: &Intent, side: CombatantSide, key: &IntentKey) -> Option<Do
     }
 }
 
+fn unique_action_ids(intents: &[Intent]) -> Result<(), BehaviorError> {
+    let mut ids = BTreeSet::new();
+    if intents.iter().any(|intent| intent.action_id.as_str().is_empty() || !ids.insert(&intent.action_id)) {
+        return Err(BehaviorError::UnresolvedCandidateConflict);
+    }
+    Ok(())
+}
+
 fn compare_intents(left: &Intent, left_side: CombatantSide, right: &Intent, right_side: CombatantSide, terms: &[IntentSortTerm]) -> Ordering {
+    compare_declared(left, left_side, right, right_side, terms).then_with(|| canonical_intent(left, right))
+}
+
+fn compare_declared(left: &Intent, left_side: CombatantSide, right: &Intent, right_side: CombatantSide, terms: &[IntentSortTerm]) -> Ordering {
     for term in terms {
         let mut order = compare_optional(&key_value(left, left_side, &term.key), &key_value(right, right_side, &term.key));
         if term.direction == SortDirection::Descending { order = order.reverse(); }
         if order != Ordering::Equal { return order; }
     }
-    canonical_intent(left, right)
+    Ordering::Equal
 }
 
 fn compare_optional(left: &Option<DomainValue>, right: &Option<DomainValue>) -> Ordering {
