@@ -50,15 +50,23 @@ export function applyHeroPreviewMotion(
     model.position.y = battlefieldUnitGroundingOffset(visible ?? model, 0);
   }
   if (pose === "idle" && !reducedMotion) {
-    const breath = Math.sin(elapsedSeconds * 2.1);
-    const clothSway = Math.sin(elapsedSeconds * 1.55 - 0.42);
-    if (rig.joints.pelvis) apply("pelvis", rig.joints.pelvis, { x: breath * -0.025, y: 0, z: 0 });
-    if (rig.joints.torso) apply("torso", rig.joints.torso, { x: breath * 0.085, y: 0, z: breath * 0.055 });
-    if (rig.joints.head) apply("head", rig.joints.head, { x: breath * -0.025, y: Math.sin(elapsedSeconds * 0.8) * 0.08, z: 0 });
-    if (rig.joints.cape) apply("cape", rig.joints.cape, { x: clothSway * 0.16, y: clothSway * 0.055, z: breath * 0.025 });
-    if (rig.joints["arm.left"]) apply("arm.left", rig.joints["arm.left"], { x: breath * 0.055, y: 0, z: -breath * 0.025 });
-    if (rig.joints["arm.right"]) apply("arm.right", rig.joints["arm.right"], { x: breath * -0.055, y: 0, z: breath * 0.025 });
-    if (rig.joints["forearm.left"]) apply("forearm.left", rig.joints["forearm.left"], { x: clothSway * 0.025, y: 0, z: 0 });
-    if (rig.joints["forearm.right"]) apply("forearm.right", rig.joints["forearm.right"], { x: clothSway * -0.025, y: 0, z: 0 });
+    const breath = Math.sin(elapsedSeconds * 2.6);
+    const weightShift = Math.sin(elapsedSeconds * 1.05 - 0.35);
+    const clothWave = Math.sin(elapsedSeconds * 2.25 - 0.8);
+    const delayedFold = Math.sin(elapsedSeconds * 3.1 - 1.45);
+    if (rig.joints.pelvis) apply("pelvis", rig.joints.pelvis, { x: breath * -0.035, y: weightShift * 0.04, z: weightShift * 0.035 });
+    if (rig.joints.torso) apply("torso", rig.joints.torso, { x: breath * 0.12, y: weightShift * 0.025, z: breath * 0.08 });
+    if (rig.joints.head) apply("head", rig.joints.head, { x: breath * -0.035, y: Math.sin(elapsedSeconds * 0.9) * 0.1, z: weightShift * -0.035 });
+    // Keep the mantle folded behind the body while its delayed yaw/roll gives
+    // the shoulder and hem a visible follow instead of a rigid hinge swing.
+    if (rig.joints.cape) apply("cape", rig.joints.cape, {
+      x: -0.13 - (0.5 + clothWave * 0.5) * 0.09,
+      y: clothWave * 0.18 + delayedFold * 0.04,
+      z: Math.sin(elapsedSeconds * 1.75 - 1.1) * 0.12 + delayedFold * 0.08,
+    });
+    if (rig.joints["arm.left"]) apply("arm.left", rig.joints["arm.left"], { x: breath * 0.08 + weightShift * 0.025, y: 0, z: -breath * 0.035 });
+    if (rig.joints["arm.right"]) apply("arm.right", rig.joints["arm.right"], { x: breath * -0.08 - weightShift * 0.025, y: 0, z: breath * 0.035 });
+    if (rig.joints["forearm.left"]) apply("forearm.left", rig.joints["forearm.left"], { x: clothWave * 0.04, y: 0, z: weightShift * 0.025 });
+    if (rig.joints["forearm.right"]) apply("forearm.right", rig.joints["forearm.right"], { x: clothWave * -0.04, y: 0, z: weightShift * -0.025 });
   }
 }
