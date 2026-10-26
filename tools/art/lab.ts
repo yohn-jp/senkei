@@ -14,6 +14,19 @@ const lodLabel = document.createElement("label");
 lodLabel.textContent = "LOD ";
 lodLabel.append(lodSelect);
 hero.closest("label")?.after(lodLabel);
+const angleSelect = document.createElement("select");
+angleSelect.id = "angle";
+angleSelect.dataset.artView = "true";
+for (const [value, label] of [["default", "Default"], ["front", "Front"], ["quarter", "Quarter"], ["rear", "Rear"]]) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  angleSelect.append(option);
+}
+const angleLabel = document.createElement("label");
+angleLabel.textContent = "View ";
+angleLabel.append(angleSelect);
+lodLabel.after(angleLabel);
 let preview: ReturnType<typeof createHeroModelPreview> | undefined;
 function load() {
   preview?.dispose();
@@ -32,7 +45,18 @@ function setPose(pose: HeroPreviewPose) {
 }
 hero.addEventListener("change", load);
 lodSelect.addEventListener("change", load);
-document.querySelector("#reset")!.addEventListener("click", () => preview?.resetView());
+angleSelect.addEventListener("change", () => {
+  if (angleSelect.value === "default") {
+    preview?.resetView();
+    return;
+  }
+  const yaw = { front: 0, quarter: Math.PI / 4, rear: Math.PI }[angleSelect.value as "front" | "quarter" | "rear"];
+  if (yaw !== undefined) preview?.setInspectionAzimuth(yaw);
+});
+document.querySelector("#reset")!.addEventListener("click", () => {
+  preview?.resetView();
+  angleSelect.value = "default";
+});
 document.querySelectorAll<HTMLButtonElement>("[data-pose]").forEach(button => button.addEventListener("click", () => setPose(button.dataset.pose as HeroPreviewPose)));
 setInterval(() => { document.querySelector("#metadata")!.textContent = JSON.stringify(stage.querySelector("canvas")?.dataset, null, 2); }, 500);
 load();

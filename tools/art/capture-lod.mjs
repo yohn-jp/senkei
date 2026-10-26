@@ -55,7 +55,7 @@ const manifest = {
   renderer: 'Chromium/SwiftShader software GPU',
   reducedMotion: 'no-preference',
   captureKind: 'production createHeroModelPreview / buildBattlefieldHero with its generated LOD child explicitly selected by the inspection-only lab override; not Battlefield integration',
-  sampling: 'All action samples reset the pose button, wait the requested elapsed time and two animation frames, then capture the actual full canvas. Static views use the same default camera, reset view, then deterministic orbit drag to front/quarter/rear. Each file records the selected LOD child, visibility vector, camera, pose, rootY, material profile, baked senkeiSurfaceResponse vertex count and unique vectors, dimensions and SHA-256.',
+  sampling: 'All action samples reset the pose button, wait the requested elapsed time and two animation frames, then capture the actual full canvas. Static front/quarter/rear views use the inspection-only deterministic azimuth control at the same radius and elevation. Each file records the selected LOD child, visibility vector, camera, inspection azimuth, pose, rootY, material profile, baked senkeiSurfaceResponse vertex count and unique vectors, dimensions and SHA-256.',
   poseSamples: samples,
   lods,
   staticAngles: angles.map(({ name, yaw }) => ({ name, yawRadians: yaw })),
@@ -111,6 +111,10 @@ async function screenshot({ hero, lod, pose, elapsedSeconds, kind, angle }) {
   const surfaceResponseAttributes = JSON.parse(attributes['data-lod-surface-response'] ?? '[]');
   if (!Array.isArray(surfaceResponseAttributes) || (lod.name !== 'full' && surfaceResponseAttributes.length === 0))
     throw new Error(`No baked senkeiSurfaceResponse vectors for ${hero}/${lod.name}.`);
+  const expectedAzimuth = angle ? angles.find(view => view.name === angle)?.yaw : undefined;
+  const inspectionAzimuth = Number(attributes['data-inspection-azimuth']);
+  if (kind === 'static' && (!Number.isFinite(expectedAzimuth) || !Number.isFinite(inspectionAzimuth) || Math.abs(expectedAzimuth - inspectionAzimuth) > 0.00001))
+    throw new Error(`Inspection camera angle mismatch for ${hero}/${lod.name}/${angle}: expected ${expectedAzimuth}, got ${attributes['data-inspection-azimuth']}.`);
   const label = kind === 'motion'
     ? `${hero}-${lod.name}-${pose}-${String(Math.round(elapsedSeconds * 1000)).padStart(4, '0')}ms`
     : `${hero}-${lod.name}-static-${angle}`;
@@ -123,6 +127,7 @@ async function screenshot({ hero, lod, pose, elapsedSeconds, kind, angle }) {
     image: `images/${image}`, rawImage: image, width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20),
     camera: attributes['data-camera'], rootY: attributes['data-root-y'], bodyPoseSample: attributes['data-body-pose-sample'],
     poseSample: attributes['data-pose-sample'], materialProfile, surfaceResponseAttributes,
+    ...(Number.isFinite(inspectionAzimuth) ? { inspectionAzimuth } : {}),
     canvasAttributes: attributes, sha256: createHash('sha256').update(bytes).digest('hex'),
   });
 }
@@ -172,17 +177,11 @@ try {
       for (const angle of angles) {
         await page.locator('#reset').click();
         await page.locator('button[data-pose="idle"]').click();
-        await waitForCameraStable();
-        const before = await cameraFor();
-        const box = await canvas.boundingBox();
-        if (!box) throw new Error(`No canvas bounds for ${hero}/${lod.name}/${angle.name}.`);
-        const yaw = Math.atan2(before[0] - before[3], before[2] - before[5]);
-        const dx = (yaw - angle.yaw) * box.height / (Math.PI * 2 * 0.7);
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2, { steps: 8 });
-        await page.mouse.up();
+        await page.locator('#angle').selectOption(angle.name);
         const settledCamera = await waitForCameraStable();
+        const actualAzimuth = Number(await canvas.getAttribute('data-inspection-azimuth'));
+        if (!Number.isFinite(actualAzimuth) || Math.abs(actualAzimuth - angle.yaw) > 0.00001)
+          throw new Error(`Inspection camera angle was not applied for ${hero}/${lod.name}/${angle.name}: got ${actualAzimuth}.`);
         await screenshot({ hero, lod, pose: 'idle', elapsedSeconds: 0, kind: 'static', angle: angle.name });
         const capture = captures.at(-1);
         assertSameCamera(settledCamera, capture.camera.split(',').map(Number), `${hero}/${lod.name}/static/${angle.name}`);
@@ -248,7 +247,7 @@ try {
     }
     manifest.evidenceComposition = { errors: sheetErrors };
     const rawHashes = captures.map(capture => `${capture.hero}-${capture.lod}-${capture.kind === 'motion' ? `${capture.pose}-${capture.requestedElapsedSeconds.toFixed(3)}s` : capture.angle} ${capture.sha256}`).join('\n');
-    const readme = `# Hero visual LOD capture at ${sourceShort}\n\n- Source HEAD: \`${sourceRevision}\`; dirty worktree at capture: ${manifest.dirtyWorktreeAtCapture || 'none'}.\n- URL: ${url}; fixed viewport 1440 × 1000, device scale 1; all same-action views assert a fixed camera across full/medium/far.\n- Browser: Chromium ${manifest.browser}; SwiftShader software renderer.\n- Source: production \`createHeroModelPreview\` and \`buildBattlefieldHero\`. The inspection control explicitly selects generated \`full\`, \`medium\`, or \`far\` child and records child name, index and visibility vector. This does not prove Battlefield integration or physical GPU performance.\n- Captures: ${captures.length} actual ${captures[0]?.width ?? 'unknown'}×${captures[0]?.height ?? 'unknown'} canvas PNGs: 54 action/time samples per LOD across F01/R01 plus 18 static front/quarter/rear angles (180 total). SHA-256, camera, pose, rootY, selected-child identity, material profile and baked \`senkeiSurfaceResponse\` vector counts/values are in [manifest.json](manifest.json). Portable originals are in [images/](images/); identical raw copies are in ignored \`test-results/art-production/${suffix}/\`.\n- R01 material comparison: use the full, medium and far contact sheets and original front/rear/move frames to compare cloth tunic/cape against armor. Baked response vectors are recorded without assigning surface labels. No visual pass is inferred.\n- Runtime: ${errors.length} page errors, ${consoleErrors.length} console errors, ${httpErrors.length} HTTP errors and ${failedRequests.length} failed requests. Exact values are in the manifest.\n- Contact sheets: ${Object.entries(manifest.contactSheets ?? {}).map(([key, value]) => `[${key}](${value.image})`).join(', ')}. They are overviews; independent review should use full-resolution originals.\n\n## PNG SHA-256\n\n\`\`\`text\n${rawHashes}\n\`\`\`\n`;
+    const readme = `# Hero visual LOD capture at ${sourceShort}\n\n- Source HEAD: \`${sourceRevision}\`; dirty worktree at capture: ${manifest.dirtyWorktreeAtCapture || 'none'}.\n- URL: ${url}; fixed viewport 1440 × 1000, device scale 1; all same-action views assert a fixed camera across full/medium/far.\n- Browser: Chromium ${manifest.browser}; SwiftShader software renderer.\n- Source: production \`createHeroModelPreview\` and \`buildBattlefieldHero\`. The inspection control explicitly selects generated \`full\`, \`medium\`, or \`far\` child and records child name, index and visibility vector. This does not prove Battlefield integration or physical GPU performance.\n- Captures: ${captures.length} actual ${captures[0]?.width ?? 'unknown'}×${captures[0]?.height ?? 'unknown'} canvas PNGs; requested set is 54 action/time samples per LOD across F01/R01 plus 18 static front/quarter/rear angles (180 total). SHA-256, camera, inspection azimuth, pose, rootY, selected-child identity, material profile and baked \`senkeiSurfaceResponse\` vector counts/values are in [manifest.json](manifest.json). Portable originals are in [images/](images/); identical raw copies are in ignored \`test-results/art-production/${suffix}/\`.\n- R01 material comparison: use the full, medium and far contact sheets and original front/rear/move frames to compare cloth tunic/cape against armor. Baked response vectors are recorded without assigning surface labels. No visual pass is inferred.\n- Runtime: ${errors.length} page errors, ${consoleErrors.length} console errors, ${httpErrors.length} HTTP errors and ${failedRequests.length} failed requests. Exact values are in the manifest.\n- Contact sheets: ${Object.entries(manifest.contactSheets ?? {}).map(([key, value]) => `[${key}](${value.image})`).join(', ')}. They are overviews; independent review should use full-resolution originals.\n\n## PNG SHA-256\n\n\`\`\`text\n${rawHashes}\n\`\`\`\n`;
     writeFileSync(join(evidence, 'README.md'), readme);
     writeFileSync(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
     writeFileSync(join(evidence, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');

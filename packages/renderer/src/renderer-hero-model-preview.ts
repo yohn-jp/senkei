@@ -21,6 +21,8 @@ export interface HeroModelPreviewController {
   dispose(): void;
   setPose(pose: HeroPreviewPose): void;
   resetView(): void;
+  /** Inspection-only deterministic orbit used by the isolated art lab. */
+  setInspectionAzimuth(radians: number): void;
 }
 
 const TEAM_COLOR = 0x71847b;
@@ -308,6 +310,23 @@ export function createHeroModelPreview(
       camera.updateProjectionMatrix();
       controls.update();
       controls.enableDamping = damping;
+      delete renderer.domElement.dataset.inspectionAzimuth;
+      render();
+    },
+    setInspectionAzimuth(radians) {
+      if (!Number.isFinite(radians)) throw new Error("Hero preview inspection azimuth must be finite.");
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.target.copy(initialTarget);
+      const horizontalRadius = Math.hypot(initialCamera.x - initialTarget.x, initialCamera.z - initialTarget.z);
+      camera.position.set(
+        initialTarget.x + Math.sin(radians) * horizontalRadius,
+        initialCamera.y,
+        initialTarget.z + Math.cos(radians) * horizontalRadius,
+      );
+      controls.update();
+      controls.enableDamping = damping;
+      renderer.domElement.dataset.inspectionAzimuth = radians.toFixed(6);
       render();
     },
     dispose() {
