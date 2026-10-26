@@ -255,7 +255,7 @@ export function createHeroModelPreview(
   };
   const animate = (time: number) => {
     if (disposed) return;
-    applyHeroPreviewMotion(motionRig, model, pose, inspectionElapsedSeconds ?? Math.max(0, (time - poseStarted) / 1000), false);
+    applyHeroPreviewMotion(motionRig, model, pose, inspectionElapsedSeconds ?? Math.max(0, (time - poseStarted) / 1000), false, entity.id);
     controls.update();
     renderer.render(scene, camera);
     recordFrame();
@@ -293,7 +293,7 @@ export function createHeroModelPreview(
     observer.observe(host);
   } else window.addEventListener("resize", resize);
   resize();
-  if (reducedMotion) applyHeroPreviewMotion(motionRig, model, pose, 0, true);
+  if (reducedMotion) applyHeroPreviewMotion(motionRig, model, pose, 0, true, entity.id);
   else renderer.setAnimationLoop(animate);
   render();
 
@@ -304,13 +304,13 @@ export function createHeroModelPreview(
       inspectionElapsedSeconds = undefined;
       delete renderer.domElement.dataset.elapsedSeconds;
       renderer.domElement.dataset.pose = nextPose;
-      applyHeroPreviewMotion(motionRig, model, pose, 0, reducedMotion);
+      applyHeroPreviewMotion(motionRig, model, pose, 0, reducedMotion, entity.id);
       render();
     },
     setInspectionElapsedSeconds(seconds) {
       if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Hero preview inspection elapsed time must be a finite nonnegative number.");
       inspectionElapsedSeconds = seconds;
-      applyHeroPreviewMotion(motionRig, model, pose, seconds, reducedMotion);
+      applyHeroPreviewMotion(motionRig, model, pose, seconds, reducedMotion, entity.id);
       recordFrame();
       render();
     },

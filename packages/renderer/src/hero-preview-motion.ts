@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BattlefieldUnitRig } from "./battlefield-units";
 import type { BattlefieldUnitPose } from "./battlefield-unit-motion";
+import { battlefieldUnitIdlePhaseAtSeconds } from "./battlefield-unit-motion";
 import { battlefieldUnitGroundingOffset, battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 
 export type HeroPreviewPose = "idle" | "move" | "attack" | "hit" | "death";
@@ -10,6 +11,7 @@ export function heroPreviewPose(
   pose: HeroPreviewPose,
   elapsedSeconds: number,
   reducedMotion: boolean,
+  entityId = "preview",
 ): BattlefieldUnitPose & { readonly strikePhase?: number; readonly hitPhase?: number } {
   const time = Math.max(0, elapsedSeconds);
   const duration = pose === "hit" ? 0.8 : 1.45;
@@ -22,6 +24,8 @@ export function heroPreviewPose(
     hit: pose === "hit" ? action : 0,
     attackLean: pose === "attack" ? action * 0.16 : 0,
     death: pose === "death" ? (reducedMotion ? 1 : Math.min(1, time / 0.9)) : 0,
+    idle: pose === "idle" && !reducedMotion ? 1 : 0,
+    idlePhase: pose === "idle" && !reducedMotion ? battlefieldUnitIdlePhaseAtSeconds(time, entityId) : 0,
     ...(pose === "attack" ? { strikePhase: phase } : {}),
     ...(pose === "hit" ? { hitPhase: phase } : {}),
   };
@@ -34,8 +38,10 @@ export function applyHeroPreviewMotion(
   pose: HeroPreviewPose,
   elapsedSeconds: number,
   reducedMotion: boolean,
+  entityId?: string,
 ): void {
-  const motion = battlefieldUnitRigMotion(heroPreviewPose(pose, elapsedSeconds, reducedMotion), true);
+  const stableEntityId = entityId ?? String(model.userData.entityId ?? model.userData.catalogId ?? "preview");
+  const motion = battlefieldUnitRigMotion(heroPreviewPose(pose, elapsedSeconds, reducedMotion, stableEntityId), true);
   const apply = (key: string, joint: THREE.Group, offset?: { x: number; y: number; z: number }) => {
     const rest = rig.restPose?.[key] ?? { x: 0, y: 0, z: 0 };
     joint.rotation.set(rest.x + (offset?.x ?? 0), rest.y + (offset?.y ?? 0), rest.z + (offset?.z ?? 0));
@@ -48,25 +54,5 @@ export function applyHeroPreviewMotion(
     const lod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD);
     const visible = lod?.levels.find(({ object }) => object.visible)?.object;
     model.position.y = battlefieldUnitGroundingOffset(visible ?? model, 0);
-  }
-  if (pose === "idle" && !reducedMotion) {
-    const breath = Math.sin(elapsedSeconds * 2.6);
-    const weightShift = Math.sin(elapsedSeconds * 1.05 - 0.35);
-    const clothWave = Math.sin(elapsedSeconds * 2.25 - 0.8);
-    const delayedFold = Math.sin(elapsedSeconds * 3.1 - 1.45);
-    if (rig.joints.pelvis) apply("pelvis", rig.joints.pelvis, { x: breath * -0.035, y: weightShift * 0.04, z: weightShift * 0.035 });
-    if (rig.joints.torso) apply("torso", rig.joints.torso, { x: breath * 0.12, y: weightShift * 0.025, z: breath * 0.08 });
-    if (rig.joints.head) apply("head", rig.joints.head, { x: breath * -0.035, y: Math.sin(elapsedSeconds * 0.9) * 0.1, z: weightShift * -0.035 });
-    // Keep the mantle folded behind the body while its delayed yaw/roll gives
-    // the shoulder and hem a visible follow instead of a rigid hinge swing.
-    if (rig.joints.cape) apply("cape", rig.joints.cape, {
-      x: -0.13 - (0.5 + clothWave * 0.5) * 0.09,
-      y: clothWave * 0.18 + delayedFold * 0.04,
-      z: Math.sin(elapsedSeconds * 1.75 - 1.1) * 0.12 + delayedFold * 0.08,
-    });
-    if (rig.joints["arm.left"]) apply("arm.left", rig.joints["arm.left"], { x: breath * 0.08 + weightShift * 0.025, y: 0, z: -breath * 0.035 });
-    if (rig.joints["arm.right"]) apply("arm.right", rig.joints["arm.right"], { x: breath * -0.08 - weightShift * 0.025, y: 0, z: breath * 0.035 });
-    if (rig.joints["forearm.left"]) apply("forearm.left", rig.joints["forearm.left"], { x: clothWave * 0.04, y: 0, z: weightShift * 0.025 });
-    if (rig.joints["forearm.right"]) apply("forearm.right", rig.joints["forearm.right"], { x: clothWave * -0.04, y: 0, z: weightShift * -0.025 });
   }
 }

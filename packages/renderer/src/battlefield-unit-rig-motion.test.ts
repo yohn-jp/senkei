@@ -230,6 +230,13 @@ describe("additive named Hero rig motion", () => {
     expect(motion.joints.head?.x).toBeCloseTo(-0.33);
   });
 
+  it("keeps deterministic idle channels presentation-only for non-Hero rigs", () => {
+    const restPose = { walk: 0, strike: 0, skill: 0, hit: 0, attackLean: 0, death: 0 };
+    const idlePose = { ...restPose, idle: 1, idlePhase: Math.PI / 2 };
+    expect(battlefieldUnitRigMotion(idlePose, false)).toEqual(battlefieldUnitRigMotion(restPose, false));
+    expect(battlefieldUnitRigMotion(idlePose, true)).not.toEqual(battlefieldUnitRigMotion(restPose, true));
+  });
+
   it("grounds the settled Hero body without penetration across all LODs and holds the endpoint", () => {
     const sampleTimes = [0, 0.225, 0.45, 0.675, 0.9, 1.35, 1.8];
     for (const heroId of ["F01", "R01"]) {

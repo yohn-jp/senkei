@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { buildBattlefieldHero } from "./battlefield-units";
+import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
+import { battlefieldUnitPose } from "./battlefield-unit-motion";
 import { applyHeroPreviewMotion, heroPreviewPose, type HeroPreviewPose } from "./hero-preview-motion";
 import { disposeHeroPreviewScene } from "./renderer-hero-model-preview";
 import type { DisplayEntity } from "@senkei/replay-contract";
@@ -28,6 +30,23 @@ describe("catalog Hero animation", () => {
     }
     expect(heroPreviewPose("hit", 0, true).hit).toBeGreaterThan(0.5);
     expect(heroPreviewPose("death", 0, true).death).toBe(1);
+  });
+
+  it("passes the same deterministic idle oscillator through the shared Hero rig", () => {
+    const elapsedSeconds = 0.6;
+    const pose = heroPreviewPose("idle", elapsedSeconds, false, entity.id);
+    const motion = battlefieldUnitRigMotion(pose, true);
+    const replayPose = battlefieldUnitPose(12, [], entity.id, false, true, 0.9, 50);
+    const model = new THREE.Group();
+    const rig = buildBattlefieldHero(model, entity, 0x71847b, entity.appearanceKey!);
+
+    expect(pose).toEqual(replayPose);
+    applyHeroPreviewMotion(rig, model, "idle", elapsedSeconds, false, entity.id);
+    expect(rig.joints.torso!.rotation.x).toBeCloseTo((rig.restPose?.torso?.x ?? 0) + motion.joints.torso!.x, 10);
+    expect(rig.joints.torso!.rotation.y).toBeCloseTo((rig.restPose?.torso?.y ?? 0) + motion.joints.torso!.y, 10);
+    expect(rig.joints.cape!.rotation.x).toBeCloseTo((rig.restPose?.cape?.x ?? 0) + motion.joints.cape!.x, 10);
+    expect(heroPreviewPose("idle", elapsedSeconds, false, "preview:other").idlePhase)
+      .not.toBe(pose.idlePhase);
   });
 
   it("animates one built rig without replacing identity, equipment or accumulating offsets", () => {

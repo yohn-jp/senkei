@@ -114,8 +114,8 @@ describe("deterministic fixed-tick unit poses", () => {
     const attacker = battlefieldUnitPose(4, cues, "hero", false, false, 1);
     const defender = battlefieldUnitPose(4, cues, "enemy", false, false, 1);
 
-    expect(attacker).toEqual({ walk: 0, strike: 1, skill: 0, hit: 0, attackLean: 0.16, death: 0 });
-    expect(defender).toEqual({ walk: 0, strike: 0, skill: 0, hit: 1, attackLean: 0, death: 0 });
+    expect(attacker).toEqual({ walk: 0, strike: 1, skill: 0, hit: 0, attackLean: 0.16, death: 0, idle: 0, idlePhase: 0 });
+    expect(defender).toEqual({ walk: 0, strike: 0, skill: 0, hit: 1, attackLean: 0, death: 0, idle: 0, idlePhase: 0 });
   });
 
   it("holds a deterministic mid-step for a confirmed move and leaves idle units at rest", () => {
@@ -125,7 +125,7 @@ describe("deterministic fixed-tick unit poses", () => {
 
     expect(moving.walk).toBeCloseTo(0.34, 10);
     expect(battlefieldUnitPose(4, [], "hero", true, false, 0.95)).toEqual(moving);
-    expect(idle).toEqual({ walk: 0, strike: 0, skill: 0, hit: 0, attackLean: 0, death: 0 });
+    expect(idle).toEqual({ walk: 0, strike: 0, skill: 0, hit: 0, attackLean: 0, death: 0, idle: 0, idlePhase: 0 });
     expect(priorTickAction).toEqual(idle);
   });
 
@@ -140,7 +140,7 @@ describe("deterministic fixed-tick unit poses", () => {
     };
     const pose = battlefieldUnitPose(4, [skillCue], "hero", true, false, 0.1);
 
-    expect(pose).toEqual({ walk: 0, strike: 0, skill: 1, hit: 0, attackLean: 0, death: 0 });
+    expect(pose).toEqual({ walk: 0, strike: 0, skill: 1, hit: 0, attackLean: 0, death: 0, idle: 0, idlePhase: 0 });
   });
 
   it("animates explicit destruction as death and leaves visibility loss unclassified", () => {
@@ -150,5 +150,38 @@ describe("deterministic fixed-tick unit poses", () => {
     expect(battlefieldUnitPose(4, [destroy], "hero", false, false, 0.2).death).toBe(1);
     expect(battlefieldUnitPose(4, [disappear], "hero", false, false, 0.2).death).toBe(0);
     expect(battlefieldUnitPose(4, [destroy], "hero", false, true, 0.3).death).toBe(0.3);
+  });
+
+  it("derives visible Hero idle from tick duration and stable entity identity only", () => {
+    const heroAtTick = battlefieldUnitPose(12, [], "hero:amber", false, true, 0.15, 50);
+    const heroAfterSeek = battlefieldUnitPose(12, [], "hero:amber", false, false, 0.95, 50);
+    const otherHero = battlefieldUnitPose(12, [], "hero:cobalt", false, true, 0.15, 50);
+    const nextTick = battlefieldUnitPose(13, [], "hero:amber", false, true, 0.15, 50);
+    const differentTickDuration = battlefieldUnitPose(12, [], "hero:amber", false, true, 0.15, 100);
+
+    expect(heroAtTick.idle).toBe(1);
+    expect(heroAtTick.idlePhase).toBe(heroAfterSeek.idlePhase);
+    expect(heroAtTick).toEqual(heroAfterSeek);
+    expect(otherHero.idle).toBe(1);
+    expect(otherHero.idlePhase).not.toBe(heroAtTick.idlePhase);
+    expect(nextTick.idlePhase).not.toBe(heroAtTick.idlePhase);
+    expect(differentTickDuration.idlePhase).not.toBe(heroAtTick.idlePhase);
+  });
+
+  it("does not infer idle when no visible-Hero clock was supplied or an action is active", () => {
+    const noVisibleHeroClock = battlefieldUnitPose(12, [], "fogged:hero", false, true, 0.15);
+    const interpolatedNonReplayTick = battlefieldUnitPose(12.5, [], "hero:amber", false, true, 0.15, 50);
+    const movingHero = battlefieldUnitPose(12, [], "hero:amber", true, true, 0.15, 50);
+    const attackingHero = battlefieldUnitPose(4, cues, "hero", false, true, 0.2, 50);
+    const hitHero = battlefieldUnitPose(4, cues, "enemy", false, true, 0.2, 50);
+    const deadHero = battlefieldUnitPose(4, [{ type: "destroy", tick: 4, order: 3, entityId: "hero:amber" }], "hero:amber", false, true, 0.2, 50);
+
+    expect(noVisibleHeroClock.idle).toBe(0);
+    expect(noVisibleHeroClock.idlePhase).toBe(0);
+    expect(interpolatedNonReplayTick.idle).toBe(0);
+    expect(movingHero.idle).toBe(0);
+    expect(attackingHero.idle).toBe(0);
+    expect(hitHero.idle).toBe(0);
+    expect(deadHero.idle).toBe(0);
   });
 });
