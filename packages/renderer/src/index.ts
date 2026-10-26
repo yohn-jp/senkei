@@ -11,6 +11,7 @@ import { buildBattlefieldTower } from "./battlefield-architecture";
 import { buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 import { NodeDisplayLayout } from "./node-display-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
+import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
 import { BattlefieldReplayEffectIndex } from "./battlefield-replay-effects";
 import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
@@ -343,6 +344,7 @@ export class Battlefield {
   private trackedIds: string[] = [];
   private readonly unitLayout = new NodeDisplayLayout();
   private readonly unitMotion: BattlefieldUnitMotionIndex;
+  private readonly unitOrientation: BattlefieldUnitOrientationIndex;
   private readonly transitionEffects: BattlefieldReplayEffectIndex;
   private modelOffsets: ReadonlyMap<string, WorldPoint> = new Map();
   private labels: {
@@ -368,6 +370,7 @@ export class Battlefield {
     private onFailure: (message: string) => void,
   ) {
     this.unitMotion = new BattlefieldUnitMotionIndex(replay);
+    this.unitOrientation = new BattlefieldUnitOrientationIndex(replay);
     this.transitionEffects = new BattlefieldReplayEffectIndex(replay);
     this.battlefieldFog = new BattlefieldFog(this.scene, replay);
     this.gl = new THREE.WebGLRenderer({ antialias: false, alpha: false });
@@ -1943,7 +1946,6 @@ export class Battlefield {
   update(state: DisplayState, playing: boolean) {
     this.playing = playing;
     if (this.state === state) return;
-    const priorState = this.state;
     this.state = state;
     this.modelOffsets = this.unitLayout.update(state, this.replay);
     if (this.trackedIds.length && !this.userCameraChanged) {
@@ -2034,17 +2036,7 @@ export class Battlefield {
       if (e.kind === "unit") {
         const motion = this.unitMotion.at(state.tick, e.id);
         g.userData.walking = Boolean(motion);
-        const attack = cues.find(cue => cue.type === "attack" && cue.entityId === e.id);
-        const target = attack?.type === "attack" ? state.entities[attack.targetId] : undefined;
-        if (target) {
-          const from = this.displayPoint(e), to = this.displayPoint(target);
-          g.rotation.y = Math.atan2(to.x - from.x, to.y - from.y);
-        }
-        else if (motion) g.rotation.y = Math.atan2(motion.dx, motion.dy);
-        else if (!priorState?.entities[e.id]) {
-          const opposite = this.replay.scene.baseSites?.find(site => site.side !== e.side);
-          if (opposite) g.rotation.y = Math.atan2(opposite.position.x - point.x, opposite.position.y - point.y);
-        }
+        g.rotation.y = this.unitOrientation.at(state.tick, e.id) ?? 0;
       }
       const offset = this.modelOffsets.get(e.id) ?? { x: 0, y: 0 };
       const cosine = Math.cos(g.rotation.y), sine = Math.sin(g.rotation.y);
