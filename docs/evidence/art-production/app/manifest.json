@@ -1,7 +1,7 @@
 {
   "schema": "senkei-art-browser-evidence/v1",
   "sourceRevision": "d5c57e89e1188b4fdc80f7ffb435d8a8ec16347f",
-  "dirtyWorktree": "?? docs/evidence/art-production/\n?? tests/visual/art-production/\n?? tools/",
+  "dirtyWorktree": "A  docs/evidence/art-production/README.md\nA  docs/evidence/art-production/app/F01-contact.jpg\nA  docs/evidence/art-production/app/R01-contact.jpg\nA  docs/evidence/art-production/app/manifest.json\nA  docs/evidence/art-production/lab/F01-contact.jpg\nA  docs/evidence/art-production/lab/R01-contact.jpg\nA  docs/evidence/art-production/lab/manifest.json\nA  tests/visual/art-production/capture.spec.ts\nA  tools/art/README.md\nA  tools/art/capture-lab.mjs\nA  tools/art/contact-sheet.mjs\nA  tools/art/gallery.mjs\nA  tools/art/index.html\nA  tools/art/lab.ts\nA  tools/art/playwright.config.ts\nA  tools/art/vite.config.ts",
   "browser": "154.0.8037.57",
   "viewport": {
     "width": 1440,
@@ -459,6 +459,64 @@
         "data-pose-sample": "-0.0400,0.0000,0.0000:-0.1000,0.0000,-0.0800:0.0000,0.0000,0.0000"
       },
       "sha256": "8dc1ebeb329566b7f9b855989a98bba8cbb3e50bd2833cdd15952f0be06a746a"
+    },
+    {
+      "image": "battlefield-default-t000.png",
+      "label": "battlefield-default-t000",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-suspended": "false",
+        "data-camera": "2.000,55.307,62.673:1.000:-24.518,24.518,11.685,-11.685",
+        "data-tick": "0",
+        "data-camera-target": "2.000,0.307,30.673",
+        "data-camera-mode": "tactical",
+        "data-fog": "authorized-graph-samples",
+        "data-fog-tick": "0",
+        "data-last-known-facilities": "0",
+        "data-fog-nodes": "{\"A.BASE\":\"visible\",\"A.BOT.BANK\":\"unexplored\",\"A.BOT.J\":\"unexplored\",\"A.BOT.T1\":\"visible\",\"A.BOT.T2\":\"unexplored\",\"A.MID.BANK\":\"unexplored\",\"A.MID.J\":\"unexplored\",\"A.MID.T1\":\"visible\",\"A.MID.T2\":\"unexplored\",\"A.TOP.BANK\":\"unexplored\",\"A.TOP.J\":\"unexplored\",\"A.TOP.T1\":\"visible\",\"A.TOP.T2\":\"unexplored\",\"B.BASE\":\"unexplored\",\"B.BOT.BANK\":\"unexplored\",\"B.BOT.J\":\"unexplored\",\"B.BOT.T1\":\"unexplored\",\"B.BOT.T2\":\"unexplored\",\"B.MID.BANK\":\"unexplored\",\"B.MID.J\":\"unexplored\",\"B.MID.T1\":\"unexplored\",\"B.MID.T2\":\"unexplored\",\"B.TOP.BANK\":\"unexplored\",\"B.TOP.J\":\"unexplored\",\"B.TOP.T1\":\"unexplored\",\"B.TOP.T2\":\"unexplored\",\"N.A.LC\":\"unexplored\",\"N.A.LJ\":\"unexplored\",\"N.A.UC\":\"unexplored\",\"N.A.UJ\":\"unexplored\",\"N.B.LC\":\"unexplored\",\"N.B.LJ\":\"unexplored\",\"N.B.UC\":\"unexplored\",\"N.B.UJ\":\"unexplored\",\"N.MID.OBS\":\"unexplored\"}",
+        "data-tracking": "",
+        "data-unit-pose-entity": "",
+        "data-unit-pose": "none",
+        "data-unit-pose-sample": "",
+        "data-rendered": "true",
+        "data-draw-calls": "1078",
+        "data-triangles": "147822",
+        "data-lod-summary": "{\"full\":1,\"medium\":4,\"far\":13}",
+        "data-render-cpu-ms": "31.60",
+        "data-presentation-mode": "tactical",
+        "data-information-layers": "{\"vision\":true,\"lanes\":true,\"engagements\":true}",
+        "data-fps": "5.8"
+      },
+      "sha256": "f91d97ef4b6a311890c86ca72caa27b093d31c0539aafc8e7848d8799d63273d"
+    },
+    {
+      "image": "battlefield-cinematic-t000.png",
+      "label": "battlefield-cinematic-t000",
+      "attributes": {
+        "data-engine": "three.js r180",
+        "data-suspended": "false",
+        "data-camera": "2.000,45.453,62.702:1.000:-24.518,24.518,11.685,-11.685",
+        "data-tick": "0",
+        "data-camera-target": "2.000,0.353,30.702",
+        "data-camera-mode": "tactical",
+        "data-fog": "authorized-graph-samples",
+        "data-fog-tick": "0",
+        "data-last-known-facilities": "0",
+        "data-fog-nodes": "{\"A.BASE\":\"visible\",\"A.BOT.BANK\":\"unexplored\",\"A.BOT.J\":\"unexplored\",\"A.BOT.T1\":\"visible\",\"A.BOT.T2\":\"unexplored\",\"A.MID.BANK\":\"unexplored\",\"A.MID.J\":\"unexplored\",\"A.MID.T1\":\"visible\",\"A.MID.T2\":\"unexplored\",\"A.TOP.BANK\":\"unexplored\",\"A.TOP.J\":\"unexplored\",\"A.TOP.T1\":\"visible\",\"A.TOP.T2\":\"unexplored\",\"B.BASE\":\"unexplored\",\"B.BOT.BANK\":\"unexplored\",\"B.BOT.J\":\"unexplored\",\"B.BOT.T1\":\"unexplored\",\"B.BOT.T2\":\"unexplored\",\"B.MID.BANK\":\"unexplored\",\"B.MID.J\":\"unexplored\",\"B.MID.T1\":\"unexplored\",\"B.MID.T2\":\"unexplored\",\"B.TOP.BANK\":\"unexplored\",\"B.TOP.J\":\"unexplored\",\"B.TOP.T1\":\"unexplored\",\"B.TOP.T2\":\"unexplored\",\"N.A.LC\":\"unexplored\",\"N.A.LJ\":\"unexplored\",\"N.A.UC\":\"unexplored\",\"N.A.UJ\":\"unexplored\",\"N.B.LC\":\"unexplored\",\"N.B.LJ\":\"unexplored\",\"N.B.UC\":\"unexplored\",\"N.B.UJ\":\"unexplored\",\"N.MID.OBS\":\"unexplored\"}",
+        "data-tracking": "",
+        "data-unit-pose-entity": "",
+        "data-unit-pose": "none",
+        "data-unit-pose-sample": "",
+        "data-rendered": "true",
+        "data-draw-calls": "1373",
+        "data-triangles": "159726",
+        "data-lod-summary": "{\"full\":5,\"medium\":0,\"far\":13}",
+        "data-render-cpu-ms": "11.00",
+        "data-presentation-mode": "cinematic",
+        "data-information-layers": "{\"vision\":true,\"lanes\":true,\"engagements\":true}",
+        "data-fps": "5.7"
+      },
+      "sha256": "567286e5f7c424a3f98501cc5bf7d6e5334a570ca0df179285b9de4c2892ca14"
     }
   ],
   "errors": [],
@@ -472,6 +530,6 @@
     "physical GPU timings",
     "source concept comparison"
   ],
-  "status": "failed",
-  "failure": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.next-renderer-host canvas')\nExpected: \u001b[32m\"true\"\u001b[39m\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" locator('.next-renderer-host canvas') with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('.next-renderer-host canvas')\u001b[22m\n"
+  "status": "captured-with-console-errors-awaiting-visual-review",
+  "failure": null
 }
