@@ -11,19 +11,19 @@
 
 ## Hero採点とHard Gate
 
-各Heroを個別に採点する。制作担当とは別の評価者が、対象HEADから撮影した実画像と動作を見て根拠を記録する。0は欠落または評価不能、1は重大な破綻、2は目立つ欠陥、3は成立しているが要改善、4は採用品質、5は基準を超える品質を表す。Identity 30%、Silhouette/Proportion 25%、Geometry/Material 20%、Animation 15%、Tactical Readability 10%で加重平均を計算する。合格には各軸3.5/5以上かつ加重平均4.0/5以上が必要で、Hard Gateの不合格を点数で相殺しない。
+各Heroを個別に採点する。制作担当とは別の評価者が、対象HEADから撮影した実画像と動作を見て根拠を記録する。0は欠落または評価不能、1は重大な破綻、2は目立つ欠陥、3は成立しているが要改善、4は採用品質、5は基準を超える品質を表す。Identity 30%、Silhouette/Proportion 25%、Geometry/Material 20%、Animation 15%、Tactical Readability 10%で加重平均を計算する。合格には各軸3.5/5以上かつ加重平均4.0/5以上が必要で、Hard Gateの不合格を点数で相殺しない。部分画像で確認した軸は暫定点として記録し、AnimationやTactical Readability等が未評価の間は総合加重平均を計算しない。
 
 各HeroはIdentity、Geometry、Material、Animation、LOD、Integration、Determinism、Reproducibilityの8項目をすべてPASSする必要がある。各評価にはbuild HEAD、撮影元HEAD、画像SHA-256、評価者、観測した欠陥位置と理由を残す。古いHEADの画像、静止pose、縮小画像だけで合格させず、未検証は `NOT_CHECKED` とする。
 
 | Hero | Identity 30% | Silhouette/Proportion 25% | Geometry/Material 20% | Animation 15% | Tactical Readability 10% | 加重平均 | 独立評価証拠 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 修正後の撮影を待つ |
+| F01 Bannerhold | 4.0 | 3.5 | 3.0 (FAIL) | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、`0654af6` の修正後画像待ち |
 | F02 Stoneheart | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F03 Breach | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F04 Rook | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F05 Lockstep | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F06 Pathfinder | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
-| R01 Tempest | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 修正後の撮影を待つ |
+| R01 Tempest | 4.0 | 4.0 | 3.5 (暫定) | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、`0654af6` の修正後画像待ち |
 | R02 Farshot | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | R03 Farwatch | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | R04 Lifeline | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
@@ -32,7 +32,7 @@
 
 | Hero | Identity | Geometry | Material | Animation | LOD | Integration | Determinism | Reproducibility |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
+| F01 Bannerhold | NOT_CHECKED | FAIL | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F02 Stoneheart | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F03 Breach | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F04 Rook | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
@@ -45,14 +45,14 @@
 | R05 Conductor | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | R06 Aegis | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 
-F01/R01の修正前Visual FAILは履歴として維持する。最新画像と独立評価が揃うまで、両候補の採用判定と残り10体への展開を保留する。
+F01/R01のd5修正前Visual FAILは履歴として維持する。`0654af6` の最新画像の独立採点とHard Gate再確認が終わるまで、両候補の採用判定と残り10体への展開を保留する。
 
 ## Hero別の状態
 
 | Hero | 制作段階 | Functional | Visual | Interaction | Performance | 今回の証拠 |
 | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | 先行候補、顔と折り襞をbfb0428で修正、再判定待ち | 部分PASS（旧撮影） | 旧撮影FAIL／修正後NOT_CHECKED | 部分PASS（旧撮影） | NOT_CHECKED | [撮影と未達](evidence/art-production/README.md) |
-| R01 Tempest | 先行候補、顔、折り襞、布の胸袖裾をbfb0428で修正、再判定待ち | 部分PASS（旧撮影） | 旧撮影FAIL／修正後NOT_CHECKED | 部分PASS（旧撮影） | NOT_CHECKED | [撮影と未達](evidence/art-production/README.md) |
+| F01 Bannerhold | 先行候補、d5で確認した胸板と攻撃時の剣可読性を `0654af6` で修正。再撮影・独立再評価待ち | 部分PASS（`39742e6` 実アプリcapture、修正前コード） | FAIL（d5、胸中央が別の盾に見え、攻撃時に剣刃の接続が見えない）。`0654af6` のVisualは未検証 | 部分PASS（旧撮影と `39742e6`） | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[実アプリbaseline](evidence/art-production/app-recheck-39742e6/README.md) |
+| R01 Tempest | 先行候補、d5の布胸面の懸念に `0654af6` で断面付きshellを追加。再撮影・独立再評価待ち | 部分PASS（`39742e6` 実アプリcapture、修正前コード） | NOT_CHECKED（d5のGeometry/Material暫定3.5。硬い胸板にも見え、修正後未検証） | 部分PASS（旧撮影と `39742e6`） | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[実アプリbaseline](evidence/art-production/app-recheck-39742e6/README.md) |
 | F02 Stoneheart | 残り10体への展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F03 Breach | 展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F04 Rook | 展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
@@ -89,6 +89,13 @@ JavaScript例外は記録されず、未解決のresource 404が1件ある。
 完全なReplayのexport/hashも未採取。
 SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／5.8 FPS、Cinematic presentation 1,373／159,726／5.7 FPSで、物理GPUのPerformance PASSではない。
 
+## 再開後の実装・検証
+
+- d5 `a3d01d6` production builderのisolated captureを独立レビューし、具体的なF01胸中央の盾状輪郭とattack時の剣刃隠れ、R01胸布の硬さを記録した。[画像ごとのSHAと暫定採点](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)を参照。F01/R01の修正前Visual FAILは上の表に反映済み。
+- `0654af6` はF01 command breastplateを肋骨形状にし、正面の中央稜を細くし、R01 channelerを断面付きcloth shellと浅いfoldへ変更した。F01/R01の13 focused tests、`tsc --noEmit -p tsconfig.graphics.json`、isolated lab buildはPASS。Chromium 156/SwiftShaderのclean 22-image captureがあり、faviconを含むconsole/page errorは0件。独立visual reviewは進行中で、まだ採用判定にはしていない。
+- [`39742e6` actual app baseline](evidence/art-production/app-recheck-39742e6/README.md)ではHero Detail、Jinrei compile、Ready preflight、Battlefield T000のTactical/Cinematic描画までPlaywright 1件がPASS。これは`0654af6`より前のGenerator image evidenceであり、現在の修正後モデル受入には使わない。実Battlefieldの交戦・橋・終局・Replayは未検証。
+- `0654af6` の後に共有Core入力と一致するWASM SHA `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a` でArt checkoutの `npm run build` とtypecheckはPASS。アプリ再captureは修正後の専用ブラウザ検証として続ける。SwiftShaderは物理GPU性能の証拠にならない。
+
 ## 共通資産と実戦の状態
 
 | 対象 | Functional | Visual | Interaction | Performance | 必要な確認 |
@@ -122,7 +129,4 @@ Functional / Visual / Interaction / CI / Performance:
 環境と未確認範囲:
 ```
 
-初期調査後に上記の撮影と修正が追加された。
-F01/R01の旧撮影のVisual FAILは履歴として保持し、影響する修正後の判定は `NOT_CHECKED` とする。
-残り10体は未展開で、goldenの完成や制作完了を宣言しない。
-本更新は文書と既存ソースの照合であり、新たなブラウザ撮影やGPU計測は実施していない。
+初期調査後に上記の撮影と修正が追加された。残り10体は未展開で、F01/R01の採用も未完了のまま保持する。
