@@ -125,6 +125,11 @@ pub struct RulePlan {
     pub required_primitives: BTreeSet<TransitionPrimitiveKind>,
     pub transitions: Vec<TransitionRule>,
     pub arbitration: BTreeMap<CapabilityId, ArbitrationRule>,
+    /// Senritsu-validated actor-local cross-capability order declarations.
+    /// They are compiled from the separately bound catalog extension and are
+    /// consumed only after Enbu validates and performs per-capability arbitration.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actor_intent_orders: Vec<ActorIntentOrder>,
     pub termination: TerminationPolicy,
     pub cost_schedule: CostSchedule,
     pub presentation: PresentationPolicy,
@@ -160,14 +165,14 @@ pub enum ProjectionSides {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EntityProjectionSource {
     Singleton,
     EachConfigurationItem { field: FieldId },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EntityIdProjection {
     Fixed(EntityId),
     ConstantKey(String),
@@ -176,7 +181,7 @@ pub enum EntityIdProjection {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EntityOwnerProjection {
     Unowned,
     Fixed(crate::CombatantSide),
@@ -184,7 +189,7 @@ pub enum EntityOwnerProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ProjectionValue {
     Constant(DomainValue),
     ConfigurationPath { root: FieldId, path: Vec<FieldId> },
@@ -256,7 +261,7 @@ pub enum TransitionPrimitiveKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EntitySelector {
     IntentActor,
     IntentTarget,
@@ -272,7 +277,7 @@ pub enum EntitySelector {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorldEntitySelector {
     Fixed(EntityId),
     ByProjectionKey {
@@ -295,7 +300,7 @@ pub enum EntityOwnerSelector {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CollectionSource {
     WorldEntities {
         entity_types: BTreeSet<TypeId>,
@@ -305,7 +310,7 @@ pub enum CollectionSource {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RuleExpression {
     Literal(DomainValue),
     CurrentTick,
@@ -323,7 +328,7 @@ pub enum RuleExpression {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TransitionPrimitive {
     SetField { target: EntitySelector, field: FieldId, value: RuleExpression },
     AddInteger { target: EntitySelector, field: FieldId, amount: RuleExpression },
@@ -350,7 +355,7 @@ pub enum EntityIdSource {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EntityOwnerSource {
     Unowned,
     Fixed(crate::CombatantSide),
@@ -390,8 +395,27 @@ pub struct ArbitrationRule {
     pub resolution: ArbitrationResolution,
 }
 
+/// Game-neutral actor control scope carried by compiled actor-local orders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActorControlScope {
+    Army,
+    Squad,
+    Hero,
+    LaneLimitedMinion,
+}
+
+/// A validated total order over explicit intents for one typed actor domain.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub struct ActorIntentOrder {
+    pub scope: ActorControlScope,
+    pub actor_type: TypeId,
+    pub capabilities: BTreeSet<CapabilityId>,
+    pub arbitration: ArbitrationRule,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArbitrationResolution {
     AllowAll { max_accepted: u32 },
     RejectConflicts,
@@ -399,7 +423,7 @@ pub enum ArbitrationResolution {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
 pub enum IntentKey {
     Priority,
     Side,
@@ -525,6 +549,7 @@ impl From<&RulePackage> for RulePlan {
             required_primitives: package.required_primitives.clone(),
             transitions: package.transitions.clone(),
             arbitration: package.arbitration.clone(),
+            actor_intent_orders: Vec::new(),
             termination: package.termination.clone(),
             cost_schedule: package.cost_schedule.clone(),
             presentation: package.presentation.clone(),

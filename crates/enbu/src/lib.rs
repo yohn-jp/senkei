@@ -57,7 +57,7 @@ pub fn reproduction_snapshot_digest(
 }
 
 use senkei_model::{
-    ApiError, ApiErrorCode, CombatantSide, ComponentVersions, ContentDigest, DiagnosticEvent,
+    ApiError, ApiErrorCode, CombatantSide, ComponentVersions, ContentDigest, DiagnosticEvent, EntityId,
     DiagnosticRecord, ExecutionBudget, HostLimits, Intent, LogicalCu, MatchContext, MatchId,
     DomainValue, MatchOutcome, MatchResult, ObservationSnapshot,
     PresentationReplay, ReplayFrame, ReproductionContext, RestrictedDiagnostics,
@@ -324,7 +324,7 @@ pub fn simulate<P: TacticalExecutionPort>(
                 )?,
             }
         }
-        let accepted = arbitrate(validated, plan, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        let accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
 
         let accepted_sides = accepted.iter().map(|(side, _)| *side).collect::<BTreeSet<_>>();
         // Overrun output is discarded only for that side under the
@@ -1093,6 +1093,7 @@ fn evaluate_termination(
 fn arbitrate(
     candidates: Vec<(CombatantSide, Intent)>,
     plan: &RulePlan,
+    world: &WorldState,
     tick: u32,
     diagnostics: &mut Vec<DiagnosticEvent>,
     sequence: &mut u64,
@@ -1100,50 +1101,215 @@ fn arbitrate(
     let mut by_capability: BTreeMap<senkei_model::CapabilityId, Vec<(CombatantSide, Intent)>> = BTreeMap::new();
     for candidate in candidates { by_capability.entry(candidate.1.capability.clone()).or_default().push(candidate); }
     let mut accepted_all = Vec::new();
-    for (capability, mut group) in by_capability {
+    let use_actor_orders = !plan.actor_intent_orders.is_empty();
+    let mut per_capability_decisions = Vec::new();
+    for (capability, group) in by_capability {
         let Some(rule) = plan.arbitration.get(&capability) else {
             return Err(invalid_plan("validated capability has no arbitration rule"));
         };
-        group.sort_by(|(a_side, a), (b_side, b)| canonical_intent_order(a, *a_side, b, *b_side));
-        let mut rejected = BTreeSet::new();
-        match &rule.resolution {
-            senkei_model::ArbitrationResolution::AllowAll { max_accepted } => {
-                for index in *max_accepted as usize..group.len() { rejected.insert(index); }
-            }
-            senkei_model::ArbitrationResolution::RejectConflicts => {
-                for left in 0..group.len() { for right in left + 1..group.len() {
-                    if keys_conflict(&group[left], &group[right], &rule.conflict_keys) { rejected.insert(left); rejected.insert(right); }
-                }}
-            }
-            senkei_model::ArbitrationResolution::SelectOrdered { sort_by, max_accepted } => {
-                group.sort_by(|(a_side, a), (b_side, b)| compare_intents(a, *a_side, b, *b_side, sort_by));
-                let mut chosen: Vec<usize> = Vec::new();
-                for index in 0..group.len() {
-                    if chosen.len() >= *max_accepted as usize || chosen.iter().any(|&prior| keys_conflict(&group[prior], &group[index], &rule.conflict_keys)) {
-                        rejected.insert(index);
-                    } else { chosen.push(index); }
+        for (side, intent, accepted) in arbitrate_group(group, rule) {
+            if use_actor_orders {
+                let index = per_capability_decisions.len();
+                per_capability_decisions.push((index, side, intent, accepted));
+            } else {
+                // Keep the pre-extension diagnostic order exactly as it was:
+                // each per-capability group records accepted/rejected outcomes
+                // before the next capability is processed.
+                if accepted {
+                    push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentAccepted { intent: intent.clone() })?;
+                    accepted_all.push((side, intent));
+                } else {
+                    push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentRejected { intent, reason: SymbolId::from("enbu.arbitration_rejected") })?;
                 }
             }
         }
-        for (index, (side, intent)) in group.into_iter().enumerate() {
-            if rejected.contains(&index) {
-                push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentRejected { intent, reason: SymbolId::from("enbu.arbitration_rejected") })?;
-            } else {
-                push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentAccepted { intent: intent.clone() })?;
-                accepted_all.push((side, intent));
+    }
+
+    if use_actor_orders {
+        let actor_candidates = per_capability_decisions.iter()
+            .filter(|(_, _, _, accepted)| *accepted)
+            .map(|(index, side, intent, _)| (*index, *side, intent.clone()))
+            .collect();
+        let actor_results = arbitrate_actor_orders(actor_candidates, plan, world)?;
+        let mut actor_acceptance = vec![None; per_capability_decisions.len()];
+        for (index, _, _, accepted) in actor_results {
+            let Some(slot) = actor_acceptance.get_mut(index) else {
+                return Err(invalid_plan("actor arbitration returned an unknown candidate"));
+            };
+            if slot.replace(accepted).is_some() {
+                return Err(invalid_plan("actor arbitration returned a candidate more than once"));
             }
         }
+        let mut accepted = Vec::new();
+        for (index, side, intent, package_accepted) in per_capability_decisions {
+            let is_accepted = if package_accepted {
+                actor_acceptance.get(index).and_then(|value| *value)
+                    .ok_or_else(|| invalid_plan("actor arbitration omitted an accepted candidate"))?
+            } else {
+                false
+            };
+            if is_accepted {
+                push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentAccepted { intent: intent.clone() })?;
+                accepted.push((side, intent));
+            } else {
+                push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentRejected { intent, reason: SymbolId::from("enbu.arbitration_rejected") })?;
+            }
+        }
+        accepted.sort_by(|(a_side, a), (b_side, b)| canonical_intent_order(a, *a_side, b, *b_side));
+        return Ok(accepted);
     }
+
     accepted_all.sort_by(|(a_side, a), (b_side, b)| canonical_intent_order(a, *a_side, b, *b_side));
     Ok(accepted_all)
 }
 
-fn keys_conflict(
-    a: &(CombatantSide, Intent),
-    b: &(CombatantSide, Intent),
+/// Apply the same RulePlan arbitration primitive to either a per-capability
+/// group or an authored cross-capability actor group. The returned order is
+/// the decision order; callers own only how final status is recorded.
+fn arbitrate_group(
+    group: Vec<(CombatantSide, Intent)>,
+    rule: &senkei_model::ArbitrationRule,
+) -> Vec<(CombatantSide, Intent, bool)> {
+    arbitrate_indexed_group(
+        group.into_iter().enumerate().map(|(index, (side, intent))| (index, side, intent)).collect(),
+        rule,
+    ).into_iter().map(|(_, side, intent, accepted)| (side, intent, accepted)).collect()
+}
+
+fn arbitrate_indexed_group(
+    mut group: Vec<(usize, CombatantSide, Intent)>,
+    rule: &senkei_model::ArbitrationRule,
+) -> Vec<(usize, CombatantSide, Intent, bool)> {
+    group.sort_by(|(_, a_side, a), (_, b_side, b)| canonical_intent_order(a, *a_side, b, *b_side));
+    let mut rejected = BTreeSet::new();
+    match &rule.resolution {
+        senkei_model::ArbitrationResolution::AllowAll { max_accepted } => {
+            for index in *max_accepted as usize..group.len() { rejected.insert(index); }
+        }
+        senkei_model::ArbitrationResolution::RejectConflicts => {
+            for left in 0..group.len() { for right in left + 1..group.len() {
+                if keys_conflict_indexed(&group[left], &group[right], &rule.conflict_keys) { rejected.insert(left); rejected.insert(right); }
+            }}
+        }
+        senkei_model::ArbitrationResolution::SelectOrdered { sort_by, max_accepted } => {
+            group.sort_by(|(_, a_side, a), (_, b_side, b)| compare_intents(a, *a_side, b, *b_side, sort_by));
+            let mut chosen: Vec<usize> = Vec::new();
+            for index in 0..group.len() {
+                if chosen.len() >= *max_accepted as usize || chosen.iter().any(|&prior| keys_conflict_indexed(&group[prior], &group[index], &rule.conflict_keys)) {
+                    rejected.insert(index);
+                } else { chosen.push(index); }
+            }
+        }
+    }
+    group.into_iter().enumerate().map(|(position, (index, side, intent))| {
+        let accepted = !rejected.contains(&position);
+        (index, side, intent, accepted)
+    }).collect()
+}
+
+fn arbitrate_actor_orders(
+    candidates: Vec<(usize, CombatantSide, Intent)>,
+    plan: &RulePlan,
+    world: &WorldState,
+) -> Result<Vec<(usize, CombatantSide, Intent, bool)>, ApiError> {
+    let mut groups = BTreeMap::<(CombatantSide, EntityId, Option<senkei_model::ActorControlScope>, senkei_model::TypeId), Vec<(usize, CombatantSide, Intent)>>::new();
+    let mut untyped = Vec::new();
+    for candidate in candidates {
+        let Some(capability) = plan.domain.capabilities.get(&candidate.2.capability) else {
+            return Err(invalid_plan("accepted capability disappeared from the verified schema"));
+        };
+        let Some(actor_index) = capability.actor_argument else {
+            untyped.push(candidate);
+            continue;
+        };
+        let Some(actor_argument) = capability.arguments.get(actor_index as usize) else {
+            return Err(invalid_plan("verified capability actor argument is out of range"));
+        };
+        let senkei_model::DomainType::Entity { entity_type: Some(actor_type) } = &actor_argument.value_type else {
+            untyped.push(candidate);
+            continue;
+        };
+        if actor_argument.optional {
+            untyped.push(candidate);
+            continue;
+        }
+        let Some(actor_id) = candidate.2.actor.clone() else {
+            return Err(invalid_plan("legal typed-actor intent has no normalized actor"));
+        };
+        let Some(actor) = world.entities.get(&actor_id) else {
+            return Err(invalid_plan("legal typed-actor intent references no current actor"));
+        };
+        if &actor.entity_type != actor_type {
+            return Err(invalid_plan("legal typed-actor intent does not match the current actor type"));
+        }
+        if plan.actor_intent_orders.iter().any(|order| {
+            order.capabilities.contains(&candidate.2.capability) && order.actor_type != *actor_type
+        }) {
+            return Err(invalid_plan("compiled actor order capability has a different typed actor"));
+        }
+        let scopes = plan.actor_intent_orders.iter()
+            .filter(|order| order.actor_type == *actor_type)
+            .map(|order| order.scope)
+            .collect::<BTreeSet<_>>();
+        if scopes.len() > 1 {
+            return Err(invalid_plan("compiled actor type has contradictory actor scopes"));
+        }
+        let scope = scopes.iter().next().copied();
+        groups.entry((candidate.1, actor_id, scope, actor_type.clone())).or_default().push(candidate);
+    }
+
+    let mut results = untyped.into_iter().map(|(index, side, intent)| (index, side, intent, true)).collect::<Vec<_>>();
+    for ((side, _actor_id, scope, actor_type), group) in groups {
+        if group.len() == 1 {
+            let (index, side, intent) = group.into_iter().next().expect("singleton group");
+            results.push((index, side, intent, true));
+            continue;
+        }
+        let capabilities = group.iter().map(|(_, _, intent)| intent.capability.clone()).collect::<BTreeSet<_>>();
+        let applicable = plan.actor_intent_orders.iter().filter(|order| {
+            Some(order.scope) == scope
+                && order.actor_type == actor_type
+                && capabilities.is_subset(&order.capabilities)
+        }).collect::<Vec<_>>();
+        if applicable.len() != 1 {
+            return Err(invalid_plan("legal actor-local capability conflict has no unique complete authored order"));
+        }
+        let order = applicable[0];
+        let senkei_model::ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 } = &order.arbitration.resolution else {
+            return Err(invalid_plan("authored actor order must select exactly one candidate"));
+        };
+        if order.arbitration.conflict_keys != [senkei_model::IntentKey::Actor]
+            && order.arbitration.conflict_keys != [senkei_model::IntentKey::Side, senkei_model::IntentKey::Actor]
+        {
+            return Err(invalid_plan("authored actor order has invalid actor-local conflict keys"));
+        }
+        for (_, _, intent) in &group {
+            if sort_by.iter().any(|term| key_value(intent, side, &term.key).is_none()) {
+                return Err(invalid_plan("authored actor order is missing a required sort key"));
+            }
+        }
+        let mut ordered = group.clone();
+        ordered.sort_by(|(_, left_side, left), (_, right_side, right)| compare_intent_terms(left, *left_side, right, *right_side, sort_by));
+        if ordered.windows(2).any(|pair| {
+            compare_intent_terms(&pair[0].2, pair[0].1, &pair[1].2, pair[1].1, sort_by) == std::cmp::Ordering::Equal
+        }) {
+            return Err(invalid_plan("authored actor order does not distinguish all legal candidates"));
+        }
+        let group_results = arbitrate_indexed_group(group, &order.arbitration);
+        if group_results.iter().filter(|(_, _, _, accepted)| *accepted).count() != 1 {
+            return Err(invalid_plan("authored actor order failed to select exactly one legal candidate"));
+        }
+        results.extend(group_results);
+    }
+    Ok(results)
+}
+
+fn keys_conflict_indexed(
+    a: &(usize, CombatantSide, Intent),
+    b: &(usize, CombatantSide, Intent),
     keys: &[senkei_model::IntentKey],
 ) -> bool {
-    !keys.is_empty() && keys.iter().all(|key| key_value(&a.1, a.0, key) == key_value(&b.1, b.0, key))
+    !keys.is_empty() && keys.iter().all(|key| key_value(&a.2, a.1, key) == key_value(&b.2, b.1, key))
 }
 
 fn key_value(intent: &Intent, side: CombatantSide, key: &senkei_model::IntentKey) -> Option<senkei_model::DomainValue> {
@@ -1166,6 +1332,20 @@ fn compare_intents(
     b_side: CombatantSide,
     terms: &[senkei_model::IntentSortTerm],
 ) -> std::cmp::Ordering {
+    let order = compare_intent_terms(a, a_side, b, b_side, terms);
+    if order != std::cmp::Ordering::Equal {
+        return order;
+    }
+    canonical_intent_order(a, a_side, b, b_side)
+}
+
+fn compare_intent_terms(
+    a: &Intent,
+    a_side: CombatantSide,
+    b: &Intent,
+    b_side: CombatantSide,
+    terms: &[senkei_model::IntentSortTerm],
+) -> std::cmp::Ordering {
     for term in terms {
         let left = key_value(a, a_side, &term.key);
         let right = key_value(b, b_side, &term.key);
@@ -1173,7 +1353,7 @@ fn compare_intents(
         if term.direction == senkei_model::SortDirection::Descending { order = order.reverse(); }
         if order != std::cmp::Ordering::Equal { return order; }
     }
-    canonical_intent_order(a, a_side, b, b_side)
+    std::cmp::Ordering::Equal
 }
 
 fn canonical_intent_order(

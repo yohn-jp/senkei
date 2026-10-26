@@ -114,10 +114,14 @@ pub fn validate_with_world_resolver_and_catalog_extension(
             format!("package could not be serialized for digest verification: {error}"),
         )]
     })?;
+    let mut rule_plan = RulePlan::from(&package);
+    if let Some(extension) = extension.as_ref() {
+        rule_plan.actor_intent_orders = compiled_actor_intent_orders(extension);
+    }
     let plan = VerifiedRulePlan::from_validation(
         package.ruleset.clone(),
         digest,
-        RulePlan::from(&package),
+        rule_plan,
     );
     match (plan.catalog_semantics_digest(), extension) {
         (None, None) => Ok(plan),
@@ -136,6 +140,34 @@ pub fn validate_with_world_resolver_and_catalog_extension(
                 )).collect())
         }
     }
+}
+
+/// Compile only the runtime actor-local intent orders from the separately
+/// validated Catalog extension. Field-writer orders remain Behavior-resolver
+/// metadata; Enbu never interprets profile fields.
+fn compiled_actor_intent_orders(
+    extension: &crate::catalog::CatalogMetadataExtension,
+) -> Vec<ActorIntentOrder> {
+    let Some(contract) = &extension.behavior_profiles.cross_capability_order else {
+        return Vec::new();
+    };
+    let mut orders = contract.intent_selection.iter().map(|declaration| ActorIntentOrder {
+        scope: match declaration.scope {
+            crate::catalog::BehaviorScope::Army => ActorControlScope::Army,
+            crate::catalog::BehaviorScope::Squad => ActorControlScope::Squad,
+            crate::catalog::BehaviorScope::Hero => ActorControlScope::Hero,
+            crate::catalog::BehaviorScope::LaneLimitedMinion => ActorControlScope::LaneLimitedMinion,
+        },
+        actor_type: declaration.actor_type.clone(),
+        capabilities: declaration.capabilities.clone(),
+        arbitration: declaration.arbitration.clone(),
+    }).collect::<Vec<_>>();
+    // Declaration array order is not a priority source.
+    orders.sort_by(|left, right| {
+        (&left.scope, &left.actor_type, &left.capabilities)
+            .cmp(&(&right.scope, &right.actor_type, &right.capabilities))
+    });
+    orders
 }
 
 fn validate_world_resolution(

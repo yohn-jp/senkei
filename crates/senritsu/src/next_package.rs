@@ -36,13 +36,13 @@ mod tests {
         }
     }
     #[test]
-    fn canonical_world_package_requires_enbu_1_3_without_raising_initial_minimum() {
+    fn canonical_world_package_requires_enbu_1_4_without_raising_initial_minimum() {
         let mut old_engine = next_engine_compatibility();
-        old_engine.engine = Version::new(1, 2, 0);
+        old_engine.engine = Version::new(1, 3, 0);
         assert!(crate::validate(next_package(), &old_engine).is_err(),
-            "Enbu 1.2 must reject canonical World projection and crossing interval semantics");
+            "Enbu 1.3 must reject plans requiring authored actor-local intent arbitration");
         crate::validate(crate::initial_package(), &old_engine)
-            .expect("the initial RulePackage remains compatible with Enbu 1.2");
+            .expect("the initial RulePackage remains compatible with Enbu 1.3");
     }
     #[test]
     fn next_validation_resolves_the_exact_world_and_projection() {

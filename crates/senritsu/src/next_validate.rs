@@ -128,7 +128,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     check(
         package.minimum_engine_version >= ENBU_ENGINE_VERSION,
         "minimum_engine_version",
-        "canonical World projection and interval traversal require Enbu 1.3.0",
+        "authored actor-local intent arbitration requires Enbu 1.4.0",
     );
     check(
         r.heroes.len() == 12,

@@ -112,7 +112,7 @@ fn rules(with_units: bool, actor_argument: bool) -> VerifiedRulePlan {
         domain,
         world_initialization: WorldInitialization { entities: Vec::new(), global_fields: BTreeMap::new(), collections: BTreeMap::new() },
         world: WorldSchema { entity_types: BTreeMap::new(), global_fields: BTreeMap::new(), collections: BTreeMap::new(), max_entities: 32 },
-        phases: Vec::new(), required_primitives: BTreeSet::new(), transitions: Vec::new(), arbitration: BTreeMap::new(),
+        phases: Vec::new(), required_primitives: BTreeSet::new(), transitions: Vec::new(), arbitration: BTreeMap::new(), actor_intent_orders: Vec::new(),
         termination: TerminationPolicy { max_ticks: 1, conditions: Vec::new(), on_timeout: MatchOutcome::Draw,
             on_timeout_reason: SymbolId::new("timeout") },
         cost_schedule,

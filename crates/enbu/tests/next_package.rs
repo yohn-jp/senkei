@@ -14,7 +14,7 @@ fn next_package_is_versioned_and_covers_the_initial_catalog() {
     assert_eq!(package.ruleset.id.as_str(), "senkei.next");
     assert_eq!(package.ruleset.version, Version::new(2, 0, 0));
     assert_eq!(next.mechanics_version, Version::new(2, 0, 0));
-    assert_eq!(package.minimum_engine_version, Version::new(1, 3, 0));
+    assert_eq!(package.minimum_engine_version, Version::new(1, 4, 0));
     assert_eq!(next.parameters["xp_scale"], 2_520);
 
     assert_eq!(next.heroes.len(), 12, "the initial catalog has twelve Heroes");
@@ -103,7 +103,7 @@ fn next_package_rejects_unsupported_mechanics_and_engine_versions() {
     let mut older_engine = compatibility.clone();
     older_engine.engine = Version::new(1, 2, 0);
     assert!(senritsu::validate(senritsu::next_package(), &older_engine).is_err(),
-        "Next requires its declared Enbu 1.3.0-compatible engine");
+        "Next requires its declared Enbu 1.4.0-compatible engine");
     senritsu::validate(senritsu::initial_package(), &older_engine)
         .expect("the original package retains compatibility with Enbu 1.2");
 

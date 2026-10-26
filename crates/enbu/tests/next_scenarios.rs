@@ -1,7 +1,7 @@
 use enbu::{new_match_context, preflight, simulate};
 use jinrei::{compile, Vm};
 use senkei_model::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,6 +13,78 @@ fn rules() -> VerifiedRulePlan {
         &senritsu::next_engine_compatibility(),
     )
     .unwrap_or_else(|issues| panic!("published Next package must validate: {issues:?}"))
+}
+
+fn authored_order_rules(with_order: bool) -> VerifiedRulePlan {
+    let mut package = senritsu::next_package();
+    package.next.as_mut().unwrap().parameters.insert("hero_start_level".into(), 4);
+    package.ruleset.version = Version::new(2, 0, 1);
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    if !with_order {
+        return senritsu::validate(package, &senritsu::next_engine_compatibility()).unwrap();
+    }
+
+    let provisional = senritsu::validate(package.clone(), &senritsu::next_engine_compatibility()).unwrap();
+    // Test-only ActionId priority. It is deliberately authored in this fixture
+    // and is not a production Senkei ordering policy.
+    let capabilities = package.domain.capabilities.iter().filter_map(|(id, capability)| {
+        let actor = capability.actor_argument.and_then(|index| capability.arguments.get(index as usize))?;
+        let DomainType::Entity { entity_type: Some(actor_type) } = &actor.value_type else { return None };
+        (actor_type == &TypeId::new("hero") && !actor.optional && !capability.phases.is_empty()).then(|| id.clone())
+    }).collect::<BTreeSet<_>>();
+    let mut extension = senritsu::CatalogMetadataExtension {
+        schema_version: senritsu::DOMAIN_CATALOG_SCHEMA_VERSION,
+        ruleset_id: provisional.ruleset().id.clone(),
+        ruleset_version: provisional.ruleset().version,
+        ruleset_digest: provisional.package_digest().clone(),
+        entity_scopes: BTreeMap::from([
+            (TypeId::new("hero"), senritsu::EntityControlScope::Hero),
+            (TypeId::new("minion"), senritsu::EntityControlScope::LaneLimitedMinion),
+        ]),
+        capabilities: BTreeMap::new(),
+        behavior_profiles: senritsu::BehaviorProfileMetadata {
+            cross_capability_order: Some(senritsu::BehaviorOrderContract {
+                intent_selection: vec![senritsu::BehaviorOrderDeclaration {
+                    scope: senritsu::BehaviorScope::Hero,
+                    actor_type: TypeId::new("hero"),
+                    capabilities,
+                    arbitration: ArbitrationRule {
+                        conflict_keys: vec![IntentKey::Side, IntentKey::Actor],
+                        resolution: ArbitrationResolution::SelectOrdered {
+                            sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }],
+                            max_accepted: 1,
+                        },
+                    },
+                }],
+                field_writers: BTreeMap::new(),
+            }),
+            inheritance_order: vec![
+                senritsu::ProfileLayer::SenritsuDefault,
+                senritsu::ProfileLayer::HeroCatalogDefault,
+                senritsu::ProfileLayer::ArmyPreference,
+                senritsu::ProfileLayer::SquadAggregate,
+                senritsu::ProfileLayer::JinreiConditionalPreference,
+            ],
+            fields: BTreeMap::from([("navigation.mode".into(), senritsu::BehaviorFieldDefinition {
+                value_type: DomainType::String { max_bytes: 64 },
+                scopes: [senritsu::BehaviorScope::Hero].into_iter().collect(),
+                aggregation: None,
+                override_policy: senritsu::BehaviorOverridePolicy {
+                    conditional_tick_override: true,
+                    persistent_capability: None,
+                },
+                description: "Test-only field required by the catalog schema".into(),
+                unit: None,
+            })]),
+            senritsu_default: BTreeMap::from([("navigation.mode".into(), DomainValue::String("steady".into()))]),
+            hero_defaults: BTreeMap::new(),
+            presets: BTreeMap::new(),
+        },
+    };
+    package.catalog_semantics_digest = Some(senritsu::catalog::catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    senritsu::validate_with_catalog_extension(package, &senritsu::next_engine_compatibility(), extension).unwrap()
 }
 
 fn presentation_shifted_rules() -> VerifiedRulePlan {
@@ -419,6 +491,148 @@ fn accepted_actors(artifact: &SimulationArtifact, side: CombatantSide, capabilit
     actors.sort();
     actors.dedup();
     actors
+}
+
+fn run_authored_order_scenario(rules: &VerifiedRulePlan, match_id: &str) -> SimulationArtifact {
+    authored_order_scenario_result(rules, match_id)
+        .unwrap_or_else(|error| panic!("actual VM intents pass Enbu legality and execute: {error:?}"))
+}
+
+fn authored_order_scenario_result(
+    rules: &VerifiedRulePlan,
+    match_id: &str,
+) -> Result<SimulationArtifact, ApiError> {
+    let actor = hero_selector("slot-1");
+    let source = format!(
+        "senkei authored_order_actual {{ action a_move {{ when match.tick == 1, do move({actor}, \"A.TOP.T2\"), }}, action z_activate {{ when match.tick == 1, do activate({actor}, \"f01_a_active\", {actor}), }} }}"
+    );
+    authored_order_source_result(rules, match_id, &source, &[0])
+}
+
+fn authored_order_source_result(
+    rules: &VerifiedRulePlan,
+    match_id: &str,
+    source: &str,
+    catalog_slots: &[usize],
+) -> Result<SimulationArtifact, ApiError> {
+    let program = compile(&source, rules)
+        .unwrap_or_else(|error| panic!("real move/activate order fixture compiles: {error:?}"))
+        .program;
+    let nodes = vec!["A.TOP.T1".to_owned(); 5];
+    let (mut attacker, defender, context) = build_match(
+        rules, &[1, 1, 1, 1, 1], match_id, 1, Some(&nodes), None,
+    );
+    attacker.program = program;
+    for slot in catalog_slots {
+        set_catalog(&mut attacker, *slot, "F01", rules);
+    }
+    let mut vm = Vm::new(rules);
+    simulate(&attacker, &defender, rules, &context, &mut vm)
+}
+
+#[test]
+fn authored_actor_order_consumes_legal_vm_intents_before_effects_and_logs_final_status_once() {
+    let baseline_rules = authored_order_rules(false);
+    let baseline = run_authored_order_scenario(&baseline_rules, "actor-order-no-metadata");
+    let baseline_statuses = baseline.diagnostics.events.iter().filter(|event| {
+        event.tick == 1 && event.side == CombatantSide::Attacker
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent }
+                if intent.action_id.as_str() == "a_move" || intent.action_id.as_str() == "z_activate")
+    }).count();
+    assert_eq!(baseline_statuses, 2, "without the authored extension, both different-capability intents remain accepted");
+
+    let ordered_rules = authored_order_rules(true);
+    let artifact = run_authored_order_scenario(&ordered_rules, "actor-order-authored");
+    let action_statuses = artifact.diagnostics.events.iter().filter_map(|event| {
+        if event.tick != 1 || event.side != CombatantSide::Attacker { return None; }
+        match &event.record {
+            DiagnosticRecord::IntentAccepted { intent }
+                if intent.action_id.as_str() == "a_move" || intent.action_id.as_str() == "z_activate" =>
+                    Some((intent.action_id.as_str().to_owned(), true, None)),
+            DiagnosticRecord::IntentRejected { intent, reason }
+                if intent.action_id.as_str() == "a_move" || intent.action_id.as_str() == "z_activate" =>
+                    Some((intent.action_id.as_str().to_owned(), false, Some(reason.as_str().to_owned()))),
+            _ => None,
+        }
+    }).collect::<Vec<_>>();
+    assert_eq!(action_statuses.len(), 2, "each proposed action has one final Enbu arbitration status");
+    assert_eq!(action_statuses.iter().filter(|(id, accepted, _)| id == "a_move" && *accepted).count(), 1);
+    assert_eq!(action_statuses.iter().filter(|(id, accepted, reason)| {
+        id == "z_activate" && !accepted && reason.as_deref() == Some("enbu.arbitration_rejected")
+    }).count(), 1, "the other legal intent is rejected by the authored actor order, not by legality");
+
+    let before = owner_hero_at(&artifact, 0, "slot-1");
+    let after = owner_hero_at(&artifact, 1, "slot-1");
+    let moved = entity_string(before, "node") != entity_string(after, "node")
+        || entity_integer(before, "x") != entity_integer(after, "x")
+        || entity_integer(before, "y") != entity_integer(after, "y")
+        || entity_integer(before, "edge_progress") != entity_integer(after, "edge_progress");
+    assert!(moved, "the action selected by the validated actor order produces a real Enbu movement effect");
+}
+
+#[test]
+fn authored_actor_order_fails_closed_when_runtime_key_is_missing_or_tied() {
+    let validated = authored_order_rules(true);
+    let malformed = [
+        (vec![IntentSortTerm { key: IntentKey::Argument(u16::MAX), direction: SortDirection::Ascending }], "missing a required sort key"),
+        (Vec::new(), "does not distinguish all legal candidates"),
+    ];
+    for (sort_by, expected_message) in malformed {
+        let mut plan = validated.plan().clone();
+        let ArbitrationResolution::SelectOrdered { sort_by: compiled_sort_by, .. } =
+            &mut plan.actor_intent_orders[0].arbitration.resolution else { panic!("test fixture has a selected order") };
+        *compiled_sort_by = sort_by;
+        let malformed_plan = VerifiedRulePlan::from_validation(
+            validated.ruleset().clone(),
+            validated.package_digest().clone(),
+            plan,
+        );
+        let error = authored_order_scenario_result(&malformed_plan, "actor-order-fail-closed")
+            .expect_err("invalid compiled order metadata is a fail-closed runtime plan error");
+        assert_eq!(error.code, ApiErrorCode::ValidationFailed);
+        assert!(error.message.contains(expected_message), "unexpected error: {error:?}");
+    }
+}
+
+#[test]
+fn authored_order_metadata_preserves_nonconflicting_per_capability_selection_trace_order() {
+    let hero_one = hero_selector("slot-1");
+    let hero_two = hero_selector("slot-2");
+    let source = format!(
+        "senkei nonconflicting_select_order {{ action a_activate {{ when match.tick == 1, do activate({hero_one}, \"f01_a_active\", {hero_one}), }}, action z_activate {{ when match.tick == 1, do activate({hero_two}, \"f01_a_active\", {hero_two}), }} }}"
+    );
+    for with_metadata in [false, true] {
+        let validated = authored_order_rules(with_metadata);
+        let mut plan = validated.plan().clone();
+        plan.arbitration.insert(CapabilityId::new("activate"), ArbitrationRule {
+            conflict_keys: vec![IntentKey::Actor],
+            resolution: ArbitrationResolution::SelectOrdered {
+                sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Descending }],
+                max_accepted: 32,
+            },
+        });
+        let rules = VerifiedRulePlan::from_validation(
+            validated.ruleset().clone(),
+            validated.package_digest().clone(),
+            plan,
+        );
+        let artifact = authored_order_source_result(&rules, "actor-order-per-cap-trace", &source, &[0, 1])
+            .unwrap_or_else(|error| panic!("distinct hero activations remain legal and execute: {error:?}"));
+        let statuses = artifact.diagnostics.events.iter().filter_map(|event| {
+            if event.tick != 1 || event.side != CombatantSide::Attacker { return None; }
+            match &event.record {
+                DiagnosticRecord::IntentAccepted { intent }
+                    if intent.action_id.as_str() == "a_activate" || intent.action_id.as_str() == "z_activate" =>
+                        Some((intent.action_id.as_str().to_owned(), true)),
+                DiagnosticRecord::IntentRejected { intent, .. }
+                    if intent.action_id.as_str() == "a_activate" || intent.action_id.as_str() == "z_activate" =>
+                        Some((intent.action_id.as_str().to_owned(), false)),
+                _ => None,
+            }
+        }).collect::<Vec<_>>();
+        assert_eq!(statuses, vec![("z_activate".into(), true), ("a_activate".into(), true)],
+            "nonconflicting actors retain the per-capability explicit decision order with_metadata={with_metadata}");
+    }
 }
 
 fn entity_integer(entity: &EntityStateView, field: &str) -> i64 {

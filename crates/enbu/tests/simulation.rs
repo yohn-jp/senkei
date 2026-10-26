@@ -131,6 +131,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
             capability,
             ArbitrationRule { conflict_keys: Vec::new(), resolution: ArbitrationResolution::AllowAll { max_accepted: 8 } },
         )]),
+        actor_intent_orders: Vec::new(),
         termination: TerminationPolicy {
             max_ticks,
             conditions: vec![

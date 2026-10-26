@@ -3060,6 +3060,20 @@ mod tests {
     }
     #[test]
     fn authored_cross_capability_orders_are_typed_and_semantically_bound() {
+        // This is a test-only ActionId policy. It confirms that the validated
+        // typed order is compiled into RulePlan; no production ranking is set.
+        let compiled = verified_next();
+        assert_eq!(compiled.plan().actor_intent_orders.len(), 1);
+        let compiled_order = &compiled.plan().actor_intent_orders[0];
+        assert_eq!(compiled_order.scope, senkei_model::ActorControlScope::Hero);
+        assert_eq!(compiled_order.actor_type, TypeId::new("hero"));
+        assert!(compiled_order.capabilities.contains(&CapabilityId::new("move")));
+        assert!(compiled_order.capabilities.contains(&CapabilityId::new("activate")));
+        assert!(matches!(&compiled_order.arbitration.resolution,
+            ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 }
+                if sort_by == &[IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }]));
+        assert!(verified_next_without_behavior().plan().actor_intent_orders.is_empty());
+
         let plan = verified_next_without_behavior();
         let mut extension = test_extension(&plan, "steady");
         let mut absent_order = extension.clone();
@@ -3215,7 +3229,7 @@ mod tests {
         let mut extension = test_extension(&plan, "steady");
         let sort_by: Vec<IntentSortTerm> = serde_json::from_str(r#"[
             {"key":{"kind":"argument","value":1},"direction":"ascending"},
-            {"key":{"value":1,"kind":"argument","ignored":true},"direction":"descending"},
+            {"key":{"value":1,"kind":"argument"},"direction":"descending"},
             {"key":{"kind":"action_id"},"direction":"ascending"}
         ]"#).unwrap();
         assert_eq!(sort_by[0].key, sort_by[1].key);

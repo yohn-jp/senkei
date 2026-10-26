@@ -19,9 +19,9 @@ impl Version {
 pub const SHARED_MODEL_VERSION: Version = Version::new(1, 0, 0);
 
 /// Semantic version of Enbu's deterministic simulation contract. This is
-/// independent of the Rust crate's Cargo package version. Version 1.3.0 adds
-/// canonical World projection and interval-aware crossing execution.
-pub const ENBU_ENGINE_VERSION: Version = Version::new(1, 3, 0);
+/// independent of the Rust crate's Cargo package version. Version 1.4.0 adds
+/// Senritsu-compiled actor-local cross-capability intent arbitration.
+pub const ENBU_ENGINE_VERSION: Version = Version::new(1, 4, 0);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulesetRef {

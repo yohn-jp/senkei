@@ -5,13 +5,13 @@ map shape and leaf interfaces are historical and do not define the current
 Battlefield contract. The current authority is [`BATTLEFIELD.md`](../BATTLEFIELD.md);
 the canonical integration and verification record is
 [`BATTLEFIELD-CANONICAL.md`](BATTLEFIELD-CANONICAL.md). The current
-`senkei.next` package is version 2.0.0 and requires Enbu 1.3.0 for canonical World projection and interval-aware crossing execution.
+`senkei.next` package is version 2.0.0 and requires Enbu 1.4.0 for canonical World projection, interval-aware crossing execution, and authored actor-local intent arbitration.
 
 Single integration authority: Sol. Frozen streams W1–W9 from the implementation request; no additional streams. Producers and consumers start from this committed baseline and consume later changes only after publication by commit.
 
 ## Versions and boundaries
 
-`RulePackage.next: Option<NextRules>` and normalized `RulePlan.next` carry versioned finite battle-system data. Omission preserves canonical initial package JSON/digest. Current `senkei.next` 2.0.0 requires Enbu 1.3.0; shared wire model and Jinrei remain 1.0.0. The original W1–W9 ownership and hook details below record the earlier integration plan. Existing simulate loop, VM, diagnostics, budgets and artifact remain the only match execution path; finite Battlefield primitives use that loop, not a separate simulator.
+`RulePackage.next: Option<NextRules>` and normalized `RulePlan.next` carry versioned finite battle-system data. Omission preserves canonical initial package JSON/digest. Current `senkei.next` 2.0.0 requires Enbu 1.4.0; shared wire model and Jinrei remain 1.0.0. The original W1–W9 ownership and hook details below record the earlier integration plan. Existing simulate loop, VM, diagnostics, budgets and artifact remain the only match execution path; finite Battlefield primitives use that loop, not a separate simulator.
 
 Authoritative data flow: preparation configuration → validated NextRules → WorldState → same-tick team observations → Jinrei VM intents → finite world transitions → PresentationReplay → graphics adapter → existing Replay Player/Renderer. Appearance keys select renderer assets; geometry never controls logic.
 

@@ -1062,6 +1062,7 @@ mod tests {
             required_primitives: BTreeSet::new(),
             transitions: vec![],
             arbitration: BTreeMap::new(),
+            actor_intent_orders: Vec::new(),
             termination: TerminationPolicy {
                 max_ticks: 10,
                 conditions: vec![],
