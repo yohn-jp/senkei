@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
+import { reproductionSnapshotDigest } from "../../../apps/web/src/features/next/experiment-restoration";
 import { completePreflight } from "../helpers/preflight";
 
 type JsonRecord = Record<string, any>;
@@ -73,24 +74,26 @@ async function compileScenarioInput(): Promise<void> {
 async function runBattle(page: Page, snapshot: JsonRecord, width: number, height: number): Promise<JsonRecord> {
   const pageErrors: string[] = [];
   const wasmResponses: number[] = [];
+  const snapshotDigest = await reproductionSnapshotDigest(snapshot as Parameters<typeof reproductionSnapshotDigest>[0]);
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.context().on("response", (response) => {
     if (new URL(response.url()).pathname.endsWith("/wasm/senkei_wasm.wasm")) wasmResponses.push(response.status());
   });
-  await page.addInitScript((controlledSnapshot: JsonRecord) => {
+  await page.addInitScript(({ controlledSnapshot, controlledSnapshotDigest }: { controlledSnapshot: JsonRecord; controlledSnapshotDigest: string }) => {
     const NativeWorker = window.Worker;
     class CapturingWorker extends NativeWorker {
       postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
         const request = message as { operation?: unknown; request_id?: unknown; payload?: Record<string, unknown> } | null;
         let outgoing = message;
-        if (request?.operation === "simulate") {
+        if (request?.operation === "simulate" || request?.operation === "reproduce") {
           const target = window as typeof window & { __canonicalRequest?: { request_id?: unknown }; __canonicalResponse?: unknown };
           const modified = structuredClone(request) as { operation?: unknown; request_id?: unknown; payload?: Record<string, unknown> };
-          if (!modified.payload) throw new Error("canonical browser simulation has no payload");
+          if (!modified.payload) throw new Error("canonical browser battle request has no payload");
           modified.payload.snapshot = structuredClone(controlledSnapshot);
+          if (modified.operation === "reproduce") modified.payload.snapshot_digest = controlledSnapshotDigest;
           outgoing = modified;
           if (typeof modified.request_id !== "string" || modified.request_id.length === 0) {
-            throw new Error("canonical browser simulation has no request ID");
+            throw new Error("canonical browser battle request has no request ID");
           }
           target.__canonicalRequest = { request_id: modified.request_id };
         }
@@ -125,7 +128,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
       }
     }
     Object.defineProperty(window, "Worker", { configurable: true, value: CapturingWorker });
-  }, snapshot);
+  }, { controlledSnapshot: snapshot, controlledSnapshotDigest: snapshotDigest });
 
   await page.setViewportSize({ width, height });
   await page.goto("/", { waitUntil: "networkidle" });
@@ -181,7 +184,7 @@ async function runBattle(page: Page, snapshot: JsonRecord, width: number, height
   const response = requiredRecord(captured.response, "Worker response");
   if (response.ok !== true) throw new Error("The canonical browser Worker response did not succeed.");
   const responseRequestId = requiredString(response.request_id, "Worker response request ID");
-  if (responseRequestId !== requestId) throw new Error("The canonical Worker response does not match its Enbu simulation request.");
+  if (responseRequestId !== requestId) throw new Error("The canonical Worker response does not match its Enbu battle request.");
   expect(wasmResponses).toContain(200);
 
   const simulation = requiredRecord(response.result, "Worker simulation result");

@@ -30,10 +30,16 @@ test("verified Unicode CRLF and lone-CR source selects the normalized textarea w
   const variant = { ...store, experiments: [{ ...original, setup }] };
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
+  const hasStoredExperiments = await library.getByRole("button", { name: "Export experiments", exact: true }).isEnabled();
   await library.getByLabel("Import Next experiment file", { exact: true }).setInputFiles({ name: "real-run-source-form.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(variant)) });
   const replaceExperiments = library.getByRole("button", { name: "Validate and import", exact: true });
-  if (await replaceExperiments.isVisible()) await replaceExperiments.click();
-  await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
+  const openLatest = library.getByRole("button", { name: "Open latest comparison", exact: true });
+  if (hasStoredExperiments) {
+    await expect(replaceExperiments).toBeVisible({ timeout: 30_000 });
+    await replaceExperiments.click();
+  }
+  await expect(openLatest).toBeEnabled({ timeout: 180_000 });
+  await openLatest.click();
   await page.getByTestId("nav-library").click();
   await library.getByLabel("Import a Next setup JSON file", { exact: true }).setInputFiles({ name: "raw-source-setup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(setup)) });
   const replacePinned = library.getByRole("button", { name: "Validate and replace", exact: true });
