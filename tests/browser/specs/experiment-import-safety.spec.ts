@@ -173,3 +173,51 @@ test("unrecognized saved schema remains exportable while Core is unavailable", a
   await expect(page.getByRole("button", { name: "Export experiments", exact: true })).toBeDisabled();
   expect((await storedIdentity(page)).ids).toBeUndefined();
 });
+
+test("C13 a quota-failed completed Run remains exportable and survives Retry storage", async ({ page }) => {
+  test.setTimeout(450_000);
+  await importBaseline(page);
+  const previous = await storedIdentity(page);
+  expect(previous.ids).toHaveLength(1);
+
+  await page.getByTestId("next-library").getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByTestId("journey-home")).toBeVisible();
+  await page.getByTestId("journey-home").getByRole("button", { name: "すぐ戦う", exact: true }).click();
+  await page.getByRole("button", { name: "この条件で進む", exact: true }).click();
+  await page.getByRole("button", { name: "準備確認へ", exact: true }).click();
+
+  // Only the completed experiment write fails; original IndexedDB bytes remain untouched.
+  await page.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    window.addEventListener("senkei-restore-experiment-put", () => { IDBObjectStore.prototype.put = original; }, { once: true });
+    IDBObjectStore.prototype.put = function (...args: Parameters<IDBObjectStore["put"]>) {
+      if (this.name === "next_experiments") throw new DOMException("Deliberate completed Run quota failure", "QuotaExceededError");
+      return original.apply(this, args);
+    };
+  });
+  await completePreflight(page);
+  await expect(page.getByText(/Confirmed result · (Attacker Victory|Defender Victory|Draw)/i)).toBeVisible({ timeout: 180_000 });
+  await page.getByTestId("nav-library").click();
+  const library = page.getByTestId("next-library");
+  await expect(library.getByText(/Experiment could not be saved:/)).toBeVisible({ timeout: 60_000 });
+  expect(await storedIdentity(page)).toEqual(previous);
+  const draftBeforeRetry = await page.evaluate(() => localStorage.getItem("senkei.next-workspace-recovery.v1"));
+
+  const downloading = page.waitForEvent("download");
+  await library.getByRole("button", { name: "Export experiments", exact: true }).click();
+  const exported = JSON.parse(readFileSync((await (await downloading).path())!, "utf8"));
+  const ids: string[] = exported.experiments.map((item: { id: string }) => item.id);
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).not.toBe(previous.ids![0]);
+  expect(ids[1]).toBe(previous.ids![0]);
+
+  await page.evaluate(() => window.dispatchEvent(new Event("senkei-restore-experiment-put")));
+  await library.getByRole("button", { name: "Retry storage", exact: true }).click();
+  await expect.poll(async () => (await storedIdentity(page)).ids, { timeout: 60_000 }).toEqual(ids);
+  expect(await page.evaluate(() => localStorage.getItem("senkei.next-workspace-recovery.v1"))).toBe(draftBeforeRetry);
+  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled();
+  await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
+  await expect(page.locator(".battle-analysis-result-identity code")).toHaveText(
+    exported.experiments[0].response.outcome.result.final_state_digest,
+  );
+});

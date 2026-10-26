@@ -151,6 +151,24 @@ interface SavedNextSetup {
 }
 
 
+
+/** Serialize the current completed Run, which may be newer than the last disk write. */
+function completedExperimentStore(run: BattleRun, baselineRun: BattleRun | null): LocalNextExperimentStore {
+  const experiments: LocalNextExperiment[] = [run, ...(baselineRun ? [baselineRun] : [])].map((item) => ({
+    id: item.experimentId,
+    match_id: item.snapshot.context.match_id,
+    created_at: item.createdAt,
+    snapshot: item.snapshot,
+    reproduction_assets: item.reproductionAssets,
+    snapshot_digest: item.snapshotDigest,
+    response: item.response,
+    setup: JSON.parse(JSON.stringify(item.setup)) as CoreJsonValue,
+    include_diagnostics: item.includeDiagnostics,
+    estimated_cu: item.estimatedCU,
+  }));
+  return { format_version: 2, experiments };
+}
+
 interface WorkspaceProps {
   readonly active: boolean;
   readonly entry: { readonly screen: "home" | "workspace" | "resume"; readonly request: number };
@@ -742,6 +760,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [jinreiScreen, setJinreiScreen] = useState<"workbench" | "coverage">("workbench");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [storageAttempt, setStorageAttempt] = useState(0);
+  const [experimentReloadAttempt, setExperimentReloadAttempt] = useState(0);
   const [savedRaw, setSavedRaw] = useState<string | null>(null);
   const [recoveryRaw, setRecoveryRaw] = useState<string | null>(null);
   const [frozenRematch, setFrozenRematch] = useState<{ kind: "exact" | "improved"; run: BattleRun } | null>(null);
@@ -811,6 +830,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const experimentRuntime = useRef({ core, packageValue });
   experimentRuntime.current = { core, packageValue };
   const experimentPersistGeneration = useRef(0);
+  // Do not discard a completed Run until its IndexedDB write commits.
+  const experimentPendingStore = useRef<LocalNextExperimentStore | null>(null);
   const experimentImportGeneration = useRef(0);
   const experimentWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const enqueueExperimentWrite = useCallback((write: () => Promise<void>): Promise<void> => {
@@ -845,6 +866,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [rendererError, setRendererError] = useState<string | null>(null);
 
   useEffect(() => {
+    // A Core reload must not replace a not-yet-persisted Run with older disk data.
+    if (experimentPendingStore.current) return;
     const digest = packageValue?.ruleset.digest;
     const generation = ++experimentRestoreGeneration.current;
     let storageRead = false;
@@ -858,7 +881,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       try {
         // Reading/exporting completed records does not require the simulation runtime.
         const payload = await loadNextExperimentPayload();
-        if (generation !== experimentRestoreGeneration.current) return;
+        if (generation !== experimentRestoreGeneration.current || experimentPendingStore.current) return;
         storageRead = true;
         setExperimentStorageLoaded(true);
         let stored: LocalNextExperimentStore | null;
@@ -872,7 +895,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         setExperimentStore(stored);
         if (!core || !packageValue?.next || !digest) return;
         const restored = stored ? await prepareNextExperimentStore(stored, packageValue, core, campaignScenarios) : [];
-        if (generation !== experimentRestoreGeneration.current) return;
+        if (generation !== experimentRestoreGeneration.current || experimentPendingStore.current) return;
         setRun(restored[0] ?? null);
         setBaselineRun(restored[1] ?? null);
         setExperimentLoadedDigest(digest);
@@ -889,29 +912,30 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       }
     })();
     return () => { experimentRestoreGeneration.current += 1; };
-  }, [core, packageValue, storageAttempt]);
+  }, [core, packageValue, experimentReloadAttempt]);
 
   useEffect(() => {
     const digest = packageValue?.ruleset.digest;
     if (!digest || experimentLoadedDigest !== digest || experimentMismatch || !run) return;
-    const experiments: LocalNextExperiment[] = [run, ...(baselineRun ? [baselineRun] : [])].map((item) => ({
-      id: item.experimentId,
-      match_id: item.snapshot.context.match_id,
-      created_at: item.createdAt,
-      snapshot: item.snapshot,
-      reproduction_assets: item.reproductionAssets,
-      snapshot_digest: item.snapshotDigest,
-      response: item.response,
-      setup: JSON.parse(JSON.stringify(item.setup)) as CoreJsonValue,
-      include_diagnostics: item.includeDiagnostics,
-      estimated_cu: item.estimatedCU,
-    }));
-    const store: LocalNextExperimentStore = { format_version: 2, experiments };
+    const store = completedExperimentStore(run, baselineRun);
     const generation = ++experimentPersistGeneration.current;
-    void enqueueExperimentWrite(() => saveNextExperimentStore(store)).then(() => {
-      if (generation === experimentPersistGeneration.current) setExperimentStore(store);
+    experimentPendingStore.current = store;
+    void enqueueExperimentWrite(async () => {
+      if (generation !== experimentPersistGeneration.current) return;
+      await saveNextExperimentStore(store, () => {
+        if (generation !== experimentPersistGeneration.current) {
+          throw new PersistenceError("conflict", "The completed Run changed before storage could commit.");
+        }
+      });
+    }).then(() => {
+      if (generation !== experimentPersistGeneration.current) return;
+      experimentPendingStore.current = null;
+      setExperimentStore(store);
+      setExperimentError(null);
     }).catch((cause: unknown) => {
-      setExperimentError(cause instanceof Error ? `Experiment could not be saved: ${cause.message}` : "Experiment could not be saved.");
+      if (generation === experimentPersistGeneration.current) {
+        setExperimentError(cause instanceof Error ? `Experiment could not be saved: ${cause.message}` : "Experiment could not be saved.");
+      }
     });
   }, [baselineRun, enqueueExperimentWrite, experimentLoadedDigest, experimentMismatch, packageValue?.ruleset.digest, run]);
   const [rendererAttempt, setRendererAttempt] = useState(0);
@@ -2242,10 +2266,40 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     onExportRecovery={() => { if (recoverySetup) exportSetup(recoverySetup, "senkei-next-recovery.json"); }}
     onExportRawSaved={() => exportRawSetup("saved")} onExportRawRecovery={() => exportRawSetup("recovery")}
     onImport={file => importSetupFile(file, true)} onClearSaved={clearSavedSetup} onClearRecovery={clearRecoveryCopy}
-    onRetryStorage={() => setStorageAttempt(attempt => attempt + 1)}
+    onRetryStorage={async () => {
+      const pending = experimentPendingStore.current;
+      if (pending) {
+        const generation = ++experimentPersistGeneration.current;
+        try {
+          await enqueueExperimentWrite(async () => {
+            if (generation !== experimentPersistGeneration.current) {
+              throw new PersistenceError("conflict", "The completed Run changed during storage retry.");
+            }
+            await saveNextExperimentStore(pending, () => {
+              if (generation !== experimentPersistGeneration.current) {
+                throw new PersistenceError("conflict", "The completed Run changed during storage retry.");
+              }
+            });
+          });
+          if (generation === experimentPersistGeneration.current) {
+            experimentPendingStore.current = null;
+            setExperimentStore(pending);
+            setExperimentError(null);
+          }
+        } catch (cause) {
+          if (generation === experimentPersistGeneration.current) {
+            setExperimentError(cause instanceof Error ? `Experiment could not be saved: ${cause.message}` : "Experiment could not be saved.");
+          }
+          throw cause;
+        }
+      } else {
+        setExperimentReloadAttempt(attempt => attempt + 1);
+      }
+      setStorageAttempt(attempt => attempt + 1);
+    }}
     onRetryCore={() => { setRuntimeFailure(null); setError(null); onRetryCore(); setCatalogAttempt(attempt => attempt + 1); }}
     onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)}
-    experiments={(experimentStore?.experiments ?? []).map((item) => {
+    experiments={((experimentPendingStore.current ?? experimentStore)?.experiments ?? []).map((item) => {
       const associated = [run, baselineRun].find(candidate => candidate?.experimentId === item.id && candidate.snapshot === item.snapshot && candidate.campaignAssociation?.eligible);
       const scenario = associated ? campaignScenarios.find(candidate => candidate.id === associated.campaignAssociation?.scenarioId) : null;
       const result = item.response?.outcome?.result;
@@ -2254,7 +2308,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         final_tick: Number.isSafeInteger(result?.final_tick) ? result.final_tick : null };
     })}
     experimentsLoaded={experimentStorageLoaded}
-    canExportExperiments={experimentPreservedRaw !== null || Boolean(experimentStore?.experiments.length)}
+    canExportExperiments={experimentPreservedRaw !== null || Boolean((experimentPendingStore.current ?? experimentStore)?.experiments.length)}
     hasPreservedExperiments={experimentPreservedRaw !== null}
     experimentsCompatible={Boolean(core && packageValue && experimentLoadedDigest === packageValue.ruleset.digest && !experimentMismatch)}
     experimentError={experimentError} experimentMismatch={experimentMismatch}
@@ -2263,9 +2317,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       setTab("analysis"); setScreen("workspace");
     }}
     onExportExperiments={() => {
-      if (!experimentPreservedRaw && !experimentStore) throw new Error("There are no stored Next experiments to export.");
+      const available = experimentPendingStore.current ?? experimentStore;
+      if (!experimentPreservedRaw && !available) throw new Error("There are no Next experiments to export.");
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(new Blob([experimentPreservedRaw ?? serializeNextExperimentStore(experimentStore!)], { type: "application/json" }));
+      link.href = URL.createObjectURL(new Blob([experimentPreservedRaw ?? serializeNextExperimentStore(available!)], { type: "application/json" }));
       link.download = `senkei-next-experiments${experimentPreservedRaw ? "-preserved" : ""}.json`;
       link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
     }}
@@ -2287,6 +2342,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       });
       if (!current()) return;
       experimentPersistGeneration.current += 1;
+      experimentPendingStore.current = null;
       // A pending cold restore must not republish the records replaced by this successful import.
       experimentRestoreGeneration.current += 1;
       setExperimentStore(imported);
@@ -2301,6 +2357,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       setExperimentLoadedDigest(null);
       await enqueueExperimentWrite(() => clearNextExperimentStore());
       if (generation !== experimentPersistGeneration.current) return;
+      experimentPendingStore.current = null;
       setExperimentStore(null); setExperimentPreservedRaw(null); setExperimentMismatch(null); setExperimentError(null);
       setRun(null); setBaselineRun(null); setExactRun(null);
       setExperimentLoadedDigest(packageValue?.ruleset.digest ?? null);
