@@ -24,7 +24,8 @@ export function effectiveTrackPoint(entity: DisplayEntity, replay: Replay): Worl
   // Normal bridges permit CENTER in the crossing interval; expanded bridges
   // also permit LEFT and RIGHT. The published track identifies the lateral
   // position without reading hidden bridge state or playback history.
-  if (!from || !to || edge?.region !== "lane")
+  const hasLateralTrack = edge?.region === "lane" || (edge?.region === "bridge" && edge.bridgeKind === "lane");
+  if (!from || !to || !hasLateralTrack)
     return entity.position;
 
   let tangent = polylineTangentAtClosestPoint(edge.points, entity.position);

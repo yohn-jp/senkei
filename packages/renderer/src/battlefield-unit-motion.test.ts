@@ -87,7 +87,7 @@ describe("Replay-derived battlefield unit motion", () => {
       ...replay,
       scene: {
         ...replay.scene,
-        routes: [{ id: "bot-edge", region: "lane", bridgeSite: "BOT", bridgeKind: "lane",
+        routes: [{ id: "bot-edge", region: "bridge", bridgeSite: "BOT", bridgeKind: "lane",
           points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
       },
     } as Replay;
