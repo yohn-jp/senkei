@@ -11,10 +11,28 @@ mkdir -p "${fixture_dir}"
 rm -f "${report_path}"
 rm -f "${fixture_dir}"/*.request.json
 
-NEXT_BALANCE_REPORT="${report_path}" \
+# Write all measured outcomes before historical assertions, so a changed
+# baseline cannot discard the evidence needed to explain the failure.
+if NEXT_BALANCE_REPORT="${report_path}" \
+NEXT_STRATEGIC_REPORT="${fixture_dir}/strategic-measurements.json" \
 NEXT_ADAPTER_FIXTURE_DIR="${fixture_dir}" \
   cargo test --manifest-path "${repo_root}/Cargo.toml" \
-    --locked --release -p enbu --test next_scenarios -- --nocapture
+    --locked --release -p enbu --test next_scenarios -- --nocapture; then
+  :
+else
+  status=$?
+  # The existing always-uploaded adapter artifact retains exact inputs and
+  # runtimes for offline reproduction. No failing check becomes a pass.
+  git -C "${repo_root}" rev-parse HEAD > "${fixture_dir}/failure-source-revision.txt"
+  git -C "${repo_root}" archive --format=tar.gz --output="${fixture_dir}/failure-source.tar.gz" HEAD
+  if [[ -s "${wasm_path}" ]]; then
+    cp "${wasm_path}" "${fixture_dir}/failure-senkei.wasm"
+  fi
+  if [[ -n "${SENKEI_NATIVE_DISPATCHER:-}" && -f "${SENKEI_NATIVE_DISPATCHER}" ]]; then
+    cp "${SENKEI_NATIVE_DISPATCHER}" "${fixture_dir}/failure-senkei-native"
+  fi
+  exit "${status}"
+fi
 
 if [[ ! -s "${report_path}" ]]; then
   echo "next scenario test passed without writing its requested report: ${report_path}" >&2
