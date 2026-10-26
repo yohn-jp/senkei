@@ -1,7 +1,7 @@
 {
   "schema": "senkei-art-native-active-skill-proof/v1",
   "status": "PASS_NATIVE_EVENT_PROOF",
-  "acceptanceScope": "Core 0.4 Native simulation and owner/public replay event evidence only",
+  "acceptanceScope": "Core 0.4 Native simulation, owner/public replay event evidence, and one actual Playwright worker/WASM replay-to-Battlefield rendering capture; this is not full Hero hard-gate acceptance",
   "probe": {
     "repositoryHead": "6478dc9ee754f95e5554df1b44bd995496f0ee9c",
     "repositoryCratesTree": "3356b4e92785f7cd72dbde533d62348cd9408345",
@@ -83,9 +83,56 @@
     "attackerOwnerReplayGzipSha256": "e48bfcb9396b4639aa8c2669bdbbef0e86605532924eca06ae6e9e99cea27177",
     "publicReplayGzipSha256": "81efdb663d94cac1960aeebde5c7327ae147131e9d957d6badfec03ac4c96b46"
   },
+  "browserCapture": {
+    "status": "PASS_REAL_WORKER_WASM_REPRODUCE_TO_BATTLEFIELD",
+    "playwright": "1/1 passed, Chromium 156, one worker, 1440x900",
+    "appRevision": "6478dc9ee754f95e5554df1b44bd995496f0ee9c",
+    "workerOperation": "reproduce",
+    "workerResponseOk": true,
+    "wasmHttpStatus": 200,
+    "wasmSha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e",
+    "reproductionSnapshotDigest": "2dbf8c6914539a401fa138116cabcfab9b69f0b41ffc23efb17db5356767fd0c",
+    "resultDigestMatchedNative": true,
+    "replay": {
+      "schemaVersion": "1.1.0",
+      "frameCount": 601,
+      "timelineEventCount": 2464,
+      "ownerReplayJsonSha256": "3af95d602bb9693fe88af10fb457c872f7e1071ec5df99e037dfa3ad3be51869",
+      "publicReplayJsonSha256": "20c1bc47c4317a711e87cdec9dbdec8c396f8260cffc540dbec85acf149e019b"
+    },
+    "existingFrameSelection": {
+      "heroDeath": { "tick": 37, "hero": "F03" },
+      "heroRespawn": { "tick": 57, "hero": "F03" },
+      "activeSkill": { "tick": 146, "hero": "F01", "skill": "f01_a_active" },
+      "follow": { "tick": 50, "hero": "F01", "entityId": "visible-10" }
+    },
+    "visualReview": "The Tactical and Follow captures verify the actual replay reaches the renderer. At 1440x900 the Follow target remains small; the selected generic death/respawn frames are F03, and no close-up R01 active-skill frame was captured. These images do not establish Hero visual scores or near/mid/far LOD acceptance.",
+    "independentVisualReview": {
+      "report": "docs/evidence/art-production/recheck-core-replay-0.4-browser/independent-visual-review.md",
+      "reviewedImages": 5,
+      "metadataSha256Matches": "5/5",
+      "reviewer": "independent Art visual auditor",
+      "findings": "T000 Azure Fortress label is clear of visible walls/courtyard in this frame. F01 is too small for identity or material scoring and R01 is not identifiable. Still captures do not establish Animation or LOD visual acceptance."
+    },
+    "metadataJsonSha256": "2426f953757281717dce58f46a869ef1d41c65f84a8b691a7de10289018652e2",
+    "screenshots": {
+      "1440x900/tactical-t000.png": "560f879e116191d310eda5d3817945c9f1c01d0c7912abf0c0d8961d58597d27",
+      "1440x900/overview-t000.png": "44cb41fdd4132486c975c04e8e67478b8639e51adcb5aeccad27b20420331eef",
+      "1440x900/follow-t050.png": "84e23d342a920fb4bca8254b1e67c280c883f141ba9388e1deb82ed8be7ec94b",
+      "1440x900/advance-t001.png": "16cd5fb137a00b377a7b88c698736c73230ef2ad3edbd059c48e09ff77dabd2c",
+      "1440x900/clash-t018.png": "025db7d077df2377a146e0df45e64609d0624495b93b40ed4dd7172eaa2e7398",
+      "1440x900/hero-death-t037.png": "2bdba725229b512d1ab59a61a45d7ba6985f9e37ea505fc46027fdf14758c44e",
+      "1440x900/hero-respawn-t057.png": "102d36561d66c7eb5aa02c3e9c599ecfc8104e593c6538456fd3c9c2f474e20b",
+      "1440x900/skill-t146.png": "2d0a568009e143f4c377d06647ebf2aa5a57bc511f4aa6a3478cdb1ece9965a8",
+      "1440x900/tower-destroy-t456.png": "ab481aa813ddc4974fc7045cbc236cf6c00d0f4c25ed51e982803f437716a3c5",
+      "1440x900/end-t600.png": "6e6e792655041019a8b7ebb6fd070e2abb5c137424ee3a409bbf0ba9a83112cc"
+    },
+    "localIgnoredCaptureDirectory": "test-results/art-production/core-replay-0.4-active-skill-browser/capture"
+  },
   "notChecked": [
-    "Browser replay playback and renderer integration",
-    "Battlefield screenshots and expected-size LOD/Tactical review",
+    "F01/R01 Identity, Geometry, Material, and action readability at close Battlefield scale",
+    "Hero-specific death and respawn frames at close scale",
+    "Expected-size near/mid/far LOD and Tactical visual review for each Hero",
     "Renderer or screenshot pixel determinism",
     "Physical GPU performance"
   ],

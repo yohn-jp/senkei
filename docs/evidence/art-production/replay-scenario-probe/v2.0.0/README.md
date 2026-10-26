@@ -26,9 +26,30 @@ The rerun preserved each saved lineup, skill path, unchanged Jinrei source, atta
 
 A separate existing worker snapshot records a legal 10-Hero default matchup that naturally reaches both active skills. The probe extracts only its source AST and formation, recompiles both Jinrei programs against the current Core 0.4 ruleset, formats and recompiles the source to verify matching program digests, then creates a fresh default 600-tick context and passes current `preflight`. It does not send the saved bytecode, ruleset, context, or replay to current Core. The original `path_a` assignments, single `alpha` squad, rosters, and side bases are preserved.
 
-In the current Native owner replay, attacker F01 died at tick 74 and respawned at `A.BASE` at 94; it acquired `f01_a_active` at 141 and used it at 146. Defender R01 acquired `r01_a_active` at 249 and used it at 351. R01 also died and respawned at ticks 130→165 (`B.BOT.BANK`), 182→208 (`B.BASE`), and 355→401 (`B.BASE`). F01 and R01 active-skill events also appear in the public replay. The result is a draw at the default 600-tick time limit. This verifies legal Core event generation and replay serialization; it does not verify browser playback, renderer behavior, Battlefield pixels, expected-size LOD/Tactical appearance, or pixel determinism.
+In the current Native owner replay, attacker F01 died at tick 74 and respawned at `A.BASE` at 94; it acquired `f01_a_active` at 141 and used it at 146. Defender R01 acquired `r01_a_active` at 249 and used it at 351. R01 also died and respawned at ticks 130→165 (`B.BOT.BANK`), 182→208 (`B.BASE`), and 355→401 (`B.BASE`). F01 and R01 active-skill events also appear in the public replay. The result is a draw at the default 600-tick time limit. The Native run verifies legal Core event generation and replay serialization; the separate current browser capture below verifies that the current app can reproduce this result through its real worker/WASM and render the resulting replay. Expected-size Hero visuals, LOD/Tactical acceptance, and pixel determinism remain open.
 
 The current dispatcher, ruleset, scenario/program hashes, result digests, selected event ticks, raw artifact hashes, limitations, and reproduction command are captured in the compact [Core 0.4 active-skill manifest](active-skill-core-replay-0.4.json). The [probe script](run_active_skill_probe.py) reuses the tracked original worker snapshot. Raw request/replay gzip files and the full generated manifest remain local ignored artifacts.
+
+The same snapshot was then passed through the Art app's actual `reproduce` worker route and the c90 WASM build. The controlled browser hook recomputes `snapshot_digest` with the production `reproductionSnapshotDigest` helper and replaces only the request snapshot; the app's retained reproduction assets and real Core worker remain in place. Chromium 156/SwiftShader returned HTTP 200 for the exact c90 WASM. Playwright passed 1/1, the response operation was `reproduce`, and the current WASM's final-state and public/attacker owner replay digests exactly matched Native. The attacker owner replay contained 601 frames and 2,464 timeline events.
+
+The 1440×900 capture includes Tactical, Overview, F01 Follow, one active-skill tick, the first generic Hero death/respawn, tower destruction, and end state. The selected generic death/respawn frames are F03 at ticks 37/57; F01's active skill is visible in the event timeline at tick 146. R01's active event at 351 was not selected for a screenshot. The F01 Follow target is still small at this camera scale. The screenshot set proves the actual replay-to-renderer path, but does not support Hero visual scores, expected-size near/mid/far LOD acceptance, or pixel determinism. Image and metadata hashes are recorded in the compact manifest; the PNGs, video, and replay bundles are local ignored files.
+
+For a browser rerun, first build the app at the revision being recorded, generate the Native files above, and decompress its browser snapshot to an ignored JSON file. Use an empty output directory because the Playwright spec clears its configured capture directory before writing.
+
+```sh
+BATTLEFIELD_CONTROLLED_SCENARIO=art-active-skill \
+BATTLEFIELD_CONTROLLED_SNAPSHOT_PATH=/path/to/snapshot.json \
+BATTLEFIELD_CONTROLLED_SOURCE_PATH=/path/to/captures/core-replay-0.4-active-skill/attacker.jinrei \
+BATTLEFIELD_CONTROLLED_EXPECTED_RESULT_PATH=/path/to/captures/core-replay-0.4-active-skill/manifest.json \
+BATTLEFIELD_OUTPUT_DIR=/path/to/ignored-empty-capture \
+BATTLEFIELD_REPLAY_BUNDLE_DIR=/path/to/ignored-empty-capture/replay-bundle \
+BATTLEFIELD_VIEWPORTS=1440x900 \
+BATTLEFIELD_EXPECT_BATTLEFIELD_CONSOLE=true \
+BATTLEFIELD_APP_SHA="$(git rev-parse HEAD)" \
+BATTLEFIELD_EXPECT_BUILD_REVISION=true \
+SENKEI_BROWSER_PORT=4183 \
+./tests/browser/run-nix.sh specs/battlefield-verification.spec.ts
+```
 
 The saved `read-the-map` request was then dispatched a second time through the same binary. The complete result, public replay, and authorized attacker replay were exactly JSON-equal to the first run; hashes and scope are in [`determinism-core-replay-0.4.json`](determinism-core-replay-0.4.json). This verifies Native simulation determinism for that exact input, not renderer or screenshot determinism.
 
