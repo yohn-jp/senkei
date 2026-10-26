@@ -17,7 +17,7 @@ Each case had exactly two failed assertions: the two keyboard focus checks. Sele
 
 Hero Atelier explicitly focuses the target tab in its keyboard handler. Jinrei's parent keyboard handler similarly focuses and activates the target tab. Both change the parent's `viewKey`, whose next animation frame focuses the first visible heading. The current guard only exempts Library tabs. This distinguishes the reproduced tab defect from intended heading focus after ordinary navigation.
 
-Proposed minimal fix, pending NextWorkspace ownership handoff: exempt a focused element only when it is inside the workspace host, has `role="tab"` and `aria-selected="true"`, and has a visible layout box. Preserve normal heading focus otherwise. Keep the existing Library view-key behavior. No production files were changed during reproduction; Library's existing regression was not repeated.
+The applied minimal fix, after NextWorkspace ownership handoff: exempt a focused element only when it is inside the workspace host, has `role="tab"` and `aria-selected="true"`, and has a visible layout box. Preserve normal heading focus otherwise. Keep the existing Library view-key behavior. No production files were changed during reproduction. The fix changes only the inline NextWorkspace focus predicate; Hero Atelier and Jinrei Workbench remain unchanged.
 
 Reproduce after a production build using the verified WASM artifact:
 
@@ -26,3 +26,7 @@ SENKEI_BROWSER_PORT=4204 SENKEI_CHROMIUM_EXECUTABLE=/usr/bin/chromium npx playwr
 ```
 
 Detailed local run output: `/workspace/scratch/tab-focus-red.log`. Each failed test also saves a screenshot, trace, and `focus-states.json` attachment under `tests/browser/test-results/`.
+
+## Fix verification
+
+The selected, visible tab inside the workspace now retains focus after both arrow keys at all four widths. Ordinary Inspect button entry, Home entry and Next reentry still focus a current visible heading. The eight new cases and four unchanged Library regression controls all pass on the actual production preview with the same fresh WASM. Build/typecheck also pass. See [green-summary.json](green-summary.json) and local `/workspace/scratch/tab-focus-green.log`. No Enbu battle or physical-device check was required or claimed.
