@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+export const campaignRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 /** Real bundled Rust/WASM ABI; test code never supplies a fabricated Core reply. */
 export async function campaignCore() {
-  const { instance } = await WebAssembly.instantiate(readFileSync(resolve("apps/web/public/wasm/senkei_wasm.wasm")), {});
+  const { instance } = await WebAssembly.instantiate(readFileSync(resolve(campaignRepositoryRoot, "apps/web/public/wasm/senkei_wasm.wasm")), {});
   const memory = instance.exports.memory as WebAssembly.Memory;
   const alloc = instance.exports.senkei_alloc as (size: number) => number;
   const run = instance.exports.senkei_dispatch as (pointer: number, size: number) => bigint;

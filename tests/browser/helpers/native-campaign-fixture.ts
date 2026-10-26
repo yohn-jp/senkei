@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { createServer } from "vite";
+import { campaignRepositoryRoot } from "./campaign-core";
 const pending = new Map<string, Promise<any>>();
 /** Actual matched native result and original source; reused only for the exact same snapshot. */
 export function nativeCampaignFixture(scenarioId: "protect-the-core" | "first-march" = "protect-the-core"): Promise<any> {
@@ -10,7 +11,7 @@ export function nativeCampaignFixture(scenarioId: "protect-the-core" | "first-ma
 }
 async function build(scenarioId: string) {
   const first = scenarioId === "first-march";
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: campaignRepositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { createNextCampaignScenarios } = await server.ssrLoadModule("/scenarios/next/campaign.ts");
     const progressApi = await server.ssrLoadModule("/apps/web/src/features/next/campaign-progress.ts");

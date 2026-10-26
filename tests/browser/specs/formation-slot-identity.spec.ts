@@ -1,11 +1,11 @@
 import { createServer } from "vite";
 import { expect, test } from "@playwright/test";
-import { campaignCore } from "../helpers/campaign-core";
+import { campaignCore, campaignRepositoryRoot } from "../helpers/campaign-core";
 
 test("Starter source preserves quoted, backslash, Unicode and control slot IDs through real Core parsing and compilation", async () => {
   const core = await campaignCore();
   const rules = core("next_ruleset", {});
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: campaignRepositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { createStarterJinrei, parseFormationSlots } = await server.ssrLoadModule("/apps/web/src/features/next/NextWorkspace.tsx");
     const ids = ['quote"', "back\\slash", "狼🐺", "line\n\r\ttab", "control\b\f\u0001"];
@@ -31,7 +31,7 @@ test("Actual Core verifies authored Campaign association and rejects a custom NP
   const { nativeCampaignFixture } = await import("../helpers/native-campaign-fixture");
   const fixture = await nativeCampaignFixture();
   const core = await campaignCore();
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: campaignRepositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { verifyCampaignAssociation } = await server.ssrLoadModule("/apps/web/src/features/next/NextWorkspace.tsx");
     const { createNextCampaignScenarios } = await server.ssrLoadModule("/scenarios/next/campaign.ts");
