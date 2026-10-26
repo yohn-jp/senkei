@@ -78,6 +78,18 @@ function splitLabel(slots: readonly HeroAtelierSlot[]): string {
   return [...counts.values()].sort((left, right) => right - left).join("+");
 }
 
+export function heroAdoption(hero: HeroDefinition, slot: HeroAtelierSlot, index: number, previousName: string, preview = false) {
+  const nextPath = hero.skill_paths[slot.skill_path] ? slot.skill_path : Object.keys(hero.skill_paths)[0] ?? "";
+  const details = ["Slot " + (index + 1) + ": " + previousName + " → " + hero.name + "."];
+  details.push(slot.skill_path !== nextPath
+    ? (preview ? "Skill plan will change from " : "Skill plan changed from ") + formatId(slot.skill_path) + " to " + formatId(nextPath) + " because the new Hero has a different branch catalog."
+    : "Skill plan: the " + formatId(nextPath) + (preview ? " skill plan will be retained." : " skill plan was retained."));
+  details.push("Squad " + formatId(slot.squad) + " and starting node " + formatId(slot.node) + " stay assigned to this slot.");
+  details.push("Unmodified Starter Jinrei adapts to the new lineup; custom Jinrei source is retained.");
+  details.push("Jinrei compile must be checked again for the updated Hero lineup.");
+  return { changes: { catalog_id: hero.id, skill_path: nextPath }, details };
+}
+
 export function HeroAtelier({
   nextRules, slots, activeSlot, screen, onActiveSlotChange, onScreenChange, onSlotChange,
   onSquadPattern, onMoveSquad, onReady, onJinrei, canActivate, activateArgumentIds,
@@ -88,8 +100,13 @@ export function HeroAtelier({
   const [mobileSquadStage, setMobileSquadStage] = useState<"split" | "assign" | "deploy">("split");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const screenRef = useRef<HTMLElement>(null);
+  const [candidateId, setCandidateId] = useState<string | null>(null);
+  const candidate = screen === "detail" && candidateId ? findHero(nextRules, candidateId) : undefined;
   const currentSlot = slots[activeSlot] ?? null;
-  const currentHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
+  const assignedHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
+  const currentHero = candidate ?? assignedHero;
+  const adoption = candidate && currentSlot ? heroAdoption(candidate, currentSlot, activeSlot, assignedHero?.name ?? "Unknown Hero", true) : null;
+  const changeScreen = (next: HeroAtelierScreen): void => { setCandidateId(null); onScreenChange(next); };
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
   const squads = useMemo(() => sortedSquadIds(slots), [slots]);
   const currentSplit = splitLabel(slots);
@@ -102,24 +119,20 @@ export function HeroAtelier({
   const chosenScreen = SCREENS.find((item) => item.id === screen) ?? SCREENS[0]!;
   const chooseSlot = (index: number): void => {
     if (index !== activeSlot) setSelectedSkillId(null);
+    setCandidateId(null);
     onActiveSlotChange(index);
   };
   useEffect(() => {
+    if (screen !== "detail") setCandidateId(null);
     screenRef.current?.scrollIntoView({ block: "start" });
   }, [screen]);
   const changeHero = (hero: HeroDefinition): void => {
     if (!currentSlot || hero.id === currentSlot.catalog_id) return;
-    const oldHero = findHero(nextRules, currentSlot.catalog_id);
-    const oldPath = currentSlot.skill_path;
-    const nextPath = hero.skill_paths[oldPath] ? oldPath : Object.keys(hero.skill_paths)[0] ?? "";
-    const details = ["Slot " + (activeSlot + 1) + ": " + (oldHero?.name ?? "Unknown Hero") + " → " + hero.name + "."];
-    if (oldPath !== nextPath) details.push("Skill plan changed from " + formatId(oldPath) + " to " + formatId(nextPath) + " because the new Hero has a different branch catalog.");
-    else details.push("The " + formatId(nextPath) + " skill plan was retained.");
-    details.push("Squad " + formatId(currentSlot.squad) + " and starting node " + formatId(currentSlot.node) + " stay assigned to this slot.");
-    details.push("Jinrei compile must be checked again for the updated Hero lineup.");
-    setImpact(details);
+    const plan = heroAdoption(hero, currentSlot, activeSlot, assignedHero?.name ?? "Unknown Hero");
+    setImpact(plan.details);
     setSelectedSkillId(null);
-    onSlotChange(activeSlot, { catalog_id: hero.id, skill_path: nextPath });
+    setCandidateId(null);
+    onSlotChange(activeSlot, plan.changes);
   };
   const slotPicker = (label: string, includePath = false): ReactElement => (
     <div className="ha-roster" role="group" aria-label={label}>
@@ -138,7 +151,7 @@ export function HeroAtelier({
   const skillDetail = (skill: SkillDefinition, planned: boolean): ReactElement => {
     const prerequisites = skill.prerequisites.map((id) => currentHero?.skills.find((item) => item.id === id)).filter((item): item is SkillDefinition => Boolean(item));
     return <article className="ha-skill-detail" key={skill.id}>
-      <div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}{planned ? " · planned" : " · other branch"}</small></div>
+      <div><strong>{skill.name}</strong><small>{skill.id} · {skill.passive ? "Passive" : "Active"} · unlock level {skill.unlock_level}{planned ? " · planned" : candidate ? " · candidate Catalog" : " · other branch"}</small></div>
       <span>{formatId(skill.effect)}</span>
       <p>{skill.passive ? "Automatically acquired when this Hero reaches the unlock level." : formatId(skill.target) + " target · power " + skill.power + " · range " + skill.range + " · energy " + skill.cost + " · cooldown " + skill.cooldown + " ticks" + (skill.duration > 0 ? " · duration " + skill.duration + " ticks" : "")}</p>
       {prerequisites.length > 0 && <small>Requires {prerequisites.map((item) => item.name + " (level " + item.unlock_level + ")").join(", ")}. This skill stays locked until its prerequisite is acquired in battle.</small>}
@@ -153,14 +166,14 @@ export function HeroAtelier({
     </header>
     <nav className="ha-nav" aria-label="Hero Atelier" role="tablist">
       {SCREENS.map((item, index) => <button aria-controls={"hero-atelier-panel-" + item.id} aria-selected={screen === item.id} className={screen === item.id ? "is-active" : ""}
-        id={"next-atelier-" + item.id} key={item.id} onClick={() => onScreenChange(item.id)} onKeyDown={(event) => {
+        id={"next-atelier-" + item.id} key={item.id} onClick={() => changeScreen(item.id)} onKeyDown={(event) => {
           const nextIndex = event.key === "ArrowRight" ? (index + 1) % SCREENS.length
             : event.key === "ArrowLeft" ? (index + SCREENS.length - 1) % SCREENS.length
               : event.key === "Home" ? 0 : event.key === "End" ? SCREENS.length - 1 : -1;
           if (nextIndex < 0) return;
           event.preventDefault();
           const target = SCREENS[nextIndex]!;
-          onScreenChange(target.id);
+          changeScreen(target.id);
           document.getElementById("next-atelier-" + target.id)?.focus();
         }} role="tab" tabIndex={screen === item.id ? 0 : -1} type="button">
         {item.label}<small>{item.hint}</small>
@@ -190,34 +203,35 @@ export function HeroAtelier({
           {visibleHeroes.map((hero) => {
             const active = currentSlot?.catalog_id === hero.id;
             const assignedSlots = slots.flatMap((slot, index) => slot.catalog_id === hero.id ? [index + 1] : []);
-            return <button aria-pressed={active} className={"ha-hero-card next-catalog-card" + (active ? " is-selected" : "")} key={hero.id}
+            return <div className="ha-catalog-entry" key={hero.id}><button aria-pressed={active} className={"ha-hero-card next-catalog-card" + (active ? " is-selected" : "")}
               onClick={() => changeHero(hero)} type="button">
               <span className="ha-hero-card-mark" aria-hidden="true">{hero.placement === "backline" ? "⌁" : "◆"}</span>
               <span className="ha-hero-id">{hero.id}</span><strong>{hero.name}</strong>
               <small>{formatId(hero.placement)} · {formatId(hero.role)} · {formatId(hero.trait_id)}</small>
               <span className="ha-card-stats"><span>HP <b>{hero.stats.hp}</b></span><span>ATK <b>{hero.stats.attack}</b></span><span>DEF <b>{hero.stats.defense}</b></span></span>
               {assignedSlots.length > 0 && <span className="ha-assigned">{active ? "ACTIVE SLOT" : "IN SLOT" + (assignedSlots.length > 1 ? "S " : " ") + assignedSlots.join(", ")}</span>}
-            </button>;
+            </button><button className="next-secondary-button" aria-label={"Inspect " + hero.name + " without adopting"} onClick={() => { setCandidateId(hero.id); setSelectedSkillId(null); onScreenChange("detail"); }} type="button">Inspect details</button></div>;
           })}
           {visibleHeroes.length === 0 && <div className="ha-empty">No Catalog Heroes match these filters. Clear a filter to continue.</div>}
         </div>
       </section>
       {impact.length > 0 && <aside className="ha-impact" aria-live="polite" aria-label="Hero change impact"><strong>Change impact</strong><ul>{impact.map((item) => <li key={item}>{item}</li>)}</ul></aside>}
-      <footer className="ha-footer"><span>Hero choice, skill path and squad values are shared with the current Ready check and battle draft.</span><div><button className="next-secondary-button" onClick={() => onScreenChange("detail")} type="button">Inspect selected Hero <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
+      <footer className="ha-footer"><span>Hero choice, skill path and squad values are shared with the current Ready check and battle draft.</span><div><button className="next-secondary-button" onClick={() => changeScreen("detail")} type="button">Inspect selected Hero <b>→</b></button><button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
     </div>}
     {screen === "detail" && <div className="ha-detail" id="hero-atelier-panel-detail" aria-labelledby="next-atelier-detail" role="tabpanel">
-      {slotPicker("Choose a Hero for detail")}
+      {!candidate && slotPicker("Choose a Hero for detail")}
+      {adoption && candidate && <section className="ha-impact" aria-label="Candidate adoption preview"><strong>Inspecting {candidate.name} · current Draft unchanged</strong><ul>{adoption.details.map(item => <li key={item}>{item}</li>)}</ul><button className="next-secondary-button" disabled={candidate.id === currentSlot?.catalog_id} onClick={() => changeHero(candidate)} type="button">Adopt {candidate.name} in slot {activeSlot + 1}</button></section>}
       {currentHero && currentSlot ? <article className="ha-dossier">
-        <header className={"ha-dossier-heading " + currentHero.placement}><div><span className="next-eyebrow">{currentHero.appearance_key} · SLOT {String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Shared 3D identity used by the battlefield renderer.</small></div><span aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
+        <header className={"ha-dossier-heading " + currentHero.placement}><div><span className="next-eyebrow">{currentHero.appearance_key} · {candidate ? "CANDIDATE FOR SLOT " : "SLOT "}{String(activeSlot + 1).padStart(2, "0")}</span><h4>{currentHero.name}</h4><p>{currentHero.id} · {formatId(currentHero.placement)} · {formatId(currentHero.role)} · {formatId(currentHero.trait_id)}</p><small>Shared 3D identity used by the battlefield renderer.</small></div><span aria-hidden="true">{currentHero.placement === "backline" ? "⌁" : "◆"}</span></header>
         <HeroModelPreview catalogId={currentHero.id} appearanceKey={currentHero.appearance_key} name={currentHero.name} />
         <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">REAL SENRITSU VALUES</span><h4>Base stats and growth</h4></div></div>
           <div className="ha-stat-table" role="table" aria-label="Hero base stats and growth"><div role="row"><strong role="columnheader">Stat</strong><strong role="columnheader">Base</strong><strong role="columnheader">Per level</strong></div>{STAT_KEYS.map((stat) => <div role="row" key={stat}><span role="rowheader">{formatId(stat)}</span><span>{currentHero.stats[stat]}</span><span>+{currentHero.growth[stat]}</span></div>)}</div>
         </section>
-        <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span>Planned · {formatId(currentSlot.skill_path)}</span></div>
-          <div className="ha-skill-catalog">{currentHero.skills.map((skill) => skillDetail(skill, currentHero.skill_paths[currentSlot.skill_path]?.includes(skill.id) ?? false))}</div>
+        <section className="ha-data-card"><div className="ha-section-heading"><div><span className="next-eyebrow">CAPABILITY AND BRANCH CATALOG</span><h4>{currentHero.skills.length} authored skills</h4></div><span>{candidate ? "Read-only candidate Catalog" : "Planned · " + formatId(currentSlot.skill_path)}</span></div>
+          <div className="ha-skill-catalog">{currentHero.skills.map((skill) => skillDetail(skill, !candidate && (currentHero.skill_paths[currentSlot.skill_path]?.includes(skill.id) ?? false)))}</div>
         </section>
-        <aside className="ha-capability"><strong>Jinrei active-skill command</strong><p>{canActivate ? <>The current ruleset declares <code>activate</code>{activateArgumentIds.length ? " with " + activateArgumentIds.map(formatId).join(", ") + " arguments" : ""}. Only the actual compiled Jinrei draft determines whether a skill is ordered.</> : <>This ruleset does not declare <code>activate</code>. Active skills cannot be ordered from Jinrei in this package.</>}</p><button onClick={onJinrei} type="button">Review Jinrei orders <b>→</b></button></aside>
-        <footer className="ha-footer"><span>Catalog values only. No unprovided attributes or abilities are inferred.</span><div><button className="next-secondary-button" onClick={() => onScreenChange("collection")} type="button">Back to Collection</button><button className="next-secondary-button" onClick={() => onScreenChange("skills")} type="button">Plan this Hero's skills <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
+        <aside className="ha-capability"><strong>Jinrei active-skill command</strong><p>{canActivate ? <>The current ruleset declares <code>activate</code>{activateArgumentIds.length ? " with " + activateArgumentIds.map(formatId).join(", ") + " arguments" : ""}. Only the actual compiled Jinrei draft determines whether a skill is ordered.</> : <>This ruleset does not declare <code>activate</code>. Active skills cannot be ordered from Jinrei in this package.</>}</p>{!candidate && <button onClick={onJinrei} type="button">Review Jinrei orders <b>→</b></button>}</aside>
+        <footer className="ha-footer"><span>Catalog values only. No unprovided attributes or abilities are inferred.</span><div><button className="next-secondary-button" onClick={() => changeScreen("collection")} type="button">Back to Collection</button>{!candidate && <button className="next-secondary-button" onClick={() => changeScreen("skills")} type="button">Plan this Hero's skills <b>→</b></button>}<button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
       </article> : <div className="ha-empty">Select a populated Hero slot to inspect its Senritsu data.</div>}
     </div>}
     {screen === "skills" && <div className="ha-skills" id="hero-atelier-panel-skills" aria-labelledby="next-atelier-skills" role="tabpanel">
@@ -251,7 +265,7 @@ export function HeroAtelier({
           </article>;
         })}</div>
         <p className="ha-plan-note">Planned skills are not acquired skills. The battle's Hero progression and actual level unlock each selected skill.</p>
-        <footer className="ha-footer"><span>Selected path: {selectedSkills(currentHero, currentSlot.skill_path)}</span><div><button className="next-secondary-button" onClick={() => onScreenChange("collection")} type="button">Collection</button><button className="next-secondary-button" onClick={() => onScreenChange("squads")} type="button">Arrange Squads <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
+        <footer className="ha-footer"><span>Selected path: {selectedSkills(currentHero, currentSlot.skill_path)}</span><div><button className="next-secondary-button" onClick={() => changeScreen("collection")} type="button">Collection</button><button className="next-secondary-button" onClick={() => changeScreen("squads")} type="button">Arrange Squads <b>→</b></button><button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
       </div> : <div className="ha-empty">Select a populated Hero slot to plan its skill tree.</div>}
     </div>}
     {screen === "squads" && <div className={"ha-squads ha-squad-stage-" + mobileSquadStage} id="hero-atelier-panel-squads" aria-labelledby="next-atelier-squads" role="tabpanel">
@@ -285,7 +299,7 @@ export function HeroAtelier({
         })}</div>
         <aside className="ha-capability"><strong>Formation rule</strong><p>Each slot has one Squad membership. Members of a Squad must share one valid map node for Enbu preflight. Squad assignment here sets initial deployment; it does not move Heroes during a battle.</p></aside>
       </section>
-      <footer className="ha-footer"><span>Squad membership and start nodes update the same current battle draft.</span><div><button className="next-secondary-button" onClick={onJinrei} type="button">Continue to Jinrei <b>→</b></button><button className="next-secondary-button" onClick={() => onReady()} type="button">Ready <b>↗</b></button></div></footer>
+      <footer className="ha-footer"><span>Squad membership and start nodes update the same current battle draft.</span><div><button className="next-secondary-button" onClick={onJinrei} type="button">Continue to Jinrei <b>→</b></button><button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
     </div>}
   </section>;
 }
