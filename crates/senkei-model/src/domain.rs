@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// No floating-point value is part of the shared deterministic data model.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum DomainValue {
     Null,
     Bool(bool),
@@ -21,7 +21,7 @@ pub enum DomainValue {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "status", content = "value", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "status", content = "value", rename_all = "snake_case")]
 pub enum Observed<T> {
     Known(T),
     Unknown,
@@ -36,7 +36,7 @@ pub enum Truth {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum DomainType {
     Bool,
     Integer { min: Option<i64>, max: Option<i64> },
@@ -81,7 +81,7 @@ pub struct CollectionSchema {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum CollectionUniqueKey {
     EntityId,
     Fields(Vec<FieldId>),
@@ -131,7 +131,7 @@ pub struct DomainSchema {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum ObservationSource {
     Tick,
     WorldGlobalField { field: FieldId },

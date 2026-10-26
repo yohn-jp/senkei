@@ -455,6 +455,102 @@ fn reproduction_accepts_known_optional_null_extension_field() {
 }
 
 #[test]
+fn reproduction_and_ready_reject_unknown_enum_payload_fields() {
+    let (valid, _) = valid_reproduction_request();
+    let cases = [
+        (
+            "future_domain_value_semantics",
+            {
+                let mut request = valid.clone();
+                request["snapshot"]["attacker"]["initial_memory"]["fixture-value"] = json!({
+                    "kind": "null",
+                    "future_domain_value_semantics": true
+                });
+                request
+            },
+        ),
+        (
+            "future_domain_bound",
+            {
+                let mut request = valid.clone();
+                request["assets"]["rule_package"]["world"]["entity_types"]["base"]["fields"]["attack"]["value_type"]["value"]["future_domain_bound"] = json!(5);
+                request
+            },
+        ),
+        (
+            "future_expression_semantics",
+            {
+                let mut request = valid.clone();
+                request["assets"]["rule_package"]["termination"]["conditions"] = json!([{
+                    "order": 1,
+                    "when": {
+                        "kind": "equal",
+                        "value": {
+                            "left": { "kind": "current_tick" },
+                            "right": { "kind": "current_tick" },
+                            "future_expression_semantics": true
+                        }
+                    },
+                    "outcome": "draw",
+                    "reason": "fixture"
+                }]);
+                request
+            },
+        ),
+        (
+            "future_primitive_semantics",
+            {
+                let mut request = valid.clone();
+                request["assets"]["rule_package"]["transitions"] = json!([{
+                    "id": "strict-enum-fixture",
+                    "phase": "transition",
+                    "order": 1,
+                    "capability": null,
+                    "when": null,
+                    "operations": [{
+                        "kind": "set_field",
+                        "target": { "kind": "intent_actor" },
+                        "field": "hp",
+                        "value": { "kind": "current_tick" },
+                        "future_primitive_semantics": true
+                    }]
+                }]);
+                request
+            },
+        ),
+    ];
+
+    for (field, request) in cases {
+        let reproduce = dispatch("reproduce", request.clone());
+        assert_eq!(reproduce["ok"], false, "reproduce must reject {field}");
+        assert_eq!(reproduce["error"]["code"], "invalid_request", "{field}");
+        assert!(reproduce["error"]["message"].as_str().unwrap().contains(field));
+
+        let ready = dispatch("preflight_reproduction", preflight_request_from(&request));
+        assert_eq!(ready["ok"], false, "preflight must reject {field}");
+        assert_eq!(ready["error"]["code"], "invalid_request", "{field}");
+        assert!(ready["error"]["message"].as_str().unwrap().contains(field));
+    }
+}
+
+#[test]
+fn reproduction_keeps_known_enum_null_and_optional_fields() {
+    let (valid, _) = valid_reproduction_request();
+
+    let mut null_domain_value = valid.clone();
+    null_domain_value["snapshot"]["attacker"]["initial_memory"]["fixture-null"] = json!({ "kind": "null" });
+    let rejected = dispatch("reproduce", null_domain_value);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_snapshot", "canonical DomainValue::Null parses before digest comparison");
+
+    let mut optional_bounds = valid;
+    optional_bounds["assets"]["rule_package"]["world"]["entity_types"]["base"]["fields"]["attack"]["value_type"]["value"]["min"] = Value::Null;
+    let rejected = dispatch("preflight_reproduction", preflight_request_from(&optional_bounds));
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_ruleset", "known optional DomainType bound parses before package digest verification");
+}
+
+#[test]
 fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension() {
     let (valid, _) = valid_reproduction_request();
 
