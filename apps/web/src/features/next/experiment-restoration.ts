@@ -1,5 +1,4 @@
-import type { DomainValue, MatchResult, PresentationReplay } from "../../contracts";
-import type { SimulationResponse } from "../../contracts";
+import type { DomainValue, MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
 import { simulationAuthorizationError } from "../../worker/simulation-authorization";
 
 /** Stored/imported responses must obey the same permissions as live Worker replies. */
@@ -43,6 +42,77 @@ function matchResultDigestInput(result: MatchResult): MatchResult {
     cu_spent: { attacker: result.cu_spent.attacker, defender: result.cu_spent.defender },
     final_state_digest: result.final_state_digest,
   };
+}
+
+function compareUnicodeScalars(left: string, right: string): number {
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftPoint = left.codePointAt(leftIndex)!;
+    const rightPoint = right.codePointAt(rightIndex)!;
+    if (leftPoint !== rightPoint) return leftPoint - rightPoint;
+    leftIndex += leftPoint > 0xffff ? 2 : 1;
+    rightIndex += rightPoint > 0xffff ? 2 : 1;
+  }
+  return leftIndex === left.length ? (rightIndex === right.length ? 0 : -1) : 1;
+}
+
+/** Canonical JSON ordering used by serde_json::Value (Unicode scalar key order). */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new Error("Diagnostics snapshot contains a non-JSON value.");
+    return serialized;
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => item === undefined ? "null" : canonicalJson(item)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).filter((key) => record[key] !== undefined).sort(compareUnicodeScalars);
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Binds imported owner diagnostics to the exact Run, public result and authorized Program. */
+export async function validateNextExperimentDiagnostics(
+  response: SimulationResponse,
+  snapshot: SimulationSnapshot,
+): Promise<void> {
+  const diagnostics = response.restricted_diagnostics;
+  const identity = diagnostics?.identity;
+  if (!diagnostics || !identity) {
+    throw new Error("Stored diagnostics have no Run identity; they cannot be attached to this experiment.");
+  }
+  if (identity.schema_version !== 1) throw new Error("Stored diagnostics use an unsupported identity schema.");
+  if (identity.side !== "attacker" && identity.side !== "defender") {
+    throw new Error("Stored diagnostics identity has an invalid authorized side.");
+  }
+  if (identity.side !== response.authorized_side) {
+    throw new Error("Stored diagnostics identity side does not match the authorized response side.");
+  }
+  const result = response.outcome?.result;
+  const replay = response.outcome?.presentation_replay;
+  if (!result || !replay || identity.match_id !== result.match_id || result.match_id !== replay.match_id) {
+    throw new Error("Stored diagnostics identity does not match the immutable Run and public replay.");
+  }
+  if (identity.result_digest !== replay.result_digest) {
+    throw new Error("Stored diagnostics result digest does not match the public replay.");
+  }
+  const sideSnapshot = snapshot[identity.side];
+  const programDigest = sideSnapshot?.program?.content_digest;
+  if (typeof programDigest !== "string" || identity.program_digest !== programDigest) {
+    throw new Error("Stored diagnostics Program digest does not match the authorized Run Program.");
+  }
+  const snapshotValue = { attacker: snapshot.attacker, context: snapshot.context, defender: snapshot.defender };
+  const actualSnapshotDigest = await sha256Hex(canonicalJson(snapshotValue));
+  if (identity.snapshot_digest !== actualSnapshotDigest) {
+    throw new Error("Stored diagnostics snapshot digest does not match the complete immutable Run input.");
+  }
 }
 
 /** Validates the owner/public replay against the immutable match result it accompanies. */

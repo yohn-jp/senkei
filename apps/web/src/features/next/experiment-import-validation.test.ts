@@ -11,6 +11,16 @@ const packageValue = { ruleset, model_version: version, next: {
   world_identity: world, map: { world_identity: world, nodes: { home: {} } }, mechanics_version: version,
   heroes: [{ id: "F01", skill_paths: { path_a: [] } }],
 } } as unknown as RulePackage;
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value)!;
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonical(record[key])}`).join(",")}}`;
+}
+async function digest(value: string): Promise<string> {
+  const bytes = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+}
 function store(): LocalNextExperimentStore {
   const slots = Array.from({ length: 5 }, (_, i) => ({ slot_id: `slot-0${i + 1}`, catalog_id: "F01", squad: "solo", node: "home", skill_path: "path_a" }));
   return {
@@ -73,12 +83,28 @@ describe("semantic preparation of imported completed Runs", () => {
     const input = structuredClone(store());
     const item = input.experiments[0];
     Object.assign(item, { include_diagnostics: true });
+    Object.assign(item.snapshot.attacker, { program: { content_digest: "attacker-program" } });
+    Object.assign(item.snapshot.defender, { program: { content_digest: "defender-program" } });
+    const snapshotDigest = await digest(canonical({ attacker: item.snapshot.attacker, context: item.snapshot.context, defender: item.snapshot.defender }));
+    Object.assign(item.response, {
+      authorized_side: "attacker",
+      owner_replays: { attacker: { ...item.response.outcome.presentation_replay, perspective: "attacker" } },
+      restricted_diagnostics: { identity: { schema_version: 1, side: "attacker", match_id: "match-a",
+        result_digest: item.response.outcome.presentation_replay.result_digest, snapshot_digest: snapshotDigest, program_digest: "attacker-program" },
+        events: [], cu_by_side: { attacker: 1 }, final_memory_by_side: { attacker: {} } },
+    });
+    Object.assign(item.response.outcome.presentation_replay, { world_identity: { ...world, presentation_digest: "different" } });
+    await expect(prepareNextExperimentStore(input, packageValue, core)).rejects.toThrow("World identity or paired World projection");
+  });
+  it("rejects identity-less imported owner diagnostics before restoring the Run", async () => {
+    const input = structuredClone(store());
+    const item = input.experiments[0]!;
+    Object.assign(item, { include_diagnostics: true });
     Object.assign(item.response, {
       authorized_side: "attacker",
       owner_replays: { attacker: { ...item.response.outcome.presentation_replay, perspective: "attacker" } },
       restricted_diagnostics: { events: [], cu_by_side: {}, final_memory_by_side: {} },
     });
-    Object.assign(item.response.outcome.presentation_replay, { world_identity: { ...world, presentation_digest: "different" } });
-    await expect(prepareNextExperimentStore(input, packageValue, core)).rejects.toThrow("World identity or paired World projection");
+    await expect(prepareNextExperimentStore(input, packageValue, core)).rejects.toThrow("Stored diagnostics have no Run identity");
   });
 });

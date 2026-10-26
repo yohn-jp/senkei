@@ -5,6 +5,7 @@ import type {
   CoreClient,
   CoreJsonValue,
   EditorCompilerEnvelope,
+  SimulationRequestOptions,
   SimulationResponse,
   SimulationSnapshot,
   TacticalInput,
@@ -116,13 +117,12 @@ export class WorkerCoreClient implements CoreClient {
 
   simulate(
     snapshot: SimulationSnapshot,
-    options: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("../contracts/core-model").CombatantSide } = {},
+    options: SimulationRequestOptions = {},
   ): Promise<SimulationResponse> {
-    return this.request("simulate", {
-      snapshot,
-      include_diagnostics: options.include_diagnostics ?? false,
-      ...(options.include_diagnostics ? { diagnostics_side: options.diagnostics_side ?? "attacker" } : {}),
-    }) as Promise<SimulationResponse>;
+    const payload = options.include_diagnostics === true
+      ? { snapshot, include_diagnostics: true as const, diagnostics_side: options.diagnostics_side }
+      : { snapshot, include_diagnostics: false as const };
+    return this.request("simulate", payload) as Promise<SimulationResponse>;
   }
 
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome> {

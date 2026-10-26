@@ -1,8 +1,8 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    NewMatchContextPayload, ParseTextPayload, PreflightPayload, RulesetRef, SimulatePayload, VerifiedRulePlan,
-    Version, WASM_API_VERSION,
+    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload, RulesetRef,
+    SimulatePayload, VerifiedRulePlan, Version, WASM_API_VERSION,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -281,6 +281,7 @@ fn compile_ast(payload: Value) -> Result<(Value, u64), ApiError> {
 
 fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
     let request: SimulatePayload = decode(payload, "payload")?;
+    let diagnostics_side = requested_diagnostics_side(request.include_diagnostics, request.diagnostics_side)?;
     let rules = resolve_ruleset(&request.context.ruleset)?;
     let max_output_bytes = rules
         .plan()
@@ -296,11 +297,8 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         &mut vm,
     )?;
     let public = artifact.public_response();
-    if !request.include_diagnostics && request.diagnostics_side.is_some() {
-        return Err(ApiError::new(ApiErrorCode::InvalidRequest, "diagnostics_side requires include_diagnostics"));
-    }
-    let response = if request.include_diagnostics {
-        artifact.diagnostic_response(request.diagnostics_side.unwrap_or(senkei_model::CombatantSide::Attacker))
+    let response = if let Some(side) = diagnostics_side {
+        artifact.diagnostic_response(side)
     } else {
         LocalSimulationResponse {
             authorized_side: None,
@@ -312,6 +310,24 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         }
     };
     Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+fn requested_diagnostics_side(
+    include_diagnostics: bool,
+    diagnostics_side: Option<CombatantSide>,
+) -> Result<Option<CombatantSide>, ApiError> {
+    match (include_diagnostics, diagnostics_side) {
+        (true, Some(side)) => Ok(Some(side)),
+        (true, None) => Err(ApiError::new(
+            ApiErrorCode::InvalidRequest,
+            "diagnostics_side is required when include_diagnostics is true",
+        )),
+        (false, None) => Ok(None),
+        (false, Some(_)) => Err(ApiError::new(
+            ApiErrorCode::InvalidRequest,
+            "diagnostics_side must be omitted when include_diagnostics is false",
+        )),
+    }
 }
 
 fn preflight(payload: Value) -> Result<(Value, u64), ApiError> {
@@ -462,5 +478,25 @@ mod response_limit_tests {
         assert!(response.len() <= maximum as usize, "the response remains within the versioned package limit");
         let envelope: serde_json::Value = serde_json::from_str(&response).expect("accepted response is valid JSON");
         assert_eq!(envelope["ok"], true, "the dispatcher uses the successful response path");
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_request_tests {
+    use super::requested_diagnostics_side;
+    use senkei_model::CombatantSide;
+
+    #[test]
+    fn diagnostics_requests_require_one_explicit_owner_side() {
+        assert!(matches!(requested_diagnostics_side(true, Some(CombatantSide::Attacker)), Ok(Some(CombatantSide::Attacker))));
+        assert!(matches!(requested_diagnostics_side(true, Some(CombatantSide::Defender)), Ok(Some(CombatantSide::Defender))));
+        assert!(requested_diagnostics_side(true, None).is_err());
+    }
+
+    #[test]
+    fn public_simulation_requests_forbid_a_diagnostics_side() {
+        assert!(matches!(requested_diagnostics_side(false, None), Ok(None)));
+        assert!(requested_diagnostics_side(false, Some(CombatantSide::Attacker)).is_err());
+        assert!(requested_diagnostics_side(false, Some(CombatantSide::Defender)).is_err());
     }
 }

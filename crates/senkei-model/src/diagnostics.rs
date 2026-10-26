@@ -1,12 +1,27 @@
-use crate::{CombatantSide, DomainValue, Intent, LogicalCu, StateId, SymbolId};
+use crate::{CombatantSide, ContentDigest, DomainValue, Intent, LogicalCu, MatchId, StateId, SymbolId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RestrictedDiagnostics {
+    pub identity: RestrictedDiagnosticsIdentity,
     pub events: Vec<DiagnosticEvent>,
     pub cu_by_side: BTreeMap<CombatantSide, LogicalCu>,
     pub final_memory_by_side: BTreeMap<CombatantSide, crate::TacticalMemory>,
+}
+
+/// Provenance binding for one owner's restricted trace. The other side's
+/// program digest is deliberately absent from this owner-only projection.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RestrictedDiagnosticsIdentity {
+    pub schema_version: u32,
+    pub side: CombatantSide,
+    pub match_id: MatchId,
+    pub result_digest: ContentDigest,
+    /// SHA-256 of canonical JSON for both snapshots and the complete MatchContext.
+    pub snapshot_digest: ContentDigest,
+    /// Content digest of the program owned by `side`.
+    pub program_digest: ContentDigest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

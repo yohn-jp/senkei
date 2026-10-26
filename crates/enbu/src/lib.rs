@@ -448,6 +448,13 @@ pub fn simulate<P: TacticalExecutionPort>(
         final_state_digest,
     };
     let result_digest = digest_json(&result)?;
+    // serde_json::Value sorts object keys recursively, giving TypeScript the
+    // same canonical JSON bytes for import-time lineage verification.
+    let snapshot_digest = digest_json(&serde_json::json!({
+        "attacker": attacker,
+        "context": context,
+        "defender": defender,
+    }))?;
     let replay = PresentationReplay {
         perspective: None,
         schema_version: Version::new(1, 0, 0),
@@ -458,6 +465,14 @@ pub fn simulate<P: TacticalExecutionPort>(
         frames: if plan.next.is_some() { project_replay_identities(replay_frames) } else { replay_frames },
     };
     let diagnostics = RestrictedDiagnostics {
+        identity: senkei_model::RestrictedDiagnosticsIdentity {
+            schema_version: 1,
+            side: CombatantSide::Attacker,
+            match_id: result.match_id.clone(),
+            result_digest: result_digest.clone(),
+            snapshot_digest: snapshot_digest.clone(),
+            program_digest: attacker.program.content_digest.clone(),
+        },
         events: diagnostics,
         cu_by_side: cu_spent,
         final_memory_by_side: memories,
@@ -484,7 +499,20 @@ pub fn simulate<P: TacticalExecutionPort>(
         BTreeMap::new()
     };
     let owner_replay = owner_replays.get(&CombatantSide::Attacker).cloned();
-    let artifact = SimulationArtifact { owner_replay, owner_replays, result, replay, diagnostics, reproduction };
+    let diagnostic_program_digests_by_side = BTreeMap::from([
+        (CombatantSide::Attacker, attacker.program.content_digest.clone()),
+        (CombatantSide::Defender, defender.program.content_digest.clone()),
+    ]);
+    let artifact = SimulationArtifact {
+        owner_replay,
+        owner_replays,
+        result,
+        replay,
+        diagnostics,
+        diagnostic_snapshot_digest: snapshot_digest,
+        diagnostic_program_digests_by_side,
+        reproduction,
+    };
     let response_size = serde_json::to_vec(&artifact.public_response())
         .map_err(|_| api_error(ApiErrorCode::InternalError, "public simulation response could not be measured"))?
         .len() as u64;

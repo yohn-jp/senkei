@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { simulationAuthorizationError } from "./simulation-authorization";
 
-const authorized = () => ({
+type AuthorizedResponse = {
+  authorized_side: string;
+  owner_replays: Record<string, { perspective: string }>;
+  diagnostics: {
+    events: { side: string }[];
+    cu_by_side: Record<string, number>;
+    final_memory_by_side: Record<string, unknown>;
+    identity?: unknown;
+  };
+};
+
+const authorized = (): AuthorizedResponse => ({
   authorized_side: "attacker",
   owner_replays: { attacker: { perspective: "attacker" } },
   diagnostics: { events: [{ side: "attacker" }], cu_by_side: { attacker: 3 }, final_memory_by_side: { attacker: {} } },
@@ -11,6 +22,19 @@ describe("simulation owner authorization", () => {
   it("accepts the requested side and public responses without restricted channels", () => {
     expect(simulationAuthorizationError(authorized(), "attacker")).toBeNull();
     expect(simulationAuthorizationError({ owner_replays: {}, diagnostics: null }, null)).toBeNull();
+  });
+  it("accepts a diagnostic identity for the requested side and rejects a different or malformed side", () => {
+    const matchingIdentity = authorized();
+    matchingIdentity.diagnostics.identity = { side: "attacker" };
+    expect(simulationAuthorizationError(matchingIdentity, "attacker")).toBeNull();
+
+    const foreignIdentity = authorized();
+    foreignIdentity.diagnostics.identity = { side: "defender" };
+    expect(simulationAuthorizationError(foreignIdentity, "attacker")).toMatch(/diagnostic identity/);
+
+    const malformedIdentity = authorized();
+    Object.assign(malformedIdentity.diagnostics, { identity: null });
+    expect(simulationAuthorizationError(malformedIdentity, "attacker")).toMatch(/diagnostic identity/);
   });
   it("rejects a forged map key around a different perspective", () => {
     const response = authorized();

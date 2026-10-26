@@ -7,6 +7,7 @@ import type {
   EditorCompilerEnvelope,
   RulesetRef,
   SimulationResponse,
+  SimulationRequestPayload,
   SimulationSnapshot,
   TacticalInput,
   WorkerFailure,
@@ -54,10 +55,7 @@ export type WebWorkerRequest =
     })
   | (WorkerRequestBase & {
       readonly operation: "simulate";
-      readonly payload: {
-        readonly snapshot: SimulationSnapshot;
-        readonly include_diagnostics: boolean;
-      };
+      readonly payload: { readonly snapshot: SimulationSnapshot } & SimulationRequestPayload;
     })
   | (WorkerRequestBase & {
       readonly operation: "preflight";
@@ -176,7 +174,7 @@ export type WebCoreApiEnvelope =
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "simulate";
-      readonly payload: SimulationSnapshot & { readonly include_diagnostics: boolean };
+      readonly payload: SimulationSnapshot & SimulationRequestPayload;
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "preflight";

@@ -8,6 +8,7 @@ import type {
   SenkeiSnapshot,
   StructuredTacticsAst,
   TacticalProgram,
+  CombatantSide,
 } from "./core-model";
 import type {
   ActionSourceMap,
@@ -50,6 +51,16 @@ export interface RulesetRef {
   readonly version: CoreVersion;
   readonly digest: string;
 }
+
+/** Explicitly select whether and which owner channel is included in a local simulation. */
+export type SimulationRequestOptions =
+  | { readonly include_diagnostics: true; readonly diagnostics_side: CombatantSide }
+  | { readonly include_diagnostics?: false; readonly diagnostics_side?: never };
+
+/** Wire payload form; the false flag is explicit for every worker/WASM request. */
+export type SimulationRequestPayload =
+  | { readonly include_diagnostics: true; readonly diagnostics_side: CombatantSide }
+  | { readonly include_diagnostics: false; readonly diagnostics_side?: never };
 
 export type LogicalCu = number;
 
@@ -176,7 +187,7 @@ export interface CoreClient {
   preflight(snapshot: SimulationSnapshot): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
-    options?: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("./core-model").CombatantSide },
+    options?: SimulationRequestOptions,
   ): Promise<SimulationResponse>;
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome>;
   dispose(): void;
