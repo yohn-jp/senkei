@@ -150,6 +150,32 @@ fn valid_reproduction_request() -> (Value, Value) {
     (request, baseline["result"].clone())
 }
 
+fn preflight_request_from(reproduction: &Value) -> Value {
+    json!({
+        "assets": reproduction["assets"],
+        "snapshot": reproduction["snapshot"],
+        "snapshot_digest": reproduction["snapshot_digest"],
+    })
+}
+
+#[test]
+fn retained_preflight_validates_exact_inputs_without_simulating() {
+    let (reproduction, _) = valid_reproduction_request();
+    let preflight = dispatch("preflight_reproduction", preflight_request_from(&reproduction));
+    assert_eq!(preflight["ok"], true, "retained exact package and World pass Ready validation");
+    assert!(preflight["result"].is_null(), "preflight returns no match result or replay");
+}
+
+#[test]
+fn retained_preflight_rejects_snapshot_digest_before_run() {
+    let (reproduction, _) = valid_reproduction_request();
+    let mut preflight_request = preflight_request_from(&reproduction);
+    preflight_request["snapshot_digest"] = json!("f".repeat(64));
+    let preflight = dispatch("preflight_reproduction", preflight_request);
+    assert_eq!(preflight["ok"], false);
+    assert_eq!(preflight["error"]["code"], "invalid_snapshot");
+}
+
 #[test]
 fn current_builtin_assets_can_reproduce_a_match_from_retained_inputs() {
     let assets = dispatch("next_reproduction_assets", json!({}));
@@ -185,15 +211,33 @@ fn reproduction_rejects_tampered_package_world_snapshot_and_missing_world() {
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "invalid_ruleset");
 
+    let mut package = preflight_request_from(&valid);
+    package["assets"]["rule_package"]["ruleset"]["digest"] = json!("0".repeat(64));
+    let preflight_rejected = dispatch("preflight_reproduction", package);
+    assert_eq!(preflight_rejected["ok"], false);
+    assert_eq!(preflight_rejected["error"]["code"], "invalid_ruleset");
+
     let mut world = valid.clone();
     world["assets"]["world_definition"]["id"] = json!("different-world");
     let rejected = dispatch("reproduce", world);
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "validation_failed");
 
+    let mut world = preflight_request_from(&valid);
+    world["assets"]["world_definition"]["id"] = json!("different-world");
+    let preflight_rejected = dispatch("preflight_reproduction", world);
+    assert_eq!(preflight_rejected["ok"], false);
+    assert_eq!(preflight_rejected["error"]["code"], "validation_failed");
+
     let mut snapshot = valid.clone();
     snapshot["snapshot_digest"] = json!("f".repeat(64));
     let rejected = dispatch("reproduce", snapshot);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_snapshot");
+
+    let mut preflight_snapshot = preflight_request_from(&valid);
+    preflight_snapshot["snapshot_digest"] = json!("f".repeat(64));
+    let rejected = dispatch("preflight_reproduction", preflight_snapshot);
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "invalid_snapshot");
 
@@ -214,6 +258,12 @@ fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "incompatible_version");
 
+    let mut compiler = preflight_request_from(&valid);
+    compiler["assets"]["rule_package"]["next"]["world_identity"]["compiler_version"]["patch"] = json!(u16::MAX);
+    let preflight_rejected = dispatch("preflight_reproduction", compiler);
+    assert_eq!(preflight_rejected["ok"], false);
+    assert_eq!(preflight_rejected["error"]["code"], "incompatible_version");
+
     let mut package: RulePackage = serde_json::from_value(valid["assets"]["rule_package"].clone()).unwrap();
     package.catalog_semantics_digest = Some(ContentDigest::new("c".repeat(64)));
     package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
@@ -223,6 +273,19 @@ fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "validation_failed");
     assert!(rejected["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("extension artifact"));
+
+    let mut extension = preflight_request_from(&valid);
+    let mut package: RulePackage = serde_json::from_value(extension["assets"]["rule_package"].clone()).unwrap();
+    package.catalog_semantics_digest = Some(ContentDigest::new("c".repeat(64)));
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension["assets"]["rule_package"] = serde_json::to_value(package).unwrap();
+    let preflight_rejected = dispatch("preflight_reproduction", extension);
+    assert_eq!(preflight_rejected["ok"], false);
+    assert_eq!(preflight_rejected["error"]["code"], "validation_failed");
+    assert!(preflight_rejected["error"]["message"]
         .as_str()
         .unwrap()
         .contains("extension artifact"));

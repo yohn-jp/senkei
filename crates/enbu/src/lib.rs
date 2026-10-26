@@ -42,6 +42,20 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
     }
 }
 
+/// Hash the complete immutable simulation input tuple using the same canonical
+/// JSON bytes stored in restricted diagnostic lineage.
+pub fn reproduction_snapshot_digest(
+    attacker: &senkei_model::SenkeiSnapshot,
+    defender: &senkei_model::SenkeiSnapshot,
+    context: &MatchContext,
+) -> Result<ContentDigest, ApiError> {
+    digest_json(&serde_json::json!({
+        "attacker": attacker,
+        "context": context,
+        "defender": defender,
+    }))
+}
+
 use senkei_model::{
     ApiError, ApiErrorCode, CombatantSide, ComponentVersions, ContentDigest, DiagnosticEvent,
     DiagnosticRecord, ExecutionBudget, HostLimits, Intent, LogicalCu, MatchContext, MatchId,
@@ -450,11 +464,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     let result_digest = digest_json(&result)?;
     // serde_json::Value sorts object keys recursively, giving TypeScript the
     // same canonical JSON bytes for import-time lineage verification.
-    let snapshot_digest = digest_json(&serde_json::json!({
-        "attacker": attacker,
-        "context": context,
-        "defender": defender,
-    }))?;
+    let snapshot_digest = reproduction_snapshot_digest(attacker, defender, context)?;
     let replay = PresentationReplay {
         perspective: None,
         schema_version: validation::REPLAY_SCHEMA_VERSION,

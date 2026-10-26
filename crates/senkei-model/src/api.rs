@@ -15,6 +15,7 @@ pub const OP_NEW_MATCH_CONTEXT: &str = "new_match_context";
 pub const OP_SIMULATE: &str = "simulate";
 pub const OP_NEXT_REPRODUCTION_ASSETS: &str = "next_reproduction_assets";
 pub const OP_REPRODUCE: &str = "reproduce";
+pub const OP_PREFLIGHT_REPRODUCTION: &str = "preflight_reproduction";
 pub const REPRODUCTION_ASSETS_FORMAT_VERSION: u16 = 1;
 
 /// Public immutable inputs retained beside a local Next match.
@@ -51,6 +52,16 @@ pub struct ReproducePayload {
     pub include_diagnostics: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostics_side: Option<crate::CombatantSide>,
+}
+
+/// Validate a retained Run using its exact package and World without executing
+/// any match ticks. The digest binds the complete immutable input tuple.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreflightReproductionPayload {
+    pub assets: ReproductionAssets,
+    pub snapshot: ReproductionSnapshot,
+    pub snapshot_digest: crate::ContentDigest,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

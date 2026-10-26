@@ -1,9 +1,10 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload, ReproducePayload,
-    ReproductionAssets, RulesetRef, SimulatePayload, VerifiedRulePlan, Version,
-    OP_NEXT_REPRODUCTION_ASSETS, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
+    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload,
+    PreflightReproductionPayload, ReproducePayload, ReproductionAssets, RulesetRef,
+    SimulatePayload, VerifiedRulePlan, Version, OP_NEXT_REPRODUCTION_ASSETS,
+    OP_PREFLIGHT_REPRODUCTION, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
     WASM_API_VERSION,
 };
 use serde::de::DeserializeOwned;
@@ -164,6 +165,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         "next_ruleset" => next_ruleset(payload),
         OP_NEXT_REPRODUCTION_ASSETS => next_reproduction_assets(payload),
         OP_REPRODUCE => reproduce(payload),
+        OP_PREFLIGHT_REPRODUCTION => preflight_reproduction(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
         "new_match_context" => new_match_context(payload),
@@ -334,7 +336,45 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
         request.include_diagnostics,
         request.diagnostics_side,
     )?;
-    if request.assets.format_version != REPRODUCTION_ASSETS_FORMAT_VERSION {
+    let rules = validate_reproduction_assets(request.assets)?;
+    validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    enbu::preflight(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+    )?;
+    let mut vm = jinrei::Vm::new(&rules);
+    let artifact = enbu::simulate(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+        &mut vm,
+    )?;
+    let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Validate retained assets and the exact Run input without executing match ticks.
+fn preflight_reproduction(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: PreflightReproductionPayload = decode(payload, "payload")?;
+    let rules = validate_reproduction_assets(request.assets)?;
+    validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    enbu::preflight(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+    )?;
+    Ok((Value::Null, max_output_bytes))
+}
+
+/// Rebuild the exact verified package used by both reproduction endpoints.
+fn validate_reproduction_assets(assets: ReproductionAssets) -> Result<VerifiedRulePlan, ApiError> {
+    if assets.format_version != REPRODUCTION_ASSETS_FORMAT_VERSION {
         return Err(api_error(
             ApiErrorCode::InvalidVersion,
             Some("payload.assets.format_version"),
@@ -342,7 +382,7 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
         ));
     }
 
-    let package = request.assets.rule_package;
+    let package = assets.rule_package;
     if package.catalog_semantics_digest.is_some() {
         return Err(api_error(
             ApiErrorCode::ValidationFailed,
@@ -373,7 +413,7 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
     }
 
     let definition: senkei_world::WorldDefinition = serde_json::from_value(
-        request.assets.world_definition,
+        assets.world_definition,
     ).map_err(|error| api_error(
         ApiErrorCode::ValidationFailed,
         Some("payload.assets.world_definition"),
@@ -431,7 +471,7 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
             "stored RulePackage digest does not match its content",
         ));
     }
-    let rules = senritsu::validate_with_world_resolver(
+    senritsu::validate_with_world_resolver(
         package,
         &senritsu::next_engine_compatibility(),
         &resolver,
@@ -446,35 +486,30 @@ fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
             serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_owned()),
         );
         error
-    })?;
-    let max_output_bytes = rules
-        .plan()
-        .limits
-        .max_output_bytes
-        .min(request.snapshot.context.host_limits.max_output_bytes);
-    enbu::preflight(
-        &request.snapshot.attacker,
-        &request.snapshot.defender,
-        &rules,
-        &request.snapshot.context,
+    })
+}
+
+fn validate_reproduction_snapshot(
+    snapshot: &senkei_model::ReproductionSnapshot,
+    expected_digest: &senkei_model::ContentDigest,
+) -> Result<(), ApiError> {
+    let actual_digest = enbu::reproduction_snapshot_digest(
+        &snapshot.attacker,
+        &snapshot.defender,
+        &snapshot.context,
     )?;
-    let mut vm = jinrei::Vm::new(&rules);
-    let artifact = enbu::simulate(
-        &request.snapshot.attacker,
-        &request.snapshot.defender,
-        &rules,
-        &request.snapshot.context,
-        &mut vm,
-    )?;
-    if artifact.diagnostic_snapshot_digest != request.snapshot_digest {
+    if &actual_digest != expected_digest {
         return Err(api_error(
             ApiErrorCode::InvalidSnapshot,
             Some("payload.snapshot_digest"),
             "retained snapshot digest does not match the complete immutable Run input",
         ));
     }
-    let response = project_simulation_response(&artifact, diagnostics_side);
-    Ok((encode(&response, "result")?, max_output_bytes))
+    Ok(())
+}
+
+fn reproduction_output_limit(rules: &VerifiedRulePlan, context: &senkei_model::MatchContext) -> u64 {
+    rules.plan().limits.max_output_bytes.min(context.host_limits.max_output_bytes)
 }
 
 fn project_simulation_response(
