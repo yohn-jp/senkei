@@ -215,15 +215,19 @@ test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight
   await page.getByRole("button", { name: "準備確認へ" }).click();
   await page.getByRole("button", { name: "検証・コンパイル" }).click();
   await expect(page.getByTestId("preflight-status")).toContainText("不正", { timeout: 60_000 });
-  await expect(page.getByTestId("journey-ready").getByRole("alert")).toContainText(/spans multiple map nodes/i);
+  const problem = page.getByTestId("preflight-problem");
+  await expect(problem).toContainText(/spans multiple map nodes/i);
+  await expect(problem).toContainText("自軍 Hero · slot-02 · node");
+  await expect(problem).toContainText("自軍Jinreiを再Compileし、両陣営のSnapshotを再検証します。");
   await expect(page.getByRole("button", { name: "戦闘開始" })).toBeDisabled();
   await page.screenshot({ path: resolve(journeyScreenshots, "custom-invalid-enbu-preflight.png") });
 
-  await page.getByRole("button", { name: "Squad・起点を変更" }).first().click();
-  await collection.getByRole("tab", { name: "Squad Assembly" }).click();
+  await problem.getByRole("button", { name: "Slot slot-02 · node を修正", exact: true }).click();
+  await expect(firstSquadNode).toBeFocused();
   await firstSquadNode.selectOption(originalNode);
   await expect(firstSquadNode).toHaveValue(originalNode);
-  await page.locator("#next-tab-jinrei").click();
+  await page.getByRole("button", { name: "Ready ↗", exact: true }).click();
+  await page.getByTestId("journey-ready").getByRole("button", { name: "Jinreiを変更", exact: true }).click();
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(page.locator(".next-compile-state")).toHaveText("COMPILE REQUIRED");
   await page.getByRole("button", { name: "Compile tactics" }).click();
