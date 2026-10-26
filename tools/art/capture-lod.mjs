@@ -55,7 +55,7 @@ const manifest = {
   renderer: 'Chromium/SwiftShader software GPU',
   reducedMotion: 'no-preference',
   captureKind: 'production createHeroModelPreview / buildBattlefieldHero with its generated LOD child explicitly selected by the inspection-only lab override; not Battlefield integration',
-  sampling: 'All action samples reset the pose button, wait the requested elapsed time and two animation frames, then capture the actual full canvas. Static front/quarter/rear views use the inspection-only deterministic azimuth control at the same radius and elevation. Each file records the selected LOD child, visibility vector, camera, inspection azimuth, pose, rootY, material profile, baked senkeiSurfaceResponse vertex count and unique vectors, dimensions and SHA-256.',
+  sampling: 'All action samples select the pose and set an exact elapsed-time value through the inspection-only art-lab control, wait two animation frames, then capture the actual full canvas. Static front/quarter/rear views use the inspection-only deterministic azimuth control at the same radius and elevation. Each file records the selected LOD child, visibility vector, camera, exact elapsed time, inspection azimuth, pose, rootY, material profile, baked senkeiSurfaceResponse vertex count and unique vectors, dimensions and SHA-256.',
   poseSamples: samples,
   lods,
   staticAngles: angles.map(({ name, yaw }) => ({ name, yawRadians: yaw })),
@@ -102,6 +102,9 @@ async function screenshot({ hero, lod, pose, elapsedSeconds, kind, angle }) {
   const attributes = await canvas.evaluate(node => Object.fromEntries(Array.from(node.attributes).filter(attribute => attribute.name.startsWith('data-')).map(attribute => [attribute.name, attribute.value])));
   if (attributes['data-preview-ready'] !== 'true' || attributes['data-catalog-id'] !== hero || attributes['data-pose'] !== pose)
     throw new Error(`Wrong preview identity/pose for ${hero}/${lod.name}/${pose}: ${JSON.stringify(attributes)}`);
+  const actualElapsedSeconds = Number(attributes['data-elapsed-seconds']);
+  if (!Number.isFinite(actualElapsedSeconds) || !Number.isFinite(elapsedSeconds) || Math.abs(actualElapsedSeconds - elapsedSeconds) > 0.000001)
+    throw new Error(`Wrong exact elapsed time for ${hero}/${lod.name}/${pose}: expected ${elapsedSeconds}, got ${attributes['data-elapsed-seconds']}.`);
   if (attributes['data-lod-override'] !== lod.name || Number(attributes['data-lod-index']) !== lod.index || attributes['data-lod-level'] !== lod.name || attributes['data-lod-visible'] !== lod.visible)
     throw new Error(`Wrong selected LOD for ${hero}/${lod.name}/${pose}: ${JSON.stringify(attributes)}`);
   const child = attributes['data-lod-child'];
@@ -126,7 +129,7 @@ async function screenshot({ hero, lod, pose, elapsedSeconds, kind, angle }) {
     kind, pose, ...(Number.isFinite(elapsedSeconds) ? { requestedElapsedSeconds: elapsedSeconds } : {}), ...(angle ? { angle } : {}),
     image: `images/${image}`, rawImage: image, width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20),
     camera: attributes['data-camera'], rootY: attributes['data-root-y'], bodyPoseSample: attributes['data-body-pose-sample'],
-    poseSample: attributes['data-pose-sample'], materialProfile, surfaceResponseAttributes,
+    poseSample: attributes['data-pose-sample'], elapsedSeconds: actualElapsedSeconds, materialProfile, surfaceResponseAttributes,
     ...(Number.isFinite(inspectionAzimuth) ? { inspectionAzimuth } : {}),
     canvasAttributes: attributes, sha256: createHash('sha256').update(bytes).digest('hex'),
   });
@@ -158,7 +161,11 @@ try {
       for (const [pose, times] of Object.entries(samples)) {
         for (const seconds of times) {
           await page.locator(`button[data-pose="${pose}"]`).click();
-          if (seconds > 0) await page.waitForTimeout(seconds * 1000);
+          await page.locator('#elapsed').fill(String(seconds));
+          await page.waitForFunction(({ pose, seconds }) => {
+            const canvas = document.querySelector('#stage canvas');
+            return canvas?.dataset.pose === pose && Math.abs(Number(canvas.dataset.elapsedSeconds) - seconds) < 0.000001;
+          }, { pose, seconds });
           await screenshot({ hero, lod, pose, elapsedSeconds: seconds, kind: 'motion' });
           const capture = captures.at(-1);
           assertSameCamera(defaultCamera, capture.camera.split(',').map(Number), `${hero}/${lod.name}/${pose}/${seconds}`);
@@ -177,6 +184,8 @@ try {
       for (const angle of angles) {
         await page.locator('#reset').click();
         await page.locator('button[data-pose="idle"]').click();
+        await page.locator('#elapsed').fill('0');
+        await page.waitForFunction(() => document.querySelector('#stage canvas')?.dataset.elapsedSeconds === '0.000000');
         await page.locator('#angle').selectOption(angle.name);
         const settledCamera = await waitForCameraStable();
         const actualAzimuth = Number(await canvas.getAttribute('data-inspection-azimuth'));

@@ -27,6 +27,17 @@ const angleLabel = document.createElement("label");
 angleLabel.textContent = "View ";
 angleLabel.append(angleSelect);
 lodLabel.after(angleLabel);
+const elapsedInput = document.createElement("input");
+elapsedInput.id = "elapsed";
+elapsedInput.dataset.artElapsed = "true";
+elapsedInput.type = "number";
+elapsedInput.min = "0";
+elapsedInput.step = "0.001";
+elapsedInput.value = "0";
+const elapsedLabel = document.createElement("label");
+elapsedLabel.textContent = "Inspection time (s) ";
+elapsedLabel.append(elapsedInput);
+angleLabel.after(elapsedLabel);
 let preview: ReturnType<typeof createHeroModelPreview> | undefined;
 function load() {
   preview?.dispose();
@@ -52,6 +63,10 @@ angleSelect.addEventListener("change", () => {
   }
   const yaw = { front: 0, quarter: Math.PI / 4, rear: Math.PI }[angleSelect.value as "front" | "quarter" | "rear"];
   if (yaw !== undefined) preview?.setInspectionAzimuth(yaw);
+});
+elapsedInput.addEventListener("input", () => {
+  if (elapsedInput.value === "") return;
+  preview?.setInspectionElapsedSeconds(Number(elapsedInput.value));
 });
 document.querySelector("#reset")!.addEventListener("click", () => {
   preview?.resetView();

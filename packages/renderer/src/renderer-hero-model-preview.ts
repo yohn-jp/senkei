@@ -23,6 +23,8 @@ export interface HeroModelPreviewController {
   resetView(): void;
   /** Inspection-only deterministic orbit used by the isolated art lab. */
   setInspectionAzimuth(radians: number): void;
+  /** Freeze an exact elapsed sample for the isolated art lab; live time is the default. */
+  setInspectionElapsedSeconds(seconds: number): void;
 }
 
 const TEAM_COLOR = 0x71847b;
@@ -224,6 +226,7 @@ export function createHeroModelPreview(
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   let pose: HeroPreviewPose = "idle";
   let poseStarted = performance.now();
+  let inspectionElapsedSeconds: number | undefined;
   let disposed = false;
   let observer: ResizeObserver | undefined;
 
@@ -233,6 +236,8 @@ export function createHeroModelPreview(
     renderer.domElement.dataset.rootY = model.position.y.toFixed(4);
     renderer.domElement.dataset.poseSample = [motionRig.joints["leg.left"], motionRig.joints["arm.right"], motionRig.weaponPivots.main]
       .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
+    if (inspectionElapsedSeconds === undefined) delete renderer.domElement.dataset.elapsedSeconds;
+    else renderer.domElement.dataset.elapsedSeconds = inspectionElapsedSeconds.toFixed(6);
     if (heroLod) {
       const selectedIndex = heroLod.levels.findIndex(({ object }) => object.visible);
       const selected = heroLod.levels[selectedIndex]?.object;
@@ -250,7 +255,7 @@ export function createHeroModelPreview(
   };
   const animate = (time: number) => {
     if (disposed) return;
-    applyHeroPreviewMotion(motionRig, model, pose, Math.max(0, (time - poseStarted) / 1000), false);
+    applyHeroPreviewMotion(motionRig, model, pose, inspectionElapsedSeconds ?? Math.max(0, (time - poseStarted) / 1000), false);
     controls.update();
     renderer.render(scene, camera);
     recordFrame();
@@ -296,8 +301,17 @@ export function createHeroModelPreview(
     setPose(nextPose) {
       pose = nextPose;
       poseStarted = performance.now();
+      inspectionElapsedSeconds = undefined;
+      delete renderer.domElement.dataset.elapsedSeconds;
       renderer.domElement.dataset.pose = nextPose;
       applyHeroPreviewMotion(motionRig, model, pose, 0, reducedMotion);
+      render();
+    },
+    setInspectionElapsedSeconds(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Hero preview inspection elapsed time must be a finite nonnegative number.");
+      inspectionElapsedSeconds = seconds;
+      applyHeroPreviewMotion(motionRig, model, pose, seconds, reducedMotion);
+      recordFrame();
       render();
     },
     resetView() {
