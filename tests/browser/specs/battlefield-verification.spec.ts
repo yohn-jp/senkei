@@ -203,6 +203,68 @@ async function selectVisibleHero(
   return { supported: true, target: option.label, id: option.value, catalogId };
 }
 
+const artHeroAppearance: Record<string, string> = {
+  F01: "hero-vanguard",
+  R01: "hero-arcanist",
+};
+
+function ownerHeroObservationAt(replay: JsonRecord, tick: number, catalogId: string): JsonRecord | null {
+  const frame = (replay.frames as JsonRecord[] | undefined)?.find((candidate) => candidate.tick === tick);
+  const entities = frame?.visible_state?.entities as Record<string, JsonRecord> | undefined;
+  if (!entities) return null;
+  const match = Object.entries(entities).find(([, entity]) =>
+    entity.entity_type === "hero" &&
+    entity.fields?.catalog_id?.value?.toUpperCase() === catalogId,
+  );
+  if (!match) return null;
+  const [id, entity] = match;
+  const read = (key: string): unknown => entity.fields?.[key]?.value ?? null;
+  return {
+    entityId: id,
+    catalogId,
+    slotId: read("slot_id"),
+    side: read("side"),
+    hp: read("hp"),
+    maxHp: read("max_hp"),
+    replayNode: read("node"),
+    replayPosition: { x: read("x"), y: read("y") },
+    perspective: replay.perspective ?? "public",
+    visibility: "present-in-current-owner-replay-frame",
+  };
+}
+
+async function inspectHeroTimelineEvent(
+  page: import("@playwright/test").Page,
+  canvas: import("@playwright/test").Locator,
+  tick: number,
+  entityId: string,
+  kind: "destroy" | "skill",
+): Promise<void> {
+  await page.locator("#next-tab-analysis").click();
+  const search = page.getByRole("searchbox", { name: "Timelineを検索" });
+  await search.fill(`T${String(tick).padStart(3, "0")}`);
+  const rows = await page.locator(".battle-analysis-timeline li").evaluateAll((elements) =>
+    elements.map((element) => {
+      const row = element as HTMLElement;
+      return {
+        order: row.dataset.eventOrder ?? "",
+        tick: row.querySelector(".battle-analysis-tick")?.textContent?.trim() ?? "",
+        title: row.querySelector(".battle-analysis-event-copy strong")?.textContent?.trim() ?? "",
+        summary: row.querySelector(".battle-analysis-event-copy small")?.textContent?.trim() ?? "",
+      };
+    }),
+  );
+  const expectedTick = `T${String(tick).padStart(3, "0")}`;
+  const row = rows.find((candidate) => candidate.tick === expectedTick &&
+    candidate.summary.includes(entityId) &&
+    (kind === "destroy" ? candidate.title === "Unit removed" : candidate.title.startsWith("Skill ·")));
+  if (!row?.order) {
+    throw new Error(`Authorized Replay timeline has no ${kind} event for ${entityId} at ${expectedTick}: ${JSON.stringify(rows)}`);
+  }
+  await page.locator(`.battle-analysis-timeline li[data-event-order="${row.order}"] button`).click();
+  await expect(canvas).toHaveAttribute("data-tick", String(tick));
+}
+
 type ReplayProjectedPosition = {
   id: string;
   x: number;
@@ -800,6 +862,62 @@ function firstOwnerHeroRespawn(replay: JsonRecord): JsonRecord | null {
   return null;
 }
 
+function firstOwnerHeroRespawnForCatalog(replay: JsonRecord, catalogId: string): JsonRecord | null {
+  const frames = replay.frames as JsonRecord[] | undefined;
+  if (!frames) return null;
+  const integer = (entity: JsonRecord | undefined, name: string): number | null => {
+    const value = entity?.fields?.[name];
+    return value?.kind === "integer" && Number.isFinite(value.value) ? value.value : null;
+  };
+  const string = (entity: JsonRecord | undefined, name: string): string | null => {
+    const value = entity?.fields?.[name];
+    return value?.kind === "string" && typeof value.value === "string" ? value.value : null;
+  };
+  for (let index = 1; index < frames.length; index += 1) {
+    const tick = frames[index]!.tick as number;
+    const previous = frames[index - 1]!.visible_state?.entities as Record<string, JsonRecord> | undefined;
+    const current = frames[index]!.visible_state?.entities as Record<string, JsonRecord> | undefined;
+    for (const [entityId, entity] of Object.entries(current ?? {})) {
+      if (entity.entity_type !== "hero" || string(entity, "catalog_id")?.toUpperCase() !== catalogId || integer(entity, "hp") === 0) continue;
+      const slotId = string(entity, "slot_id");
+      if (!slotId || integer(entity, "hp") === null || integer(entity, "respawn_at") !== 0) continue;
+      const previousDead = Object.entries(previous ?? {}).find(([, prior]) =>
+        prior.entity_type === "hero" && string(prior, "slot_id") === slotId &&
+        integer(prior, "hp") === 0 && integer(prior, "respawn_at") === tick,
+      );
+      if (!previousDead) continue;
+      return {
+        tick,
+        slotId,
+        deadEntityId: previousDead[0],
+        respawnedEntityId: entityId,
+        catalogId,
+        evidence: "same-slot owner-replay dead-to-alive transition",
+        privacy: "local-owner-only",
+      };
+    }
+  }
+  return null;
+}
+
+function firstOwnerHeroEventForCatalog(
+  replay: JsonRecord,
+  catalogId: string,
+  eventPattern: RegExp,
+): { tick: number; entityId: string; event: string } | null {
+  for (const frame of replay.frames as JsonRecord[] ?? []) {
+    const entities = frame.visible_state?.entities as Record<string, JsonRecord> | undefined;
+    for (const candidate of frame.events as JsonRecord[] ?? []) {
+      if (typeof candidate.entity !== "string" || typeof candidate.event !== "string" || !eventPattern.test(candidate.event)) continue;
+      const entity = entities?.[candidate.entity];
+      if (entity?.entity_type === "hero" && entity.fields?.catalog_id?.value?.toUpperCase() === catalogId) {
+        return { tick: frame.tick as number, entityId: candidate.entity, event: candidate.event };
+      }
+    }
+  }
+  return null;
+}
+
 function firstMovementTick(replay: JsonRecord): number | null {
   const frames = replay.frames ?? [];
   const coordinate = (entity: JsonRecord | undefined, key: "x" | "y"): number | null => {
@@ -918,6 +1036,11 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     ? await reproductionSnapshotDigest(controlledSnapshot as Parameters<typeof reproductionSnapshotDigest>[0])
     : null;
   const captureViewports = selectViewportCases(process.env.BATTLEFIELD_VIEWPORTS);
+  if (controlledScenario === "art-active-skill" && (
+    captureViewports.length !== 1 || captureViewports[0]?.name !== "1440x900"
+  )) {
+    throw new Error("The F01/R01 Art capture requires exactly one 1440x900 desktop viewport.");
+  }
   if (clusterInspectorOnly && (
     captureViewports.length !== 2 ||
     !captureViewports.some((viewport) => viewport.name === "1440x900") ||
@@ -1155,6 +1278,55 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     end: finalTick,
   };
 
+  let artHeroEvidence: JsonRecord | null = null;
+  const artHeroCaptures: Record<string, JsonRecord> = {};
+  if (controlledScenario === "art-active-skill") {
+    expect(sourceReplay.perspective).toBe("attacker");
+    const heroEvidence: Record<string, JsonRecord> = {};
+    for (const catalogId of ["F01", "R01"] as const) {
+      const death = firstOwnerHeroEventForCatalog(sourceReplay, catalogId, /destroy|death|collapse/i);
+      const skill = firstOwnerHeroEventForCatalog(sourceReplay, catalogId, /^next\.skill$/i);
+      const visibleRespawn = firstOwnerHeroRespawnForCatalog(sourceReplay, catalogId);
+      const nativeRespawn = (expectedScenarioResult?.hero_lifecycle?.respawns as JsonRecord[] | undefined)
+        ?.find((candidate) => candidate.catalog_id === catalogId);
+      const respawn = visibleRespawn ?? (nativeRespawn ? {
+        tick: nativeRespawn.tick,
+        slotId: nativeRespawn.slot_id ?? null,
+        deadEntityId: death?.entityId ?? null,
+        respawnedEntityId: nativeRespawn.new_entity_id,
+        catalogId,
+        evidence: "digest-matched Native Core lifecycle proof plus living entity in the same authorized owner Replay frame",
+        privacy: "owner enemy slot withheld by presentation Replay",
+      } : null);
+      expect(death, `${catalogId} death must be present in the authorized owner replay`).not.toBeNull();
+      expect(skill, `${catalogId} active skill must be present in the authorized owner replay`).not.toBeNull();
+      expect(respawn, `${catalogId} respawn must be present as a same-slot owner replay transition`).not.toBeNull();
+      const deathObservation = ownerHeroObservationAt(sourceReplay, death!.tick, catalogId);
+      const skillObservation = ownerHeroObservationAt(sourceReplay, skill!.tick, catalogId);
+      const respawnObservation = ownerHeroObservationAt(sourceReplay, respawn!.tick, catalogId);
+      expect(deathObservation?.entityId).toBe(death!.entityId);
+      expect(skillObservation?.entityId).toBe(skill!.entityId);
+      expect(respawnObservation?.entityId).toBe(respawn!.respawnedEntityId);
+      expect(deathObservation?.hp).toBe(0);
+      expect(Number(respawnObservation?.hp)).toBeGreaterThan(0);
+      expect(Number(skillObservation?.hp)).toBeGreaterThan(0);
+      heroEvidence[catalogId] = {
+        appearanceKey: artHeroAppearance[catalogId],
+        appearanceMapping: "packages/renderer/src/index.ts::catalogAppearance",
+        death: { ...death, observation: deathObservation },
+        respawn: { ...respawn, observation: respawnObservation },
+        activeSkill: { ...skill, observation: skillObservation },
+      };
+    }
+    artHeroEvidence = {
+      sourceReplayPerspective: sourceReplay.perspective,
+      sourceReplayDigest: sourceReplay.result_digest,
+      sourceReplaySchemaVersion: sourceReplay.schema_version,
+      selectionBasis: "exact catalog id and visible entity id from each authorized Replay frame/event",
+      heroes: heroEvidence,
+    };
+  }
+
   if (expectBaseSites) {
     const initialBaseSites = await assertBaseSiteLabelsAtTick(page, canvas, sourceReplay, 0);
     baseSiteChecks["1440x900/t000"] = { tick: 0, labels: initialBaseSites };
@@ -1267,6 +1439,184 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     await expect(canvas).toHaveAttribute("data-rendered", "true");
     const directory = join(outputDirectory, viewport.name);
     mkdirSync(directory, { recursive: true });
+
+    if (controlledScenario === "art-active-skill") {
+      const artFrame = async (
+        catalogId: "F01" | "R01",
+        tick: number,
+        event: "destroy" | "respawn" | "skill",
+        scale: "near" | "mid" | "far",
+        repeated = false,
+        rendererEntityId: string | null = null,
+      ): Promise<string> => {
+        const observation = ownerHeroObservationAt(sourceReplay, tick, catalogId);
+        expect(observation, `${catalogId} must be visible in its exact owner Replay frame at T${tick}`).not.toBeNull();
+        const eventName = event === "destroy" ? "death" : event === "skill" ? "active-skill" : "respawn";
+        const key = `${catalogId}-${eventName}-t${String(tick).padStart(3, "0")}-${scale}${repeated ? "-repeat" : ""}.png`;
+        await expect(canvas).toHaveAttribute("data-tick", String(tick));
+        await waitForSettledCamera(page);
+        const state = await canvas.evaluate((element) => {
+          const value = element as HTMLCanvasElement;
+          return {
+            camera: value.getAttribute("data-camera"),
+            cameraMode: value.getAttribute("data-camera-mode"),
+            cameraTarget: value.getAttribute("data-camera-target"),
+            tick: value.getAttribute("data-tick"),
+            tracking: value.getAttribute("data-tracking"),
+            unitPose: value.getAttribute("data-unit-pose"),
+            unitPoseEntity: value.getAttribute("data-unit-pose-entity"),
+            unitPoseSample: value.getAttribute("data-unit-pose-sample"),
+            lodSummary: value.getAttribute("data-lod-summary"),
+            canvasSize: { width: value.clientWidth, height: value.clientHeight },
+          };
+        });
+        const screenshot = await page.screenshot({
+          path: join(directory, key),
+          animations: "disabled",
+        });
+        const cameraPoseKey = `${viewport.name}/${key}`;
+        cameraPosesByCapture[cameraPoseKey] = state.camera;
+        cameraTargetsByCapture[cameraPoseKey] = parseCameraTarget(state.cameraTarget);
+        const lodSummary = state.lodSummary ? JSON.parse(state.lodSummary) as JsonRecord : null;
+        const hero = artHeroEvidence!.heroes[catalogId] as JsonRecord;
+        const eventProof = hero[event === "destroy" ? "death" : event === "respawn" ? "respawn" : "activeSkill"] as JsonRecord;
+        expect(eventProof.observation.entityId).toBe(observation!.entityId);
+        expect(state.tick).toBe(String(tick));
+        expect(lodSummary, "the real Battlefield renderer must report its current LOD distribution").not.toBeNull();
+        artHeroCaptures[key] = {
+          screenshot: key,
+          sha256: sha256(screenshot),
+          tick,
+          catalogId,
+          appearanceKey: hero.appearanceKey,
+          event: { kind: eventName, sourceReplayEvent: eventProof.event ?? "same-slot dead-to-alive transition" },
+          target: observation,
+          rendererEntityId,
+          camera: {
+            mode: state.cameraMode,
+            pose: state.camera,
+            target: parseCameraTarget(state.cameraTarget),
+            trackedEntityIds: state.tracking?.split(",").filter(Boolean) ?? [],
+            viewport: { width: viewport.width, height: viewport.height },
+            canvasSize: state.canvasSize,
+          },
+          lodSummary,
+          pose: {
+            kind: state.unitPose,
+            entityId: state.unitPoseEntity,
+            sample: state.unitPoseSample,
+          },
+          scaleIntent: scale,
+          repeatOf: repeated ? "F01-active-skill-t146-near" : null,
+        };
+        return sha256(screenshot);
+      };
+
+      const heroObservation = (catalogId: "F01" | "R01", event: "death" | "respawn" | "activeSkill"): JsonRecord => {
+        const hero = artHeroEvidence!.heroes[catalogId] as JsonRecord;
+        return (hero[event] as JsonRecord).observation as JsonRecord;
+      };
+      const captureDeath = async (catalogId: "F01" | "R01"): Promise<void> => {
+        const proof = (artHeroEvidence!.heroes[catalogId] as JsonRecord).death as JsonRecord;
+        const tick = proof.tick as number;
+        const prior = ownerHeroObservationAt(sourceReplay, tick - 1, catalogId);
+        expect(Number(prior?.hp), `${catalogId} must be living in the authorized Replay frame immediately before death`).toBeGreaterThan(0);
+        await seekToTick(page, tick - 1);
+        const target = await selectVisibleHero(page, catalogId);
+        expect(target.supported).toBe(true);
+        expect(target.catalogId).toBe(catalogId);
+        await inspectHeroTimelineEvent(page, canvas, tick, target.id!, "destroy");
+        await artFrame(catalogId, tick, "destroy", "near", false, target.id);
+      };
+      const captureRespawn = async (catalogId: "F01" | "R01"): Promise<void> => {
+        const proof = (artHeroEvidence!.heroes[catalogId] as JsonRecord).respawn as JsonRecord;
+        const tick = proof.tick as number;
+        const observation = heroObservation(catalogId, "respawn");
+        await seekToTick(page, tick);
+        const target = await selectVisibleHero(page, catalogId);
+        expect(target.supported, `${catalogId} must be selectable as a living visible Hero at its respawn tick`).toBe(true);
+        expect(target.catalogId).toBe(catalogId);
+        expect(target.target).toContain(catalogId);
+        await page.getByRole("button", { name: "Follow selected unit" }).click();
+        await waitForSettledCamera(page);
+        const trackedIds = (await canvas.getAttribute("data-tracking"))?.split(",").filter(Boolean) ?? [];
+        expect(trackedIds).toContain(target.id);
+        await artFrame(catalogId, tick, "respawn", "near", false, target.id);
+      };
+      const captureSkillScales = async (catalogId: "F01" | "R01"): Promise<string> => {
+        const proof = (artHeroEvidence!.heroes[catalogId] as JsonRecord).activeSkill as JsonRecord;
+        const tick = proof.tick as number;
+        await seekToTick(page, tick);
+        const sourceEntityId = (proof.observation as JsonRecord).entityId as string;
+        const target = await selectVisibleHero(page, catalogId);
+        expect(target.supported, `${catalogId} must be selectable at its authorized active-skill event`).toBe(true);
+        expect(target.catalogId).toBe(catalogId);
+        expect(ownerHeroObservationAt(sourceReplay, tick, catalogId)?.entityId).toBe(sourceEntityId);
+        await inspectHeroTimelineEvent(page, canvas, tick, target.id!, "skill");
+        await page.getByRole("button", { name: "Follow selected unit" }).click();
+        await expect(canvas).toHaveAttribute("data-tick", String(tick));
+        await artFrame(catalogId, tick, "skill", "near", false, target.id);
+
+        const selection = page.getByRole("combobox", { name: /Observe visible entity/i });
+        await selection.selectOption("");
+        await expect(selection).toHaveValue("");
+        modeSupport.tactical = await clickCameraMode(page, "tactical");
+        const zoomOut = page.getByRole("button", { name: "Zoom out" });
+        await zoomOut.click();
+        await zoomOut.click();
+        await artFrame(catalogId, tick, "skill", "mid", false, target.id);
+
+        modeSupport.overview = await clickCameraMode(page, "overview");
+        await artFrame(catalogId, tick, "skill", "far", false, target.id);
+        return (artHeroCaptures[`${catalogId}-active-skill-t${String(tick).padStart(3, "0")}-near.png`] as JsonRecord).sha256 as string;
+      };
+
+      await captureDeath("F01");
+      await captureRespawn("F01");
+      const f01NearSha = await captureSkillScales("F01");
+      await captureDeath("R01");
+      await captureRespawn("R01");
+      await captureSkillScales("R01");
+
+      const f01SkillTick = ((artHeroEvidence!.heroes.F01 as JsonRecord).activeSkill as JsonRecord).tick as number;
+      await seekToTick(page, f01SkillTick + 1);
+      await seekToTick(page, f01SkillTick);
+      const repeatTarget = await selectVisibleHero(page, "F01");
+      expect(repeatTarget.supported).toBe(true);
+      expect(repeatTarget.catalogId).toBe("F01");
+      await page.getByRole("button", { name: "Follow selected unit" }).click();
+      await artFrame("F01", f01SkillTick, "skill", "near", true, repeatTarget.id);
+      const firstF01Frame = artHeroCaptures[`F01-active-skill-t${String(f01SkillTick).padStart(3, "0")}-near.png`] as JsonRecord;
+      const repeatedF01Frame = artHeroCaptures[`F01-active-skill-t${String(f01SkillTick).padStart(3, "0")}-near-repeat.png`] as JsonRecord;
+      expect(firstF01Frame.sha256).toBe(f01NearSha);
+      expect(repeatedF01Frame.target).toEqual(firstF01Frame.target);
+      expect(repeatedF01Frame.rendererEntityId).toBe(firstF01Frame.rendererEntityId);
+      expect(repeatedF01Frame.camera).toEqual(firstF01Frame.camera);
+      expect(repeatedF01Frame.lodSummary).toEqual(firstF01Frame.lodSummary);
+      expect(repeatedF01Frame.pose).toEqual(firstF01Frame.pose);
+      artHeroEvidence!.sameTickSeek = {
+        tick: f01SkillTick,
+        sourceReplayTargetStable: true,
+        rendererEntityStable: true,
+        cameraAndTrackingStable: true,
+        lodDistributionStable: true,
+        sampledPoseStable: true,
+        rawScreenshotSha256Equal: repeatedF01Frame.sha256 === firstF01Frame.sha256,
+        firstScreenshotSha256: firstF01Frame.sha256,
+        repeatedScreenshotSha256: repeatedF01Frame.sha256,
+        interpretation: "Replay/render state and camera metadata are compared separately from raw WebGL screenshot hashes; any pixel mismatch remains an explicit visual review item.",
+      };
+
+      followSupport[viewport.name] = true;
+      layoutByViewport[viewport.name] = {
+        viewport: { width: viewport.width, height: viewport.height },
+        stageBox: await page.locator(".next-renderer-host").boundingBox(),
+        controlsBox: await page.locator(".next-replay-controls").boundingBox(),
+        captureCount: Object.keys(artHeroCaptures).length,
+      };
+      expect(Object.keys(artHeroCaptures)).toHaveLength(11);
+      continue;
+    }
 
     if (clusterInspectorOnly) {
       const tick = followTick;
@@ -1683,6 +2033,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
       finalStateDigest: result.final_state_digest,
     },
     exactTicks: stateTicks,
+    artHeroEvidence,
+    artHeroCaptures: Object.keys(artHeroCaptures).length ? artHeroCaptures : null,
     baseSiteAssertions: expectBaseSites ? {
       immutableSiteIds: baseSiteIds,
       enemySiteId: firstEnemyBaseSiteId,
@@ -1717,7 +2069,8 @@ test("captures fixed-tick real Enbu replay and battlefield views", async ({ page
     clusterInspection: clusterInspectorOnly ? clusterInspection : null,
     semanticCueAssertions,
     viewports: captureViewports,
-    screenshotNames: clusterInspectorOnly ? ["selected-visible-cluster", "follow-f03-same-tick", "squad-follow-same-tick"]
+    screenshotNames: artHeroEvidence ? Object.keys(artHeroCaptures)
+      : clusterInspectorOnly ? ["selected-visible-cluster", "follow-f03-same-tick", "squad-follow-same-tick"]
       : skillFollowOnly ? ["skill-follow"] : roleFollowOnly.length
         ? roleFollowOnly.map((role) => `${role}-follow`)
       : [

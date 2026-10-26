@@ -1,0 +1,240 @@
+{
+  "status": "PARTIAL — c90 renderer-source capture; not final Core 1.4 acceptance",
+  "capturedFromArtHead": "992f7a5e0922111e4fe6be84ac0c8ff323ada5da",
+  "applicationRevision": "6478dc9ee754f95e5554df1b44bd995496f0ee9c",
+  "wasmSha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e",
+  "browser": "Nix Chromium 156 / SwiftShader; 1 worker; 1440x900",
+  "operation": "reproduce",
+  "workerResponseOk": true,
+  "inputSnapshotSha256": "83227c34de791af86ec58446c8f256fd51f1758141b86632ae1afb0664c35e6f",
+  "rulesetDigest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+  "matchId": "next-8727546e20d43a0fc5d2cade5923b86c",
+  "result": {
+    "outcome": "draw",
+    "terminationReason": "time_limit",
+    "finalTick": 600,
+    "finalStateDigest": "d467faff366c1ed016679a0b4a52e04a3dc589669c7f51c26dc0aa6d9c3e6afa"
+  },
+  "ownerReplay": {
+    "digest": "fa6c3eb29849b66c81e55635286cb1dbde7f9f702d72ef9b5716d91451a2cdc8",
+    "frames": 601,
+    "schemaVersion": {
+      "major": 1,
+      "minor": 1,
+      "patch": 0
+    }
+  },
+  "heroes": {
+    "F01": {
+      "appearanceKey": "hero-vanguard",
+      "death": {
+        "tick": 74,
+        "event": "next.death",
+        "ownerReplayEntityId": "visible-10",
+        "rendererEntityId": "entity-2"
+      },
+      "respawn": {
+        "tick": 94,
+        "proof": "same-slot owner-replay dead-to-alive transition",
+        "ownerReplayEntityId": "visible-74",
+        "rendererEntityId": "entity-74",
+        "slotId": "slot-01"
+      },
+      "activeSkill": {
+        "tick": 146,
+        "event": "next.skill",
+        "ownerReplayEntityId": "visible-74",
+        "rendererEntityId": "entity-74"
+      }
+    },
+    "R01": {
+      "appearanceKey": "hero-arcanist",
+      "death": {
+        "tick": 130,
+        "event": "next.death",
+        "ownerReplayEntityId": "visible-78",
+        "rendererEntityId": "entity-78"
+      },
+      "respawn": {
+        "tick": 165,
+        "proof": "digest-matched Native Core lifecycle proof plus living entity in the same authorized owner Replay frame",
+        "ownerReplayEntityId": "visible-121",
+        "rendererEntityId": "entity-121",
+        "slotId": null
+      },
+      "activeSkill": {
+        "tick": 351,
+        "event": "next.skill",
+        "ownerReplayEntityId": "visible-246",
+        "rendererEntityId": "entity-245"
+      }
+    }
+  },
+  "sameTickSeek": {
+    "tick": 146,
+    "sourceReplayTargetStable": true,
+    "rendererEntityStable": true,
+    "cameraAndTrackingStable": true,
+    "lodDistributionStable": true,
+    "sampledPoseStable": true,
+    "rawScreenshotSha256Equal": false,
+    "firstScreenshotSha256": "f75c6ed75ad40cf92b535b6af374c25ce52066729a7073adf5a0db374ee5e5b7",
+    "repeatedScreenshotSha256": "992b83fc44b2d26f71985a3994eea8e5b926a7f06b37906a6dcf166591ec3aea",
+    "interpretation": "Replay/render state and camera metadata are compared separately from raw WebGL screenshot hashes; any pixel mismatch remains an explicit visual review item.",
+    "differingPixelCount": 116,
+    "differingPixelBounds": [
+      663,
+      443,
+      694,
+      450
+    ],
+    "pixelDiffMethod": "stdlib PNG RGBA scanline comparison; cause unresolved"
+  },
+  "frameMetrics": [
+    {
+      "frame": "F01-active-skill-t146-far.png",
+      "scale": "far",
+      "camera": "overview",
+      "lodGlobal": {
+        "full": 0,
+        "medium": 6,
+        "far": 24
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "F01-active-skill-t146-mid.png",
+      "scale": "mid",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 0,
+        "medium": 6,
+        "far": 24
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "F01-active-skill-t146-near-repeat.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 6,
+        "medium": 11,
+        "far": 13
+      },
+      "pose": "skill"
+    },
+    {
+      "frame": "F01-active-skill-t146-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 6,
+        "medium": 11,
+        "far": 13
+      },
+      "pose": "skill"
+    },
+    {
+      "frame": "F01-death-t074-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 10,
+        "medium": 17,
+        "far": 14
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "F01-respawn-t094-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 4,
+        "medium": 15,
+        "far": 13
+      },
+      "pose": "idle"
+    },
+    {
+      "frame": "R01-active-skill-t351-far.png",
+      "scale": "far",
+      "camera": "overview",
+      "lodGlobal": {
+        "full": 0,
+        "medium": 6,
+        "far": 24
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "R01-active-skill-t351-mid.png",
+      "scale": "mid",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 0,
+        "medium": 6,
+        "far": 24
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "R01-active-skill-t351-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 6,
+        "medium": 10,
+        "far": 14
+      },
+      "pose": "skill"
+    },
+    {
+      "frame": "R01-death-t130-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 9,
+        "medium": 9,
+        "far": 11
+      },
+      "pose": "none"
+    },
+    {
+      "frame": "R01-respawn-t165-near.png",
+      "scale": "near",
+      "camera": "tactical",
+      "lodGlobal": {
+        "full": 6,
+        "medium": 12,
+        "far": 12
+      },
+      "pose": "idle"
+    }
+  ],
+  "screenshotSha256": {
+    "F01-active-skill-t146-far.png": "dbdf23b376e602d991353d91e30332d7d5a46098203ee010ef0f3acbdc1c378f",
+    "F01-active-skill-t146-mid.png": "0f208d9d8038d525a59697a77ca786e8145ea6b387d8f1a57f84caaeb881aaf2",
+    "F01-active-skill-t146-near-repeat.png": "992b83fc44b2d26f71985a3994eea8e5b926a7f06b37906a6dcf166591ec3aea",
+    "F01-active-skill-t146-near.png": "f75c6ed75ad40cf92b535b6af374c25ce52066729a7073adf5a0db374ee5e5b7",
+    "F01-death-t074-near.png": "1393990575e26ee173eebaadfa473f5395aea90e664ce04ae49587beaa2f6cfb",
+    "F01-respawn-t094-near.png": "33ee7b938b51042ed04879d7e44770d026c01a59ee3ad669efd7cb605097e575",
+    "R01-active-skill-t351-far.png": "30d0b0289df974a5e91a8d6cc8985e14a1285f4105769dede7770c2f476125ad",
+    "R01-active-skill-t351-mid.png": "da313f1d206685d7bba30915d3966de9bf566007859a7e8f18ee1a48bda13984",
+    "R01-active-skill-t351-near.png": "7480b2f3fa6a9ce8d69ba9a2fd1844736ac2f96377e2ce9db8b988282a20032b",
+    "R01-death-t130-near.png": "7a8b08cd2fb8943b38271aa8b6a96ea988a29f0f904a4f46074e9dc763190edb",
+    "R01-respawn-t165-near.png": "3e18593fa5c5058acf8cdc58cd0d56459276c576e6dafb895297badebf17f680"
+  },
+  "limitations": [
+    "Target-specific visual scores and target LOD level remain NOT_CHECKED; lodSummary is a global canvas count.",
+    "The 11 frames have not received an independent visual review; no artistic score or Hard Gate PASS is inferred.",
+    "Physical GPU is NOT_CHECKED; capture used SwiftShader.",
+    "Raw screenshots, video, trace, input and replay payload remain local/ignored under /dev/shm; none are committed."
+  ],
+  "verification": {
+    "browserTest": "1/1 PASS; real Core Worker reproduce result and replay digests matched Native expected result",
+    "typecheck": "PASS",
+    "diffCheck": "PASS"
+  }
+}
