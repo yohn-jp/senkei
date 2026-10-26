@@ -166,20 +166,29 @@ export async function buildNativeCampaignFixture(scenarioId: NativeCampaignScena
     const compile = (source: string) => dispatch<{ readonly program: TacticalProgram }>("compile_text", { ruleset_ref: rules.ruleset, source }).program;
     const { program_input, ...definition } = scenario.npc;
     const defender: SenkeiSnapshot = { ...definition, program: compile(program_input.source) };
-    const ownHeroes = scenarios[0].npc.configuration.heroes.value.map((hero: any, index: number) => first
-      ? { ...hero, value: { ...hero.value, catalog_id: { kind: "string", value: ["F02", "F04", "R01", "R03", "R05"][index] } } } : hero);
-    const source = (first ? "senkei w9_persistent_movement { " : "senkei probe {") + ownHeroes.map((hero: any, index: number) => {
+    // Measured with the unchanged authored NPC and default 600-tick context:
+    // first-march wins at 483; protect-the-core at 580. These are test inputs,
+    // not a new player default, balance target, or replacement victory rule.
+    const catalog = first ? ["F03", "F04", "R01", "R02", "R05"] : ["F01", "F03", "F06", "R02", "R04"];
+    const ownHeroes = scenarios[0].npc.configuration.heroes.value.map((hero: any, index: number) => {
+      const heroDefinition = rules.next?.heroes.find(item => item.id === catalog[index]);
+      if (!heroDefinition) throw new Error(`Missing fixture Hero ${catalog[index]}.`);
+      return { ...hero, value: { ...hero.value,
+        catalog_id: { kind: "string", value: catalog[index] },
+        skill_path: { kind: "string", value: Object.keys(heroDefinition.skill_paths).sort()[0] },
+        squad: { kind: "string", value: `squad-${index + 1}` },
+        node: { kind: "string", value: first ? "A.BASE" : "B.BASE" },
+      } };
+    });
+    const source = "senkei integration_probe { " + ownHeroes.map((hero: any, index: number) => {
       const slot = hero.value.slot_id.value;
-      return `action ${first ? `advance_slot_${index + 1}` : `move_${index}`} { when any hero in allies.heroes { hero.slot_id == "${slot}", hero.goal == "", hero.hp > 0, }, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "${slot}", } by hero.hp then hero.id, "B.BASE"), }`;
-    }).join(first ? ", " : ",") + (first ? " }" : "}");
+      return `action advance_${index + 1} { when any hero in allies.heroes { hero.slot_id == "${slot}", hero.goal == "", hero.hp > 0, }, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "${slot}", } by hero.hp then hero.id, "B.BASE"), }`;
+    }).join(", ") + " }";
     const attacker: SenkeiSnapshot = {
       ...defender,
       id: first ? "campaign-player" : "probe-player",
       program: compile(source),
-      configuration: { heroes: { kind: "list", value: ownHeroes.map((hero: any) => ({
-        ...hero,
-        value: { ...hero.value, squad: { kind: "string", value: first ? "squad-0" : "squad-1" }, node: { kind: "string", value: first ? "A.BASE" : "B.BASE" } },
-      })) } },
+      configuration: { heroes: { kind: "list", value: ownHeroes } },
     };
     const context = dispatch<SimulationSnapshot["context"]>("new_match_context", {
       ruleset_ref: rules.ruleset,
@@ -239,7 +248,7 @@ export function nativeCampaignStore(fixture: NativeCampaignFixture, estimatedCU:
     ruleset: definition.ruleset,
     schema_version: definition.schema_version,
     mechanics_version: next.mechanics_version,
-    formation_shape: "single",
+    formation_shape: "custom",
     slots: slots(fixture.snapshot.attacker),
     rival_slots: slots(fixture.snapshot.defender),
     draft: { ...definition, program_input: { kind: "text", source: fixture.source } },
