@@ -2370,7 +2370,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
       {exactRun && screen === "ready" && <div className="next-exact-rematch" role="status"><strong>{frozenRematch?.kind === "improved" ? "改良比較 · 自軍以外は元Runに固定" : "同条件再戦 · 元Runの確定Snapshot"}</strong><p>{frozenRematch?.kind === "improved" ? "自軍のHero・Skill・Squad・Jinreiの変更対象だけを差し替えます。相手・World・初期状態・上限・実行版・Match IDは元Runの値です。" : "表示中の編成と戦術は元の試合のものです。"} 編集中Draftと現在の対戦選択は保持されています。</p><button type="button" onClick={() => setExactRun(null)}>現在のDraftで準備する</button></div>}
       <p className="journey-draft-status" hidden={screen === "workspace" && tab === "battle"}>{draft?.id} · {draftIsSaved ? "保存済み" : savedSetup ? "未保存の変更あり" : "未保存Draft"} · {activeCompilation ? "Compiled" : compilation ? "Compile失効" : "未コンパイル"}</p>
-      <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={exactRun ? exactRun.setup.campaign_scenario_id ? "campaign" : "quick" : entryMode} setEntryMode={mode => { setExactRun(null); setEntryMode(mode); }}
+      <JourneyScreens screen={screen === "resume" ? "workspace" : screen} setScreen={next => next === "resume" ? openLibrary() : setScreen(next)} entryMode={exactRun ? exactRun.campaignAssociation?.eligible ? "campaign" : "quick" : entryMode} setEntryMode={mode => { setExactRun(null); setEntryMode(mode); }}
         slots={exactRun?.setup.slots ?? slots} rivalSlots={exactRun?.setup.rival_slots ?? rivalSlots} nextRules={nextRules} packageValue={packageValue} draft={exactRun?.setup.draft ?? draft}
         ready={Boolean(readySnapshot)} checking={checking} failure={currentPreflightError?.problem ?? null} onRepair={repairPreflight} scenarioRepairFocus={scenarioRepairFocus}
         compiled={Boolean(exactRun || activeCompilation)} compilationCU={exactRun?.estimatedCU ?? activeCompilation?.estimated_cu ?? null} stale={Boolean(compilation && !activeCompilation)}
@@ -2385,7 +2385,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           setSlots(playerSlots); setRivalSlots(defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS));
           setFormationShape("single"); updateDraft(createTacticDraft(packageValue, nextRules, "attacker"));
           setPrepared(null); setPreflightFailure(null); setScreen("preset");
-        }} scenarios={campaignScenarios} selectedScenarioId={exactRun ? exactRun.setup.campaign_scenario_id ?? "" : selectedScenario?.id ?? ""}
+        }} scenarios={campaignScenarios} selectedScenarioId={exactRun ? exactRun.campaignAssociation?.eligible ? exactRun.campaignAssociation.scenarioId : "" : selectedScenario?.id ?? ""}
         onScenarioChange={selectCampaignScenario} unlockedScenarioIds={unlockedScenarioIds} campaignProgress={activeCampaignProgress}
         latestScenarioFeedback={campaignFeedback} />
       <div className="journey-workspace" hidden={screen !== "workspace"}>
