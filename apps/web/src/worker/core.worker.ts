@@ -354,9 +354,7 @@ async function runReproduction(
     : undefined;
   const coreResult = await callCore("reproduce", {
     assets: payload.assets,
-    attacker: snapshot.attacker,
-    defender: snapshot.defender,
-    context: snapshot.context,
+    snapshot: payload.snapshot,
     snapshot_digest: payload.snapshot_digest,
     include_diagnostics: includeDiagnostics,
     ...(diagnosticsSide !== undefined ? { diagnostics_side: diagnosticsSide } : {}),

@@ -208,7 +208,8 @@ export type WebCoreApiEnvelope =
       readonly payload: {
         readonly assets: ReproductionAssets;
         readonly snapshot_digest: ContentDigest;
-      } & SimulationSnapshot & SimulationRequestPayload;
+        readonly snapshot: SimulationSnapshot;
+      } & SimulationRequestPayload;
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "preflight";
