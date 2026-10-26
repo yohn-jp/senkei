@@ -26,6 +26,9 @@ for (const width of [390, 1440]) test(`real Core targets focus component fields 
   await expect(page.getByRole("tab", { name: "Hero Collection" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "Repair catalog_id", exact: true }).click();
   await expect(page.getByRole("button", { name: "Choose hero for slot 3", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Repair BOM skill", exact: true }).click();
+  await expect.poll(async () => JSON.parse(await page.getByTestId("hero-request").innerText()).target.slotId).toBe("\uFEFF");
+  await expect(page.locator(".ha-branches button:enabled").first()).toBeFocused();
   await page.getByRole("button", { name: "Repair squad", exact: true }).click();
   await expect(page.locator(".ha-member select").nth(2)).toBeFocused();
   await page.getByRole("button", { name: "Unknown slot request", exact: true }).click();

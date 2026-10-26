@@ -15,7 +15,7 @@ export interface JinreiRepairFocusRequest {
 }
 type Slot = { readonly slot_id: string; readonly catalog_id: string; readonly skill_path: string; readonly squad: string; readonly node: string };
 export function resolveHeroRepair(slots: readonly Slot[], target: HeroRepairFocusRequest["target"]) {
-  if (!target.slotId.trim() || !["catalog_id", "skill_path", "squad", "node"].includes(target.field)) return null;
+  if (target.slotId.length === 0 || !["catalog_id", "skill_path", "squad", "node"].includes(target.field)) return null;
   const matches = slots.map((slot, index) => ({ slot, index })).filter(item => item.slot.slot_id === target.slotId);
   if (matches.length !== 1 || matches[0].index !== target.recordIndex || target.field === "slot_id") return null;
   const screen: HeroRepairFocusRequest["target"]["screen"] = target.field === "skill_path" ? "skills" : target.field === "node" || target.field === "squad" ? "squads" : "collection";

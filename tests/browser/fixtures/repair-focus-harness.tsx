@@ -29,8 +29,11 @@ function Harness() {
     const side = (values: HeroAtelierSlot[], id: string): SenkeiSnapshot => ({ ...draft, id, program, configuration: { heroes: { kind: "list", value: values.map(slot => ({ kind: "record", value: Object.fromEntries(Object.entries(slot).map(([k, value]) => [k, { kind: "string", value }])) })) } } });
     return { attacker: side(own, "own"), defender: side(originalSlots.current.map(s => ({ ...s, node: pkg.next!.map.defender_base })), "opponent"), context: await core.newMatchContext(pkg.ruleset, "repair-focus") };
   };
-  const heroRepair = async (field: "catalog_id" | "skill_path" | "squad" | "node") => {
-    const invalid = originalSlots.current.map((slot, i) => i === 2 ? { ...slot, [field]: field === "squad" ? "" : "invalid-value" } : slot);
+  const heroRepair = async (field: "catalog_id" | "skill_path" | "squad" | "node", exactSlotId?: string) => {
+    const own = originalSlots.current.map((slot, i) => i === 2 && exactSlotId !== undefined ? { ...slot, slot_id: exactSlotId } : slot);
+    // Prove Core accepts this opaque identity before rejecting the separate Skill value.
+    if (exactSlotId !== undefined) await core.preflight(await snapshot(own));
+    const invalid = own.map((slot, i) => i === 2 ? { ...slot, [field]: field === "squad" ? "" : "invalid-value" } : slot);
     setSlots(invalid);
     try { await core.preflight(await snapshot(invalid)); throw Error("Expected real Core rejection"); }
     catch (error) { const problem = classifyPreflightProblem(error, { stage: "snapshot_preflight", input: "draft", inputKey: "fixture", scenarioId: null, slots: { attacker: invalid } });
@@ -44,6 +47,7 @@ function Harness() {
   const write = () => setWrites(n => n + 1);
   return <main><h2 ref={heading} tabIndex={-1}>Actual component repair harness</h2>
     {(["catalog_id", "skill_path", "squad", "node"] as const).map(field => <button key={field} onClick={() => void heroRepair(field)}>Repair {field}</button>)}
+    <button onClick={() => void heroRepair("skill_path", "\uFEFF")}>Repair BOM skill</button>
     <button onClick={() => void sourceRepair()}>Repair compiler</button><button onClick={() => setActive(v => !v)}>{active ? "Hide workspace" : "Show workspace"}</button>
     <button onClick={() => { setHeroRequest({ requestId: String(++sequence.current), target: { kind: "own_hero", recordIndex: 2, slotId: "unknown-slot", field: "node", screen: "squads" } }); setView("hero"); }}>Unknown slot request</button>
     <button onClick={() => { setDraft({ ...draft, revision: "changed", program_input: { kind: "text", source: badSource + "\n// current edit" } }); setJRequest({ requestId: String(++sequence.current), target: { kind: "own_jinrei", path: jRequest?.target.path ?? null }, exactSource: badSource }); setView("jinrei"); }}>Stale source request</button>

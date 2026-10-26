@@ -7,6 +7,11 @@ describe("explicit repair requests", () => {
     expect(resolveHeroRepair([slot], target)).toMatchObject({ index: 0, stage: "deploy" });
     expect(resolveHeroRepair([slot], { ...target, field: "squad" })).toMatchObject({ stage: "assign" });
   });
+  it("preserves a Core-valid BOM-only slot ID without JavaScript whitespace normalization", () => {
+    const bomSlot = { ...slot, slot_id: "\uFEFF" };
+    expect(resolveHeroRepair([bomSlot], { ...target, slotId: bomSlot.slot_id })).toMatchObject({ index: 0, slot: bomSlot });
+    expect(resolveHeroRepair([{ ...slot, slot_id: "" }], { ...target, slotId: "" })).toBeNull();
+  });
   it("rejects unknown, duplicate, moved, inconsistent and non-editable slot targets", () => {
     expect(resolveHeroRepair([slot], { ...target, slotId: "missing" })).toBeNull();
     expect(resolveHeroRepair([slot, slot], target)).toBeNull();
