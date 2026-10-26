@@ -13,9 +13,12 @@ import type {
   RestrictedDiagnostics,
 } from "../../contracts";
 import "./battle-analysis.css";
+import type { BattleAnalysisContext } from "./tactical-context";
+import type { DiagnosticEvent } from "../../contracts";
 import { canonicalInputKey, classifyRunComparison } from "./run-comparison";
 
 export interface BattleAnalysisRun {
+  readonly experimentId?: string;
   readonly snapshot: SimulationSnapshot;
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
@@ -31,6 +34,9 @@ export interface BattleAnalysisProps {
   /** True when the editable Draft no longer represents the latest completed Run. */
   readonly draftChanged: boolean;
   readonly busy: boolean;
+  readonly context?: BattleAnalysisContext | null;
+  readonly traceSourceStatus?: (entry: DiagnosticEvent) => { readonly available: boolean; readonly reason: string };
+  readonly onTraceSource?: (entry: DiagnosticEvent) => void;
   readonly onReplayEvent: (event: GraphicsEvent) => void;
   readonly onReplayTick: (tick: number) => void;
   readonly onBattle: () => void;
@@ -231,6 +237,9 @@ export function BattleAnalysis({
   baselineRun,
   draftChanged,
   busy,
+  context,
+  traceSourceStatus,
+  onTraceSource,
   onReplayEvent,
   onReplayTick,
   onBattle,
@@ -280,6 +289,19 @@ export function BattleAnalysis({
   const countsByHero = useMemo(() => new Map(roster.map((hero) => [hero.slot, ownEventCount(events, hero.slot, attribution)])), [attribution, events, roster]);
   const timelineAttributionCount = attribution.size;
 
+  const selection = context && run && context.experimentId === run.experimentId
+    && context.matchId === result?.match_id && context.perspective === run.graphicsReplay.header.view ? context : null;
+  useEffect(() => {
+    if (!selection) return;
+    setHeroFilter("all"); setSquadFilter("all"); setEventFilter("all"); setSearch("");
+    const eventIndex = events.findIndex(event => selection.event
+      ? event.tick === selection.event.tick && event.order === selection.event.order : event.tick >= selection.tick);
+    setPage(eventIndex < 0 ? Math.max(0, Math.ceil(events.length / EVENT_PAGE_SIZE) - 1) : Math.floor(eventIndex / EVENT_PAGE_SIZE));
+    const traceIndex = ownDiagnostics.findIndex(entry => selection.trace
+      ? entry.tick === selection.trace.tick && entry.sequence === selection.trace.sequence : entry.tick >= selection.tick);
+    setDiagnosticPage(traceIndex < 0 ? Math.max(0, Math.ceil(ownDiagnostics.length / DIAGNOSTIC_PAGE_SIZE) - 1) : Math.floor(traceIndex / DIAGNOSTIC_PAGE_SIZE));
+  }, [selection?.experimentId, selection?.tick, selection?.entityId, selection?.event?.tick, selection?.event?.order, events, ownDiagnostics]);
+
   const chooseEvent = (event: GraphicsEvent): void => {
     onReplayEvent(event);
     onReplayTick(event.tick);
@@ -299,6 +321,9 @@ export function BattleAnalysis({
         <div className="battle-analysis-header-actions"><span className={run.graphicsReplay.header.view === "attacker" ? "battle-analysis-owner-tag" : "battle-analysis-public-tag"}>{run.graphicsReplay.header.view === "attacker" ? "OWNER REPLAY" : "PUBLIC REPLAY"}</span><button type="button" onClick={onBattle}>Battle Replayへ</button></div>
       </header>
 
+      {selection && <section aria-label="Replay analysis context" className="battle-analysis-context" data-tick={selection.tick} data-entity-id={selection.entityId ?? ""} data-event-order={selection.event?.order ?? ""}>
+        <strong>Replay selection · {selection.matchId}</strong><p>{selection.perspective} · Tick {selection.tick} · {selection.entityId ? `Visible subject ${selection.entityId}` : "No currently visible subject selected"}{selection.event ? ` · Event ${selection.event.order}` : ""}{selection.trace ? ` · Trace ${selection.trace.sequence}` : ""}</p>
+      </section>}
       <section aria-label="確定した試合結果" className="battle-analysis-result">
         <div className={`battle-analysis-result-mark result-${result.outcome}`} aria-hidden="true">{result.outcome === "attacker_victory" ? "勝" : result.outcome === "defender_victory" ? "敗" : "―"}</div>
         <div className="battle-analysis-result-copy"><span>CONFIRMED · {result.match_id}</span><strong>{resultLabel(result.outcome)}</strong><small>{result.termination_reason} · {result.final_tick} ticks · {result.cu_spent.attacker} CU spent by your side</small></div>
@@ -345,7 +370,7 @@ export function BattleAnalysis({
             <label className="battle-analysis-search"><span>検索</span><input aria-label="Timelineを検索" onChange={(event) => { setSearch(event.currentTarget.value); setPage(0); }} placeholder="event / entity / tick" type="search" value={search} /></label>
           </div>
           {rows.length ? <>
-            <ol className="battle-analysis-timeline">{pageRows.map(({ event, index, summary }) => <li key={`${event.tick}-${event.order}-${index}`}><button onClick={() => chooseEvent(event)} type="button"><span className="battle-analysis-tick">{formatStamp(String(event.tick))}</span><span className="battle-analysis-event-mark">{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="battle-analysis-event-copy"><strong>{eventTitle(event)}</strong><small>{summary}</small></span><span className="battle-analysis-open">Replay ↗</span></button></li>)}</ol>
+            <ol className="battle-analysis-timeline">{pageRows.map(({ event, index, summary }) => <li data-event-order={event.order} key={`${event.tick}-${event.order}-${index}`}><button onClick={() => chooseEvent(event)} type="button"><span className="battle-analysis-tick">{formatStamp(String(event.tick))}</span><span className="battle-analysis-event-mark">{event.type === "match-end" ? "◆" : event.type === "damage" ? "×" : event.type === "move" ? "→" : "•"}</span><span className="battle-analysis-event-copy"><strong>{eventTitle(event)}</strong><small>{summary}</small></span><span className="battle-analysis-open">Replay ↗</span></button></li>)}</ol>
             <nav aria-label="Timeline pages" className="battle-analysis-pages"><button disabled={currentPage <= 0} onClick={() => setPage(Math.max(0, currentPage - 1))} type="button">前のEvents</button><span>{currentPage + 1} / {pageCount}</span><button disabled={currentPage >= pageCount - 1} onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))} type="button">次のEvents</button></nav>
           </> : <p className="battle-analysis-unavailable">条件に一致する可視Replay Eventはありません。絞込を変えるか、公開Replayの範囲を確認してください。</p>}
           <p className="battle-analysis-boundary">Fogで非公開の対象・位置・行動はこのTimelineへ補われません。Eventを選ぶと実Replayの同じTickへ移動します。</p>
@@ -364,7 +389,10 @@ export function BattleAnalysis({
                   <button disabled={currentDiagnosticPage === diagnosticPageCount - 1} onClick={() => setDiagnosticPage(currentDiagnosticPage + 1)} type="button">次のTrace</button>
                   <button disabled={currentDiagnosticPage === diagnosticPageCount - 1} onClick={() => setDiagnosticPage(diagnosticPageCount - 1)} type="button">最後のTrace</button>
                 </nav>
-                <ol key={currentDiagnosticPage} aria-label="Supplied attacker diagnostics" className="battle-analysis-diagnostic-list">{diagnosticRows.map((entry, index) => <li key={`${entry.tick}-${entry.sequence}-${index}`}><button onClick={() => onReplayTick(entry.tick)} type="button"><span>{formatStamp(String(entry.tick))}</span><div><strong>{diagnosticTitle(entry.record.kind)}</strong><small>{diagnosticSummary(entry)}</small></div><b>Replay ↗</b></button></li>)}</ol>
+                <ol key={currentDiagnosticPage} aria-label="Supplied attacker diagnostics" className="battle-analysis-diagnostic-list">{diagnosticRows.map((entry, index) => {
+                  const source = traceSourceStatus?.(entry);
+                  return <li data-trace-sequence={entry.sequence} key={`${entry.tick}-${entry.sequence}-${index}`}><button onClick={() => onReplayTick(entry.tick)} type="button"><span>{formatStamp(String(entry.tick))}</span><div><strong>{diagnosticTitle(entry.record.kind)}</strong><small>{diagnosticSummary(entry)}</small></div><b>Replay ↗</b></button>{source && <div className="battle-analysis-trace-source"><button disabled={!source.available || !onTraceSource} onClick={() => onTraceSource?.(entry)} type="button">Inspect Action source</button><small>{source.reason}</small></div>}</li>;
+                })}</ol>
                 <p className="battle-analysis-boundary">Only records supplied by Enbu are available here; later unprovided records are not inferred.</p>
               </> : <p className="battle-analysis-unavailable">Enbu supplied authorized RestrictedDiagnostics, but emitted no attacker-side trace events for this run.</p>}
             </> : <p className="battle-analysis-unavailable" role="status">RestrictedDiagnostics were not supplied for this Run. Decision Trace is unavailable; no Observed result is inferred from the Jinrei source or Coverage.</p>}
@@ -376,7 +404,7 @@ export function BattleAnalysis({
             {comparedRun ? <>
               <p className="battle-analysis-comparison-label">{comparison?.category === "exact"
                 ? comparison.snapshotIdentical ? "同じEnbu Snapshot" : "同じ実行条件（Match IDのみ異なる）"
-                : <><span>入力を変更したRun</span> · {comparison?.category === "improved" ? "改良比較 · 自軍のみ変更" : "参考比較 · 条件が異なる／未確認"}</>}</p>
+                : <><span>{comparison?.changes.length ? "入力を変更したRun" : "入力条件を確認できないRun"}</span> · {comparison?.category === "improved" ? "改良比較 · 自軍のみ変更" : "参考比較 · 条件が異なる／未確認"}</>}</p>
               <div className="battle-analysis-comparison-values">
                 <div><small>PREVIOUS</small><strong>{resultLabel(comparedRun.response.outcome.result.outcome)}</strong><span>{comparedRun.response.outcome.result.final_tick} ticks · {comparedRun.response.outcome.result.cu_spent.attacker} CU</span></div>
                 <span aria-hidden="true">→</span>

@@ -7,6 +7,8 @@ import { EditorFeature } from "../editor";
 import { JinreiDomainPanel, actorSelection, capabilityMatchesScope } from "./JinreiDomainPanel";
 import "./jinrei-workbench.css";
 import { compilerTextOffset } from "./compiler-location";
+import type { AnalysisSourceContext } from "./tactical-context";
+import { textareaSourceSelection } from "./tactical-context";
 
 export interface JinreiWorkbenchSlot {
   readonly slot_id: string;
@@ -23,6 +25,8 @@ type BehaviorScope = "hero" | "squad" | "army";
 export interface JinreiWorkbenchProps {
   /** True only while S08 is the visible workspace screen. */
   readonly active?: boolean;
+  readonly analysisSource?: AnalysisSourceContext | null;
+  readonly onReturnToAnalysis?: () => void;
   readonly core: CoreClient | null;
   readonly ruleset: RulePackage | null;
   readonly catalog: DomainCatalogDocument | null;
@@ -61,6 +65,8 @@ function diagnosticPath(message: string): string | null {
 
 export function JinreiWorkbench({
   active = false,
+  analysisSource,
+  onReturnToAnalysis,
   core,
   ruleset,
   catalog,
@@ -89,6 +95,7 @@ export function JinreiWorkbench({
   const [modeBusy, setModeBusy] = useState<"no-code" | "text" | null>(null);
   const [lastCompiledDraftKey, setLastCompiledDraftKey] = useState<string | null>(null);
   const firstVisitStarted = useRef(false);
+  const consumedAnalysisSource = useRef<string | null>(null);
   const draftRef = useRef(draft);
   const draftKeyRef = useRef(draftKey);
   const activeHero = slots[activeSlot] ?? null;
@@ -190,7 +197,7 @@ export function JinreiWorkbench({
   };
 
   useEffect(() => {
-    if (!active || !ruleset || !core || !draft || firstVisitStarted.current) return;
+    if (!active || !ruleset || !core || !draft || firstVisitStarted.current || analysisSource) return;
     firstVisitStarted.current = true;
     if (draft.program_input.kind === "structured_ast") {
       setWorkbenchView("no-code");
@@ -239,6 +246,29 @@ export function JinreiWorkbench({
     if (path) setCompileError(offset !== null ? `Compiler location: ${path}. The editor selection marks this source location.` : `Compiler location: ${path}. This diagnostic does not include a source byte offset.`);
   };
 
+  const sourceMatches = Boolean(analysisSource && draft?.program_input.kind === "text"
+    && draft.program_input.source === analysisSource.source && compilation?.program.content_digest === analysisSource.programDigest);
+  const sourceFocusState = useRef({ identity: analysisSource?.identity, active, matches: sourceMatches });
+  sourceFocusState.current = { identity: analysisSource?.identity, active, matches: sourceMatches };
+  const focusAnalysisSource = (): boolean => {
+    if (!analysisSource || !sourceFocusState.current.active || !sourceFocusState.current.matches
+      || sourceFocusState.current.identity !== analysisSource.identity) return false;
+    const editor = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
+    const selection = textareaSourceSelection(analysisSource.source, analysisSource.range);
+    if (!editor?.getClientRects().length || editor.value !== selection.source) return false;
+    editor.focus(); editor.setSelectionRange(selection.start, selection.end);
+    editor.scrollIntoView({ block: "center" });
+    return true;
+  };
+  useEffect(() => {
+    if (!active || !analysisSource || consumedAnalysisSource.current === analysisSource.identity) return;
+    consumedAnalysisSource.current = analysisSource.identity;
+    firstVisitStarted.current = true;
+    onScreenChange("workbench"); setWorkbenchView(draft?.program_input.kind === "text" ? "text" : "no-code");
+    const frame = requestAnimationFrame(focusAnalysisSource);
+    return () => cancelAnimationFrame(frame);
+  }, [active, analysisSource?.identity]);
+
   const diagnosticRows = compilation?.diagnostics ?? [];
 
   return (
@@ -248,6 +278,16 @@ export function JinreiWorkbench({
         <div className={`next-jinrei-compile-badge${compilation ? " is-current" : ""}`} aria-live="polite"><span>{compilation ? "✓" : "◌"}</span><strong className={`next-compile-state${compilation ? " is-ready" : ""}`}>{compileState}</strong><small>{compileStateDetail}</small></div>
       </header>
 
+      {analysisSource && <section aria-label="Analysis source context" className="next-jinrei-source-context">
+        <strong>Original Run {analysisSource.context.matchId} · Tick {analysisSource.context.trace?.tick ?? analysisSource.context.tick} · Action {analysisSource.actionId}</strong>
+        <p>Original Program <code>{analysisSource.programDigest}</code>. {sourceMatches ? "Exact source correspondence from verified parser locations." : "Current Draft differs or has no matching compiled Program. Precise editor jump is disabled; your Draft is preserved."}</p>
+        <details><summary>Original Action source (read only)</summary><pre>{analysisSource.source.slice(analysisSource.range.start, analysisSource.range.end)}</pre></details>
+        <button type="button" disabled={!sourceMatches} onClick={() => {
+          onScreenChange("workbench"); setWorkbenchView("text");
+          if (!focusAnalysisSource()) requestAnimationFrame(() => requestAnimationFrame(focusAnalysisSource));
+        }}>Select matching current source</button>
+        <button type="button" onClick={onReturnToAnalysis}>Back to original Analysis</button>
+      </section>}
       <nav className="next-jinrei-screen-nav" aria-label="Jinrei screens" role="tablist">
         <button aria-selected={screen === "workbench"} onClick={() => onScreenChange("workbench")} role="tab" type="button"><span>08</span><strong>Jinrei Workbench</strong><small>EDIT · CATALOG</small></button>
         <button aria-selected={screen === "coverage"} onClick={() => onScreenChange("coverage")} role="tab" type="button"><span>09</span><strong>Behavior Coverage</strong><small>HERO · SQUAD · ARMY</small></button>

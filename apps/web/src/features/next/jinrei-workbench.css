@@ -267,3 +267,6 @@
 
 .next-jinrei-hero-context { align-items: center; display: flex; flex-wrap: wrap; gap: .6rem; color: #c4c9d1; font-size: .8rem; }
 .next-jinrei-hero-context select { max-width: 100%; min-height: 44px; }
+.next-jinrei-source-context { border: 1px solid #748b73; border-radius: 4px; padding: 14px; margin-block: 14px; font-size: 12px; overflow-wrap: anywhere; }
+.next-jinrei-source-context pre { max-height: 180px; overflow: auto; white-space: pre-wrap; }
+.next-jinrei-source-context button { min-height: 44px; }
