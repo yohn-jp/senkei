@@ -1,6 +1,6 @@
 # BH-03 — late conflict proof and decision boundary
 
-Assessment source: `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Classification: **UNDEFINED/DEFERRED — DECISION_REQUIRED** for the general cross-capability policy/representation. The requirement to declare stable conflict handling is already defined; this assessment does not reopen that requirement or claim it implemented.
+Assessment source: `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Classification: **INCOMPLETE** for the defined mechanism to validate and consume a complete authored cross-capability order. Ordinary typed representation/schema implementation is authorized; an absent model field does not make that mechanism undefined. **DECISION_REQUIRED** applies only to unauthored production policy choices such as conflict grouping, rankings and game-specific semantics.
 
 Authority: [BEHAVIOR §3, line 58](../../BEHAVIOR.md#L58) and [RUNTIME-INTEGRATION-CONTRACTS §3](../../RUNTIME-INTEGRATION-CONTRACTS.md#L82) require a declared stable total order for conflicting Subject/field candidates, including different Capabilities, and rejection of undeclared conflicts.
 
@@ -22,8 +22,8 @@ Executed command exited 0: `CARGO_TARGET_DIR=/workspace/scratch/behavior-proof-t
 
 ## Missing decision and implementation consequence
 
-The producer contract still needs a representation and consumer rule for cross-capability Subject/field conflict sets, how scopes map to the same subject, stable total-order keys, applicability under phase/legality/precondition constraints, and treatment of equal or disjoint writes. This is separate from already implemented semantic-extension digest binding.
+The defined implementation gap is a common typed authored-order representation, validation of completeness/consistency, and consumption by the resolver. Implementing that mechanism is authorized without choosing production rankings. Actual production conflict groups, cross-scope subject mappings and rankings must be authored explicitly rather than inferred from fixture values. The latter product choices remain DECISION_REQUIRED where no authority supplies them. This is separate from already implemented semantic-extension digest binding.
 
 A blanket ban on multiple Capabilities, or even on every same-scope/same-field declaration, would reject legitimate disjoint actor types/scopes/fields/phases, singleton-equal values or mutually exclusive conditions. Creating an ad hoc satisfiability/witness subsystem to recognize selected cases would expand this future extension and still not establish the complete contract. A partial validator must not be reported as full BH-03 acceptance.
 
-Therefore no validator, new global rank, model schema or game default is introduced in this work. Existing runtime rejection remains in place. Resume implementation after the producer/consumer ordering decision is explicit; unrelated UI, persistence, source-location and renderer work continues independently. This decision boundary is not a goal-completion claim.
+Therefore no validator, new global rank, model schema or game default is introduced in this work. Existing runtime rejection remains in place. A later bounded task may implement the common authored-order mechanism without inventing production policy; selecting production groups/ranks remains deferred. Unrelated UI, persistence, source-location and renderer work continues independently. This decision boundary is not a goal-completion claim.
