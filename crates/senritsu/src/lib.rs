@@ -9,7 +9,7 @@ pub mod catalog;
 pub use initial::{initial_engine_compatibility, initial_package};
 pub use catalog::{
     AggregationPolicy, BehaviorDomain, BehaviorFieldId, BehaviorFieldIdError,
-    BehaviorFieldDefinition, BehaviorOverridePolicy, BehaviorProfileFieldSchema,
+    BehaviorFieldDefinition, BehaviorOrderContract, BehaviorOrderDeclaration, BehaviorOverridePolicy, BehaviorProfileFieldSchema,
     BehaviorProfileMetadata, BehaviorProfileSchemas, BehaviorScope, CapabilityContractMetadata,
     CapabilityDefinition, CapabilityLifetime, EngagementBehaviorSchema,
     CatalogCompatibilityKey, CatalogIdentity, CatalogMetadataExtension, CatalogSymbol,

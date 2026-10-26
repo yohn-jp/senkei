@@ -180,6 +180,7 @@ fn test_extension(
         hero_defaults.insert(hero_id.clone(), values);
     }
     let behavior_profiles = BehaviorProfileMetadata {
+        cross_capability_order: None,
         inheritance_order: vec![
             ProfileLayer::SenritsuDefault,
             ProfileLayer::HeroCatalogDefault,
@@ -725,4 +726,228 @@ fn producer_contract_keeps_six_domain_schemas_typed_and_values_unresolved() {
     assert_eq!(first.metadata_extension_digest(), second.metadata_extension_digest());
     assert_eq!(first.catalog_digest(), second.catalog_digest());
     assert_eq!(first.compatibility_key(), second.compatibility_key());
+}
+
+fn authored_order_fixture() -> Fixture { authored_order_fixture_edit(|_| {}) }
+
+fn authored_order_fixture_edit(edit: impl FnOnce(&mut CatalogMetadataExtension)) -> Fixture {
+    authored_order_fixture_config(|_, extension| edit(extension))
+}
+
+fn authored_order_fixture_config(edit: impl FnOnce(&mut RulePackage, &mut CatalogMetadataExtension)) -> Fixture {
+    let mut package = senritsu::next_package();
+    let provisional = senritsu::validate(package.clone(), &senritsu::next_engine_compatibility()).unwrap();
+    let heroes = &provisional.plan().next.as_ref().unwrap().heroes;
+    let hero_ids = [heroes[0].id.clone(), heroes[1].id.clone()];
+    let mut extension = test_extension(&provisional, &hero_ids);
+    let mut skill = extension.capabilities[&CapabilityId::new("move")].clone();
+    skill.behavior_override_arguments.insert("targeting.mode".into(), 1);
+    extension.capabilities.insert(CapabilityId::new("activate"), skill);
+    let declaration = |direction| BehaviorOrderDeclaration {
+        scope: BehaviorScope::Hero, actor_type: TypeId::new("hero"),
+        capabilities: [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect(),
+        arbitration: ArbitrationRule { conflict_keys: vec![IntentKey::Side, IntentKey::Actor],
+            resolution: ArbitrationResolution::SelectOrdered { max_accepted: 1,
+                sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction }] } },
+    };
+    // Deliberately different fixture orders. These are not production policy.
+    extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
+        intent_selection: vec![declaration(SortDirection::Ascending)],
+        field_writers: BTreeMap::from([("navigation.destination".into(), vec![declaration(SortDirection::Descending)])]),
+    });
+    edit(&mut package, &mut extension);
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    let plan = senritsu::validate_with_catalog_extension(package, &senritsu::next_engine_compatibility(), extension.clone()).unwrap();
+    let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension).unwrap();
+    let resolver = BehaviorResolver::new(&catalog, &catalog.compatibility_key()).unwrap();
+    Fixture { plan, catalog, resolver, hero_ids }
+}
+
+// Also called by a test-only native/WASM harness. Every fact here is fixture
+// data; caller-certified legality does not claim an actual Enbu match.
+pub fn authored_order_parity_fixture() -> serde_json::Value {
+    assert_order_failures();
+    assert_compatible_field_cases();
+    assert_local_order_strictness(None, false);
+    assert_local_order_strictness(Some(7), false);
+    assert_local_order_strictness(Some(7), true);
+    assert_disjoint_local_order();
+    assert_unordered_local_capacity();
+    let fixture = authored_order_fixture();
+    let source = r#"senkei authored_rules {
+        action z_move { when true, do move(argmin h in allies.heroes by h.level then h.id, "A.TOP.J"), },
+        action a_skill { when true, do activate(argmin h in allies.heroes by h.level then h.id, "f01_a_active", argmin h in allies.heroes by h.level then h.id), },
+    }"#;
+    let compiled = compile(source, &fixture.plan).unwrap();
+    let observation = ObservationSnapshot {
+        tick: 11, side: CombatantSide::Attacker, fields: BTreeMap::new(),
+        collections: BTreeMap::from([(CollectionId::new("allies.heroes"), Observed::Known(vec![EntityObservation {
+            id: EntityId::new("hero-one"), entity_type: TypeId::new("hero"),
+            fields: BTreeMap::from([(FieldId::new("level"), Observed::Known(DomainValue::Integer(3)))]),
+        }]))]),
+    };
+    let allowed = [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect();
+    let memory = TacticalMemory::new();
+    let output = Vm::new(&fixture.plan).execute(TacticalExecutionRequest {
+        side: observation.side, tick: observation.tick, program: &compiled.program,
+        observation: &observation, memory: &memory, allowed_capabilities: &allowed,
+        budget: ExecutionBudget { available_cu: LogicalCu(10_000), max_intents: 8 },
+    }).unwrap();
+    assert_eq!(output.intents.len(), 2);
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let legal = output.intents.iter().map(|intent| (intent.action_id.clone(), Legality::KnownLegal)).collect();
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 11, observation.side, &output, &legal).unwrap();
+    assert_eq!(composition.values["navigation.destination"], DomainValue::String("A.TOP.J".into()));
+    // Losing the navigation field does not erase this action's other field.
+    assert_eq!(composition.values["targeting.mode"], DomainValue::String("f01_a_active".into()));
+    assert!(composition.rejected_overrides.iter().any(|item| matches!(&item.reason, RejectionReason::FieldOrderRejected(field) if field == "navigation.destination")));
+    let mut reversed = output.clone(); reversed.intents.reverse();
+    assert_eq!(composition, fixture.resolver.compose(&hero, &ProfilePreferences::default(), 11, observation.side, &reversed, &legal).unwrap());
+    let candidates = output.intents.iter().cloned().map(|intent| candidate(intent, CandidateSource::Explicit, 11, observation.side, None, Legality::KnownLegal)).collect::<Vec<_>>();
+    let decision = fixture.resolver.resolve_candidates(&composition, &hero, 11, observation.side, &candidates, None).unwrap();
+    assert_eq!(decision.selected.as_ref().unwrap().action_id.as_str(), "a_skill");
+    let mut reversed_candidates = candidates.clone(); reversed_candidates.reverse();
+    let reversed_decision = fixture.resolver.resolve_candidates(&composition, &hero, 11, observation.side, &reversed_candidates, None).unwrap();
+    assert_eq!(decision.selected, reversed_decision.selected);
+    serde_json::json!({ "catalog": String::from_utf8(fixture.catalog.canonical_json().unwrap()).unwrap(),
+        "program_digest": compiled.program.content_digest, "cu": output.charged_cu,
+        "intents": output.intents, "composition": composition, "decision": decision })
+}
+
+#[test]
+fn authored_orders_select_actions_and_fields_independently_with_real_vm() {
+    authored_order_parity_fixture();
+}
+
+#[test]
+fn authored_orders_fail_closed_for_uncovered_candidates_missing_keys_and_duplicate_ids() { assert_order_failures(); }
+
+fn assert_order_failures() {
+    let fixture = authored_order_fixture();
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &empty_execution(), &BTreeMap::new()).unwrap();
+    let first = candidate(move_intent("same", "hero-one", "A.TOP.J"), CandidateSource::Explicit, 1, CombatantSide::Attacker, None, Legality::KnownLegal);
+    let second = candidate(Intent { capability: CapabilityId::new("retreat"), arguments: vec![DomainValue::Entity(EntityId::new("hero-one"))], action_id: ActionId::new("other"), ..first.intent.clone() }, CandidateSource::Explicit, 1, CombatantSide::Attacker, None, Legality::KnownLegal);
+    assert_eq!(fixture.resolver.resolve_candidates(&composition, &hero, 1, CombatantSide::Attacker, &[first.clone(), second], None), Err(BehaviorError::UnresolvedCandidateConflict));
+    assert_eq!(fixture.resolver.resolve_candidates(&composition, &hero, 1, CombatantSide::Attacker, &[first.clone(), first], None), Err(BehaviorError::UnresolvedCandidateConflict));
+    let missing_priority = authored_order_fixture_edit(|extension| {
+        let order = &mut extension.behavior_profiles.cross_capability_order.as_mut().unwrap()
+            .field_writers.get_mut("navigation.destination").unwrap()[0];
+        if let ArbitrationResolution::SelectOrdered { sort_by, .. } = &mut order.arbitration.resolution {
+            sort_by.insert(0, IntentSortTerm { key: IntentKey::Priority, direction: SortDirection::Descending });
+        }
+    });
+    let resolver = &missing_priority.resolver;
+    let movement = move_intent("move", "hero-one", "A.TOP.J");
+    let skill = Intent { action_id: ActionId::new("skill"), capability: CapabilityId::new("activate"), target: Some(EntityId::new("hero-one")),
+        arguments: vec![DomainValue::Entity(EntityId::new("hero-one")), DomainValue::String("f01_a_active".into()), DomainValue::Entity(EntityId::new("hero-one"))], ..movement.clone() };
+    let legal = [(movement.action_id.clone(), Legality::KnownLegal), (skill.action_id.clone(), Legality::KnownLegal)].into_iter().collect();
+    assert_eq!(resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &execution(vec![movement, skill], vec![]), &legal), Err(BehaviorError::UnresolvedCandidateConflict));
+}
+
+#[test]
+fn absent_field_orders_accept_disjoint_fields_and_equal_values_but_reject_actual_collision() { assert_compatible_field_cases(); }
+
+fn assert_compatible_field_cases() {
+    let disjoint = authored_order_fixture_edit(|extension| {
+        extension.behavior_profiles.cross_capability_order = None;
+        extension.capabilities.get_mut(&CapabilityId::new("activate")).unwrap()
+            .behavior_override_arguments.remove("navigation.destination");
+    });
+    let hero = actor(&disjoint.hero_ids[0], "hero-one");
+    let movement = move_intent("move", "hero-one", "A.TOP.J");
+    let skill = Intent { action_id: ActionId::new("skill"), capability: CapabilityId::new("activate"), target: Some(EntityId::new("hero-one")),
+        arguments: vec![DomainValue::Entity(EntityId::new("hero-one")), DomainValue::String("f01_a_active".into()), DomainValue::Entity(EntityId::new("hero-one"))], ..movement.clone() };
+    let legal = [(movement.action_id.clone(), Legality::KnownLegal), (skill.action_id.clone(), Legality::KnownLegal)].into_iter().collect();
+    let output = execution(vec![movement.clone(), skill.clone()], vec![]);
+    let composition = disjoint.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &output, &legal).unwrap();
+    assert_eq!(composition.values["navigation.destination"], movement.arguments[1]);
+    assert_eq!(composition.values["targeting.mode"], skill.arguments[1]);
+    let uncovered = authored_order_fixture_edit(|extension| extension.behavior_profiles.cross_capability_order = None);
+    assert_eq!(uncovered.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &output, &legal), Err(BehaviorError::UnresolvedCandidateConflict));
+    let mut equal_output = output;
+    equal_output.intents[1].arguments[1] = movement.arguments[1].clone();
+    let equal = uncovered.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &equal_output, &legal).unwrap();
+    assert_eq!(equal.values["navigation.destination"], movement.arguments[1]);
+    assert_eq!(equal.provenance["navigation.destination"].source, "jinrei:move + jinrei:skill");
+    equal_output.intents.reverse();
+    assert_eq!(equal, uncovered.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &equal_output, &legal).unwrap());
+}
+
+
+#[test]
+fn authored_orders_reject_local_missing_priority_before_reduction() { assert_local_order_strictness(None, false); }
+
+#[test]
+fn authored_orders_reject_local_known_priority_ties_before_reduction() { assert_local_order_strictness(Some(7), false); }
+
+#[test]
+fn authored_orders_accept_complete_local_order_before_cross_capability_selection() { assert_local_order_strictness(Some(7), true); }
+
+fn assert_local_order_strictness(priority: Option<i64>, complete: bool) {
+    let fixture = authored_order_fixture_config(|package, extension| {
+        let mut sort_by = vec![IntentSortTerm { key: IntentKey::Priority, direction: SortDirection::Descending }];
+        if complete { sort_by.push(IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }); }
+        package.arbitration.get_mut(&CapabilityId::new("move")).unwrap().resolution =
+            ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 };
+        if let ArbitrationResolution::SelectOrdered { sort_by, .. } = &mut extension.behavior_profiles.cross_capability_order
+            .as_mut().unwrap().intent_selection[0].arbitration.resolution { sort_by[0].direction = SortDirection::Descending; }
+    });
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &empty_execution(), &BTreeMap::new()).unwrap();
+    let mut first = move_intent("a_move", "hero-one", "A.TOP.J"); first.priority = priority;
+    let mut second = move_intent("z_move", "hero-one", "A.MID.J"); second.priority = priority;
+    let skill = Intent { action_id: ActionId::new("m_skill"), capability: CapabilityId::new("activate"), target: Some(EntityId::new("hero-one")),
+        arguments: vec![DomainValue::Entity(EntityId::new("hero-one")), DomainValue::String("f01_a_active".into()), DomainValue::Entity(EntityId::new("hero-one"))], ..first.clone() };
+    let mut intents = vec![first, second, skill];
+    let legal = intents.iter().map(|intent| (intent.action_id.clone(), Legality::KnownLegal)).collect();
+    for _ in 0..2 {
+        let composed = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &execution(intents.clone(), vec![]), &legal);
+        let candidates = intents.iter().cloned().map(|intent| candidate(intent, CandidateSource::Explicit, 1, CombatantSide::Attacker, None, Legality::KnownLegal)).collect::<Vec<_>>();
+        let selected = fixture.resolver.resolve_candidates(&composition, &hero, 1, CombatantSide::Attacker, &candidates, None);
+        if complete {
+            assert_eq!(composed.unwrap().values["navigation.destination"], DomainValue::String("f01_a_active".into()));
+            assert_eq!(selected.unwrap().selected.unwrap().action_id.as_str(), "m_skill");
+        } else {
+            assert_eq!(composed, Err(BehaviorError::UnresolvedCandidateConflict));
+            assert_eq!(selected, Err(BehaviorError::UnresolvedCandidateConflict));
+        }
+        intents.reverse();
+    }
+}
+
+#[test]
+fn authored_orders_keep_disjoint_local_candidates_for_declared_global_selection() { assert_disjoint_local_order(); }
+
+fn assert_disjoint_local_order() {
+    let fixture = authored_order_fixture_config(|package, _| {
+        let rule = package.arbitration.get_mut(&CapabilityId::new("move")).unwrap();
+        rule.conflict_keys = vec![IntentKey::ActionId];
+        rule.resolution = ArbitrationResolution::SelectOrdered { max_accepted: 8,
+            sort_by: vec![IntentSortTerm { key: IntentKey::Priority, direction: SortDirection::Descending }] };
+    });
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let intents = vec![move_intent("a_move", "hero-one", "A.TOP.J"), move_intent("z_move", "hero-one", "A.MID.J")];
+    let legal = intents.iter().map(|intent| (intent.action_id.clone(), Legality::KnownLegal)).collect();
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &execution(intents, vec![]), &legal).unwrap();
+    assert_eq!(composition.values["navigation.destination"], DomainValue::String("A.MID.J".into()));
+}
+
+#[test]
+fn authored_orders_reject_unordered_local_truncation_and_accept_allow_all_that_fits() { assert_unordered_local_capacity(); }
+
+fn assert_unordered_local_capacity() {
+    for max_accepted in [1, 8] {
+        let fixture = authored_order_fixture_config(|package, _| {
+            package.arbitration.get_mut(&CapabilityId::new("move")).unwrap().resolution = ArbitrationResolution::AllowAll { max_accepted };
+        });
+        let hero = actor(&fixture.hero_ids[0], "hero-one");
+        let intents = vec![move_intent("a_move", "hero-one", "A.TOP.J"), move_intent("z_move", "hero-one", "A.MID.J")];
+        let legal = intents.iter().map(|intent| (intent.action_id.clone(), Legality::KnownLegal)).collect();
+        let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 1, CombatantSide::Attacker, &execution(intents, vec![]), &legal);
+        if max_accepted == 1 { assert_eq!(composition, Err(BehaviorError::UnresolvedCandidateConflict)); }
+        else { assert_eq!(composition.unwrap().values["navigation.destination"], DomainValue::String("A.MID.J".into())); }
+    }
 }

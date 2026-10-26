@@ -25,6 +25,7 @@ pub fn authored_profile_catalog_json() -> String {
         entity_scopes: BTreeMap::new(),
         capabilities: BTreeMap::new(),
         behavior_profiles: BehaviorProfileMetadata {
+            cross_capability_order: None,
             inheritance_order: vec![
                 ProfileLayer::SenritsuDefault,
                 ProfileLayer::HeroCatalogDefault,
