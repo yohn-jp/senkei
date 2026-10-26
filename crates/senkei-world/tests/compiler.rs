@@ -23,6 +23,16 @@ fn initial_battlefield_is_a_valid_profiled_world_artifact() {
         compiled.identity().validation_profile.as_ref().unwrap().id,
         INITIAL_BATTLEFIELD_PROFILE_ID
     );
+    assert_eq!(compiled.identity().compiler_version, COMPILER_VERSION);
+    let model_ref = compiled.identity().to_model_ref();
+    assert_eq!(model_ref.compiler_version, senkei_model::Version::new(
+        COMPILER_VERSION.major,
+        COMPILER_VERSION.minor,
+        COMPILER_VERSION.patch,
+    ));
+    let model_ref_bytes = serde_json::to_vec(&model_ref).unwrap();
+    let decoded: senkei_model::WorldIdentityRef = serde_json::from_slice(&model_ref_bytes).unwrap();
+    assert_eq!(decoded, model_ref);
     assert_eq!(compiled.identity().logic_digest.as_str().len(), 64);
     assert_eq!(compiled.identity().presentation_digest.as_str().len(), 64);
 }
