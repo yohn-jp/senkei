@@ -74,5 +74,43 @@
   "limits": [
     "No final integrated-main CI claim.",
     "C04 parent, S06, Campaign retry, C08, new diagnostics lineage, Behavior completeness and final art still require their own integration and acceptance."
-  ]
+  ],
+  "mobile_integration": {
+    "source_revision": "ac3eed9cd310ab7103bbd23d032bd82bc7cd1d93",
+    "production_build": "PASS",
+    "browser_command": "npm run test:e2e --prefix tests/browser -- mobile-battle-view-controls.spec.ts recovery-core-quota-retry.spec.ts mobile-c12-draft-return.spec.ts --workers=1 --retries=0",
+    "browser_passed": 3,
+    "viewports": [
+      [
+        320,
+        844
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        430,
+        932
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        1920,
+        1080
+      ]
+    ],
+    "proof": [
+      "Fresh confirmed Enbu replay mode and layer toggles keep Tick unchanged",
+      "Quota-denied Recovery writes plus same-package Core retry retain current source and old durable bytes; actual compile succeeds",
+      "Home then explicit Next entry preserves selected Jinrei/Text target and unsaved source before any tab click; emulated window resize retains source"
+    ],
+    "limitations": [
+      "Recovery test performs no Enbu and does not prove Run retention",
+      "Browser Back, physical rotation, touch, keyboard/IME and safe area unverified",
+      "844x390 source editor narrowing remains an allocated responsive-layout defect"
+    ]
+  }
 }
