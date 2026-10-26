@@ -25,5 +25,21 @@ config fix the test integration boundary. Both 1440px/390px component tests and
 all four focused helper/view tests pass after the correction. Ordinary production
 journey collection succeeds and does not include the SSR component spec.
 
-Live HeroAtelier and Run-parent wiring remains a separate consumer task. No
-physical-device, full main-CI or complete S06 acceptance is asserted here.
+The HeroAtelier consumer accepts optional `skillRunContext` with the immutable
+Run fields (`HeroAtelierRunContext`). It associates the selected Draft slot and
+current Catalog Hero through the same helper and displays the result below the
+editable branch canvas. An absent Run has an explicit unknown-acquisition state.
+The parent must pass the actual Run authorization, owner replay, submitted Hero
+configuration, Match/ruleset identities and selected Replay Tick; parent wiring
+remains a separate task.
+
+The mounted-component browser harness uses the actual Core Catalog and the two
+unchanged native owner frames. At 390px and 1440px it verifies T85 acquisition,
+T0 rewind, public-only Unknown, a changed Draft branch yielding Unknown, ordinary
+Collection/Skill return, no Run mutation and no Draft write from observation-only
+operations. Only the explicit branch choice writes the Draft. The dedicated
+`skill-atelier.config.ts` keeps this component harness outside production journey
+collection. TypeScript/build and 17 focused consumer/legacy/helper tests pass.
+
+No physical-device, full main-CI or complete S06 product acceptance is asserted
+before the Run-parent connection is implemented and exercised.
