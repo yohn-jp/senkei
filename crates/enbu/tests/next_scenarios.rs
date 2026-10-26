@@ -635,6 +635,44 @@ fn authored_order_metadata_preserves_nonconflicting_per_capability_selection_tra
     }
 }
 
+#[test]
+fn authored_cross_capability_order_does_not_reselect_same_capability_candidates() {
+    let validated = authored_order_rules(true);
+    let mut plan = validated.plan().clone();
+    plan.arbitration.insert(CapabilityId::new("move"), ArbitrationRule {
+        conflict_keys: vec![IntentKey::ActionId],
+        resolution: ArbitrationResolution::SelectOrdered {
+            sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Descending }],
+            max_accepted: 32,
+        },
+    });
+    let rules = VerifiedRulePlan::from_validation(
+        validated.ruleset().clone(),
+        validated.package_digest().clone(),
+        plan,
+    );
+    let hero = hero_selector("slot-1");
+    let source = format!(
+        "senkei same_capability_decisions {{ action a_move {{ when match.tick == 1, do move({hero}, \"A.TOP.T2\"), }}, action z_move {{ when match.tick == 1, do move({hero}, \"A.TOP.T3\"), }} }}"
+    );
+    let artifact = authored_order_source_result(&rules, "actor-order-single-cap", &source, &[])
+        .unwrap_or_else(|error| panic!("same-capability legal intents execute: {error:?}"));
+    let statuses = artifact.diagnostics.events.iter().filter_map(|event| {
+        if event.tick != 1 || event.side != CombatantSide::Attacker { return None; }
+        match &event.record {
+            DiagnosticRecord::IntentAccepted { intent }
+                if intent.action_id.as_str() == "a_move" || intent.action_id.as_str() == "z_move" =>
+                    Some((intent.action_id.as_str().to_owned(), true)),
+            DiagnosticRecord::IntentRejected { intent, .. }
+                if intent.action_id.as_str() == "a_move" || intent.action_id.as_str() == "z_move" =>
+                    Some((intent.action_id.as_str().to_owned(), false)),
+            _ => None,
+        }
+    }).collect::<Vec<_>>();
+    assert_eq!(statuses, vec![("z_move".into(), true), ("a_move".into(), true)],
+        "the declared cross-capability order leaves same-capability arbitration and its diagnostic order intact");
+}
+
 fn entity_integer(entity: &EntityStateView, field: &str) -> i64 {
     match entity.fields.get(&FieldId::new(field)) {
         Some(DomainValue::Integer(value)) => *value,

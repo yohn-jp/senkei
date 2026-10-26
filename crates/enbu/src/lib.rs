@@ -1266,10 +1266,23 @@ fn arbitrate_actor_orders(
             continue;
         }
         let capabilities = group.iter().map(|(_, _, intent)| intent.capability.clone()).collect::<BTreeSet<_>>();
-        let applicable = plan.actor_intent_orders.iter().filter(|order| {
-            Some(order.scope) == scope
-                && order.actor_type == actor_type
-                && capabilities.is_subset(&order.capabilities)
+        if capabilities.len() == 1 {
+            // Existing per-capability arbitration owns same-capability
+            // candidates. Cross-capability metadata never reselects them.
+            results.extend(group.into_iter().map(|(index, side, intent)| (index, side, intent, true)));
+            continue;
+        }
+        let domain_orders = plan.actor_intent_orders.iter().filter(|order| {
+            Some(order.scope) == scope && order.actor_type == actor_type
+        }).collect::<Vec<_>>();
+        if domain_orders.is_empty() {
+            // This actor domain has no authored cross-capability policy. Keep
+            // the already accepted per-capability candidates unchanged.
+            results.extend(group.into_iter().map(|(index, side, intent)| (index, side, intent, true)));
+            continue;
+        }
+        let applicable = domain_orders.iter().copied().filter(|order| {
+            capabilities.is_subset(&order.capabilities)
         }).collect::<Vec<_>>();
         if applicable.len() != 1 {
             return Err(invalid_plan("legal actor-local capability conflict has no unique complete authored order"));
@@ -1598,5 +1611,113 @@ mod tactical_diagnostic_tests {
         ).unwrap();
         assert_eq!(legacy.len(), records.len());
         assert_eq!(legacy.iter().filter(|event| matches!(event.record, DiagnosticRecord::CostCharged { .. })).count(), 300_000);
+    }
+}
+
+#[cfg(test)]
+mod actor_order_domain_tests {
+    use super::*;
+
+    fn actor_order(scope: senkei_model::ActorControlScope, actor_type: &str, capabilities: &[&str]) -> senkei_model::ActorIntentOrder {
+        senkei_model::ActorIntentOrder {
+            scope,
+            actor_type: senkei_model::TypeId::new(actor_type),
+            capabilities: capabilities.iter().map(|id| senkei_model::CapabilityId::new(*id)).collect(),
+            arbitration: senkei_model::ArbitrationRule {
+                conflict_keys: vec![senkei_model::IntentKey::Actor],
+                resolution: senkei_model::ArbitrationResolution::SelectOrdered {
+                    sort_by: vec![senkei_model::IntentSortTerm {
+                        key: senkei_model::IntentKey::ActionId,
+                        direction: senkei_model::SortDirection::Ascending,
+                    }],
+                    max_accepted: 1,
+                },
+            },
+        }
+    }
+
+    fn intent(index: usize, capability: &str, actor: &str) -> (usize, CombatantSide, Intent) {
+        (index, CombatantSide::Attacker, Intent {
+            action_id: senkei_model::ActionId::new(format!("action-{index}")),
+            capability: senkei_model::CapabilityId::new(capability),
+            actor: Some(EntityId::new(actor)),
+            target: None,
+            arguments: Vec::new(),
+            priority: None,
+        })
+    }
+
+    fn world_actor(actor: &str, actor_type: &str) -> WorldState {
+        WorldState {
+            entities: BTreeMap::from([(EntityId::new(actor), senkei_model::EntityState {
+                entity_type: senkei_model::TypeId::new(actor_type),
+                owner: Some(CombatantSide::Attacker),
+                fields: BTreeMap::new(),
+            })]),
+            ..WorldState::default()
+        }
+    }
+
+    fn next_plan_with_order(order: senkei_model::ActorIntentOrder) -> RulePlan {
+        let mut plan = RulePlan::from(&senritsu::next_package());
+        plan.actor_intent_orders = vec![order];
+        plan
+    }
+
+    #[test]
+    fn unscoped_typed_actor_domain_without_a_declaration_passes_per_capability_accepts() {
+        let mut plan = next_plan_with_order(actor_order(
+            senkei_model::ActorControlScope::Hero,
+            "hero",
+            &["retreat"],
+        ));
+        for capability in ["move", "activate"] {
+            let schema = plan.domain.capabilities.get_mut(&senkei_model::CapabilityId::new(capability)).unwrap();
+            let actor_argument = schema.actor_argument.unwrap() as usize;
+            schema.arguments[actor_argument].value_type = senkei_model::DomainType::Entity {
+                entity_type: Some(senkei_model::TypeId::new("minion")),
+            };
+        }
+        let results = arbitrate_actor_orders(
+            vec![intent(0, "move", "minion-one"), intent(1, "activate", "minion-one")],
+            &plan,
+            &world_actor("minion-one", "minion"),
+        ).unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|(_, _, _, accepted)| *accepted),
+            "actor domains with no authored scope declaration keep per-capability accepts");
+    }
+
+    #[test]
+    fn same_capability_candidates_keep_per_capability_accepts_despite_actor_order_metadata() {
+        let plan = next_plan_with_order(actor_order(
+            senkei_model::ActorControlScope::Hero,
+            "hero",
+            &["move"],
+        ));
+        let results = arbitrate_actor_orders(
+            vec![intent(0, "move", "hero-one"), intent(1, "move", "hero-one")],
+            &plan,
+            &world_actor("hero-one", "hero"),
+        ).unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|(_, _, _, accepted)| *accepted),
+            "cross-capability actor orders do not reselect same-capability candidates");
+    }
+
+    #[test]
+    fn declared_actor_domain_with_incomplete_capability_coverage_still_fails_closed() {
+        let plan = next_plan_with_order(actor_order(
+            senkei_model::ActorControlScope::Hero,
+            "hero",
+            &["move"],
+        ));
+        let error = arbitrate_actor_orders(
+            vec![intent(0, "move", "hero-one"), intent(1, "activate", "hero-one")],
+            &plan,
+            &world_actor("hero-one", "hero"),
+        ).expect_err("declared but incomplete compiled order must fail closed");
+        assert_eq!(error.code, ApiErrorCode::ValidationFailed);
+        assert!(error.message.contains("unique complete authored order"));
     }
 }
