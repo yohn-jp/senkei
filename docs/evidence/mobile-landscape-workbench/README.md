@@ -21,11 +21,17 @@ The C12 browser flow edited Jinrei Text at 390×844, went Home, explicitly enter
 
 `npm run build` passed. The browser spec passed on Chromium 156 at port 4193; its local production preview loaded WASM SHA-256 `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a`.
 
+## Navigation sizing follow-up
+
+Commit `1b08ef1` retains a 44px minimum height for the outer navigation items in this short-landscape layout. The same C12 operation passed again with no loss in the 758.25px editor width. Its browser report measured the primary navigation row at 44px and each of its four items at 44px. These are observed dimensions for this viewport, not a new test threshold.
+
 ## Evidence
 
 - `before-7007aa4/`: baseline fixed-view captures and layout report from the unmodified 7007aa4 CSS.
 - `after-70a91f3/`: fixed-view captures and layout report tested against implementation commit 70a91f3.
+- `after-1b08ef1/`: repeat fixed-view captures and report tested against the 44px navigation follow-up commit.
 - `after-70a91f3/landscape-844-app-navigation.png` and `landscape-844-workbench-navigation.png`: the two navigation rows at their respective scroll positions.
 - `after-70a91f3/landscape-844.png`: the editable source field at 844×390.
+- `after-1b08ef1/report.json`: the primary navigation and item heights measured during the follow-up C12 run.
 
 The browser resized its emulated viewport. Physical device rotation, touch input, and keyboard/IME behavior were not checked.
