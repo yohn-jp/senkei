@@ -1,0 +1,256 @@
+{
+  "source_revision": "54011ea",
+  "wasm_sha256": "8ec4c1b4dcb9b5acb6fa59322aa6e8398db72fdd4ed1632af6dcb122326f59ea",
+  "preview": "http://127.0.0.1:4204",
+  "mode": "production preview; Chromium software renderer; no Enbu battle",
+  "cases": [
+    {
+      "width": 320,
+      "group": "Hero Atelier",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S05"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S04"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 320,
+      "group": "Jinrei screens",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S09"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S08"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 390,
+      "group": "Hero Atelier",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S05"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S04"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 390,
+      "group": "Jinrei screens",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S09"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S08"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 430,
+      "group": "Hero Atelier",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S05"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S04"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 430,
+      "group": "Jinrei screens",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S09"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S08"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 1440,
+      "group": "Hero Atelier",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S05"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S04"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    },
+    {
+      "width": 1440,
+      "group": "Jinrei screens",
+      "keyboard_states": [
+        {
+          "stage": "ArrowRight after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S09"
+          }
+        },
+        {
+          "stage": "ArrowLeft after two frames",
+          "selected": "true",
+          "focused": false,
+          "active": {
+            "tag": "H2",
+            "role": null,
+            "text": "Battle workbench",
+            "screen": "S08"
+          }
+        }
+      ],
+      "ordinary_entry_heading_controls_passed": true,
+      "wasm200": true,
+      "page_errors": []
+    }
+  ]
+}
