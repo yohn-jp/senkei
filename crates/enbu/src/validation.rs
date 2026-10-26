@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 /// compared to this value rather than trusted as a caller assertion.
 pub const ENGINE_VERSION: Version = senkei_model::ENBU_ENGINE_VERSION;
 pub const MODEL_VERSION: Version = Version::new(1, 0, 0);
-pub const REPLAY_SCHEMA_VERSION: Version = Version::new(1, 0, 0);
+pub const REPLAY_SCHEMA_VERSION: Version = Version::new(1, 1, 0);
 
 pub(crate) fn validate_inputs(
     attacker: &SenkeiSnapshot,

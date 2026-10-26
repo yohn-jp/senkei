@@ -457,7 +457,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     }))?;
     let replay = PresentationReplay {
         perspective: None,
-        schema_version: Version::new(1, 0, 0),
+        schema_version: validation::REPLAY_SCHEMA_VERSION,
         world_identity: context.world_identity.clone(),
         ruleset: Some(context.ruleset.clone()),
         match_id: context.match_id.clone(),
@@ -488,7 +488,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     let owner_replays: BTreeMap<CombatantSide, PresentationReplay> = if plan.next.is_some() {
         owner_frames.into_iter().map(|(side, frames)| (side, PresentationReplay {
             perspective: Some(side),
-            schema_version: Version::new(1, 0, 0),
+            schema_version: validation::REPLAY_SCHEMA_VERSION,
             world_identity: context.world_identity.clone(),
             ruleset: Some(context.ruleset.clone()),
             match_id: context.match_id.clone(),
