@@ -62,13 +62,13 @@ export function battlefieldUnitRigMotion(
       "shin.left": rotation(Math.max(0, step) * 0.32 + (heroMotion ? settledFall * 0.34 + attackPrep * 0.08 + hit * 0.18 - hitRecovery * 0.1 : 0)),
       "shin.right": rotation(Math.max(0, -step) * 0.32 + (heroMotion ? settledFall * 0.12 + attackPrep * 0.12 + attackFollowThrough * 0.1 + hit * 0.22 - hitRecovery * 0.12 : 0)),
       "arm.left": heroMotion
-        ? rotation(-step * 0.55 - skill * 0.72 - settledFall * 0.28 + strike * 0.18 + attackPrep * 0.55 - attackFollowThrough * 0.35 + hit * 0.52 - hitRecovery * 0.32 + idleBreath * 0.08 + idleWeightShift * 0.025,
-          0, settledFall * 0.42 - attackPrep * 0.32 + attackFollowThrough * 0.28 + hit * 0.45 - hitRecovery * 0.25 - idleBreath * 0.035)
+        ? rotation(-step * 0.55 - skill * 0.72 - settledFall * 0.28 + strike * 0.18 + attackPrep * 0.55 - attackFollowThrough * 0.35 + hit * 0.52 - hitRecovery * 0.32 + idleBreath * 0.105 + idleWeightShift * 0.025,
+          0, settledFall * 0.42 - attackPrep * 0.32 + attackFollowThrough * 0.28 + hit * 0.45 - hitRecovery * 0.25 - idleBreath * 0.045)
         : rotation(-step * 0.55 - skill * 0.72),
       "arm.right": heroMotion
-        ? rotation(step * 0.55 - strike * 0.72 - attackPrep * 0.55 + attackFollowThrough * 0.45 + settledFall * 0.36 - hit * 0.35 + hitRecovery * 0.32 - idleBreath * 0.08 - idleWeightShift * 0.025,
+        ? rotation(step * 0.55 - strike * 0.72 - attackPrep * 0.55 + attackFollowThrough * 0.45 + settledFall * 0.36 - hit * 0.35 + hitRecovery * 0.32 - idleBreath * 0.105 - idleWeightShift * 0.025,
           attackPrep * 0.12 - attackFollowThrough * 0.1,
-          strike * 0.35 + attackPrep * 0.45 + attackFollowThrough * 0.55 - settledFall * 0.22 - hit * 0.55 + hitRecovery * 0.38 + idleBreath * 0.035)
+          strike * 0.35 + attackPrep * 0.45 + attackFollowThrough * 0.55 - settledFall * 0.22 - hit * 0.55 + hitRecovery * 0.38 + idleBreath * 0.045)
         : rotation(step * 0.55 - strike * 0.85),
       "forearm.left": rotation(heroMotion ? settledFall * 0.2 + hit * 0.26 - hitRecovery * 0.18 + attackPrep * 0.12 + idleClothWave * 0.04 : 0, 0,
         heroMotion ? hit * 0.18 - hitRecovery * 0.12 + idleWeightShift * 0.025 : 0),
@@ -76,20 +76,20 @@ export function battlefieldUnitRigMotion(
         heroMotion ? attackPrep * -0.08 + attackFollowThrough * 0.12 : 0,
         heroMotion ? strike * 0.05 - attackPrep * 0.08 + attackFollowThrough * 0.05 - hit * 0.34 - hitRecovery * 0.22 - idleWeightShift * 0.025 : 0),
       torso: heroMotion
-        ? rotation(hit * 0.62 - hitRecovery * 0.28 + settledFall * 0.08 + strike * 0.35 + attackPrep * 0.18 - attackFollowThrough * 0.12 + idleBreath * 0.12,
-          strike * 0.16 - attackPrep * 0.2 + attackFollowThrough * 0.32 + hit * 0.1 + idleWeightShift * 0.025,
-          hit * 0.36 - hitRecovery * 0.16 + attackFollowThrough * 0.4 - attackPrep * 0.3 + idleBreath * 0.08)
+        ? rotation(hit * 0.62 - hitRecovery * 0.28 + settledFall * 0.08 + strike * 0.35 + attackPrep * 0.18 - attackFollowThrough * 0.12 + idleBreath * 0.18,
+          strike * 0.16 - attackPrep * 0.2 + attackFollowThrough * 0.32 + hit * 0.1 + idleWeightShift * 0.035,
+          hit * 0.36 - hitRecovery * 0.16 + attackFollowThrough * 0.4 - attackPrep * 0.3 + idleBreath * 0.11)
         : rotation(0, 0, hit * 0.12 + death * 0.68),
       head: heroMotion
-        ? rotation(-hit * 0.33 + hitRecovery * 0.16 - settledFall * 0.08 - idleBreath * 0.035,
+        ? rotation(-hit * 0.33 + hitRecovery * 0.16 - settledFall * 0.08 - idleBreath * 0.045,
           hit * 0.12 - hitRecovery * 0.08 + strike * 0.06
-            + idle * Math.sin(idlePhase * (0.9 / BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY)) * 0.1,
-          hit * 0.1 - hitRecovery * 0.08 + attackFollowThrough * 0.08 - idleWeightShift * 0.035)
+            + idle * Math.sin(idlePhase * (0.9 / BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY)) * 0.11,
+          hit * 0.1 - hitRecovery * 0.08 + attackFollowThrough * 0.08 - idleWeightShift * 0.04)
         : rotation(0, 0, death * 0.24),
       pelvis: heroMotion
-        ? rotation(death * 0.12 + strike * 0.05 + attackPrep * 0.08 - attackFollowThrough * 0.06 - hit * 0.18 + hitRecovery * 0.1 - idleBreath * 0.035,
-          -attackPrep * 0.1 + attackFollowThrough * 0.14 + idleWeightShift * 0.04,
-          attackPrep * 0.12 + attackFollowThrough * 0.18 - hit * 0.24 + hitRecovery * 0.12 + idleWeightShift * 0.035)
+        ? rotation(death * 0.12 + strike * 0.05 + attackPrep * 0.08 - attackFollowThrough * 0.06 - hit * 0.18 + hitRecovery * 0.1 - idleBreath * 0.045,
+          -attackPrep * 0.1 + attackFollowThrough * 0.14 + idleWeightShift * 0.05,
+          attackPrep * 0.12 + attackFollowThrough * 0.18 - hit * 0.24 + hitRecovery * 0.12 + idleWeightShift * 0.04)
         : rotation(death * 0.12),
       // The cape extends along local -Z, so a positive X rotation swings it
       // through the torso toward the camera. Hit recoil keeps the cloth folded

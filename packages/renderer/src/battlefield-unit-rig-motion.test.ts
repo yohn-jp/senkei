@@ -332,9 +332,54 @@ describe("additive named Hero rig motion", () => {
           expect(capeBounds.max.z).toBeLessThan(chestBounds.max.z + 0.015);
         }
 
-        expect(maximumDisplacement(still, breath)).toBeGreaterThan(0.08);
-        expect(maximumDisplacement(torsoStill, torsoBreath)).toBeGreaterThan(0.035);
+        expect(maximumDisplacement(still, breath)).toBeGreaterThan(0.15);
+        expect(maximumDisplacement(torsoStill, torsoBreath)).toBeGreaterThan(0.07);
         if (capeStill && capeSway) expect(maximumDisplacement(capeStill, capeSway)).toBeGreaterThan(0.06);
+      }
+    }
+  });
+
+  it("makes the inhale/exhale difference readable without lifting or sinking the feet at every LOD", () => {
+    const sample = (idlePhase: number) => battlefieldUnitRigMotion({
+      walk: 0,
+      strike: 0,
+      skill: 0,
+      hit: 0,
+      attackLean: 0,
+      death: 0,
+      idle: 1,
+      idlePhase,
+    }, true);
+
+    for (const heroId of ["F01", "R01"]) {
+      const model = new THREE.Group();
+      const entity = previewEntity(heroId);
+      const rig = buildBattlefieldHero(model, entity, 0x71847b, entity.appearanceKey!);
+      const lod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD)!;
+
+      for (let level = 0; level < 3; level++) {
+        const selectedRig = rig.lodRigs![level]!;
+        const selectedLod = lod.levels[level]!.object;
+        lod.levels.forEach((item, index) => { item.object.visible = index === level; });
+
+        const inhale = sample(Math.PI / 2);
+        applyBattlefieldUnitLodMotion(rig, level, inhale);
+        model.rotation.z = inhale.rootZ;
+        const torsoInhale = vertexPositions(selectedRig.joints.torso!);
+        const fullInhale = vertexPositions(selectedLod);
+        const torsoRestX = selectedRig.restPose?.torso?.x ?? 0;
+        expect(selectedRig.joints.torso!.rotation.x - torsoRestX).toBeCloseTo(0.18, 8);
+        expect(minimumWorldY(selectedLod)).toBeGreaterThanOrEqual(-0.02);
+
+        const exhale = sample(Math.PI * 1.5);
+        applyBattlefieldUnitLodMotion(rig, level, exhale);
+        model.rotation.z = exhale.rootZ;
+        const torsoExhale = vertexPositions(selectedRig.joints.torso!);
+        const fullExhale = vertexPositions(selectedLod);
+        expect(selectedRig.joints.torso!.rotation.x - torsoRestX).toBeCloseTo(-0.18, 8);
+        expect(maximumDisplacement(torsoInhale, torsoExhale)).toBeGreaterThan(0.1);
+        expect(maximumDisplacement(fullInhale, fullExhale)).toBeGreaterThan(0.18);
+        expect(minimumWorldY(selectedLod)).toBeGreaterThanOrEqual(-0.02);
       }
     }
   });
