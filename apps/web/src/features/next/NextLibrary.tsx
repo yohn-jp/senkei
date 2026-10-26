@@ -247,6 +247,8 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
         ))}
       </nav>
 
+      <p className="next-library-download-note">Export actions start a JSON download. Download started does not confirm that the file was saved on your device; check your browser’s downloads.</p>
+
       {!props.loaded && <div className="next-library-message" role="status"><strong>Checking local setup storage…</strong><p>Existing values stay untouched until their format and ruleset identity are read.</p></div>}
       {(visibleError || props.message || notice) && <div className={`next-library-message${visibleError ? " is-error" : ""}`} role={visibleError ? "alert" : "status"}>
         <div><strong>{visibleError ? "Recovery needs attention" : "Library status"}</strong><p>{visibleError ?? notice ?? props.message}</p></div>
@@ -266,12 +268,12 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
             <div className="next-library-card-heading"><div><span className="next-library-eyebrow">EXPLICIT RESTORE POINT</span><h3>Pinned Next setup</h3></div><span className="next-library-badge">LOCAL</span></div>
             <ItemSummary item={props.saved} label="Pinned setup" mismatch={props.savedMismatch} />
             {props.savedMismatch && <p className="next-library-warning" role="alert">Compatibility check failed. The saved bytes remain available to export; restore is disabled until the matching RulePackage is loaded. {props.savedMismatch}</p>}
-            {props.savedError && <div className="next-library-warning" role="alert">{props.savedError}{rawAvailable(props.savedRaw, props.onExportRawSaved) && <button onClick={() => void perform(props.onExportRawSaved!, "Preserved pinned bytes exported.")} type="button">Export preserved bytes</button>}</div>}
+            {props.savedError && <div className="next-library-warning" role="alert">{props.savedError}{rawAvailable(props.savedRaw, props.onExportRawSaved) && <button onClick={() => void perform(props.onExportRawSaved!, "Preserved pinned bytes JSON download started.")} type="button">Export preserved bytes</button>}</div>}
             <div className="next-library-actions">
               <button className="is-primary" disabled={busy || !isNextLibraryItemRestorable(props.saved, props.loaded, props.savedMismatch, props.savedError)} onClick={() => restore("saved")} type="button">Restore pinned setup</button>
               <button disabled={busy || !props.canSave} onClick={save} type="button">Save current setup</button>
-              <button disabled={busy || !props.canSave} onClick={() => void perform(props.onExportCurrent, "Current setup exported.")} type="button">Export current</button>
-              {props.saved && <button disabled={busy} onClick={() => void perform(props.onExportSaved, "Pinned setup exported.")} type="button">Export pinned</button>}
+              <button disabled={busy || !props.canSave} onClick={() => void perform(props.onExportCurrent, "Current setup JSON download started.")} type="button">Export current</button>
+              {props.saved && <button disabled={busy} onClick={() => void perform(props.onExportSaved, "Pinned setup JSON download started.")} type="button">Export pinned</button>}
               {(props.saved || props.savedError) && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("saved")} type="button">Clear pinned…</button>}
             </div>
           </section>
@@ -284,12 +286,13 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
 
           <section aria-label="Stored Next experiments" className="next-library-card next-library-experiments">
             <div className="next-library-card-heading"><div><span className="next-library-eyebrow">IMMUTABLE ENBU RECORDS</span><h3>Recent experiments</h3><p>Completed inputs, results, replay and authorized local diagnostics are kept independently from the editable setup.</p></div><span className="next-library-badge">INDEXEDDB</span></div>
+            <div className="next-library-retention" role="note" aria-label="Completed Run retention"><strong>Up to 2 completed Runs</strong><p>Only the latest completed Run and its previous comparison Run are retained. When a third completed Run is saved successfully, it replaces the older record; later completed Runs follow the same rule.</p><p>Export experiments before completing another battle to keep a copy of these records outside this Library. Pinned setup and Recovery store your editable setup separately.</p></div>
             {!props.experimentsLoaded && <p role="status">Checking local experiment storage…</p>}
             {props.experimentMismatch && <p className="next-library-warning" role="alert">The saved experiment stays preserved, but this Ruleset, World, Program or replay identity does not match the current runtime. It cannot be opened as a current comparison. {props.experimentMismatch}</p>}
-            {props.experiments.length > 0 ? <ol className="next-library-experiment-list">{props.experiments.map((experiment) => <li key={experiment.id}><strong>{experiment.scenario_title ?? "Local PvE"} · {experiment.outcome.replaceAll("_", " ")}</strong><small>{formatDate(experiment.created_at)} · {experiment.final_tick} ticks · {experiment.id}</small></li>)}</ol> : props.experimentsLoaded && !props.experimentMismatch && <p className="next-library-empty">No completed Next Enbu experiments are saved on this device.</p>}
+            {props.experiments.length > 0 ? <ol className="next-library-experiment-list">{props.experiments.map((experiment, index) => <li key={experiment.id}><strong>{index === 0 ? "Latest completed Run" : "Previous completed Run"} · {experiment.scenario_title ?? "Local PvE"} · {experiment.outcome.replaceAll("_", " ")}</strong><small>{formatDate(experiment.created_at)} · {experiment.final_tick} ticks · {experiment.id}</small></li>)}</ol> : props.experimentsLoaded && !props.experimentMismatch && <p className="next-library-empty">No completed Next Enbu experiments are saved on this device.</p>}
             <div className="next-library-actions">
               <button className="is-primary" disabled={busy || !props.experimentsLoaded || props.experiments.length === 0 || Boolean(props.experimentMismatch)} onClick={() => void perform(props.onOpenExperiments, "Restored the latest result and comparison baseline.")} type="button">Open latest comparison</button>
-              <button disabled={busy || props.experiments.length === 0} onClick={() => void perform(props.onExportExperiments, "Next experiments exported as JSON.")} type="button">Export experiments</button>
+              <button disabled={busy || props.experiments.length === 0} onClick={() => void perform(props.onExportExperiments, "Next experiments JSON download started.")} type="button">Export experiments</button>
               {props.experiments.length > 0 && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("experiments")} type="button">Clear experiments…</button>}
               <input accept="application/json,.json" aria-label="Import Next experiment file" hidden onChange={selectExperimentImport} ref={experimentImportRef} type="file" />
               <button disabled={busy} onClick={() => experimentImportRef.current?.click()} type="button">Import experiments</button>
@@ -303,10 +306,10 @@ export function NextLibrary(props: NextLibraryProps): ReactElement {
           <div className="next-library-card-heading"><div><span className="next-library-eyebrow">S15 · AUTOMATIC RECOVERY COPY</span><h3>Unsaved work</h3><p>This copy stays separate from the pinned restore point. Select restore only after reviewing its identity.</p></div><span className="next-library-badge is-recovery">RECOVERY</span></div>
           <ItemSummary item={props.recovery} label="Recovery copy" mismatch={props.recoveryMismatch} />
           {props.recoveryMismatch && <p className="next-library-warning" role="alert">This recovery copy does not match the current Next ruleset. It is preserved and cannot be restored in this session. {props.recoveryMismatch}</p>}
-          {props.recoveryError && <div className="next-library-warning" role="alert">{props.recoveryError}{rawAvailable(props.recoveryRaw, props.onExportRawRecovery) && <button onClick={() => void perform(props.onExportRawRecovery!, "Preserved recovery bytes exported.")} type="button">Export preserved bytes</button>}</div>}
+          {props.recoveryError && <div className="next-library-warning" role="alert">{props.recoveryError}{rawAvailable(props.recoveryRaw, props.onExportRawRecovery) && <button onClick={() => void perform(props.onExportRawRecovery!, "Preserved recovery bytes JSON download started.")} type="button">Export preserved bytes</button>}</div>}
           <div className="next-library-actions">
             <button className="is-primary" disabled={busy || !isNextLibraryItemRestorable(props.recovery, props.loaded, props.recoveryMismatch, props.recoveryError)} onClick={() => restore("recovery")} type="button">Restore recovery copy</button>
-            {props.recovery && <button disabled={busy} onClick={() => void perform(props.onExportRecovery, "Recovery copy exported.")} type="button">Export recovery copy</button>}
+            {props.recovery && <button disabled={busy} onClick={() => void perform(props.onExportRecovery, "Recovery copy JSON download started.")} type="button">Export recovery copy</button>}
             {(props.recovery || props.recoveryError) && <button className="is-danger" disabled={busy} onClick={() => setConfirmation("recovery")} type="button">Clear recovery…</button>}
           </div>
         </section>
