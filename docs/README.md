@@ -6,6 +6,7 @@
 
 - **確定**: 本プロジェクトの設計制約。変更する場合は文書の意思決定として見直す。
 - **推奨**: 実装開始時の合理的な候補。実測・検証で変更可能。
+- **合意案**: 文書PRで承認を求めている追加規範。PR作成だけで採用済み・実装済みにしない。
 - **未決定**: 会話上まだ確定していないゲームバランス、API、語彙、文法など。勝手に仕様化しない。
 
 ## 文書一覧
@@ -44,8 +45,10 @@
 | [REPLAY.md](REPLAY.md) | **Enbu/Renderer表示契約**：Schema、Tick、投影・秘匿性 |
 | [UI-DESIGN.md](UI-DESIGN.md) | Desktop/Mobile別のUI・操作・状態設計 |
 | [PLAYER-JOURNEY.md](PLAYER-JOURNEY.md) | **ゲーム開始前UXの正本**：プレイヤー必須入力、初回・Custom・復元、開始可能性 |
-| [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) | **全画面遷移図の正本**：S00〜S15、Quick/Custom/Resume/開始/失敗/再戦、Desktop/Mobile |
+| [PRE-BATTLE-FLOWS.md](PRE-BATTLE-FLOWS.md) | **全画面遷移図の正本**：S00〜S15、Quick/Custom/Campaign/Resume/開始/失敗/再戦、Desktop/Mobile |
 | [PRE-BATTLE-SCREENS.md](PRE-BATTLE-SCREENS.md) | **画面別契約・低忠実度ワイヤフレーム**：表示/操作/戻り/検証/復旧、受入テスト |
+| [UX-INTERACTION-CONTRACTS.md](UX-INTERACTION-CONTRACTS.md) | **合意案**：閲覧と変更、対戦・分析文脈、修正先、比較、保存、復帰の操作契約 |
+| [PROGRESSION-UX.md](PROGRESSION-UX.md) | **将来拡張の合意案**：報酬・装備庫・市場・関係グラフ・会話の入口から復帰まで |
 | [JINREI-EDITOR.md](JINREI-EDITOR.md) | **Jinrei編集UX正本**：Domain探索、Hero別Coverage、Default/Effective/Observed、Trace |
 | [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
@@ -63,6 +66,12 @@
 数値・コード例は、明示的に確定と書かない限り仕様値ではありません。4名称と責務は [COMPONENTS.md](COMPONENTS.md) を正本、表示契約は [REPLAY.md](REPLAY.md) を設計正本とします。Jinreiの表層構文・評価意味論は [JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) に確定済み。CU単価と既存Senritsuのゲーム数値はルールパッケージで具体化します。最新のMOBA型Hero/Squad/Minion/ジャングル設計は [WORLD.md](WORLD.md)／[BATTLEFIELD.md](BATTLEFIELD.md)／[UNITS.md](UNITS.md)／[COMBAT.md](COMBAT.md)／[BALANCE.md](BALANCE.md) に区分して記録する。Worldの宣言的定義・Compilerは [WORLD-DEFINITION.md](WORLD-DEFINITION.md)、既定行動とJinrei上書きは [BEHAVIOR.md](BEHAVIOR.md)、型付き語彙は [DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)、編集・Coverageの体験は [JINREI-EDITOR.md](JINREI-EDITOR.md) を専用正本とする。これらの新規契約を**現行senkei.initial、G1 Fixture、または未マージの実装に既に存在する機能とみなさない**。
 
 装備とHero関係性の追加合意は [EQUIPMENT.md](EQUIPMENT.md)／[HERO-RELATIONSHIPS.md](HERO-RELATIONSHIPS.md)、装備報酬とLibraの合意境界は [REWARDS-AND-LIBRA.md](REWARDS-AND-LIBRA.md) を参照する。これらの設計採用は、既存G2の受入条件への自動追加やオンライン基盤の採用を意味しない。
+
+## UI操作仕様と検証記録の分離
+
+UX-INTERACTION-CONTRACTSは採用後に画面間の状態保持・操作結果を所有し、PRE-BATTLE-FLOWS／SCREENSと相互参照する。PROGRESSION-UXは追加機能を実装する段階の導線であり、現在のG2とは別の適用範囲を持つ。
+
+[implementation/UX-FLOW-GAP-REVIEW.md](implementation/UX-FLOW-GAP-REVIEW.md) は特定SHAのコードと文書を照合した根拠記録であり、正本や実画面の受入証明ではない。実装未達、文書の空白、将来拡張、実機未検証を分けて読む。
 
 ## 変更の作法
 
