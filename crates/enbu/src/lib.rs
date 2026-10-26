@@ -1788,7 +1788,7 @@ mod next_public_projection_tests {
         let allowed = project_next_public_event(event.clone(), &permitted, &view, &view).unwrap();
         assert_eq!(allowed.payload.len(), 1);
         assert!(allowed.payload.contains_key(&FieldId::from("source")));
-        let denied = PresentationPolicy { visible_events: BTreeMap::new(), ..permitted };
+        let denied = PresentationPolicy { visible_events: BTreeMap::new(), ..permitted.clone() };
         assert!(project_next_public_event(event.clone(), &denied, &view, &view).is_none());
         let unknown = WorldStateView { entities: BTreeMap::new(), global_fields: BTreeMap::new() };
         assert!(project_next_public_event(event, &permitted, &unknown, &view).is_none());
