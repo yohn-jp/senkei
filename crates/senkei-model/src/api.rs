@@ -106,6 +106,7 @@ impl From<CompileResult> for CompileResultEnvelope {
             program: value.program,
             estimated_cu: value.estimated_cu,
             diagnostics: value.diagnostics,
+            source_map: value.source_map,
         }
     }
 }
@@ -116,4 +117,6 @@ pub struct CompileResultEnvelope {
     pub program: crate::TacticalProgram,
     pub estimated_cu: crate::LogicalCu,
     pub diagnostics: Vec<crate::CompileDiagnostic>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<crate::ActionSourceMap>,
 }

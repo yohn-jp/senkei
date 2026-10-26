@@ -277,10 +277,26 @@ export function observedField(
   return sample.status === "unknown" ? { status: "UNKNOWN" } : { status: "KNOWN", value: sample.value };
 }
 
+/** Nonsemantic parser locations bound to exact source and compiled program digests. */
+export interface ActionSourceMap {
+  readonly schema_version: 1;
+  readonly source_digest: string;
+  readonly program_digest: string;
+  readonly actions: readonly ActionSourceLocation[];
+}
+
+export interface ActionSourceLocation {
+  readonly action_id: string;
+  readonly declaration_index: number;
+  /** Half-open UTF-8 byte offsets, not JavaScript UTF-16 indices. */
+  readonly start_utf8: number;
+  readonly end_utf8: number;
+}
+
 export interface CompilerRequest { source: string; stamp: CatalogStamp; revision: number; }
 export interface CompilerDiagnostic { severity?: string; code: string; message: string; path?: string | null; }
 export type CompilerReply =
-  | { status: "compiled"; stamp: CatalogStamp; result: { ast: unknown; program: unknown; estimated_cu: number; diagnostics: CompilerDiagnostic[] } }
+  | { status: "compiled"; stamp: CatalogStamp; result: { ast: unknown; program: unknown; estimated_cu: number; diagnostics: CompilerDiagnostic[]; source_map?: ActionSourceMap } }
   | { status: "rejected"; stamp: CatalogStamp; error: { code: string; message: string; path?: string | null } };
 export interface CompilerGateway { compile(request: CompilerRequest): Promise<CompilerReply>; }
 

@@ -1,7 +1,7 @@
 use crate::lexer::{lex, Token, TokenKind};
 use crate::{CompileError, MAX_AST_DEPTH, MAX_SOURCE_BYTES, STRUCTURED_AST_VERSION};
 use senkei_model::{
-    ApiErrorCode, ComparisonOperator, DomainValue, KnownnessTest, StructuredTacticsAst,
+    ActionId, ActionSourceLocation, ApiErrorCode, ComparisonOperator, DomainValue, KnownnessTest, StructuredTacticsAst,
     TacticalCapabilityCall, TacticalCollection, TacticalDeclaration, TacticalPath,
     TacticalPredicate, TacticalValue, Quantifier,
 };
@@ -13,15 +13,20 @@ const RESERVED: &[&str] = &[
 ];
 
 pub(crate) fn parse(source: &str) -> Result<StructuredTacticsAst, CompileError> {
+    parse_with_locations(source).map(|(ast, _)| ast)
+}
+
+pub(crate) fn parse_with_locations(source: &str) -> Result<(StructuredTacticsAst, Vec<ActionSourceLocation>), CompileError> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err(CompileError::new(ApiErrorCode::ResourceLimit, "source exceeds the configured host input limit"));
     }
     let tokens = lex(source)?;
-    let mut parser = Parser { tokens, index: 0, depth: 0 };
-    parser.parse_program()
+    let mut parser = Parser { tokens, index: 0, depth: 0, declaration_index: 0, actions: Vec::new() };
+    let ast = parser.parse_program()?;
+    Ok((ast, parser.actions))
 }
 
-struct Parser { tokens: Vec<Token>, index: usize, depth: usize }
+struct Parser { tokens: Vec<Token>, index: usize, depth: usize, declaration_index: usize, actions: Vec<ActionSourceLocation> }
 
 impl Parser {
     fn parse_program(&mut self) -> Result<StructuredTacticsAst, CompileError> {
@@ -36,6 +41,8 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<TacticalDeclaration, CompileError> {
+        let declaration_index = self.declaration_index;
+        self.declaration_index += 1;
         if self.word_is("state") {
             self.bump();
             let name = self.identifier()?;
@@ -45,6 +52,7 @@ impl Parser {
             self.expect(TokenKind::RBrace, "expected '}' after state conditions")?;
             Ok(TacticalDeclaration::State { name, predicates })
         } else if self.word_is("action") {
+            let start_utf8 = self.tokens[self.index].offset;
             self.bump();
             let name = self.identifier()?;
             self.expect(TokenKind::LBrace, "expected '{' after action name")?;
@@ -54,7 +62,11 @@ impl Parser {
             self.expect_word("do")?;
             let do_call = self.capability_call()?;
             self.optional_comma();
+            let end_utf8 = self.tokens[self.index].offset + 1;
             self.expect(TokenKind::RBrace, "expected '}' after action")?;
+            self.actions.push(ActionSourceLocation {
+                action_id: ActionId::new(name.clone()), declaration_index, start_utf8, end_utf8,
+            });
             Ok(TacticalDeclaration::Action { name, when, do_call })
         } else {
             Err(self.error("expected a state or action declaration"))

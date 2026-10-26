@@ -30,8 +30,15 @@ pub fn compile_with_options(source: &str, rules: &VerifiedRulePlan, _options: Co
     if source.len() as u64 > rules.limits().max_input_bytes {
         return Err(ApiError::new(ApiErrorCode::ResourceLimit, "source exceeds the verified RulePlan input byte limit"));
     }
-    let ast = parser::parse(source).map_err(CompileError::into_api)?;
-    compile_internal(&ast, rules).map_err(CompileError::into_api)
+    let (ast, actions) = parser::parse_with_locations(source).map_err(CompileError::into_api)?;
+    let mut result = compile_internal(&ast, rules).map_err(CompileError::into_api)?;
+    result.source_map = Some(senkei_model::ActionSourceMap {
+        schema_version: 1,
+        source_digest: senkei_model::ContentDigest::new(bytecode::digest(source.as_bytes())),
+        program_digest: result.program.content_digest.clone(),
+        actions,
+    });
+    Ok(result)
 }
 
 pub fn compile_ast(ast: &StructuredTacticsAst, rules: &VerifiedRulePlan) -> Result<CompileResult, ApiError> {
@@ -83,6 +90,7 @@ fn compile_internal(ast: &StructuredTacticsAst, rules: &VerifiedRulePlan) -> Res
         program,
         estimated_cu: LogicalCu(estimate.min(LogicalCu::MAX_SAFE_JSON_INTEGER)),
         diagnostics: Vec::new(),
+        source_map: None,
     })
 }
 

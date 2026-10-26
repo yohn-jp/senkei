@@ -519,3 +519,44 @@ fn implicit_collection_conjunctions_have_all_runtime_cost_operations() {
         assert!(output.required_cu.0 > 0, "{source}");
     }
 }
+
+#[test]
+fn action_source_locations_come_from_parser_and_bind_exact_text_revision() {
+    let rules = rules(false, false);
+    let source = "// 日本語 😀 action phantom { }\r\nsenkei action_map {\n state guard { true },\n action zeta { // 日本語 😀 } action phantom {\n when guard, do act(),\n },\n // action zeta {}\n action hold { when true, do act(), },\n}";
+    let compiled = compile(source, &rules).unwrap();
+    let map = compiled.source_map.as_ref().unwrap();
+    assert_eq!(map.schema_version, 1);
+    assert_eq!(map.program_digest, compiled.program.content_digest);
+    assert_eq!(map.source_digest.as_str().len(), 64);
+    assert_eq!(map.actions.len(), 2);
+    for (location, expected, index) in [
+        (&map.actions[0], "action zeta { // 日本語 😀 } action phantom {\n when guard, do act(),\n }", 1),
+        (&map.actions[1], "action hold { when true, do act(), }", 2),
+    ] {
+        assert_eq!(location.declaration_index, index);
+        assert!(source.is_char_boundary(location.start_utf8));
+        assert!(source.is_char_boundary(location.end_utf8));
+        assert_eq!(&source[location.start_utf8..location.end_utf8], expected);
+    }
+    assert_eq!(map.actions[0].action_id.as_str(), "zeta");
+    assert_eq!(map.actions[1].action_id.as_str(), "hold");
+    // Formatting/comments change source identity, but never semantic identity or CU.
+    let revised = compile(&format!("// another revision\n{source}"), &rules).unwrap();
+    assert_ne!(map.source_digest, revised.source_map.unwrap().source_digest);
+    assert_eq!(compiled.program, revised.program);
+    assert_eq!(compiled.estimated_cu, revised.estimated_cu);
+    let from_ast = compile_ast(&parse(source).unwrap(), &rules).unwrap();
+    assert_eq!(compiled.ast, from_ast.ast);
+    assert_eq!(compiled.program, from_ast.program);
+    assert!(from_ast.source_map.is_none());
+    assert!(serde_json::to_value(from_ast).unwrap().get("source_map").is_none());
+    // Closing braces and declaration-like text inside string tokens cannot end a range.
+    let literal_source = r#"senkei strings { action quoted { when "日本語 😀 } action quoted {" == "日本語 😀 } action quoted {", do act(), } }"#;
+    let literal_result = compile(literal_source, &rules).unwrap();
+    let literal_location = &literal_result.source_map.unwrap().actions[0];
+    assert_eq!(&literal_source[literal_location.start_utf8..literal_location.end_utf8],
+        &literal_source[17..literal_source.len() - 2]);
+    // Actual duplicate declarations are rejected, rather than yielding ambiguous mappings.
+    assert!(compile("senkei p { action a { when true, do act() }, action a { when true, do act() } }", &rules).is_err());
+}
