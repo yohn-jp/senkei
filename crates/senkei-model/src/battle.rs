@@ -32,6 +32,29 @@ pub struct CompileResult {
     pub program: TacticalProgram,
     pub estimated_cu: LogicalCu,
     pub diagnostics: Vec<crate::CompileDiagnostic>,
+    /// Nonsemantic editor metadata, absent when compiled from a structured AST.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<ActionSourceMap>,
+}
+
+/// Exact text revision and compiled program binding. Never part of program identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionSourceMap {
+    pub schema_version: u32,
+    /// SHA-256 of the exact UTF-8 source bytes, including comments and whitespace.
+    pub source_digest: ContentDigest,
+    pub program_digest: ContentDigest,
+    pub actions: Vec<ActionSourceLocation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionSourceLocation {
+    pub action_id: ActionId,
+    /// Index in the original parsed declarations, before semantic canonicalization.
+    pub declaration_index: usize,
+    /// Half-open UTF-8 byte range, from `action` through its closing brace.
+    pub start_utf8: usize,
+    pub end_utf8: usize,
 }
 
 pub type TacticalMemory = BTreeMap<StateId, DomainValue>;
