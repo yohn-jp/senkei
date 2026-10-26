@@ -1,0 +1,97 @@
+{
+  "schema": "senkei-art-native-active-skill-proof/v1",
+  "status": "PASS_NATIVE_EVENT_PROOF",
+  "acceptanceScope": "Core 0.4 Native simulation and owner/public replay event evidence only",
+  "probe": {
+    "repositoryHead": "6478dc9ee754f95e5554df1b44bd995496f0ee9c",
+    "repositoryCratesTree": "3356b4e92785f7cd72dbde533d62348cd9408345",
+    "script": "docs/evidence/art-production/replay-scenario-probe/v2.0.0/run_active_skill_probe.py",
+    "fullLocalManifestSha256": "6bc987231c8786c66f57cf2d6eddda2b8c269ebf96452b6fa9011a11bc5dcf17"
+  },
+  "native": {
+    "buildSourceCommit": "62a3e19",
+    "buildSourceCratesTree": "3356b4e92785f7cd72dbde533d62348cd9408345",
+    "dispatcherSha256": "392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+    "immutableDispatcherRelativeToWorkspace": "target/local-codex/native/392200c6ec75f93d15e185abc308d34933ba82f5ee6b90322f0745df0299c48e",
+    "pairedWasmSha256": "c90f6902c97d0603567bf0e7997f5460fdf1916688365da75d6680f62d29f91e"
+  },
+  "ruleset": {
+    "id": "senkei.next",
+    "version": "2.0.0",
+    "digest": "e4c8cd8fcd7aae03c8d59d3d71cfa9c8d6b7fcce8871cb62772cc1a6e413581a",
+    "replaySchemaVersion": "1.1.0"
+  },
+  "sourceScenario": {
+    "originalSourceCommit": "8728a8e47fd3c6669458445c2bb250701dd41166",
+    "trackedWorkerSnapshot": "docs/evidence/battlefield/graphics-completion/combat-event-proof-8728a8e/2026-10-25T12-41-35-921Z-pid3552341/actual-worker-snapshot.json.gz",
+    "workerSnapshotSha256": "e157b2f498b786b1e3b473ad1e3f5d43e715375986eec9daea3fcb8a6e3c8b42",
+    "recompilation": "Extract source AST and saved legal formation only; compile both ASTs with current 0.4 ruleset, format and recompile source text to verify identical program digest. Old bytecode, ruleset, context, and replay are not sent to the current Core.",
+    "preflight": "PASS",
+    "matchId": "next-8727546e20d43a0fc5d2cade5923b86c",
+    "maxTicks": 600,
+    "formation": {
+      "attacker": ["F01", "F03", "F06", "R02", "R04"],
+      "defender": ["R01", "R03", "R05", "F02", "F04"],
+      "skillPath": "path_a",
+      "squad": "alpha",
+      "startingNodes": ["A.BASE", "B.BASE"]
+    },
+    "programs": {
+      "attacker": {
+        "sourceAstSha256": "e5d442f197eee1df5f408b7a07210d4aa164659b1537fe6900f7ad71a576612b",
+        "formattedSourceSha256": "e0e7e043e2ee4b8319e8c4b44dd918329ee2212dd1670451524ac4305e852339",
+        "compiledProgramDigest": "cb6e8b713ac986f8aa5bc62f85123187c763dd20a67d440562a1f5ec101c0555"
+      },
+      "defender": {
+        "sourceAstSha256": "51fdfebadb745aa99eb1447f1adb74c978d72a952066a84bffc0ee9a15b75f09",
+        "formattedSourceSha256": "0d6730c91147a57405cd07e2f2c50fa75d0375d0c350ae2e6201928a2fdc12b6",
+        "compiledProgramDigest": "b952ae421a738191a1bd1ee3ab95824ce3dfd40b611792da149bc6f2106924ea"
+      }
+    }
+  },
+  "result": {
+    "outcome": "draw",
+    "terminationReason": "time_limit",
+    "finalTick": 600,
+    "finalStateDigest": "d467faff366c1ed016679a0b4a52e04a3dc589669c7f51c26dc0aa6d9c3e6afa",
+    "publicReplayResultDigest": "fa6c3eb29849b66c81e55635286cb1dbde7f9f702d72ef9b5716d91451a2cdc8",
+    "attackerOwnerReplayResultDigest": "fa6c3eb29849b66c81e55635286cb1dbde7f9f702d72ef9b5716d91451a2cdc8"
+  },
+  "heroEvents": {
+    "skillAcquisition": [
+      { "tick": 106, "owner": "attacker", "hero": "F01", "skill": "f01_a_passive" },
+      { "tick": 141, "owner": "attacker", "hero": "F01", "skill": "f01_a_active" },
+      { "tick": 87, "owner": "defender", "hero": "R01", "skill": "r01_a_passive" },
+      { "tick": 249, "owner": "defender", "hero": "R01", "skill": "r01_a_active" }
+    ],
+    "activeSkillUse": [
+      { "tick": 146, "perspective": "attacker owner replay", "owner": "attacker", "hero": "F01", "skill": "f01_a_active" },
+      { "tick": 351, "perspective": "attacker owner replay", "owner": "defender", "hero": "R01", "skill": "r01_a_active" },
+      { "tick": 146, "perspective": "public replay", "owner": "attacker", "hero": "F01", "skill": "f01_a_active" },
+      { "tick": 351, "perspective": "public replay", "owner": "defender", "hero": "R01", "skill": "r01_a_active" }
+    ],
+    "deathRespawn": [
+      { "hero": "F01", "owner": "attacker", "deathTick": 74, "respawnTick": 94, "respawnNode": "A.BASE" },
+      { "hero": "R01", "owner": "defender", "deathTick": 130, "respawnTick": 165, "respawnNode": "B.BOT.BANK" },
+      { "hero": "R01", "owner": "defender", "deathTick": 182, "respawnTick": 208, "respawnNode": "B.BASE" },
+      { "hero": "R01", "owner": "defender", "deathTick": 355, "respawnTick": 401, "respawnNode": "B.BASE" }
+    ]
+  },
+  "artifactHashes": {
+    "nativeRequestGzipSha256": "0bcf06e19d5053d1634785f4bd28ba5f503bd64bd55c3571186031abaee2077f",
+    "browserSnapshotGzipSha256": "be850ad241f60646caf939361e052bd0e61eee3cd7085ebfc9cff1411d422bc7",
+    "attackerOwnerReplayGzipSha256": "e48bfcb9396b4639aa8c2669bdbbef0e86605532924eca06ae6e9e99cea27177",
+    "publicReplayGzipSha256": "81efdb663d94cac1960aeebde5c7327ae147131e9d957d6badfec03ac4c96b46"
+  },
+  "notChecked": [
+    "Browser replay playback and renderer integration",
+    "Battlefield screenshots and expected-size LOD/Tactical review",
+    "Renderer or screenshot pixel determinism",
+    "Physical GPU performance"
+  ],
+  "reproduction": {
+    "environment": "Set SENKEI_REPO_ROOT to a checkout whose crates tree is 3356b4e92785f7cd72dbde533d62348cd9408345; use the immutable dispatcher SHA above.",
+    "command": "SENKEI_REPO_ROOT=/path/to/senkei SENKEI_NATIVE_SOURCE_HEAD=62a3e19 SENKEI_NATIVE_DISPATCHER=/path/to/dispatcher python3 docs/evidence/art-production/replay-scenario-probe/v2.0.0/run_active_skill_probe.py",
+    "rawOutputs": "test-results/capture files are kept local and ignored; source snapshot, probe script, and this compact verdict/hash manifest are tracked."
+  }
+}
