@@ -97,7 +97,7 @@ SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／
 - `98ee865` の死亡終端姿勢をCPU probeした結果、F01は全LODで左boot下端が地面より0.0969低く右bootが0.0588高い。R01は左が0.0634低く右が0.0867高い。`f4faad8`（Art commit `15c5264`）で死亡root tiltを0.5radから0.06radへ下げ、胴体のdeath lean 0.68radを保った。F01/R01両bootを各3LODで7時点測る回帰テストは `-0.002 <= minY <= 0.08` を満たし、focused 15 tests、`npm run typecheck`、diff-checkはPASS。Chromium 156/SwiftShaderの新HEAD production Hero Detailで5動作54画像を撮影し、全SHAとruntime error arrayは一致／0件。ただし full-detail LODだけを実画面で見た証拠であり、独立reviewが済むまではAnimation Hard GateをFAILに保持する。[capture manifest、sampling script、contact sheets](evidence/art-production/rig-motion-f4faad8/README.md)
 - `0654af6` の後に共有Core入力と一致するWASM SHA `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a` でArt checkoutの `npm run build` とtypecheckはPASS。`98ee865` 実アプリ検証にも同WASMを使用した。SwiftShaderは物理GPU性能の証拠にならない。
 
-- 別の地形／施設担当が `98ee865` のT000両モード画像を実寸で確認した。[独立visual report](evidence/art-production/reviews/battlefield-t000-98ee865-review.md)では近傍terrain、Fortress、2塔を部分判定したが、地形起伏が弱く、Fortress中央ラベルが中庭とKeepを覆う。河岸、全3レーン、両ジャングル、キャンプ、橋・渡河・損傷状態はこの視野では未検証。実装テストのPASSだけでVisual受入にしない。
+- 別の地形／施設担当が `98ee865` のT000両モード画像を実寸で確認した。[初回独立visual report](evidence/art-production/reviews/battlefield-t000-98ee865-review.md)は局所地形、Fortress、2塔を部分判定し、中央ラベルの遮蔽を指摘した。修正後 `35950b2` の両モード実画像を独立レビューし、[T000 label defectはPASS](evidence/art-production/recheck-35950b2-label/independent-visual-review.md)へ更新した。地形起伏は弱く、河岸、全3レーン、両ジャングル、キャンプ、橋・渡河・損傷状態はこの視野では未検証のため、Battlefield全体VisualはPARTIALに保持する。
 
 ## 共通資産と実戦の状態
 
@@ -107,7 +107,7 @@ SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／
 | Minion melee/ranged | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | Heroとの差、密集、進軍と停止攻撃 |
 | Monster 3種 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 種別の輪郭、4キャンプ配置、実Replay |
 | 地形、川、ジャングル | NOT_CHECKED | PARTIAL | NOT_CHECKED | NOT_CHECKED | [T000独立レビュー](evidence/art-production/reviews/battlefield-t000-98ee865-review.md): ローカル地形面と地図端の崖は見えるが、中央の高低差は弱い。中央河岸、3レーン全景、2ジャングル、4キャンプは未確認 |
-| 橋、渡河、MID基地、塔、拠点 | NOT_CHECKED | PARTIAL | NOT_CHECKED | NOT_CHECKED | [T000独立レビュー](evidence/art-production/reviews/battlefield-t000-98ee865-review.md): Fortressと隣接2塔は識別できるが、中心ラベルが中庭とKeepを隠す。橋3状態、徒歩渡河、MID基地、損傷段階は未確認 |
+| 橋、渡河、MID基地、塔、拠点 | NOT_CHECKED | PARTIAL | NOT_CHECKED | NOT_CHECKED | T000のFortressラベル衝突は[修正後の独立レビュー](evidence/art-production/recheck-35950b2-label/independent-visual-review.md)でPASS。Fortress/Tower状態と橋3状態、徒歩渡河、MID基地、損傷段階は未確認 |
 | 実試合の各カメラと表示モード | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 同じ認可済みReplay、確定イベント、Fog |
 | Desktop/Mobile操作 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 契約の5画面幅、選択とパネル往復、状態保持 |
 | 物理GPU、実機タッチ | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | ソフトウェア描画の証拠から区別 |
