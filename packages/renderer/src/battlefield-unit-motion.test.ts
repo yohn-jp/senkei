@@ -91,9 +91,9 @@ describe("Replay-derived battlefield unit motion", () => {
           points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }],
       },
     } as Replay;
-    const left = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "LEFT" as const } };
-    const right = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "RIGHT" as const } };
-    const center = { ...hero, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "CENTER" as const } };
+    const left = { ...hero, destroyed: false, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "LEFT" as const } };
+    const right = { ...hero, destroyed: false, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "RIGHT" as const } };
+    const center = { ...hero, destroyed: false, battlefield: { ...hero.battlefield!, crossing: "bridge" as const, track: "CENTER" as const } };
     expect(effectiveTrackPoint(left, bridgeReplay)).toEqual({ x: 2, y: 0.8 });
     expect(effectiveTrackPoint(right, bridgeReplay)).toEqual({ x: 2, y: -0.8 });
     expect(effectiveTrackPoint(center, bridgeReplay)).toEqual({ x: 2, y: 0 });
