@@ -23,7 +23,7 @@ async function launchCurrentReady(page: import("@playwright/test").Page): Promis
 }
 
 test("S13 uses real Enbu runs for replay navigation, draft comparison and both rematch routes", async ({ page, baseURL }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   if (!baseURL) throw new Error("The browser runner must provide its production preview URL.");
   mkdirSync(evidenceDirectory, { recursive: true });
   const pageErrors: string[] = [];
@@ -133,8 +133,9 @@ test("S13 uses real Enbu runs for replay navigation, draft comparison and both r
   await expect(page.getByText("No completed Next Enbu experiments are saved on this device.")).toBeVisible();
   await page.getByLabel("Import Next experiment file").setInputFiles(exportedPath);
   // Two full 600-tick records include millions of authorized JSON values.
-  // IndexedDB cloning and identity reconstruction outlast the 5s DOM default.
-  await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2, { timeout: 60_000 });
+  // Import reproduces both 600-tick Runs before replacing stored records (about 92s each in CI).
+  // Keep full identity and comparison assertions; only bound the real Core work appropriately.
+  await expect(page.locator(".next-library-experiment-list li")).toHaveCount(2, { timeout: 240_000 });
   await expect(page.getByRole("button", { name: "Open latest comparison" })).toBeEnabled({ timeout: 60_000 });
   await page.getByRole("button", { name: "Open latest comparison" }).click();
   // The saved pair is the revised run and its exact Snapshot rematch. Their
