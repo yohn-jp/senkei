@@ -1,0 +1,428 @@
+{
+  "sourceRevision": "1b08ef179eb7de95061348087813be1dfc8d75aa",
+  "sourceSha256": "bbb0c4d75d30459195cd381333adf1f8d7ec4365570f3672898dc0014d42589f",
+  "wasmSha256": "ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a",
+  "browser": "chromium",
+  "testedOperation": "390x844 Jinrei Text edit -> Home -> explicit Next workspace entry -> verify returned Jinrei/Text target without clicking editor tabs -> append to the same Draft at 844x390 -> restore 390x844, then inspect 320x844/430x932/1440x900/1920x1080",
+  "navigationKind": "Home then explicit Next workspace entry; no in-app Back button or browser history traversal",
+  "returnState": {
+    "selectedWorkspaceTab": "true",
+    "selectedJinreiScreenTab": "true",
+    "selectedJinreiEditorTab": "true",
+    "sourcePreserved": true,
+    "compileState": "COMPILE REQUIRED"
+  },
+  "landscapeEditPreserved": true,
+  "result": "the same unsaved source remained editable at 844x390 and retained COMPILE REQUIRED state; no horizontal overflow; source stayed visible at each captured viewport",
+  "layout": [
+    {
+      "name": "portrait-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "documentWidth": 390,
+      "documentHeight": 2492,
+      "sourceY": 256.6875,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 306,
+      "workbenchWidth": 342,
+      "editorPaneWidth": 342,
+      "appSidebar": {
+        "x": 0,
+        "y": -1062,
+        "width": 390,
+        "height": 128
+      },
+      "appShellColumns": "390px",
+      "appSidebarNavDisplay": "flex",
+      "primaryNav": {
+        "x": 14,
+        "y": -998,
+        "width": 361,
+        "height": 52,
+        "itemHeights": [
+          52,
+          48,
+          48,
+          48
+        ]
+      },
+      "nextTabs": {
+        "x": 10,
+        "y": 0,
+        "width": 370,
+        "height": 64
+      },
+      "nextTabsDisplay": "flex",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 24,
+        "y": 123.6875,
+        "width": 342,
+        "height": 766.640625,
+        "gridTemplateColumns": "342px"
+      },
+      "editorConfigurationWidth": 342,
+      "editorTacticsWidth": 342,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 1062,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": false,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "landscape-844",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "documentWidth": 844,
+      "documentHeight": 1927,
+      "sourceY": -1.328125,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 758.25,
+      "workbenchWidth": 788.25,
+      "editorPaneWidth": 788.25,
+      "appSidebar": {
+        "x": 0,
+        "y": -1149,
+        "width": 844,
+        "height": 106
+      },
+      "appShellColumns": "844px",
+      "appSidebarNavDisplay": "flex",
+      "primaryNav": {
+        "x": 12,
+        "y": -1094,
+        "width": 819,
+        "height": 44,
+        "itemHeights": [
+          44,
+          44,
+          44,
+          44
+        ]
+      },
+      "nextTabs": {
+        "x": 10,
+        "y": -666.296875,
+        "width": 824,
+        "height": 54
+      },
+      "nextTabsDisplay": "flex",
+      "nextTabsPosition": "static",
+      "editorLayout": {
+        "x": 24.875,
+        "y": -98.828125,
+        "width": 794.25,
+        "height": 716.140625,
+        "gridTemplateColumns": "794.25px"
+      },
+      "editorConfigurationWidth": 794.25,
+      "editorTacticsWidth": 794.25,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 1149,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "portrait-restored-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "documentWidth": 390,
+      "documentHeight": 2492,
+      "sourceY": 380.6875,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 306,
+      "workbenchWidth": 342,
+      "editorPaneWidth": 342,
+      "appSidebar": {
+        "x": 0,
+        "y": -938,
+        "width": 390,
+        "height": 128
+      },
+      "appShellColumns": "390px",
+      "appSidebarNavDisplay": "flex",
+      "primaryNav": {
+        "x": 14,
+        "y": -874,
+        "width": 361,
+        "height": 52,
+        "itemHeights": [
+          52,
+          48,
+          48,
+          48
+        ]
+      },
+      "nextTabs": {
+        "x": 10,
+        "y": 0,
+        "width": 370,
+        "height": 64
+      },
+      "nextTabsDisplay": "flex",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 24,
+        "y": 247.6875,
+        "width": 342,
+        "height": 766.640625,
+        "gridTemplateColumns": "342px"
+      },
+      "editorConfigurationWidth": 342,
+      "editorTacticsWidth": 342,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 938,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "portrait-320",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "documentWidth": 320,
+      "documentHeight": 2575,
+      "sourceY": 399.875,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 236,
+      "workbenchWidth": 272,
+      "editorPaneWidth": 272,
+      "appSidebar": {
+        "x": 0,
+        "y": -967,
+        "width": 320,
+        "height": 128
+      },
+      "appShellColumns": "320px",
+      "appSidebarNavDisplay": "flex",
+      "primaryNav": {
+        "x": 14,
+        "y": -903,
+        "width": 291,
+        "height": 52,
+        "itemHeights": [
+          52,
+          48,
+          48,
+          48
+        ]
+      },
+      "nextTabs": {
+        "x": 10,
+        "y": 0,
+        "width": 300,
+        "height": 64
+      },
+      "nextTabsDisplay": "flex",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 24,
+        "y": 266.875,
+        "width": 272,
+        "height": 801.28125,
+        "gridTemplateColumns": "272px"
+      },
+      "editorConfigurationWidth": 272,
+      "editorTacticsWidth": 272,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 967,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "portrait-430",
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "documentWidth": 430,
+      "documentHeight": 2464,
+      "sourceY": 316.6875,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 346,
+      "workbenchWidth": 382,
+      "editorPaneWidth": 382,
+      "appSidebar": {
+        "x": 0,
+        "y": -967,
+        "width": 430,
+        "height": 128
+      },
+      "appShellColumns": "430px",
+      "appSidebarNavDisplay": "flex",
+      "primaryNav": {
+        "x": 14,
+        "y": -903,
+        "width": 401,
+        "height": 52,
+        "itemHeights": [
+          52,
+          48,
+          48,
+          48
+        ]
+      },
+      "nextTabs": {
+        "x": 10,
+        "y": 0,
+        "width": 410,
+        "height": 64
+      },
+      "nextTabsDisplay": "flex",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 24,
+        "y": 183.6875,
+        "width": 382,
+        "height": 766.640625,
+        "gridTemplateColumns": "382px"
+      },
+      "editorConfigurationWidth": 382,
+      "editorTacticsWidth": 382,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 967,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "desktop-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "documentWidth": 1440,
+      "documentHeight": 1673,
+      "sourceY": 266.03125,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 629.734375,
+      "workbenchWidth": 979,
+      "editorPaneWidth": 979,
+      "appSidebar": {
+        "x": 0,
+        "y": -773,
+        "width": 190,
+        "height": 1673.03125
+      },
+      "appShellColumns": "190px 1250px",
+      "appSidebarNavDisplay": "grid",
+      "primaryNav": {
+        "x": 14,
+        "y": -612,
+        "width": 161,
+        "height": 201,
+        "itemHeights": [
+          60,
+          41,
+          41,
+          41
+        ]
+      },
+      "nextTabs": {
+        "x": 214,
+        "y": 14,
+        "width": 166,
+        "height": 353.9375
+      },
+      "nextTabsDisplay": "grid",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 412,
+        "y": 168.53125,
+        "width": 985,
+        "height": 522.5,
+        "gridTemplateColumns": "303.266px 665.734px"
+      },
+      "editorConfigurationWidth": 303.265625,
+      "editorTacticsWidth": 665.734375,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 773,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "desktop-1920",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "documentWidth": 1920,
+      "documentHeight": 1681,
+      "sourceY": 438.03125,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 959.5,
+      "workbenchWidth": 1459,
+      "editorPaneWidth": 1459,
+      "appSidebar": {
+        "x": 0,
+        "y": -601,
+        "width": 190,
+        "height": 1681.03125
+      },
+      "appShellColumns": "190px 1730px",
+      "appSidebarNavDisplay": "grid",
+      "primaryNav": {
+        "x": 14,
+        "y": -440,
+        "width": 161,
+        "height": 201,
+        "itemHeights": [
+          60,
+          41,
+          41,
+          41
+        ]
+      },
+      "nextTabs": {
+        "x": 214,
+        "y": 14,
+        "width": 166,
+        "height": 353.9375
+      },
+      "nextTabsDisplay": "grid",
+      "nextTabsPosition": "sticky",
+      "editorLayout": {
+        "x": 412,
+        "y": 340.53125,
+        "width": 1465,
+        "height": 522.5,
+        "gridTemplateColumns": "453.5px 995.5px"
+      },
+      "editorConfigurationWidth": 453.5,
+      "editorTacticsWidth": 995.5,
+      "selectedWorkspaceTab": "true",
+      "selectedJinreiScreenTab": "true",
+      "selectedJinreiEditorTab": "true",
+      "scrollY": 601,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": true,
+      "compileState": "COMPILE REQUIRED"
+    }
+  ],
+  "pageErrors": [],
+  "physicalOrientation": "NOT_CHECKED",
+  "physicalKeyboardAndIME": "NOT_CHECKED"
+}

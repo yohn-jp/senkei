@@ -56,7 +56,8 @@ test("all supplied attacker diagnostics remain reachable beyond 60 on desktop an
     await expect(diagnostics.getByRole("status")).toContainText(`page ${totalPages}/${totalPages}`);
     await expect(pages.getByRole("button", { name: "次のTrace", exact: true })).toBeDisabled();
     await page.screenshot({ path: testInfo.outputPath(`diagnostics-last-page-${viewport.width}.png`), fullPage: true });
-    const lastButton = list.getByRole("button").last();
+    // Each row also offers a separate Action-source button. Inspect the Replay row.
+    const lastButton = list.locator(":scope > li > button").last();
     await expect(lastButton).toContainText(`T${String(last.tick).padStart(3, "0")}`);
     await expect(lastButton).toContainText(last.record.kind.replaceAll("_", " "));
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);

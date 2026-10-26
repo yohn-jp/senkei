@@ -1,0 +1,178 @@
+{
+  "scope": "Bounded coordinator checks; both Goals remain incomplete.",
+  "core": {
+    "source_revision": "30ef5eacc94f226fbf42966ca69976d0a0277ea6",
+    "crates_tree": "9d3bc738dec5cb5e2a146c9b933a11e62b0e1e5d",
+    "wasm_sha256": "ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a",
+    "checks": [
+      {
+        "command": "bash scripts/wasm/build.sh",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo build --workspace --release --locked",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo test --workspace --release --locked",
+        "exit_code": 0,
+        "tests_passed": 229,
+        "tests_failed": 0,
+        "tests_ignored": 0
+      },
+      {
+        "command": "SENKEI_NATIVE_DISPATCHER=target/release/senkei-wasm-dispatch node tests/conformance/generate-scenario-inputs.mjs --check && SENKEI_NATIVE_DISPATCHER=target/release/senkei-wasm-dispatch node tests/conformance/compare-adapters.mjs",
+        "exit_code": 0,
+        "initial_scenarios_passed": 7
+      }
+    ]
+  },
+  "focus_integration": {
+    "source_revision": "224332e70b26dd9e4f31c64dbad21631c6990158",
+    "unit_tests": 280,
+    "ci_helper_tests": 11,
+    "production_build": "PASS",
+    "generated_contract_types": "UNCHANGED",
+    "real_core_component_checks": {
+      "source_revision": "3083a1aa102e3d7cd0ec1e616d352c355ee562e6",
+      "viewports": [
+        390,
+        1440
+      ],
+      "passed": 2,
+      "scope": "Component producer only, Ready parent caller not proved."
+    }
+  },
+  "import_integration": {
+    "initial_source_revision": "dda888b",
+    "corrected_test_source_revision": "232f2d486964d0caff0bd3d56bbbdca92d087639",
+    "unit_tests": 290,
+    "production_build": "PASS",
+    "browser_initial": {
+      "passed": [
+        "incompatible paired-World import preserves records and Draft",
+        "Core-down export retains IndexedDB content",
+        "quota replacement-write failure retains Run, Draft and durable payload"
+      ],
+      "failed": "Raw-only clear test used aria-label instead of aria-labelledby accessible name; production clear button and dialog were present."
+    },
+    "browser_rerun": {
+      "passed": [
+        "unrecognized schema export and explicit confirmed discard with Core unavailable"
+      ],
+      "test_only_fix": "Use accessible dialog name Clear saved experiments?",
+      "genuine_export_sha256": "730acf9a444b1434d0bb907b10cd4d1079a938a88accf4d3bad28a92a3b6882a",
+      "reused_artifact_scope": "Same Core and product import implementation; no fresh battle generation required for this rerun."
+    }
+  },
+  "environment": {
+    "browser": "Nix Chromium 156",
+    "renderer": "SwiftShader",
+    "physical_mobile_device": "NOT_CHECKED",
+    "physical_gpu_performance": "NOT_CHECKED"
+  },
+  "limits": [
+    "No final integrated-main CI claim.",
+    "C04 parent, S06, Campaign retry, C08, new diagnostics lineage, Behavior completeness and final art still require their own integration and acceptance."
+  ],
+  "mobile_integration": {
+    "source_revision": "ac3eed9cd310ab7103bbd23d032bd82bc7cd1d93",
+    "production_build": "PASS",
+    "browser_command": "npm run test:e2e --prefix tests/browser -- mobile-battle-view-controls.spec.ts recovery-core-quota-retry.spec.ts mobile-c12-draft-return.spec.ts --workers=1 --retries=0",
+    "browser_passed": 3,
+    "viewports": [
+      [
+        320,
+        844
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        430,
+        932
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        1920,
+        1080
+      ]
+    ],
+    "proof": [
+      "Fresh confirmed Enbu replay mode and layer toggles keep Tick unchanged",
+      "Quota-denied Recovery writes plus same-package Core retry retain current source and old durable bytes; actual compile succeeds",
+      "Home then explicit Next entry preserves selected Jinrei/Text target and unsaved source before any tab click; emulated window resize retains source"
+    ],
+    "limitations": [
+      "Recovery test performs no Enbu and does not prove Run retention",
+      "Browser Back, physical rotation, touch, keyboard/IME and safe area unverified",
+      "844x390 source editor narrowing remains an allocated responsive-layout defect"
+    ]
+  },
+  "product_packet": {
+    "code_source_revision": "fdabcf2411860288db17bc9b47357240fd6f90eb",
+    "ancestry_only_merges": [
+      "c8bc929",
+      "e3a8eb1",
+      "648dae1"
+    ],
+    "tree_check": "git diff --exit-code fdabcf2 648dae1 -- apps crates packages scripts tests scenarios returned 0",
+    "unit_tests": 309,
+    "production_build": "PASS",
+    "typecheck": "PASS",
+    "core": {
+      "crates_tree": "b6989c9fec9dfaf88277a42063d0987d79c6e5e6",
+      "native_workspace_tests": 232,
+      "native_failed": 0,
+      "native_ignored": 0,
+      "wasm_sha256": "345ff3193b9210082c68ced0d56d84c7b9e21c1d2240016b4269f1610610010f",
+      "native_dispatcher_sha256": "707ffe100a21fb80eff50b56ad394f050954e4e64b0a9ce09da4cbaf1a978bf3",
+      "conformance_initial_scenarios": 7,
+      "golden_diff": "Only response_sha256 changed for new diagnostics.identity; request/outcome/Tick/state/CU/events unchanged. Native repeat and Native/WASM equality checked, then normal golden check PASS."
+    },
+    "root_browser": {
+      "source_revision": "b1b706c0c83d4ac06e68f28aaefdc41badcf591c",
+      "checks": [
+        "Core-down export",
+        "quota replacement write preservation",
+        "unknown schema raw export and confirmed discard",
+        "C12 Home/Next and landscape editing across viewport matrix"
+      ],
+      "passed": 4,
+      "initial_other_failure": "Tampered World now fails earlier diagnostics-snapshot binding; expected rejection message was updated while all preservation assertions remained.",
+      "incompatible_import_rerun": {
+        "source_revision": "8c326c82",
+        "passed": 1,
+        "genuine_artifact_sha256": "d147a2813373a7bca0f2a8d628ddd44bdb8aeb4501d1f9619b8120b10cf1391b"
+      }
+    },
+    "improved_rematch_browser": {
+      "source_revision": "fff16e32513b49d477b41bcd3410a0e521d8fe7a",
+      "passed": 1,
+      "viewports": [
+        1440,
+        390
+      ],
+      "proof": "Actual improved Enbu after exact-mode diagnostic toggles; exported original/nonTargets/context/opponent/memory equality and changed own Program; Current entry retains Draft."
+    },
+    "product_browser": {
+      "source_revision": "95259693cfef0d3bcebb243ca5e2617eb132a180",
+      "c04_and_s06_passed": 2,
+      "c08_classification_passed": 1,
+      "campaign_quota_retry_passed": 1,
+      "limits": "Campaign quota regression was the earlier same-Core stage; C04/S06 and C08 use matching 345ff artifact. No physical input or full visual-quality proof."
+    },
+    "review_findings_fixed": [
+      "import generation race / stale export / raw-only discard",
+      "C08 diagnostic checkbox lost frozen mode",
+      "BH03 disjoint-phase false negative",
+      "stale repair dispatch and non-Campaign fixed-opponent recovery destination",
+      "landscape editor compressed to 164px"
+    ],
+    "next_scope": "EN-03 artifact retention/resolution and remaining Art gates continue in same parent session."
+  }
+}

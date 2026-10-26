@@ -79,6 +79,7 @@ mod tests {
     fn resolver_requires_exact_paired_identity_and_never_falls_back() {
         let artifact = world();
         let reference = artifact.identity().to_model_ref();
+        let compiler_reference = reference.clone();
         let mut resolver = WorldResolver::default();
         assert_eq!(resolver.resolve(&reference), Err(WorldResolveError::MissingWorld));
         resolver.insert(artifact).unwrap();
@@ -87,6 +88,9 @@ mod tests {
         let mut mismatch = reference.clone();
         mismatch.presentation_digest = senkei_model::ContentDigest::new("0".repeat(64));
         assert_eq!(resolver.resolve(&mismatch), Err(WorldResolveError::IdentityMismatch));
+        let mut compiler_mismatch = compiler_reference;
+        compiler_mismatch.compiler_version = senkei_model::Version::new(99, 0, 0);
+        assert_eq!(resolver.resolve(&compiler_mismatch), Err(WorldResolveError::IdentityMismatch));
         let mut missing = reference;
         missing.world_id = "another-world".into();
         assert_eq!(resolver.resolve(&missing), Err(WorldResolveError::MissingWorld));

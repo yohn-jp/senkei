@@ -63,7 +63,7 @@ function unavailableInputs(snapshot: unknown): string[] {
   require("context.max_ticks", value => number(value) && (value as number) > 0);
   for (const field of ["entities", "global_fields", "collections"]) require(`context.initial_world.${field}`, record);
   for (const field of ["world_id", "logic_digest", "presentation_digest"]) require(`context.world_identity.${field}`, nonempty);
-  for (const field of ["schema_version", "minimum_compiler"]) require(`context.world_identity.${field}`, version);
+  for (const field of ["schema_version", "compiler_version", "minimum_compiler"]) require(`context.world_identity.${field}`, version);
   for (const field of ["maximum_compiler_exclusive", "validation_profile_version"]) require(`context.world_identity.${field}`, value => value === null || version(value));
   require("context.world_identity.validation_profile_id", value => value === null || nonempty(value));
   return missing;

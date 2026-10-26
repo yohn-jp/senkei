@@ -1,0 +1,80 @@
+{
+  "sourceRevision": "224332e70b26dd9e4f31c64dbad21631c6990158",
+  "sourceSha256": "b7604243eee891acc267db08087ac7fbf14f32cd8571c26ffbabcf6d45aabf57",
+  "wasmSha256": "ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a",
+  "browser": {
+    "engine": "Chromium 156.0.8078.47",
+    "renderer": "SwiftShader",
+    "environment": "Nix/Linux headless browser"
+  },
+  "testedOperation": "390x844 Jinrei Text edit -> Home -> explicit Next workspace entry -> verify returned Jinrei/Text target without clicking editor tabs -> 844x390 viewport resize -> restore 390x844",
+  "navigationKind": "Home then explicit Next workspace entry; no in-app Back button or browser history traversal",
+  "returnState": {
+    "selectedWorkspaceTab": "true",
+    "selectedJinreiEditorTab": "true",
+    "sourcePreserved": true,
+    "compileState": "COMPILE REQUIRED"
+  },
+  "result": "unsaved source and COMPILE REQUIRED state retained; no horizontal overflow; source stayed visible",
+  "layout": [
+    {
+      "name": "portrait",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "documentWidth": 390,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 306,
+      "workbenchWidth": 342,
+      "editorPaneWidth": 342,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": false,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "landscape-shaped",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "documentWidth": 844,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 163.78125,
+      "workbenchWidth": 417.25,
+      "editorPaneWidth": 419.78125,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": false,
+      "compileState": "COMPILE REQUIRED"
+    },
+    {
+      "name": "portrait-restored",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "documentWidth": 390,
+      "sourceVisibleHeight": 330,
+      "sourceWidth": 306,
+      "workbenchWidth": 342,
+      "editorPaneWidth": 342,
+      "sourceIntersectsViewport": true,
+      "sourceFocused": false,
+      "compileState": "COMPILE REQUIRED"
+    }
+  ],
+  "pageErrors": [],
+  "physicalOrientation": "NOT_CHECKED",
+  "physicalKeyboardAndIME": "NOT_CHECKED",
+  "testSpecSha256": "cb1e0fa8895907a734ece8c59b84d9662842050244c4aa7832ac0992ae2d5e27",
+  "visualReview": {
+    "landscapeShape": "NOT_ACCEPTED_AS_LAYOUT_PASS",
+    "finding": "At the 844x390 viewport shape, the desktop sidebar remains visible. The Jinrei workbench is 417 CSS px wide and the source editor is 163.8 CSS px wide. The editor is visible and text remains retained, but the screenshot is a specific landscape ergonomics review candidate; no device rotation or IME claim."
+  },
+  "captureSha256": {
+    "landscape-shaped.png": "22fc7187a27f46647a7dacbe9fec104d288942862e3bd5b29fc4823ab1da0d45",
+    "portrait-edited.png": "36c28b8ef2a667f90619debdfd6dc7ddd40acd16afa72827e011fc108aae60ef",
+    "portrait-restored.png": "03da6e8ca7d98f9519e329653319193ae088255e0b527bfb9e28f44087162068",
+    "portrait.png": "a06b797abe1d034a3a28ed6546d6802eaef41cce335ce02054e4a1ceb99d7c51"
+  }
+}

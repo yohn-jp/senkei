@@ -1,4 +1,4 @@
-import type { CoreJsonValue } from "../../contracts/core";
+import type { CoreJsonValue, ReproductionAssets, SimulationSnapshot } from "../../contracts/core";
 import type {
   LocalSenkeiDocument,
   LocalSenkeiDocumentSummary,
@@ -372,7 +372,7 @@ function assertDomainRecord(value: Record<string, unknown>, path: string): void 
   for (const [key, child] of Object.entries(value)) assertDomainValue(child, `${path}.${key}`);
 }
 
-function assertSimulationSnapshot(value: unknown, path: string): void {
+function assertSimulationSnapshot(value: unknown, path: string): asserts value is SimulationSnapshot {
   if (!isRecord(value) || !isRecord(value.attacker) || !isRecord(value.defender) || !isRecord(value.context)) {
     throw new PersistenceError("invalid_data", `${path} must contain attacker, defender, and context snapshots.`);
   }
@@ -573,6 +573,80 @@ function assertRulePackage(value: unknown, path: string): void {
   }
   if (!isRecord(value.domain.senkei_configuration) || !isRecord(value.world_initialization) || !isRecord(value.world.entity_types)) {
     throw new PersistenceError("invalid_data", `${path} is missing configuration, world initialization, or world schema records.`);
+  }
+}
+
+function assertWorldIdentityRef(value: unknown, path: string): void {
+  if (!isRecord(value) || typeof value.world_id !== "string" ||
+      typeof value.logic_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.logic_digest) ||
+      typeof value.presentation_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.presentation_digest) ||
+      (value.maximum_compiler_exclusive !== null && !isRecord(value.maximum_compiler_exclusive)) ||
+      (value.validation_profile_id !== null && typeof value.validation_profile_id !== "string") ||
+      (value.validation_profile_version !== null && !isRecord(value.validation_profile_version)) ||
+      ((value.validation_profile_id === null) !== (value.validation_profile_version === null))) {
+    throw new PersistenceError("invalid_data", `${path} is a malformed paired World identity.`);
+  }
+  for (const key of ["schema_version", "compiler_version", "minimum_compiler"]) {
+    assertVersion(value[key], `${path}.${key}`);
+  }
+  if (value.maximum_compiler_exclusive !== null) {
+    assertVersion(value.maximum_compiler_exclusive, `${path}.maximum_compiler_exclusive`);
+  }
+  if (value.validation_profile_version !== null) {
+    assertVersion(value.validation_profile_version, `${path}.validation_profile_version`);
+  }
+}
+
+function sameVersion(left: unknown, right: unknown): boolean {
+  return isRecord(left) && isRecord(right) &&
+    left.major === right.major && left.minor === right.minor && left.patch === right.patch;
+}
+
+function sameRulesetRef(left: unknown, right: unknown): boolean {
+  return isRecord(left) && isRecord(right) &&
+    left.id === right.id && left.digest === right.digest && sameVersion(left.version, right.version);
+}
+
+function sameWorldIdentity(left: unknown, right: unknown): boolean {
+  if (!isRecord(left) || !isRecord(right)) return false;
+  return left.world_id === right.world_id &&
+    sameVersion(left.schema_version, right.schema_version) &&
+    sameVersion(left.compiler_version, right.compiler_version) &&
+    sameVersion(left.minimum_compiler, right.minimum_compiler) &&
+    (left.maximum_compiler_exclusive === null
+      ? right.maximum_compiler_exclusive === null
+      : sameVersion(left.maximum_compiler_exclusive, right.maximum_compiler_exclusive)) &&
+    left.validation_profile_id === right.validation_profile_id &&
+    (left.validation_profile_version === null
+      ? right.validation_profile_version === null
+      : sameVersion(left.validation_profile_version, right.validation_profile_version)) &&
+    left.logic_digest === right.logic_digest &&
+    left.presentation_digest === right.presentation_digest;
+}
+
+function assertReproductionAssets(value: unknown, path: string): asserts value is ReproductionAssets {
+  if (!isRecord(value) || value.format_version !== 1 || !isRecord(value.rule_package) || !isRecord(value.world_definition)) {
+    throw new PersistenceError("invalid_data", `${path} must contain format 1, a RulePackage, and its authored World Definition.`);
+  }
+  assertRulePackage(value.rule_package, `${path}.rule_package`);
+  assertJsonValue(value.world_definition, `${path}.world_definition`, MAX_EXPORT_NODES);
+  if (value.catalog_metadata_extension !== undefined) {
+    assertJsonValue(value.catalog_metadata_extension, `${path}.catalog_metadata_extension`, MAX_EXPORT_NODES);
+    if (!isRecord(value.catalog_metadata_extension)) {
+      throw new PersistenceError("invalid_data", `${path}.catalog_metadata_extension must be an object.`);
+    }
+  }
+
+  const next = value.rule_package.next;
+  const worldDefinition = value.world_definition;
+  if (!isRecord(next) || !isRecord(next.world_identity) ||
+      typeof worldDefinition.id !== "string" || next.world_identity.world_id !== worldDefinition.id) {
+    throw new PersistenceError("invalid_data", `${path} RulePackage does not reference the included authored World Definition.`);
+  }
+  assertWorldIdentityRef(next.world_identity, `${path}.rule_package.next.world_identity`);
+  assertVersion(worldDefinition.schema_version, `${path}.world_definition.schema_version`);
+  if (!sameVersion(worldDefinition.schema_version, next.world_identity.schema_version)) {
+    throw new PersistenceError("invalid_data", `${path} authored World Definition schema does not match its RulePackage identity.`);
   }
 }
 
@@ -1299,8 +1373,7 @@ export async function loadWorkspaceData(documentId: string): Promise<LocalSenkei
 }
 
 function assertNextExperimentStore(value: unknown): asserts value is LocalNextExperimentStore {
-  if (!isRecord(value) || value.format_version !== 1 || typeof value.ruleset_digest !== "string" ||
-      !Array.isArray(value.experiments) || value.experiments.length > 2) {
+  if (!isRecord(value) || value.format_version !== 2 || !Array.isArray(value.experiments) || value.experiments.length > 2) {
     throw new PersistenceError("invalid_data", "Next experiment store has an unsupported or malformed format.");
   }
   const seen = new Set<string>();
@@ -1308,11 +1381,30 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
     if (!isRecord(experiment) || typeof experiment.id !== "string" || experiment.id.length === 0 || seen.has(experiment.id) ||
         typeof experiment.match_id !== "string" || typeof experiment.created_at !== "string" || !isRecord(experiment.snapshot) || !isRecord(experiment.snapshot.context) ||
         experiment.snapshot.context.match_id !== experiment.match_id || !isRecord(experiment.response) ||
+        typeof experiment.snapshot_digest !== "string" || !/^[0-9a-f]{64}$/.test(experiment.snapshot_digest) ||
         !isRecord(experiment.setup) || typeof experiment.include_diagnostics !== "boolean" ||
         typeof experiment.estimated_cu !== "number" || !Number.isSafeInteger(experiment.estimated_cu) || experiment.estimated_cu < 0) {
       throw new PersistenceError("invalid_data", `Next experiment ${index + 1} is malformed or does not match its immutable match identity.`);
     }
     const label = `Next experiment ${index + 1}`;
+    assertReproductionAssets(experiment.reproduction_assets, `${label}.reproduction_assets`);
+    const snapshotValue = experiment.snapshot;
+    assertSimulationSnapshot(snapshotValue, `${label}.snapshot`);
+    const packageRuleset = experiment.reproduction_assets.rule_package.ruleset;
+    const snapshotRulesets = [
+      snapshotValue.context.ruleset,
+      snapshotValue.attacker.ruleset,
+      snapshotValue.attacker.program.ruleset,
+      snapshotValue.defender.ruleset,
+      snapshotValue.defender.program.ruleset,
+    ];
+    if (snapshotRulesets.some((ruleset) => !sameRulesetRef(ruleset, packageRuleset))) {
+      throw new PersistenceError("invalid_data", `${label} snapshot ruleset identity does not match its retained RulePackage.`);
+    }
+    const packageWorld = experiment.reproduction_assets.rule_package.next?.world_identity;
+    if (!packageWorld || !sameWorldIdentity(snapshotValue.context.world_identity, packageWorld)) {
+      throw new PersistenceError("invalid_data", `${label} snapshot World identity does not match its retained RulePackage and World Definition.`);
+    }
     assertJsonValue(experiment, label, MAX_EXPORT_NODES);
     const serialized = JSON.stringify(experiment);
     if (serialized === undefined || utf8ByteLength(serialized) > MAX_EXPORT_BYTES) {
@@ -1349,8 +1441,8 @@ export function assertNextExperimentImportSize(byteLength: number): void {
   }
 }
 
-/** Reads the two latest immutable Next Enbu experiments from the local workspace database. */
-export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
+/** Reads bounded JSON without requiring a current schema or simulation runtime, so preserved data can be exported. */
+export async function loadNextExperimentPayload(): Promise<CoreJsonValue | null> {
   return withTransaction(NEXT_EXPERIMENT_STORE, "readonly", (transaction, setResult) => {
     const request = transaction.objectStore(NEXT_EXPERIMENT_STORE).get("latest");
     request.onsuccess = () => {
@@ -1359,16 +1451,23 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
         setResult(null);
         return;
       }
-      const copy = parseNextExperimentStore(record.payload);
+      const copy = cloneJson(record.payload, "Preserved Next experiments", NEXT_EXPERIMENT_STORE_MAX_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES) as CoreJsonValue;
       setResult(copy);
     };
   }, "Could not restore Next experiments");
 }
 
+/** Reads the two latest immutable Next Enbu experiments using the current storage schema. */
+export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
+  const payload = await loadNextExperimentPayload();
+  return payload === null ? null : parseNextExperimentStore(payload);
+}
+
 /** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
-export async function saveNextExperimentStore(value: LocalNextExperimentStore): Promise<void> {
+export async function saveNextExperimentStore(value: LocalNextExperimentStore, beforePut?: () => void): Promise<void> {
   const copied = parseNextExperimentStore(value);
   await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
+    beforePut?.();
     transaction.objectStore(NEXT_EXPERIMENT_STORE).put({ id: "latest", payload: copied });
     setResult(undefined);
   }, "Could not save Next experiments");

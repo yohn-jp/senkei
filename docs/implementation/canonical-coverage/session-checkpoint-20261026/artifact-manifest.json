@@ -1,0 +1,44 @@
+[
+  {
+    "source": "/workspace/wt-tactical-context/test-results/tactical-real-experiments.json",
+    "archive": "tactical-real-experiments.json.gz",
+    "original_bytes": 46594491,
+    "original_sha256": "19c1ebe2e7b8373a255a43310e0166ba1ff3ef250ce5c5425c7288bbe358063d"
+  },
+  {
+    "source": "/workspace/wt-preflight-producer/apps/web/public/wasm/senkei_wasm.wasm",
+    "archive": "core-8ec4.wasm.gz",
+    "original_bytes": 6723830,
+    "original_sha256": "8ec4c1b4dcb9b5acb6fa59322aa6e8398db72fdd4ed1632af6dcb122326f59ea"
+  },
+  {
+    "source": "/workspace/wt-campaign-live/test-results/campaign-first-exact-rematch-records.json",
+    "archive": "campaign-first-exact-rematch-records.json.gz",
+    "original_bytes": 21265944,
+    "original_sha256": "1f65a954c68f5d3d8fbc46578618a34ab6e1fe7710f067165ca1f976cf687013"
+  },
+  {
+    "source": "/workspace/wt-campaign-live/test-results/campaign-native-final-proof.json",
+    "archive": "campaign-native-final-proof.json.gz",
+    "original_bytes": 12440324,
+    "original_sha256": "de103371926cbde6c4de7e241ff5d3b7dc0f94efd4631f6ef367e3a1a94fa138"
+  },
+  {
+    "source": "/workspace/wt-campaign-live/test-results/campaign-genuine-native-experiment.json",
+    "archive": "campaign-genuine-native-experiment.json.gz",
+    "original_bytes": 12443001,
+    "original_sha256": "49f5bf335456d9f1730c2b3f3edbf2405b8632230fd1cfa634bea6c25923f7d2"
+  },
+  {
+    "source": "/workspace/wt-campaign-live/test-results/campaign-native-first-march-proof.json",
+    "archive": "campaign-native-first-march-proof.json.gz",
+    "original_bytes": 10630347,
+    "original_sha256": "efb7e28761ef7a2fc494ba7871e61dbd0dcf1ff406e7302fc78a450cb5e2b351"
+  },
+  {
+    "source": "/workspace/wt-campaign-live/test-results/campaign-exact-rematch-records.json",
+    "archive": "campaign-exact-rematch-records.json.gz",
+    "original_bytes": 24885921,
+    "original_sha256": "92fdccd962da268018e760a0eddbfa6bb669d57804e3cea53bca11f6a7d6e1eb"
+  }
+]

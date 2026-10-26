@@ -1,5 +1,6 @@
 import type {
   CompileDiagnostic,
+  ContentDigest,
   MatchContext,
   MatchResult,
   PresentationReplay,
@@ -8,6 +9,7 @@ import type {
   SenkeiSnapshot,
   StructuredTacticsAst,
   TacticalProgram,
+  CombatantSide,
 } from "./core-model";
 import type {
   ActionSourceMap,
@@ -51,6 +53,16 @@ export interface RulesetRef {
   readonly digest: string;
 }
 
+/** Explicitly select whether and which owner channel is included in a local simulation. */
+export type SimulationRequestOptions =
+  | { readonly include_diagnostics: true; readonly diagnostics_side: CombatantSide }
+  | { readonly include_diagnostics?: false; readonly diagnostics_side?: never };
+
+/** Wire payload form; the false flag is explicit for every worker/WASM request. */
+export type SimulationRequestPayload =
+  | { readonly include_diagnostics: true; readonly diagnostics_side: CombatantSide }
+  | { readonly include_diagnostics: false; readonly diagnostics_side?: never };
+
 export type LogicalCu = number;
 
 export type ApiErrorCode =
@@ -89,6 +101,16 @@ export interface SimulationSnapshot {
   readonly attacker: SenkeiSnapshot;
   readonly defender: SenkeiSnapshot;
   readonly context: MatchContext;
+}
+
+/** Exact public package and authored World needed to rebuild a local match. */
+export interface ReproductionAssets {
+  readonly format_version: 1;
+  readonly rule_package: RulePackage;
+  /** Authored World Definition JSON; the core recompiles and verifies it. */
+  readonly world_definition: CoreJsonValue;
+  /** Optional private authored Catalog/Behavior metadata; the Core validates it against the package digest. */
+  readonly catalog_metadata_extension?: CoreJsonValue;
 }
 
 export interface BenchmarkCase {
@@ -166,6 +188,8 @@ export interface WorkerFailure {
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
   nextRuleset(): Promise<RulePackage>;
+  /** Load the current builtin package with the exact World Definition it uses. */
+  reproductionAssets(): Promise<ReproductionAssets>;
   editorCatalogJson(): Promise<string>;
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
@@ -174,9 +198,22 @@ export interface CoreClient {
   compile(input: TacticalInput): Promise<CompileOutcome>;
   /** Validate the exact Enbu launch snapshot without executing any match ticks. */
   preflight(snapshot: SimulationSnapshot): Promise<void>;
+  /** Validate a retained package, World, and snapshot without executing match ticks. */
+  preflightReproduction(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
+  ): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
-    options?: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("./core-model").CombatantSide },
+    options?: SimulationRequestOptions,
+  ): Promise<SimulationResponse>;
+  /** Re-run a frozen input against its retained package and authored World. */
+  reproduce(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
+    options?: SimulationRequestOptions,
   ): Promise<SimulationResponse>;
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome>;
   dispose(): void;

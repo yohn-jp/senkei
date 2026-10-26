@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { HeroDefinition, NextRules, SkillDefinition } from "../../contracts";
 import { HeroModelPreview } from "./HeroModelPreview";
+import { SkillRunProgressContext } from "./SkillRunProgressContext";
+import { deriveSkillRunProgress } from "./skill-run-progress";
+import type { SkillRunProgressInput } from "./skill-run-progress";
 import "./hero-atelier.css";
+import { resolveHeroRepair } from "./repair-focus";
+import type { HeroRepairFocusRequest } from "./repair-focus";
+export type { HeroRepairFocusRequest } from "./repair-focus";
 
 export interface HeroAtelierSlot {
   readonly slot_id: string;
@@ -12,7 +18,13 @@ export interface HeroAtelierSlot {
   readonly skill_path: string;
 }
 export type HeroAtelierScreen = "collection" | "detail" | "skills" | "squads";
+export type HeroAtelierRunContext = Omit<SkillRunProgressInput, "slot" | "hero">;
 export interface HeroAtelierProps {
+  /** True while this workspace is visible, including any of its internal screens. */
+  readonly active?: boolean;
+  readonly repairFocus?: HeroRepairFocusRequest | null;
+  /** Already validated immutable Run context; never the editable Draft. */
+  readonly skillRunContext?: HeroAtelierRunContext | null;
   readonly nextRules: NextRules;
   readonly slots: readonly HeroAtelierSlot[];
   readonly activeSlot: number;
@@ -46,6 +58,7 @@ export const HERO_SQUAD_PATTERNS: readonly { id: string; sizes: readonly number[
 const STAT_KEYS = ["hp", "attack", "defense", "speed", "range", "attack_interval", "vision"] as const;
 const SQUAD_NAMES = ["Solo", "Duo", "Trio", "Quartet", "Quintet"] as const;
 function formatId(value: string): string { return value.replaceAll("_", " ").replaceAll("-", " ").replaceAll(".", " · ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function repairSlotKey(slot: HeroAtelierSlot): string { return JSON.stringify([slot.slot_id, slot.catalog_id, slot.skill_path, slot.squad, slot.node]); }
 function findHero(rules: NextRules, id: string): HeroDefinition | undefined { return rules.heroes.find((hero) => hero.id === id); }
 export function skillPathIssues(hero: HeroDefinition, path: string): readonly string[] {
   const ids = hero.skill_paths[path] ?? [];
@@ -91,7 +104,7 @@ export function heroAdoption(hero: HeroDefinition, slot: HeroAtelierSlot, index:
 }
 
 export function HeroAtelier({
-  nextRules, slots, activeSlot, screen, onActiveSlotChange, onScreenChange, onSlotChange,
+  active = false, repairFocus, skillRunContext, nextRules, slots, activeSlot, screen, onActiveSlotChange, onScreenChange, onSlotChange,
   onSquadPattern, onMoveSquad, onReady, onJinrei, canActivate, activateArgumentIds,
 }: HeroAtelierProps): ReactElement {
   const [filters, setFilters] = useState({ placement: "all", role: "all", trait: "all" });
@@ -101,10 +114,52 @@ export function HeroAtelier({
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const screenRef = useRef<HTMLElement>(null);
   const [candidateId, setCandidateId] = useState<string | null>(null);
+  const [repairStatus, setRepairStatus] = useState<string | null>(null);
+  const consumedRepair = useRef<string | null>(null);
+  const pendingRepair = useRef<{ request: HeroRepairFocusRequest; slotKey: string } | null>(null);
+  const latestRepair = useRef({ active, repairFocus, slots, activeSlot, screen });
+  latestRepair.current = { active, repairFocus, slots, activeSlot, screen };
+  const currentRepair = repairFocus ? resolveHeroRepair(slots, repairFocus.target) : null;
+  const repairSlotIdentity = currentRepair ? repairSlotKey(currentRepair.slot) : null;
+  useEffect(() => {
+    if (!active) { pendingRepair.current = null; return; }
+    if (!repairFocus || consumedRepair.current === repairFocus.requestId) return;
+    consumedRepair.current = repairFocus.requestId;
+    const resolved = resolveHeroRepair(slots, repairFocus.target);
+    if (!resolved) { pendingRepair.current = null; setRepairStatus("Hero repair unavailable: slot identity, record or editable field no longer matches."); return; }
+    pendingRepair.current = { request: repairFocus, slotKey: repairSlotKey(resolved.slot) };
+    setRepairStatus(`Requested ${repairFocus.target.field} for ${repairFocus.target.slotId}.`);
+    setCandidateId(null); setSelectedSkillId(null); onActiveSlotChange(resolved.index); onScreenChange(resolved.screen);
+    if (resolved.screen === "squads") setMobileSquadStage(resolved.stage);
+  }, [active, repairFocus?.requestId]);
+  useEffect(() => {
+    const pending = pendingRepair.current;
+    if (!active || !pending || repairFocus?.requestId !== pending.request.requestId) return;
+    const resolved = resolveHeroRepair(slots, pending.request.target);
+    if (!resolved || repairSlotKey(resolved.slot) !== pending.slotKey) { pendingRepair.current = null; setRepairStatus("Hero repair unavailable: slot changed before focus."); return; }
+    if (screen !== resolved.screen || activeSlot !== resolved.index || (screen === "squads" && mobileSquadStage !== resolved.stage)) return;
+    let second = 0;
+    const frame = requestAnimationFrame(() => { second = requestAnimationFrame(() => {
+      const latest = latestRepair.current;
+      if (!latest.active || latest.repairFocus?.requestId !== pending.request.requestId) return;
+      const current = resolveHeroRepair(latest.slots, pending.request.target);
+      if (!current || repairSlotKey(current.slot) !== pending.slotKey) return;
+      // IDs are opaque data, never selector fragments.
+      const group = [...(screenRef.current?.querySelectorAll<HTMLElement>("[data-repair-field]") ?? [])].find(element => element.dataset.repairField === pending.request.target.field
+        && (pending.request.target.field === "node" ? element.dataset.repairSquadId === current.slot.squad : element.dataset.repairSlotId === current.slot.slot_id));
+      const control = group?.matches("button,select,input") ? group : group?.querySelector<HTMLElement>("button:not(:disabled)") ?? group;
+      pendingRepair.current = null;
+      if (!control?.getClientRects().length) { setRepairStatus("Hero repair unavailable: requested control is not visible."); return; }
+      control.focus(); control.scrollIntoView({ block: "center" });
+    }); });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(second); if (pendingRepair.current === pending) pendingRepair.current = null; };
+  }, [active, repairFocus?.requestId, screen, activeSlot, mobileSquadStage, repairSlotIdentity]);
   const candidate = screen === "detail" && candidateId ? findHero(nextRules, candidateId) : undefined;
   const currentSlot = slots[activeSlot] ?? null;
   const assignedHero = currentSlot ? findHero(nextRules, currentSlot.catalog_id) : undefined;
   const currentHero = candidate ?? assignedHero;
+  const skillRunProgress = skillRunContext && currentSlot && assignedHero
+    ? deriveSkillRunProgress({ ...skillRunContext, slot: currentSlot, hero: assignedHero }) : null;
   const adoption = candidate && currentSlot ? heroAdoption(candidate, currentSlot, activeSlot, assignedHero?.name ?? "Unknown Hero", true) : null;
   const changeScreen = (next: HeroAtelierScreen): void => { setCandidateId(null); onScreenChange(next); };
   const pathNames = currentHero ? Object.keys(currentHero.skill_paths) : [];
@@ -160,6 +215,7 @@ export function HeroAtelier({
   };
 
   return <section ref={screenRef} className="hero-atelier" aria-label="Hero Atelier">
+    {repairStatus && <p role="status" aria-label="Hero repair focus">{repairStatus}</p>}
     <header className="ha-header">
       <div><span className="next-eyebrow">HERO ATELIER · {chosenScreen.hint}</span><h3 tabIndex={-1}>{chosenScreen.title}</h3><p>{chosenScreen.description}</p></div>
       <span className="ha-count" aria-label={slots.length + " of 5 heroes selected"}>{String(slots.length).padStart(2, "0")} <small>/ 05</small></span>
@@ -184,7 +240,7 @@ export function HeroAtelier({
         <div className="ha-section-heading"><div><span className="next-eyebrow">CURRENT BATTLE DRAFT</span><h4>Five Hero slots</h4></div><span>{slots.length} / 5 selected</span></div>
         <div className="ha-selected-slots">{slots.map((slot, index) => {
           const hero = findHero(nextRules, slot.catalog_id);
-          return <button aria-label={"Choose hero for slot " + (index + 1)} aria-pressed={activeSlot === index}
+          return <button data-repair-field="catalog_id" data-repair-slot-id={slot.slot_id} aria-label={"Choose hero for slot " + (index + 1)} aria-pressed={activeSlot === index}
             className={activeSlot === index ? "is-active" : ""} key={slot.slot_id} onClick={() => chooseSlot(index)} type="button">
             <span>{String(index + 1).padStart(2, "0")}</span><strong>{hero?.name ?? "Choose a hero"}</strong><small>{hero?.id ?? slot.slot_id} · {hero ? formatId(hero.placement) : "EMPTY"}</small>
           </button>;
@@ -239,7 +295,7 @@ export function HeroAtelier({
       {currentHero && currentSlot ? <div className="ha-tree">
         <header className="ha-tree-heading"><div><span className="next-eyebrow">{currentHero.id} · {currentHero.name} · {currentHero.skills.length} CATALOG NODES</span><h4>Choose one branch for the match</h4><p>These are acquisition plans. Enbu awards skills only when the Hero reaches each unlock level in battle.</p></div><span className="ha-planned-path">CURRENT · {formatId(currentSlot.skill_path)}</span></header>
         <aside className="ha-capability"><strong>Active skill command</strong><p>{canActivate ? <>Active skills can be ordered through the Jinrei <code>activate</code> capability{activateArgumentIds.length ? " (" + activateArgumentIds.map(formatId).join(", ") + ")" : ""}. Prerequisites still need to be acquired in battle.</> : <>No <code>activate</code> capability is declared by this ruleset. Branches containing active skills cannot be selected.</>}</p></aside>
-        <div className="ha-branches">{pathNames.map((path) => {
+        <div className="ha-branches" data-repair-field="skill_path" data-repair-slot-id={currentSlot.slot_id} tabIndex={-1}>{pathNames.map((path) => {
           const selected = currentSlot.skill_path === path;
           const skills = pathSkills(currentHero, path);
           const issues = skillPathIssues(currentHero, path);
@@ -265,6 +321,8 @@ export function HeroAtelier({
           </article>;
         })}</div>
         <p className="ha-plan-note">Planned skills are not acquired skills. The battle's Hero progression and actual level unlock each selected skill.</p>
+        {skillRunProgress ? <SkillRunProgressContext progress={skillRunProgress} />
+          : <aside className="skill-run-context" aria-label="Run skill acquisition context"><strong>Run skill acquisition · Unavailable</strong><p>No confirmed Run is available for this Skill Tree. The editable branch shows an acquisition plan; current acquisitions are unknown.</p></aside>}
         <footer className="ha-footer"><span>Selected path: {selectedSkills(currentHero, currentSlot.skill_path)}</span><div><button className="next-secondary-button" onClick={() => changeScreen("collection")} type="button">Collection</button><button className="next-secondary-button" onClick={() => changeScreen("squads")} type="button">Arrange Squads <b>→</b></button><button className="next-secondary-button" onClick={() => { setCandidateId(null); onReady(); }} type="button">Ready <b>↗</b></button></div></footer>
       </div> : <div className="ha-empty">Select a populated Hero slot to plan its skill tree.</div>}
     </div>}
@@ -280,7 +338,7 @@ export function HeroAtelier({
         <div className="ha-membership-grid">{slots.map((slot, index) => {
           const hero = findHero(nextRules, slot.catalog_id);
           const options = [...new Set([...squads, ...Array.from({ length: 5 }, (_, squadIndex) => "squad-" + (squadIndex + 1))])].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
-          return <article className="ha-member" key={slot.slot_id}><span className={"ha-member-sigil" + (hero?.placement === "backline" ? " backline" : "")}>{hero?.placement === "backline" ? "⌁" : "◆"}</span><div><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id ?? slot.catalog_id} · {formatId(hero?.placement ?? "unknown")} · slot {index + 1}</small></div><label><span>Squad</span><select aria-label={"Squad for " + (hero?.name ?? slot.slot_id)} value={slot.squad} onChange={(event) => onSlotChange(index, { squad: event.currentTarget.value })}>{options.map((squad) => <option key={squad} value={squad}>{formatId(squad)}</option>)}</select></label></article>;
+          return <article className="ha-member" key={slot.slot_id}><span className={"ha-member-sigil" + (hero?.placement === "backline" ? " backline" : "")}>{hero?.placement === "backline" ? "⌁" : "◆"}</span><div><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id ?? slot.catalog_id} · {formatId(hero?.placement ?? "unknown")} · slot {index + 1}</small></div><label><span>Squad</span><select data-repair-field="squad" data-repair-slot-id={slot.slot_id} aria-label={"Squad for " + (hero?.name ?? slot.slot_id)} value={slot.squad} onChange={(event) => onSlotChange(index, { squad: event.currentTarget.value })}>{options.map((squad) => <option key={squad} value={squad}>{formatId(squad)}</option>)}</select></label></article>;
         })}</div>
       </section>
       <section className="ha-squad-step ha-squad-step-deploy" aria-label="Squad formation preview">
@@ -291,7 +349,7 @@ export function HeroAtelier({
           const movement = nextRules.parameters["squad_" + members.length + "_speed_milli"];
           const label = members.length ? SQUAD_NAMES[members.length - 1] : "Empty";
           return <article className="ha-group" key={squad}><header><div><span className="next-eyebrow">{formatId(squad)} · {members.length} {members.length === 1 ? "HERO" : "HEROES"}</span><h5>{label} <small>· {members.length}-member Squad</small></h5></div><span className="ha-speed">MOVE ×{Number.isFinite(movement) ? ((movement ?? 0) / 1000).toFixed(2) : "—"}</span></header>
-            <label className="ha-start-node"><span>Shared starting node</span><select aria-label={"Starting node for " + formatId(squad)} value={starts.length === 1 ? starts[0] : ""} onChange={(event) => onMoveSquad(squad, event.currentTarget.value)}><option disabled value="">{starts.length > 1 ? "Resolve member node mismatch" : "Select a map node"}</option>{nodes.map((node) => { const lane = Object.entries(nextRules.map.lanes).find(([, laneNodes]) => laneNodes.includes(node))?.[0]; const allegiance = nextRules.map.nodes[node]?.allegiance; return <option key={node} value={node}>{formatId(node)}{lane ? " · " + formatId(lane) : ""}{allegiance ? " · " + formatId(allegiance) : ""}</option>; })}</select></label>
+            <label className="ha-start-node"><span>Shared starting node</span><select data-repair-field="node" data-repair-squad-id={squad} aria-label={"Starting node for " + formatId(squad)} value={starts.length === 1 ? starts[0] : ""} onChange={(event) => onMoveSquad(squad, event.currentTarget.value)}><option disabled value="">{starts.length > 1 ? "Resolve member node mismatch" : "Select a map node"}</option>{nodes.map((node) => { const lane = Object.entries(nextRules.map.lanes).find(([, laneNodes]) => laneNodes.includes(node))?.[0]; const allegiance = nextRules.map.nodes[node]?.allegiance; return <option key={node} value={node}>{formatId(node)}{lane ? " · " + formatId(lane) : ""}{allegiance ? " · " + formatId(allegiance) : ""}</option>; })}</select></label>
             <ol>{members.map(({ slot, index }) => { const hero = findHero(nextRules, slot.catalog_id); return <li key={slot.slot_id}><span className={"ha-member-sigil" + (hero?.placement === "backline" ? " backline" : "")}>{hero?.placement === "backline" ? "⌁" : "◆"}</span><span><strong>{hero?.name ?? "Unknown Hero"}</strong><small>{hero?.id} · {formatId(slot.node)}</small></span><button onClick={() => { chooseSlot(index); setMobileSquadStage("assign"); }} type="button">Edit slot</button></li>; })}</ol>
             {starts.length > 1 && <p className="ha-group-error" role="alert">This Squad has multiple starting nodes. Choose one shared node to make this initial formation valid.</p>}
             <small className="ha-rules-note">Movement ×{Number.isFinite(movement) ? ((movement ?? 0) / 1000).toFixed(2) : "—"} · maturation {nextRules.parameters.squad_maturation_ticks ?? "unknown"} ticks · values from current Senritsu rules</small>

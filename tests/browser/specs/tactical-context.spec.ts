@@ -42,9 +42,11 @@ test("Replay selection and real Action source survive Analysis and editing on de
     if (width < 761) {
       await page.getByRole("button", { name: "Follow view", exact: true }).click();
       const chooser = page.getByRole("region", { name: "Choose a visible unit or confirmed owner Squad to follow" });
-      const cluster = chooser.locator(".next-visible-cluster-toggle").first();
-      if (await cluster.getAttribute("aria-expanded") !== "true") await cluster.click();
-      const select = chooser.getByRole("button", { name: /^Select .*, replay entity / }).first();
+      // Follow opens its preferred cluster asynchronously; clicking a stale
+      // collapsed-state reading can collapse that same newly opened cluster.
+      const cluster = chooser.locator(".next-visible-cluster.is-expanded");
+      await expect(cluster).toHaveCount(1);
+      const select = cluster.getByRole("button", { name: /^Select .*, replay entity / }).first();
       selectedId = (await select.getAttribute("aria-label"))!.split("replay entity ")[1];
       await select.click();
     }

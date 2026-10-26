@@ -676,6 +676,44 @@
   .is-battle-workspace .next-mobile-sheet:not([hidden]) { max-height: 62%; }
 }
 
+@media (min-width: 761px) and (max-width: 1000px) and (max-height: 500px) and (orientation: landscape) {
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) {
+    align-items: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) > .next-tabs {
+    background: #121c23;
+    border-radius: 4px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 4px;
+    position: static;
+    width: 100%;
+  }
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) .next-tabs-title,
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) .next-ruleset-stamp {
+    display: none;
+  }
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) .next-tab {
+    flex: 1 1 0;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 44px;
+    min-width: 0;
+    padding: 4px;
+    text-align: center;
+  }
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) .next-tab > span {
+    display: none;
+  }
+  .next-layout:has(> .next-panel-wrap > .next-jinrei-panel:not([hidden])) .next-tab small {
+    grid-column: auto;
+  }
+}
+
 .is-battle-workspace .next-battle-minimap { background: rgba(7,15,19,.88); border: 1px solid rgba(214,225,218,.17); border-radius: 4px; color: #c4d2c6; padding: 5px; pointer-events: auto; position: absolute; right: 11px; top: 40px; width: clamp(138px, 14vw, 190px); z-index: 2; }
 .is-battle-workspace .next-minimap-toggle { align-items: center; background: transparent; border: 0; color: #c4d2c6; cursor: pointer; display: flex; justify-content: space-between; min-height: 30px; padding: 0 2px; text-align: left; width: 100%; }
 .is-battle-workspace .next-minimap-toggle > span { color: #c3d4b8; font: 11px "DM Mono",monospace; letter-spacing: .03em; white-space: nowrap; }

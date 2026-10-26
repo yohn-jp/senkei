@@ -39,6 +39,10 @@
 .next-battle-view-controls > small { color: #97999b; font-size: 0.72rem; }
 
 @media (max-width: 760px) {
-  .next-battle-view-controls { align-items: flex-start; flex-direction: column; }
+  .next-battle-view-controls { align-items: stretch; flex-direction: column; gap: 6px; padding: 4px 0; }
+  .next-battle-mode-control,
+  .next-battle-layer-control { flex-wrap: nowrap; }
+  .next-battle-mode-control button,
+  .next-battle-layer-control label { font-size: 14px; gap: 4px; min-height: 44px; padding: 6px; }
   .next-battle-view-controls > small { line-height: 1.45; }
 }

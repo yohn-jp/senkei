@@ -1784,6 +1784,7 @@ mod tests {
         let mut map = test_map(vec![crossing_edge]);
         let identity = senkei_model::WorldIdentityRef {
             world_id: "crossing-test".into(), schema_version: Version::new(1, 0, 0),
+            compiler_version: Version::new(1, 0, 0),
             minimum_compiler: Version::new(1, 0, 0), maximum_compiler_exclusive: None,
             validation_profile_id: None, validation_profile_version: None,
             logic_digest: senkei_model::ContentDigest::new("a".repeat(64)),

@@ -2,6 +2,7 @@ import { simulationAuthorizationError } from "./simulation-authorization";
 import { CORE_API_VERSION, WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts/core";
 import { WasmRuntime } from "./wasm-runtime";
+import { isCombatantSide, simulationDiagnosticsRequestError } from "./simulation-request";
 
 const MAX_WORKER_REQUEST_BYTES = 16 * 1024 * 1024;
 const MAX_WORKER_RESPONSE_BYTES = 64_000_000;
@@ -11,6 +12,7 @@ const MAX_IDENTIFIER_LENGTH = 128;
 type RequestOperation =
   | "initial_ruleset"
   | "next_ruleset"
+  | "next_reproduction_assets"
   | "editor_catalog"
   | "editor_compile"
   | "new_match_context"
@@ -19,6 +21,8 @@ type RequestOperation =
   | "format_ast"
   | "preflight"
   | "simulate"
+  | "reproduce"
+  | "preflight_reproduction"
   | "benchmark";
 
 interface WorkerRequest {
@@ -127,6 +131,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
   if (
     operation !== "initial_ruleset" &&
     operation !== "next_ruleset" &&
+    operation !== "next_reproduction_assets" &&
     operation !== "editor_catalog" &&
     operation !== "editor_compile" &&
     operation !== "new_match_context" &&
@@ -135,6 +140,8 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "format_ast" &&
     operation !== "preflight" &&
     operation !== "simulate" &&
+    operation !== "reproduce" &&
+    operation !== "preflight_reproduction" &&
     operation !== "benchmark"
   ) {
     throw new RequestFailure("invalid_request", "Worker operation is unknown.");
@@ -159,6 +166,7 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
   switch (operation) {
     case "initial_ruleset":
     case "next_ruleset":
+    case "next_reproduction_assets":
     case "editor_catalog":
       if (Object.keys(payload).length !== 0) {
         throw new RequestFailure("invalid_request", `${operation} payload must be empty.`);
@@ -202,14 +210,53 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       requireRecord(payload.ruleset_ref, "format_ast.ruleset_ref");
       requireRecord(payload.ast, "format_ast.ast");
       return;
-    case "simulate":
+    case "simulate": {
       requireRecord(payload.snapshot, "simulate.snapshot");
       requireBoolean(payload.include_diagnostics, "simulate.include_diagnostics");
-      if (payload.diagnostics_side !== undefined && payload.diagnostics_side !== "attacker" && payload.diagnostics_side !== "defender") {
-        throw new RequestFailure("invalid_request", "simulate.diagnostics_side must identify one owner side.");
-      }
+      const diagnosticsRequestError = simulationDiagnosticsRequestError(payload.include_diagnostics, payload.diagnostics_side);
+      if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
       validateSnapshot(payload.snapshot, "simulate.snapshot");
       return;
+    }
+    case "reproduce": {
+      const assets = requireRecord(payload.assets, "reproduce.assets");
+      if (assets.format_version !== 1) {
+        throw new RequestFailure("invalid_request", "reproduce.assets.format_version is unsupported.");
+      }
+      requireRecord(assets.rule_package, "reproduce.assets.rule_package");
+      requireRecord(assets.world_definition, "reproduce.assets.world_definition");
+      if (assets.catalog_metadata_extension !== undefined) {
+        requireRecord(assets.catalog_metadata_extension, "reproduce.assets.catalog_metadata_extension");
+      }
+      requireRecord(payload.snapshot, "reproduce.snapshot");
+      const snapshotDigest = requireString(payload.snapshot_digest, "reproduce.snapshot_digest");
+      if (!/^[0-9a-f]{64}$/.test(snapshotDigest)) {
+        throw new RequestFailure("invalid_request", "reproduce.snapshot_digest must be a lowercase SHA-256 digest.");
+      }
+      requireBoolean(payload.include_diagnostics, "reproduce.include_diagnostics");
+      const diagnosticsRequestError = simulationDiagnosticsRequestError(payload.include_diagnostics, payload.diagnostics_side);
+      if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
+      validateSnapshot(payload.snapshot, "reproduce.snapshot");
+      return;
+    }
+    case "preflight_reproduction": {
+      const assets = requireRecord(payload.assets, "preflight_reproduction.assets");
+      if (assets.format_version !== 1) {
+        throw new RequestFailure("invalid_request", "preflight_reproduction.assets.format_version is unsupported.");
+      }
+      requireRecord(assets.rule_package, "preflight_reproduction.assets.rule_package");
+      requireRecord(assets.world_definition, "preflight_reproduction.assets.world_definition");
+      if (assets.catalog_metadata_extension !== undefined) {
+        requireRecord(assets.catalog_metadata_extension, "preflight_reproduction.assets.catalog_metadata_extension");
+      }
+      requireRecord(payload.snapshot, "preflight_reproduction.snapshot");
+      const snapshotDigest = requireString(payload.snapshot_digest, "preflight_reproduction.snapshot_digest");
+      if (!/^[0-9a-f]{64}$/.test(snapshotDigest)) {
+        throw new RequestFailure("invalid_request", "preflight_reproduction.snapshot_digest must be a lowercase SHA-256 digest.");
+      }
+      validateSnapshot(payload.snapshot, "preflight_reproduction.snapshot");
+      return;
+    }
     case "preflight":
       requireRecord(payload.snapshot, "preflight.snapshot");
       validateSnapshot(payload.snapshot, "preflight.snapshot");
@@ -246,6 +293,8 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     case "initial_ruleset":
     case "next_ruleset":
       return callCore(request.operation, {}, request.request_id);
+    case "next_reproduction_assets":
+      return callCore("next_reproduction_assets", {}, request.request_id);
     case "editor_catalog":
       return callCore("editor_catalog", {}, request.request_id);
     case "editor_compile":
@@ -279,6 +328,19 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     }
     case "simulate":
       return runSimulation(request.payload, request.request_id);
+    case "reproduce":
+      return runReproduction(request.payload, request.request_id);
+    case "preflight_reproduction": {
+      const coreResult = await callCore("preflight_reproduction", {
+        assets: request.payload.assets,
+        snapshot: request.payload.snapshot,
+        snapshot_digest: request.payload.snapshot_digest,
+      }, request.request_id);
+      if (coreResult !== null) {
+        throw new RequestFailure("core_error", "The reproduction preflight core operation must return null.");
+      }
+      return null;
+    }
     case "preflight": {
       const snapshot = requireRecord(request.payload.snapshot, "preflight.snapshot");
       return callCore("preflight", {
@@ -298,14 +360,48 @@ async function runSimulation(
 ): Promise<unknown> {
   const snapshot = requireRecord(payload.snapshot, "simulate.snapshot");
   const includeDiagnostics = payload.include_diagnostics === true;
-  const diagnosticsSide = payload.diagnostics_side ?? "attacker";
+  const diagnosticsRequestError = simulationDiagnosticsRequestError(includeDiagnostics, payload.diagnostics_side);
+  if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
+  const diagnosticsSide = includeDiagnostics && isCombatantSide(payload.diagnostics_side)
+    ? payload.diagnostics_side
+    : undefined;
   const coreResult = await callCore("simulate", {
     attacker: snapshot.attacker,
     defender: snapshot.defender,
     context: snapshot.context,
     include_diagnostics: includeDiagnostics,
-    ...(includeDiagnostics ? { diagnostics_side: diagnosticsSide } : {}),
+    ...(diagnosticsSide !== undefined ? { diagnostics_side: diagnosticsSide } : {}),
   }, webRequestId);
+  return adaptSimulationResponse(coreResult, snapshot, includeDiagnostics, diagnosticsSide);
+}
+
+async function runReproduction(
+  payload: Record<string, unknown>,
+  webRequestId: string,
+): Promise<unknown> {
+  const snapshot = requireRecord(payload.snapshot, "reproduce.snapshot");
+  const includeDiagnostics = payload.include_diagnostics === true;
+  const diagnosticsRequestError = simulationDiagnosticsRequestError(includeDiagnostics, payload.diagnostics_side);
+  if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
+  const diagnosticsSide = includeDiagnostics && isCombatantSide(payload.diagnostics_side)
+    ? payload.diagnostics_side
+    : undefined;
+  const coreResult = await callCore("reproduce", {
+    assets: payload.assets,
+    snapshot: payload.snapshot,
+    snapshot_digest: payload.snapshot_digest,
+    include_diagnostics: includeDiagnostics,
+    ...(diagnosticsSide !== undefined ? { diagnostics_side: diagnosticsSide } : {}),
+  }, webRequestId);
+  return adaptSimulationResponse(coreResult, snapshot, includeDiagnostics, diagnosticsSide);
+}
+
+function adaptSimulationResponse(
+  coreResult: unknown,
+  snapshot: Record<string, unknown>,
+  includeDiagnostics: boolean,
+  diagnosticsSide: "attacker" | "defender" | undefined,
+): unknown {
   const local = requireRecord(coreResult, "core.simulate.result");
   const result = requireRecord(local.result, "core.simulate.result.result");
   const replay = requireRecord(local.replay, "core.simulate.result.replay");

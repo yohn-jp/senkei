@@ -56,6 +56,9 @@ function apiError(value: unknown): ApiError | null {
     || !Object.values(value.details).every((detail) => typeof detail === "string")) return null;
   return value as unknown as ApiError;
 }
+function defenderRepair(context: PreflightContext): PreflightRepairTarget {
+  return context.scenarioId ? { kind: "scenario", scenarioId: context.scenarioId } : { kind: "recovery" };
+}
 
 /** Classifies structured evidence only. A message never establishes a target. */
 export function classifyPreflightProblem(cause: unknown, context: PreflightContext): PreflightProblem {
@@ -90,7 +93,7 @@ export function classifyPreflightProblem(cause: unknown, context: PreflightConte
   if (side !== "attacker" && side !== "defender") return result;
   if (details.preflight_field === "program" && path === `${side}.program`) return programProblem(result, context, side, path);
   if (path === `${side}.configuration.heroes` && details.preflight_record_index === undefined && details.preflight_field === undefined) {
-    return { ...result, side, target: { kind: "hero", recordIndex: null, slotId: null, field: null, squadId: null }, repair: side === "defender" ? { kind: "scenario", scenarioId: context.scenarioId } : result.repair };
+    return { ...result, side, target: { kind: "hero", recordIndex: null, slotId: null, field: null, squadId: null }, repair: side === "defender" ? defenderRepair(context) : result.repair };
   }
   const rawIndex = details.preflight_record_index;
   // This is a producer metadata integer, never a number extracted from prose.
@@ -102,13 +105,13 @@ export function classifyPreflightProblem(cause: unknown, context: PreflightConte
   const declaredSlot = details.preflight_slot_id;
   const slotId = declaredSlot && slots?.[index]?.slot_id === declaredSlot && slots.filter((slot) => slot.slot_id === declaredSlot).length === 1 ? declaredSlot : null;
   const target: PreflightTarget = { kind: "hero", recordIndex: index, slotId, field, squadId: details.preflight_squad_id ?? null };
-  const repair: PreflightRepairTarget = side === "defender" ? { kind: "scenario", scenarioId: context.scenarioId }
+  const repair: PreflightRepairTarget = side === "defender" ? defenderRepair(context)
     : context.input === "draft" && slotId && field ? { kind: "own_hero", slotId, recordIndex: index, field, screen: field === "skill_path" ? "skills" : field === "node" || field === "squad" ? "squads" : "collection" }
       : { kind: "recovery" };
   return { ...result, side, target, repair };
 }
 
 function programProblem(result: PreflightProblem, context: PreflightContext, side: Side, path: string | null): PreflightProblem {
-  return { ...result, side, target: { kind: "program", path }, repair: side === "defender" ? { kind: "scenario", scenarioId: context.scenarioId }
+  return { ...result, side, target: { kind: "program", path }, repair: side === "defender" ? defenderRepair(context)
     : context.input === "draft" ? { kind: "own_jinrei", path } : { kind: "recovery" } };
 }

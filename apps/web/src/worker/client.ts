@@ -5,6 +5,8 @@ import type {
   CoreClient,
   CoreJsonValue,
   EditorCompilerEnvelope,
+  ReproductionAssets,
+  SimulationRequestOptions,
   SimulationResponse,
   SimulationSnapshot,
   TacticalInput,
@@ -12,7 +14,7 @@ import type {
   WorkerFailureCode,
   RulesetRef,
 } from "../contracts/core";
-import type { MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
+import type { ContentDigest, MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
@@ -82,6 +84,10 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("next_ruleset", {}) as Promise<RulePackage>;
   }
 
+  reproductionAssets(): Promise<ReproductionAssets> {
+    return this.request("next_reproduction_assets", {}) as Promise<ReproductionAssets>;
+  }
+
   editorCatalogJson(): Promise<string> {
     return this.request("editor_catalog", {}) as Promise<string>;
   }
@@ -114,15 +120,41 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("preflight", { snapshot }) as Promise<void>;
   }
 
+  preflightReproduction(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
+  ): Promise<void> {
+    return this.request("preflight_reproduction", { assets, snapshot, snapshot_digest }).then((result) => {
+      if (result !== null) {
+        throw new CoreClientError({
+          code: "core_error",
+          message: "The reproduction preflight worker operation must return null.",
+        });
+      }
+    });
+  }
+
   simulate(
     snapshot: SimulationSnapshot,
-    options: { readonly include_diagnostics?: boolean; readonly diagnostics_side?: import("../contracts/core-model").CombatantSide } = {},
+    options: SimulationRequestOptions = {},
   ): Promise<SimulationResponse> {
-    return this.request("simulate", {
-      snapshot,
-      include_diagnostics: options.include_diagnostics ?? false,
-      ...(options.include_diagnostics ? { diagnostics_side: options.diagnostics_side ?? "attacker" } : {}),
-    }) as Promise<SimulationResponse>;
+    const payload = options.include_diagnostics === true
+      ? { snapshot, include_diagnostics: true as const, diagnostics_side: options.diagnostics_side }
+      : { snapshot, include_diagnostics: false as const };
+    return this.request("simulate", payload) as Promise<SimulationResponse>;
+  }
+
+  reproduce(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: string,
+    options: SimulationRequestOptions = {},
+  ): Promise<SimulationResponse> {
+    const payload = options.include_diagnostics === true
+      ? { assets, snapshot, snapshot_digest, include_diagnostics: true as const, diagnostics_side: options.diagnostics_side }
+      : { assets, snapshot, snapshot_digest, include_diagnostics: false as const };
+    return this.request("reproduce", payload) as Promise<SimulationResponse>;
   }
 
   benchmark(cases: readonly BenchmarkCase[]): Promise<BenchmarkOutcome> {

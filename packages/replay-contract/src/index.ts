@@ -55,13 +55,19 @@ export function decodeReplay(input: unknown): Replay {
     fail("Sample must not claim an Enbu execution");
   if ((r.header.origin === "official" || r.header.origin === "local") && !r.header.enbuVersion)
     fail("Official replay requires an Enbu version");
-  if (r.schemaVersion === "0.3" && r.header.origin !== "sample" && (!r.header.ruleset || !r.header.world))
-    fail("Replay 0.3 requires complete RulePackage and paired World identity");
+  const hasPairedWorldReplay = r.schemaVersion === "0.3" || r.schemaVersion === "0.4";
+  if (hasPairedWorldReplay && r.header.origin !== "sample" && (!r.header.ruleset || !r.header.world))
+    fail(`Replay ${r.schemaVersion} requires complete RulePackage and paired World identity`);
   if (r.header.ruleset && (r.header.ruleset.id !== r.header.senritsu.id ||
       `sha256:${r.header.ruleset.digest}` !== r.header.senritsu.digest))
     fail("Ruleset identity does not match the Senritsu reference");
   if (r.header.world) {
     const world = r.header.world;
+    const hasCompilerVersion = "compiler_version" in world;
+    if (r.schemaVersion === "0.4" && !hasCompilerVersion)
+      fail("Replay 0.4 requires an exact World Compiler version");
+    if (hasCompilerVersion && world.compiler_version.major === 0 && world.compiler_version.minor === 0 && world.compiler_version.patch === 0)
+      fail("World compiler version cannot be zero");
     if ((world.validation_profile_id === null) !== (world.validation_profile_version === null))
       fail("World validation profile identity must be complete");
     const version = (value: { major: number; minor: number; patch: number }) =>
@@ -94,8 +100,8 @@ export function decodeReplay(input: unknown): Replay {
       if (!route.bridgeSite) fail("Bridge position requires a site identity");
       point(route.bridgePosition);
     }
-    if (r.schemaVersion === "0.3" && r.header.origin !== "sample" && route.bridgeSite && !route.bridgePosition)
-      fail("Replay 0.3 requires paired World bridge positions");
+    if (hasPairedWorldReplay && r.header.origin !== "sample" && route.bridgeSite && !route.bridgePosition)
+      fail(`Replay ${r.schemaVersion} requires paired World bridge positions`);
   }
   const nodeIds = new Set<string>();
   for (const node of r.scene.nodes ?? []) {
@@ -145,7 +151,7 @@ export function decodeReplay(input: unknown): Replay {
     }
     if (r.fog.frames[0].tick !== 0) fail("Fog requires an initial observation");
   }
-  if (r.schemaVersion === "0.3" && (!r.scene.nodes?.length || !r.scene.routes?.length))
+  if (hasPairedWorldReplay && (!r.scene.nodes?.length || !r.scene.routes?.length))
     fail("Battlefield replay requires authored map nodes and routes");
   const baseSiteIds = new Set<string>();
   for (const site of r.scene.baseSites ?? []) {
@@ -178,7 +184,7 @@ export function decodeReplay(input: unknown): Replay {
     previousTick = e.tick;
     previousOrder = e.order;
     if ((e.type === "vitals" || e.type === "skill") && r.schemaVersion === "0.1") fail("Event requires replay 0.2");
-    if (e.type === "facility-state" && r.schemaVersion !== "0.3") fail("Facility state requires replay 0.3");
+    if (e.type === "facility-state" && !hasPairedWorldReplay) fail("Facility state requires replay 0.3");
     if (e.type === "spawn") {
       add(e.entity);
       continue;

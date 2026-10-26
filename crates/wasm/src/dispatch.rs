@@ -1,8 +1,11 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    NewMatchContextPayload, ParseTextPayload, PreflightPayload, RulesetRef, SimulatePayload, VerifiedRulePlan,
-    Version, WASM_API_VERSION,
+    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload,
+    PreflightReproductionPayload, ReproducePayload, ReproductionAssets, RulesetRef,
+    SimulatePayload, VerifiedRulePlan, Version, OP_NEXT_REPRODUCTION_ASSETS,
+    OP_PREFLIGHT_REPRODUCTION, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
+    WASM_API_VERSION,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -160,6 +163,9 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
     match operation {
         "initial_ruleset" => initial_ruleset(payload),
         "next_ruleset" => next_ruleset(payload),
+        OP_NEXT_REPRODUCTION_ASSETS => next_reproduction_assets(payload),
+        OP_REPRODUCE => reproduce(payload),
+        OP_PREFLIGHT_REPRODUCTION => preflight_reproduction(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
         "new_match_context" => new_match_context(payload),
@@ -190,6 +196,29 @@ fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
     let package=senritsu::next_package();
     validate_package(&package)?;
     Ok((encode(&package,"result")?,package.limits.max_output_bytes))
+}
+
+/// Return the current trusted builtin package together with its authored
+/// World Definition. Keeping the source alongside the package lets a caller
+/// rebuild the exact sealed World artifact after the originating process exits.
+fn next_reproduction_assets(payload: Value) -> Result<(Value, u64), ApiError> {
+    require_empty_object(&payload, "payload")?;
+    let rule_package = senritsu::next_package();
+    validate_package(&rule_package)?;
+    let world_definition = serde_json::to_value(senritsu::next_world::builtin_world_definition())
+        .map_err(|error| api_error(
+            ApiErrorCode::InternalError,
+            Some("result.world_definition"),
+            format!("builtin World Definition could not be serialized: {error}"),
+        ))?;
+    let assets = ReproductionAssets {
+        format_version: REPRODUCTION_ASSETS_FORMAT_VERSION,
+        rule_package,
+        world_definition,
+        catalog_metadata_extension: None,
+    };
+    let max_output_bytes = assets.rule_package.limits.max_output_bytes;
+    Ok((encode(&assets, "result")?, max_output_bytes))
 }
 
 /// Return Senritsu's canonical Domain Catalog string without decoding and
@@ -281,6 +310,7 @@ fn compile_ast(payload: Value) -> Result<(Value, u64), ApiError> {
 
 fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
     let request: SimulatePayload = decode(payload, "payload")?;
+    let diagnostics_side = requested_diagnostics_side(request.include_diagnostics, request.diagnostics_side)?;
     let rules = resolve_ruleset(&request.context.ruleset)?;
     let max_output_bytes = rules
         .plan()
@@ -295,12 +325,223 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         &request.context,
         &mut vm,
     )?;
-    let public = artifact.public_response();
-    if !request.include_diagnostics && request.diagnostics_side.is_some() {
-        return Err(ApiError::new(ApiErrorCode::InvalidRequest, "diagnostics_side requires include_diagnostics"));
+    let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Rebuild a verified package from retained, untrusted JSON inputs and rerun
+/// the original match with the current deterministic engine.
+fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: ReproducePayload = decode(payload, "payload")?;
+    let diagnostics_side = requested_diagnostics_side(
+        request.include_diagnostics,
+        request.diagnostics_side,
+    )?;
+    let rules = validate_reproduction_assets(request.assets)?;
+    validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    enbu::preflight(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+    )?;
+    let mut vm = jinrei::Vm::new(&rules);
+    let artifact = enbu::simulate(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+        &mut vm,
+    )?;
+    let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Validate retained assets and the exact Run input without executing match ticks.
+fn preflight_reproduction(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: PreflightReproductionPayload = decode(payload, "payload")?;
+    let rules = validate_reproduction_assets(request.assets)?;
+    validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    enbu::preflight(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+    )?;
+    Ok((Value::Null, max_output_bytes))
+}
+
+/// Rebuild the exact verified package used by both reproduction endpoints.
+fn validate_reproduction_assets(assets: ReproductionAssets) -> Result<VerifiedRulePlan, ApiError> {
+    if assets.format_version != REPRODUCTION_ASSETS_FORMAT_VERSION {
+        return Err(api_error(
+            ApiErrorCode::InvalidVersion,
+            Some("payload.assets.format_version"),
+            "unsupported reproduction asset format",
+        ));
     }
-    let response = if request.include_diagnostics {
-        artifact.diagnostic_response(request.diagnostics_side.unwrap_or(senkei_model::CombatantSide::Attacker))
+
+    let package = assets.rule_package;
+    let extension = assets
+        .catalog_metadata_extension
+        .map(|value| {
+            let extension = serde_json::from_value::<senritsu::CatalogMetadataExtension>(value.clone())
+                .map_err(|error| {
+                    api_error(
+                        ApiErrorCode::ValidationFailed,
+                        Some("payload.assets.catalog_metadata_extension"),
+                        format!("stored Catalog/Behavior extension is malformed: {error}"),
+                    )
+                })?;
+            let canonical = serde_json::to_value(&extension).map_err(|error| {
+                api_error(
+                    ApiErrorCode::ValidationFailed,
+                    Some("payload.assets.catalog_metadata_extension"),
+                    format!("stored Catalog/Behavior extension could not be serialized: {error}"),
+                )
+            })?;
+            if canonical != value {
+                return Err(api_error(
+                    ApiErrorCode::ValidationFailed,
+                    Some("payload.assets.catalog_metadata_extension"),
+                    "stored Catalog/Behavior extension contains unrecognized or noncanonical fields",
+                ));
+            }
+            Ok(extension)
+        })
+        .transpose()?;
+    let expected_world_identity = package
+        .next
+        .as_ref()
+        .and_then(|next| next.world_identity.as_ref())
+        .ok_or_else(|| api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package.next.world_identity"),
+            "a reproducible Next RulePackage must carry its exact World identity",
+        ))?;
+    let current_compiler = Version::new(
+        senkei_world::COMPILER_VERSION.major,
+        senkei_world::COMPILER_VERSION.minor,
+        senkei_world::COMPILER_VERSION.patch,
+    );
+    if expected_world_identity.compiler_version != current_compiler {
+        return Err(api_error(
+            ApiErrorCode::IncompatibleVersion,
+            Some("payload.assets.rule_package.next.world_identity.compiler_version"),
+            "the stored World Compiler version is not available in this runtime",
+        ));
+    }
+
+    let definition: senkei_world::WorldDefinition = serde_json::from_value(
+        assets.world_definition,
+    ).map_err(|error| api_error(
+        ApiErrorCode::ValidationFailed,
+        Some("payload.assets.world_definition"),
+        format!("stored World Definition is malformed: {error}"),
+    ))?;
+    let world = senkei_world::compile(definition).map_err(|issues| {
+        let mut error = api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.world_definition"),
+            "stored World Definition does not compile under the current World Compiler",
+        );
+        error.details.insert(
+            "issues".to_owned(),
+            serde_json::to_string(
+                &issues
+                    .iter()
+                    .map(|issue| {
+                        serde_json::json!({
+                            "code": &issue.code,
+                            "path": &issue.path,
+                            "message": &issue.message,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_owned()),
+        );
+        error
+    })?;
+    if world.identity().to_model_ref() != *expected_world_identity {
+        return Err(api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.world_definition"),
+            "compiled World identity does not match the retained RulePackage reference",
+        ));
+    }
+    let mut resolver = senkei_world::WorldResolver::default();
+    resolver.insert(world).map_err(|error| api_error(
+        ApiErrorCode::ValidationFailed,
+        Some("payload.assets.world_definition"),
+        format!("stored World could not be inserted into the exact resolver: {error}"),
+    ))?;
+
+    let actual_package_digest = senritsu::canonical_digest(&package).map_err(|error| {
+        api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package"),
+            format!("stored RulePackage could not be canonically hashed: {error}"),
+        )
+    })?;
+    if actual_package_digest != package.ruleset.digest {
+        return Err(api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package.ruleset.digest"),
+            "stored RulePackage digest does not match its content",
+        ));
+    }
+    senritsu::validate_with_world_resolver_and_catalog_extension(
+        package,
+        &senritsu::next_engine_compatibility(),
+        &resolver,
+        extension,
+    ).map_err(|issues| {
+        let mut error = api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.rule_package"),
+            "retained RulePackage could not be verified against its exact World artifact",
+        );
+        error.details.insert(
+            "issues".to_owned(),
+            serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_owned()),
+        );
+        error
+    })
+}
+
+fn validate_reproduction_snapshot(
+    snapshot: &senkei_model::ReproductionSnapshot,
+    expected_digest: &senkei_model::ContentDigest,
+) -> Result<(), ApiError> {
+    let actual_digest = enbu::reproduction_snapshot_digest(
+        &snapshot.attacker,
+        &snapshot.defender,
+        &snapshot.context,
+    )?;
+    if &actual_digest != expected_digest {
+        return Err(api_error(
+            ApiErrorCode::InvalidSnapshot,
+            Some("payload.snapshot_digest"),
+            "retained snapshot digest does not match the complete immutable Run input",
+        ));
+    }
+    Ok(())
+}
+
+fn reproduction_output_limit(rules: &VerifiedRulePlan, context: &senkei_model::MatchContext) -> u64 {
+    rules.plan().limits.max_output_bytes.min(context.host_limits.max_output_bytes)
+}
+
+fn project_simulation_response(
+    artifact: &senkei_model::SimulationArtifact,
+    diagnostics_side: Option<CombatantSide>,
+) -> LocalSimulationResponse {
+    let public = artifact.public_response();
+    if let Some(side) = diagnostics_side {
+        artifact.diagnostic_response(side)
     } else {
         LocalSimulationResponse {
             authorized_side: None,
@@ -310,8 +551,25 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
             replay: public.replay,
             diagnostics: None,
         }
-    };
-    Ok((encode(&response, "result")?, max_output_bytes))
+    }
+}
+
+fn requested_diagnostics_side(
+    include_diagnostics: bool,
+    diagnostics_side: Option<CombatantSide>,
+) -> Result<Option<CombatantSide>, ApiError> {
+    match (include_diagnostics, diagnostics_side) {
+        (true, Some(side)) => Ok(Some(side)),
+        (true, None) => Err(ApiError::new(
+            ApiErrorCode::InvalidRequest,
+            "diagnostics_side is required when include_diagnostics is true",
+        )),
+        (false, None) => Ok(None),
+        (false, Some(_)) => Err(ApiError::new(
+            ApiErrorCode::InvalidRequest,
+            "diagnostics_side must be omitted when include_diagnostics is false",
+        )),
+    }
 }
 
 fn preflight(payload: Value) -> Result<(Value, u64), ApiError> {
@@ -462,5 +720,25 @@ mod response_limit_tests {
         assert!(response.len() <= maximum as usize, "the response remains within the versioned package limit");
         let envelope: serde_json::Value = serde_json::from_str(&response).expect("accepted response is valid JSON");
         assert_eq!(envelope["ok"], true, "the dispatcher uses the successful response path");
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_request_tests {
+    use super::requested_diagnostics_side;
+    use senkei_model::CombatantSide;
+
+    #[test]
+    fn diagnostics_requests_require_one_explicit_owner_side() {
+        assert!(matches!(requested_diagnostics_side(true, Some(CombatantSide::Attacker)), Ok(Some(CombatantSide::Attacker))));
+        assert!(matches!(requested_diagnostics_side(true, Some(CombatantSide::Defender)), Ok(Some(CombatantSide::Defender))));
+        assert!(requested_diagnostics_side(true, None).is_err());
+    }
+
+    #[test]
+    fn public_simulation_requests_forbid_a_diagnostics_side() {
+        assert!(matches!(requested_diagnostics_side(false, None), Ok(None)));
+        assert!(requested_diagnostics_side(false, Some(CombatantSide::Attacker)).is_err());
+        assert!(requested_diagnostics_side(false, Some(CombatantSide::Defender)).is_err());
     }
 }

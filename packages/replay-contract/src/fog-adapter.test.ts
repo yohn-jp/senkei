@@ -3,6 +3,7 @@ import type { DomainValue, MatchResult, PresentationReplay, RulePackage } from "
 import { presentationToGraphics } from "./next-adapter";
 const worldIdentity = {
   world_id: "fog-adapter-world", schema_version: { major: 1, minor: 0, patch: 0 },
+  compiler_version: { major: 1, minor: 0, patch: 0 },
   minimum_compiler: { major: 1, minor: 0, patch: 0 }, maximum_compiler_exclusive: null,
   validation_profile_id: null, validation_profile_version: null,
   logic_digest: "d".repeat(64), presentation_digest: "e".repeat(64),
@@ -24,7 +25,7 @@ it("projects side-authorized fog with public geometry while retaining no hidden 
     lanes: { mid: ["a", "b"] }, edges: [{ id: "r", from: "a", to: "b", length: 500, region: "lane", blocked: false }],
   } } } as unknown as RulePackage;
   const fog = { schema_version: 1, tick: 0, side: "attacker", nodes: { a: "visible", b: "unexplored" }, edges: { r: Array(9).fill("unexplored") }, facilities: [] };
-  const source = { schema_version: { major: 1, minor: 0, patch: 0 }, perspective: "attacker", ruleset: { id: "next", version: { major: 2, minor: 0, patch: 0 }, digest: "a".repeat(64) }, world_identity: worldIdentity, match_id: "m", frames: [{ tick: 0, events: [], visible_state: { entities: {}, global_fields: { fog: value(fog) } } }] } as unknown as PresentationReplay;
+  const source = { schema_version: { major: 1, minor: 1, patch: 0 }, perspective: "attacker", ruleset: { id: "next", version: { major: 2, minor: 0, patch: 0 }, digest: "a".repeat(64) }, world_identity: worldIdentity, match_id: "m", frames: [{ tick: 0, events: [], visible_state: { entities: {}, global_fields: { fog: value(fog) } } }] } as unknown as PresentationReplay;
   const result = { match_id: "m", final_tick: 1, outcome: "draw", termination_reason: "limit" } as unknown as MatchResult;
   const replay = presentationToGraphics(source, rules, result);
   expect(replay.fog?.frames[0].nodes.b).toBe("unexplored");

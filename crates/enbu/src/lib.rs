@@ -42,6 +42,20 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
     }
 }
 
+/// Hash the complete immutable simulation input tuple using the same canonical
+/// JSON bytes stored in restricted diagnostic lineage.
+pub fn reproduction_snapshot_digest(
+    attacker: &senkei_model::SenkeiSnapshot,
+    defender: &senkei_model::SenkeiSnapshot,
+    context: &MatchContext,
+) -> Result<ContentDigest, ApiError> {
+    digest_json(&serde_json::json!({
+        "attacker": attacker,
+        "context": context,
+        "defender": defender,
+    }))
+}
+
 use senkei_model::{
     ApiError, ApiErrorCode, CombatantSide, ComponentVersions, ContentDigest, DiagnosticEvent,
     DiagnosticRecord, ExecutionBudget, HostLimits, Intent, LogicalCu, MatchContext, MatchId,
@@ -448,9 +462,12 @@ pub fn simulate<P: TacticalExecutionPort>(
         final_state_digest,
     };
     let result_digest = digest_json(&result)?;
+    // serde_json::Value sorts object keys recursively, giving TypeScript the
+    // same canonical JSON bytes for import-time lineage verification.
+    let snapshot_digest = reproduction_snapshot_digest(attacker, defender, context)?;
     let replay = PresentationReplay {
         perspective: None,
-        schema_version: Version::new(1, 0, 0),
+        schema_version: validation::REPLAY_SCHEMA_VERSION,
         world_identity: context.world_identity.clone(),
         ruleset: Some(context.ruleset.clone()),
         match_id: context.match_id.clone(),
@@ -458,6 +475,14 @@ pub fn simulate<P: TacticalExecutionPort>(
         frames: if plan.next.is_some() { project_replay_identities(replay_frames) } else { replay_frames },
     };
     let diagnostics = RestrictedDiagnostics {
+        identity: senkei_model::RestrictedDiagnosticsIdentity {
+            schema_version: 1,
+            side: CombatantSide::Attacker,
+            match_id: result.match_id.clone(),
+            result_digest: result_digest.clone(),
+            snapshot_digest: snapshot_digest.clone(),
+            program_digest: attacker.program.content_digest.clone(),
+        },
         events: diagnostics,
         cu_by_side: cu_spent,
         final_memory_by_side: memories,
@@ -473,7 +498,7 @@ pub fn simulate<P: TacticalExecutionPort>(
     let owner_replays: BTreeMap<CombatantSide, PresentationReplay> = if plan.next.is_some() {
         owner_frames.into_iter().map(|(side, frames)| (side, PresentationReplay {
             perspective: Some(side),
-            schema_version: Version::new(1, 0, 0),
+            schema_version: validation::REPLAY_SCHEMA_VERSION,
             world_identity: context.world_identity.clone(),
             ruleset: Some(context.ruleset.clone()),
             match_id: context.match_id.clone(),
@@ -484,7 +509,20 @@ pub fn simulate<P: TacticalExecutionPort>(
         BTreeMap::new()
     };
     let owner_replay = owner_replays.get(&CombatantSide::Attacker).cloned();
-    let artifact = SimulationArtifact { owner_replay, owner_replays, result, replay, diagnostics, reproduction };
+    let diagnostic_program_digests_by_side = BTreeMap::from([
+        (CombatantSide::Attacker, attacker.program.content_digest.clone()),
+        (CombatantSide::Defender, defender.program.content_digest.clone()),
+    ]);
+    let artifact = SimulationArtifact {
+        owner_replay,
+        owner_replays,
+        result,
+        replay,
+        diagnostics,
+        diagnostic_snapshot_digest: snapshot_digest,
+        diagnostic_program_digests_by_side,
+        reproduction,
+    };
     let response_size = serde_json::to_vec(&artifact.public_response())
         .map_err(|_| api_error(ApiErrorCode::InternalError, "public simulation response could not be measured"))?
         .len() as u64;

@@ -24,7 +24,7 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 | Result | 公開可能な勝敗、終局理由、終局Tick |
 | Presentation metadata | 表示の座標規約、appearanceKey、アセットカタログ版 |
 
-Replay 0.3では、`header.ruleset` が `id`／version／digestを持ち、`header.world` がWorld ID、schema/compiler compatibility、validation profile、logic digest、presentation digestを持つ。Enbu Replay、RulePackage、BattleMapのpaired World identityが完全一致しないNext Replayは拒否する。旧sample Fixtureはidentityを持たない形でも読み込めるが、official／local Replay 0.3では省略できない。
+Replay 0.4では、`header.ruleset` が `id`／version／digestを持ち、`header.world` がWorld ID、World schema版、実際に使用したWorld Compiler版、compiler compatibility、validation profile、logic digest、presentation digestを持つ。Enbu Replay、RulePackage、BattleMapのpaired World identityが完全一致しないNext Replayは拒否する。新しいofficial／local Replayではpaired World identityに`compiler_version`を必須とする。Replay 0.3は旧identity形の歴史的Replayとして読み取れるが、新規生成・再現入力には使わない。
 
 論理座標と表示座標は別の空間である。表示位置はpaired Worldのnode position／edge pathと論理上の進捗から投影する。橋routeの`bridgePosition`は同じWorld crossing intervalから求めた静的なサイト中心で、現在見える橋と最終観測マーカーが共有する。選択・Squad追従・分析は同Tickの認可済みgraph identityで対応付け、論理x/yと表示位置の一致を要求しない。
 

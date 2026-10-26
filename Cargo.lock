@@ -169,6 +169,7 @@ dependencies = [
  "jinrei",
  "senkei-editor-adapter",
  "senkei-model",
+ "senkei-world",
  "senritsu",
  "serde",
  "serde_json",

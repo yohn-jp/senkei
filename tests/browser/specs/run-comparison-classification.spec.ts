@@ -36,13 +36,13 @@ test("C08 classifies real exact, own-tactics and changed-opponent Runs without r
   await page.getByRole("button", { name: "Compile tactics" }).click();
   await expect(page.getByText("Compilation completed by the Jinrei core.")).toBeVisible({ timeout: 60_000 });
   await page.locator("#next-tab-analysis").click();
-  await analysis.getByRole("button", { name: /変更後の条件を検証 · 現在Draft/ }).click();
+  await analysis.getByRole("button", { name: /改良した戦型を比較 · 元Run条件固定/ }).click();
   await finishMatch(page);
   await expect(comparison).toHaveAttribute("data-comparison-kind", "improved");
   await expect(comparison).toContainText("自軍のJinrei Program");
   await expect(comparison).toContainText("自軍SnapshotのRevision");
   await expect(comparison).toContainText("変更対象以外は基準Runと一致");
-  await expect(comparison).toContainText("出力の完全一致は保証しません");
+  await expect(comparison).toContainText("結果の改善そのものを保証する分類ではありません");
 
   await page.getByTestId("workspace-view").getByRole("button", { name: "Homeへ戻る", exact: true }).click();
   await page.getByTestId("journey-home").getByRole("button", { name: "戦役を始める" }).first().click();
@@ -52,6 +52,7 @@ test("C08 classifies real exact, own-tactics and changed-opponent Runs without r
   await finishMatch(page);
   await expect(comparison).toHaveAttribute("data-comparison-kind", "reference");
   await expect(comparison).toContainText("参考比較です");
+  await expect(comparison).toContainText("出力の完全一致は保証しません");
   await expect(comparison.locator(".battle-analysis-change-list")).toContainText(/相手|Campaign/);
   for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: width === 320 ? 780 : 900 });

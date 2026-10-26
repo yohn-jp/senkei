@@ -373,6 +373,7 @@ mod tests {
         };
         let identity = WorldIdentityRef {
             world_id: "test-world".into(), schema_version: Version::new(1, 0, 0),
+            compiler_version: Version::new(1, 0, 0),
             minimum_compiler: Version::new(1, 0, 0), maximum_compiler_exclusive: None,
             validation_profile_id: None, validation_profile_version: None,
             logic_digest: ContentDigest::new("a".repeat(64)), presentation_digest: ContentDigest::new("b".repeat(64)),

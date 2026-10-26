@@ -54,6 +54,9 @@ fn hash<T: Serialize>(domain: &[u8], value: &T) -> Result<String, serde_json::Er
 pub struct WorldIdentity {
     pub world_id: String,
     pub schema_version: crate::Version,
+    /// Exact compiler implementation used to create this sealed artifact.
+    /// This identifies the producer and is distinct from compatibility bounds.
+    pub compiler_version: crate::Version,
     pub compatibility: crate::Compatibility,
     pub validation_profile: Option<crate::ValidationProfileRef>,
     pub logic_digest: WorldLogicDigest,
@@ -67,6 +70,7 @@ impl WorldIdentity {
         senkei_model::WorldIdentityRef {
             world_id: self.world_id.clone(),
             schema_version: version(self.schema_version),
+            compiler_version: version(self.compiler_version),
             minimum_compiler: version(self.compatibility.minimum_compiler),
             maximum_compiler_exclusive: self.compatibility.maximum_compiler_exclusive.map(version),
             validation_profile_id: self.validation_profile.as_ref().map(|p| p.id.clone()),

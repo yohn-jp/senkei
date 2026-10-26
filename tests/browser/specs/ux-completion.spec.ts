@@ -81,7 +81,7 @@ for (const viewport of viewports) test(`Custom, Coverage, Library and recovery a
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
   await library.getByRole("button", { name: "Save current setup", exact: true }).click();
-  await expect(library).toContainText("Saved this Next setup");
+  await expect(library).toContainText("Pinned Next setup saved.");
   const downloadPromise = page.waitForEvent("download");
   await library.getByRole("button", { name: "Export pinned", exact: true }).click();
   const download = await downloadPromise;
@@ -170,7 +170,9 @@ test("quota failure keeps the Draft exportable and storage retry resumes saving"
   await page.evaluate(() => { (window as unknown as { rejectNextWrites: boolean }).rejectNextWrites = false; });
   await library.getByRole("button", { name: "Retry storage", exact: true }).first().click();
   await library.getByRole("button", { name: "Save current setup", exact: true }).click();
-  await expect(library).toContainText("Saved this Next setup");
+  await expect(library).toContainText("Pinned Next setup saved.");
+  const pinned = await page.evaluate(() => JSON.parse(localStorage.getItem("senkei.next-workspace.v1")!));
+  expect(pinned.draft.program_input.source).toBe(expectedSource);
 });
 
 test("Core retry replaces a failed Worker without dropping the current edit", async ({ browser, baseURL }) => {

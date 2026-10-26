@@ -98,7 +98,7 @@ presentation:
 | **worldPresentationDigest** | 描画用座標・曲線・地形形状・外観パラメータ | Renderer・視覚回帰 |
 | **RulePackage digest** | Senritsuの完全な規則と、それが消費する検証済みLogic identity | 対戦・CU・観測の同一性 |
 
-- Worldのpaired identityは `world_id`、schema version、compiler compatibility bounds、任意のvalidation-profile ID/version、`worldLogicDigest`、`worldPresentationDigest`で成立する。個々のdigest単独ではWorld ID・schema・compatibilityを代用しない。
+- Worldのpaired identityは `world_id`、schema version、実際に使用した`compiler_version`、compiler compatibility bounds、任意のvalidation-profile ID/version、`worldLogicDigest`、`worldPresentationDigest`で成立する。compatibility boundsから使用済みCompiler版を推定しない。個々のdigest単独ではWorld ID・schema・compatibilityを代用しない。
 - DigestはCanonical Serializationで計算し、識別に入力ファイルのコメント・key順・無関係な書式差を使わない。World LogicはRulePackageの完全Digestへ依存させず、RulePackageがWorld Logic identityを参照する一方向の関係とする。RulePackageをRulePlanへ検証・正規化した後も、その完全なpackage identityとWorld referenceを保持する。
 - **Presentation-onlyの変更ではworldLogicDigestと同じ試合の結果・CU・論理軌跡を変えてはならない。** Presentation変更によりworldPresentationDigestは変わる。
 - Logic変更は適合性確認とRulePackageの互換性識別を更新する。古いJinreiを同じルールとして黙って流用しない。WorldからBattleMapへの変換はID・橋／河川の範囲・経路・施設の意味を失う場合に成功扱いせず、明示的な版付きマッピングを要求する。exact identityと損失のない変換条件は [RUNTIME-INTEGRATION-CONTRACTS.md](RUNTIME-INTEGRATION-CONTRACTS.md) が正本。

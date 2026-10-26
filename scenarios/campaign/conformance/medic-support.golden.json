@@ -2,7 +2,7 @@
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-medic-support",
   "request_sha256": "cb35bb530b90bcbb5d8d4ffca82361116b2ebf98293719c4b3ed026378c08cf9",
-  "response_sha256": "d22a8d2f36340ab72364d91e2bd3b9b91551ef9b88e2fd15040f88276baa31df",
+  "response_sha256": "7afbd9af8dcd95cb6da3484866bdce23949effa3bb77cc5e09b646af5a1c75fe",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",

@@ -92,6 +92,24 @@ export function serializeCampaignProgress(progress: CampaignProgress, ids: reado
   return JSON.stringify(parseCampaignProgress(raw, progress.ruleset_digest, ids));
 }
 
+/** Combine only already-validated history from persistence and this session. */
+export function mergeCampaignProgress(
+  stored: CampaignProgress, session: CampaignProgress, ids: readonly string[],
+): CampaignProgress {
+  if (stored.ruleset_digest !== session.ruleset_digest) {
+    throw new Error("Campaign progress from different Rulesets cannot be combined.");
+  }
+  const unlocked = new Set([...stored.unlocked_scenario_ids, ...session.unlocked_scenario_ids]);
+  const completed = new Set([...stored.completed_scenario_ids, ...session.completed_scenario_ids]);
+  return parseCampaignProgress(JSON.stringify({
+    format_version: 2,
+    ruleset_digest: stored.ruleset_digest,
+    unlocked_scenario_ids: ids.filter(id => unlocked.has(id)),
+    completed_scenario_ids: ids.filter(id => completed.has(id)),
+    history_incomplete: stored.history_incomplete || session.history_incomplete,
+  }), stored.ruleset_digest, ids);
+}
+
 /** Call only for an actual completed Enbu response paired with its frozen Run. */
 export function reduceCampaignProgress(progress: CampaignProgress, ids: readonly string[], run: CampaignRunResult): CampaignProgress {
   checkCatalog(progress.ruleset_digest, ids);

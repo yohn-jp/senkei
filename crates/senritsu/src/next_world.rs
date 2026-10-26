@@ -23,7 +23,10 @@ pub fn compiled_authored_world() -> VerifiedWorld {
         .expect("checked-in World Definition compiles")
 }
 
-pub(crate) fn builtin_world_definition() -> senkei_world::WorldDefinition {
+/// Authored source for the same checked-in World used to build `next_package`.
+/// Callers retain these bytes and recompile them to recover a sealed artifact;
+/// the compiled projection itself cannot be deserialized as trusted data.
+pub fn builtin_world_definition() -> senkei_world::WorldDefinition {
     serde_json::from_slice(include_bytes!(
         "../../senkei-world/fixtures/initial-battlefield.json"
     ))

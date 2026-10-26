@@ -697,9 +697,22 @@ export interface DiagnosticEvent {
 export type TacticalMemory = Readonly<Record<StateId, DomainValue>>;
 
 export interface RestrictedDiagnostics {
+  readonly identity: RestrictedDiagnosticsIdentity;
   readonly events: readonly DiagnosticEvent[];
   readonly cu_by_side: Readonly<Record<CombatantSide, number>>;
   readonly final_memory_by_side: Readonly<Record<CombatantSide, TacticalMemory>>;
+}
+
+/** Exact owner-only trace lineage. It never contains the opposing Program digest. */
+export interface RestrictedDiagnosticsIdentity {
+  readonly schema_version: number;
+  readonly side: CombatantSide;
+  readonly match_id: MatchId;
+  readonly result_digest: ContentDigest;
+  /** SHA-256 of canonical JSON for both snapshots and the complete MatchContext. */
+  readonly snapshot_digest: ContentDigest;
+  /** Content digest for the Program belonging to `side`. */
+  readonly program_digest: ContentDigest;
 }
 
 export function isLogicalCu(value: number): boolean {
@@ -710,6 +723,8 @@ export function isLogicalCu(value: number): boolean {
 export interface WorldIdentityRef {
   readonly world_id: string;
   readonly schema_version: import("./core").CoreVersion;
+  /** Exact compiler that produced this immutable World artifact. */
+  readonly compiler_version: import("./core").CoreVersion;
   readonly minimum_compiler: import("./core").CoreVersion;
   readonly maximum_compiler_exclusive: import("./core").CoreVersion | null;
   readonly validation_profile_id: string | null;
