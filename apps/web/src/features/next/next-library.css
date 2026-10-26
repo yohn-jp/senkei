@@ -118,3 +118,8 @@
   .next-library-confirm .next-library-actions { background: #1c282e; bottom: -16px; flex-wrap: wrap; padding-block: 10px; position: sticky; }
   .next-library-confirm .next-library-actions button { flex: 1 1 100%; }
 }
+
+.next-library-download-note { color: var(--library-muted); font-size: 11px; line-height: 1.65; margin: 0 0 16px; }
+.next-library-retention { border-left: 2px solid rgba(189, 237, 149, .45); margin: 14px 0; padding: 3px 12px; }
+.next-library-retention strong { color: var(--library-accent); font-size: 11px; }
+.next-library-retention p { margin: 7px 0; }
