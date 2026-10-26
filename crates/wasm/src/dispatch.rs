@@ -1,8 +1,10 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload, RulesetRef,
-    SimulatePayload, VerifiedRulePlan, Version, WASM_API_VERSION,
+    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload, ReproducePayload,
+    ReproductionAssets, RulesetRef, SimulatePayload, VerifiedRulePlan, Version,
+    OP_NEXT_REPRODUCTION_ASSETS, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
+    WASM_API_VERSION,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -160,6 +162,8 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
     match operation {
         "initial_ruleset" => initial_ruleset(payload),
         "next_ruleset" => next_ruleset(payload),
+        OP_NEXT_REPRODUCTION_ASSETS => next_reproduction_assets(payload),
+        OP_REPRODUCE => reproduce(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
         "new_match_context" => new_match_context(payload),
@@ -190,6 +194,28 @@ fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
     let package=senritsu::next_package();
     validate_package(&package)?;
     Ok((encode(&package,"result")?,package.limits.max_output_bytes))
+}
+
+/// Return the current trusted builtin package together with its authored
+/// World Definition. Keeping the source alongside the package lets a caller
+/// rebuild the exact sealed World artifact after the originating process exits.
+fn next_reproduction_assets(payload: Value) -> Result<(Value, u64), ApiError> {
+    require_empty_object(&payload, "payload")?;
+    let rule_package = senritsu::next_package();
+    validate_package(&rule_package)?;
+    let world_definition = serde_json::to_value(senritsu::next_world::builtin_world_definition())
+        .map_err(|error| api_error(
+            ApiErrorCode::InternalError,
+            Some("result.world_definition"),
+            format!("builtin World Definition could not be serialized: {error}"),
+        ))?;
+    let assets = ReproductionAssets {
+        format_version: REPRODUCTION_ASSETS_FORMAT_VERSION,
+        rule_package,
+        world_definition,
+    };
+    let max_output_bytes = assets.rule_package.limits.max_output_bytes;
+    Ok((encode(&assets, "result")?, max_output_bytes))
 }
 
 /// Return Senritsu's canonical Domain Catalog string without decoding and
@@ -296,8 +322,167 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         &request.context,
         &mut vm,
     )?;
+    let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Rebuild a verified package from retained, untrusted JSON inputs and rerun
+/// the original match with the current deterministic engine.
+fn reproduce(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: ReproducePayload = decode(payload, "payload")?;
+    let diagnostics_side = requested_diagnostics_side(
+        request.include_diagnostics,
+        request.diagnostics_side,
+    )?;
+    if request.assets.format_version != REPRODUCTION_ASSETS_FORMAT_VERSION {
+        return Err(api_error(
+            ApiErrorCode::InvalidVersion,
+            Some("payload.assets.format_version"),
+            "unsupported reproduction asset format",
+        ));
+    }
+
+    let package = request.assets.rule_package;
+    if package.catalog_semantics_digest.is_some() {
+        return Err(api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.rule_package.catalog_semantics_digest"),
+            "this reproduction requires a Catalog/Behavior extension artifact that was not retained",
+        ));
+    }
+    let expected_world_identity = package
+        .next
+        .as_ref()
+        .and_then(|next| next.world_identity.as_ref())
+        .ok_or_else(|| api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package.next.world_identity"),
+            "a reproducible Next RulePackage must carry its exact World identity",
+        ))?;
+    let current_compiler = Version::new(
+        senkei_world::COMPILER_VERSION.major,
+        senkei_world::COMPILER_VERSION.minor,
+        senkei_world::COMPILER_VERSION.patch,
+    );
+    if expected_world_identity.compiler_version != current_compiler {
+        return Err(api_error(
+            ApiErrorCode::IncompatibleVersion,
+            Some("payload.assets.rule_package.next.world_identity.compiler_version"),
+            "the stored World Compiler version is not available in this runtime",
+        ));
+    }
+
+    let definition: senkei_world::WorldDefinition = serde_json::from_value(
+        request.assets.world_definition,
+    ).map_err(|error| api_error(
+        ApiErrorCode::ValidationFailed,
+        Some("payload.assets.world_definition"),
+        format!("stored World Definition is malformed: {error}"),
+    ))?;
+    let world = senkei_world::compile(definition).map_err(|issues| {
+        let mut error = api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.world_definition"),
+            "stored World Definition does not compile under the current World Compiler",
+        );
+        error.details.insert(
+            "issues".to_owned(),
+            serde_json::to_string(
+                &issues
+                    .iter()
+                    .map(|issue| {
+                        serde_json::json!({
+                            "code": &issue.code,
+                            "path": &issue.path,
+                            "message": &issue.message,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_owned()),
+        );
+        error
+    })?;
+    if world.identity().to_model_ref() != *expected_world_identity {
+        return Err(api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.world_definition"),
+            "compiled World identity does not match the retained RulePackage reference",
+        ));
+    }
+    let mut resolver = senkei_world::WorldResolver::default();
+    resolver.insert(world).map_err(|error| api_error(
+        ApiErrorCode::ValidationFailed,
+        Some("payload.assets.world_definition"),
+        format!("stored World could not be inserted into the exact resolver: {error}"),
+    ))?;
+
+    let actual_package_digest = senritsu::canonical_digest(&package).map_err(|error| {
+        api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package"),
+            format!("stored RulePackage could not be canonically hashed: {error}"),
+        )
+    })?;
+    if actual_package_digest != package.ruleset.digest {
+        return Err(api_error(
+            ApiErrorCode::InvalidRuleset,
+            Some("payload.assets.rule_package.ruleset.digest"),
+            "stored RulePackage digest does not match its content",
+        ));
+    }
+    let rules = senritsu::validate_with_world_resolver(
+        package,
+        &senritsu::next_engine_compatibility(),
+        &resolver,
+    ).map_err(|issues| {
+        let mut error = api_error(
+            ApiErrorCode::ValidationFailed,
+            Some("payload.assets.rule_package"),
+            "retained RulePackage could not be verified against its exact World artifact",
+        );
+        error.details.insert(
+            "issues".to_owned(),
+            serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_owned()),
+        );
+        error
+    })?;
+    let max_output_bytes = rules
+        .plan()
+        .limits
+        .max_output_bytes
+        .min(request.snapshot.context.host_limits.max_output_bytes);
+    enbu::preflight(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+    )?;
+    let mut vm = jinrei::Vm::new(&rules);
+    let artifact = enbu::simulate(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+        &mut vm,
+    )?;
+    if artifact.diagnostic_snapshot_digest != request.snapshot_digest {
+        return Err(api_error(
+            ApiErrorCode::InvalidSnapshot,
+            Some("payload.snapshot_digest"),
+            "retained snapshot digest does not match the complete immutable Run input",
+        ));
+    }
+    let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+fn project_simulation_response(
+    artifact: &enbu::SimulationArtifact,
+    diagnostics_side: Option<CombatantSide>,
+) -> LocalSimulationResponse {
     let public = artifact.public_response();
-    let response = if let Some(side) = diagnostics_side {
+    if let Some(side) = diagnostics_side {
         artifact.diagnostic_response(side)
     } else {
         LocalSimulationResponse {
@@ -308,8 +493,7 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
             replay: public.replay,
             diagnostics: None,
         }
-    };
-    Ok((encode(&response, "result")?, max_output_bytes))
+    }
 }
 
 fn requested_diagnostics_side(
