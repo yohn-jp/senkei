@@ -1139,41 +1139,43 @@ fn strategic_case_set(rules: &VerifiedRulePlan) -> Vec<serde_json::Value> {
             .unwrap_or_else(|| panic!("{catalog_id} is present in the terminal owner frame for {}", case["case_id"]))
     };
 
-    // Pin the real-Enbu outcomes for these fixed inputs on the current
-    // engine/world package. These are regression observations, not balance
-    // or win-rate targets. Engine 1.3 now executes the canonical World's
-    // bridge identities and crossing intervals; those authored path facts
-    // change stable route ordering and the resulting strategic trajectories.
+    // These are exact real-Enbu measurements for this engine/World package
+    // (CI run 40417459834, gameplay-evidence-next-scenarios). The earlier
+    // baselines predate the corrected squad action-lock handling. Pin the
+    // final-state digest as well as outcome/tick; do not turn this into a
+    // permissive list of acceptable results or change the victory condition.
     let observed = [
-        ("balanced-solos-vs-quintet", "Draw", "timeout", "time_limit", 600),
-        ("split-2-2-1-vs-3-2-role-mix", "Draw", "timeout", "time_limit", 600),
-        ("jungle-push-vs-lane-defense", "Draw", "timeout", "time_limit", 600),
-        ("mirrored-lane-defense-vs-jungle-push", "Draw", "timeout", "time_limit", 600),
-        ("base-assault-solos-vs-quintet", "DefenderVictory", "victory", "base_destroyed", 568),
-        ("base-assault-quintet-vs-solos-mirrored", "AttackerVictory", "victory", "base_destroyed", 447),
-        ("base-assault-duos-vs-trio-duo", "AttackerVictory", "victory", "base_destroyed", 593),
-        ("base-assault-trio-duo-vs-duos-mirrored", "Draw", "timeout", "time_limit", 600),
+        ("balanced-solos-vs-quintet", "Draw", "timeout", "time_limit", 600, "7377e5532e575394451437ce69eb0f3c5bbafa5cbce27eca1512cec3759b56ee"),
+        ("split-2-2-1-vs-3-2-role-mix", "Draw", "timeout", "time_limit", 600, "029f89b23120389d9856fd84d3a7b6a672f117e86eaad1ac414710221d56f37b"),
+        ("jungle-push-vs-lane-defense", "Draw", "timeout", "time_limit", 600, "fa9e894e9d215029b99b520502bd993ee629122193893875308b4f194f21481b"),
+        ("mirrored-lane-defense-vs-jungle-push", "Draw", "timeout", "time_limit", 600, "8a3f4cb14ec00f9aacc98d7e443a747ac68fa5f9c0071c5fb082ee45b7f106c4"),
+        ("base-assault-solos-vs-quintet", "AttackerVictory", "victory", "base_destroyed", 425, "89a17f98d3db5d5100afea17e06e9d3bfe014a88a4884b8ac1175c1ce3f4d027"),
+        ("base-assault-quintet-vs-solos-mirrored", "Draw", "timeout", "time_limit", 600, "d9e91622d1419ee3c99e7c51c6d44052f5fd1f4c6f768f5924c2d5444b8d1252"),
+        ("base-assault-duos-vs-trio-duo", "Draw", "timeout", "time_limit", 600, "4690153083ff95996dac78215c4b43a7f3f6381df3a11a9fb365b42aa97c1c13"),
+        ("base-assault-trio-duo-vs-duos-mirrored", "Draw", "timeout", "time_limit", 600, "4afc90d2199baa307a4f295aee237a32f582ed69307044e864a7cb4c10821e7f"),
     ];
-    for (id, outcome, termination_class, termination_reason, final_tick) in observed {
+    for (id, outcome, termination_class, termination_reason, final_tick, final_state_digest) in observed {
         let result = case(id);
         assert_eq!(result["outcome"], outcome, "observed outcome for {id}");
         assert_eq!(result["termination_class"], termination_class, "termination class for {id}");
         assert_eq!(result["termination_reason"], termination_reason, "termination reason for {id}");
         assert_eq!(result["final_tick"], final_tick, "final tick for {id}");
+        assert_eq!(result["final_state_digest"], final_state_digest, "final Enbu state for {id}");
     }
 
-    // The natural base assaults destroy opposing bases in both orientations;
-    // controlled node assaults below independently verify the same mechanic.
-    let attacker_win = case("base-assault-quintet-vs-solos-mirrored");
+    // This natural assault destroys the defender base. The independent
+    // controlled_base_node_assault test proves both attacker/defender wins
+    // with actual committed actions; timed-out strategic matchups do not
+    // imply the engine is unable to destroy a base from either side.
+    let attacker_win = case("base-assault-solos-vs-quintet");
     assert_eq!(structure_hp(attacker_win, "base.defender"), 0);
-    assert!(structure_hp(attacker_win, "base.attacker") > 0);
+    assert_eq!(structure_hp(attacker_win, "base.attacker"), 57);
 
-    let defender_win = case("base-assault-solos-vs-quintet");
-    assert_eq!(structure_hp(defender_win, "base.attacker"), 0);
-    assert!(structure_hp(defender_win, "base.defender") > 0);
+    let timed_out = case("base-assault-quintet-vs-solos-mirrored");
+    assert_eq!(structure_hp(timed_out, "base.attacker"), 2400);
 
     let timeouts = cases.iter().filter(|case| case["termination_class"] == "timeout").collect::<Vec<_>>();
-    assert_eq!(timeouts.len(), 5, "the report retains all five observed time-limited strategic draws");
+    assert_eq!(timeouts.len(), 7, "the report retains all seven measured time-limited strategic draws");
     assert!(timeouts.iter().all(|case| {
         case["outcome"] == "Draw"
             && case["termination_reason"] == "time_limit"

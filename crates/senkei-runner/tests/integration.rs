@@ -293,11 +293,13 @@ fn beginner_next_campaign_opponent_has_a_natural_base_destroyed_matchup() {
     }
     let player_tactics = format!("senkei w9_persistent_movement {{ {} }}", player_moves.join(", "));
     let npc_roster = ["F01", "F03", "F06", "R02", "R04"];
+    // A verified five-Solo challenger (same authored NPC/World/rules) reaches
+    // base_destroyed within the canonical limit. The former quintet timed out.
     let attacker = next_combatant(
         "campaign-player",
         &player_tactics,
-        &["F02", "F04", "R01", "R03", "R05"],
-        &["squad-0"; 5],
+        &["F03", "F04", "R01", "R02", "R05"],
+        &["squad-1", "squad-2", "squad-3", "squad-4", "squad-5"],
         "A.BASE",
     );
     let defender = next_combatant(

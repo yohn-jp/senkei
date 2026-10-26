@@ -36,8 +36,50 @@ async function prepare(page: Page, final: boolean) {
     // This exact current browser setup was measured to reach the time-limit Draw.
     for (const [index, id] of ["F02", "F04", "R01", "R03", "R05"].entries()) {
       await page.getByRole("button", { name: `Choose hero for slot ${index + 1}`, exact: true }).click();
-      await page.locator(".next-catalog-card").filter({ has: page.locator(".ha-hero-id", { hasText: new RegExp(`^${id}$`) }) }).click();
+      await page.locator(".next-catalog-card").filter({ has: page.locator(".ha-hero-id", { hasText: new RegExp(`^${id}import { expect, test, type Page } from "@playwright/test";
+import { completePreflight } from "../helpers/preflight";
+test.use({ actionTimeout: 20_000 });
+const ids = ["first-march", "read-the-map", "share-the-pressure", "jungle-objective", "bridge-approach", "protect-the-core"];
+const persistentOrders = "senkei campaign_orders { " + Array.from({ length: 5 }, (_, index) => {
+  const slot = `slot-${String(index + 1).padStart(2, "0")}`;
+  return `action advance_${index + 1} { when any hero in allies.heroes { hero.slot_id == "${slot}", hero.goal == "", hero.hp > 0, }, do move(argmin hero in filter hero in allies.heroes { hero.slot_id == "${slot}", } by hero.hp then hero.id, "B.BASE"), }`;
+}).join(", ") + " }";
+async function progress(page: Page) {
+  return page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => key.startsWith("senkei.next-campaign-progress.v2:"));
+    return key ? JSON.parse(localStorage.getItem(key)!) : null;
+  });
+}
+async function prepare(page: Page, final: boolean) {
+  await page.goto("/");
+  await expect.poll(() => progress(page)).not.toBeNull();
+  let legacy: { key: string; raw: string } | null = null;
+  if (final) {
+    legacy = await page.evaluate(ids => {
+      const current = Object.keys(localStorage).find(key => key.startsWith("senkei.next-campaign-progress.v2:"))!;
+      const digest = current.split(":")[1];
+      const key = current.replace(".v2:", ".v1:");
+      const raw = JSON.stringify({ format_version: 1, ruleset_digest: digest, unlocked_scenario_ids: ids });
+      localStorage.removeItem(current); localStorage.setItem(key, raw);
+      return { key, raw };
+    }, ids);
+    await page.reload();
+  }
+  await page.getByTestId("journey-home").getByRole("button", { name: "戦役を始める", exact: true }).click();
+  if (final) await page.getByRole("button", { name: /Regroup for a base defense/ }).click();
+  await page.getByRole("button", { name: "この課題で準備する", exact: true }).click();
+  await page.getByRole("button", { name: "Heroを変更", exact: true }).click();
+  if (!final) {
+    // Exercise an authored legal roster and explicit persistent movement.
+    // This exact current browser setup was measured to reach the time-limit Draw.
+) }) }).click();
     }
+    // The previously selected five-Solo setup now wins. Explicitly exercise
+    // the measured time-limited quintet instead; retain the actual Enbu Draw
+    // and the strict "no campaign clear" assertions below.
+    await page.getByRole("tab", { name: "Squad Assembly" }).click();
+    await page.getByRole("button", { name: "Use squad split 5", exact: true }).click();
+    await page.locator('select[data-repair-field="node"][data-repair-squad-id="squad-1"]').selectOption("A.BASE");
   } else {
     // This is an explicit legal player deployment through the current UI, not
     // a changed opponent, map, victory condition, or difficulty definition.
