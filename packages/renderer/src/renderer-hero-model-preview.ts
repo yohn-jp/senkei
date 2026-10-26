@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { DisplayEntity } from "@senkei/replay-contract";
-import { buildBattlefieldHero, type BattlefieldUnitRig } from "./battlefield-units";
+import { buildBattlefieldHero, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 
-export type HeroPreviewPose = "idle" | "move" | "attack";
+import { applyHeroPreviewMotion, type HeroPreviewPose } from "./hero-preview-motion";
+export type { HeroPreviewPose } from "./hero-preview-motion";
 
 export interface HeroModelPreviewOptions {
   catalogId: string;
@@ -36,52 +37,7 @@ function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   } as DisplayEntity;
 }
 
-function setRotation(rig: BattlefieldUnitRig, key: string, group: THREE.Group | undefined, x = 0, y = 0, z = 0): void {
-  if (!group) return;
-  const rest = rig.restPose?.[key] ?? { x: 0, y: 0, z: 0 };
-  group.rotation.set(rest.x + x, rest.y + y, rest.z + z);
-}
-
-function applyPose(rig: BattlefieldUnitRig, pose: HeroPreviewPose, elapsedSeconds: number, reducedMotion: boolean, model: THREE.Group): void {
-  const { joints, weaponPivots } = rig;
-  for (const [key, group] of Object.entries(joints)) setRotation(rig, key, group);
-  for (const [key, group] of Object.entries(weaponPivots)) setRotation(rig, `weapon.${key}`, group);
-  model.position.y = 0;
-
-  if (pose === "idle") {
-    if (!reducedMotion) {
-      const breath = Math.sin(elapsedSeconds * 1.7);
-      setRotation(rig, "torso", joints.torso, breath * 0.025, 0, breath * 0.012);
-      setRotation(rig, "head", joints.head, 0, Math.sin(elapsedSeconds * 0.8) * 0.035, 0);
-      setRotation(rig, "cape", joints.cape, breath * 0.035, 0, 0);
-    }
-    return;
-  }
-
-  if (pose === "move") {
-    const phase = reducedMotion ? 0.45 : elapsedSeconds * Math.PI * 3.2;
-    const gait = Math.sin(phase) * (reducedMotion ? 0.3 : 0.44);
-    setRotation(rig, "leg.left", joints["leg.left"], gait, 0, 0);
-    setRotation(rig, "leg.right", joints["leg.right"], -gait, 0, 0);
-    setRotation(rig, "arm.left", joints["arm.left"], -gait * 0.62, 0, 0);
-    setRotation(rig, "arm.right", joints["arm.right"], gait * 0.62, 0, 0);
-    setRotation(rig, "torso", joints.torso, -0.055 + Math.abs(gait) * 0.035, 0, 0);
-    if (!reducedMotion) model.position.y = Math.abs(Math.sin(phase * 2)) * 0.035;
-    return;
-  }
-
-  const cycle = reducedMotion ? 0.53 : (elapsedSeconds % 1.45) / 1.45;
-  const windup = THREE.MathUtils.smoothstep(cycle, 0.02, 0.29);
-  const strike = THREE.MathUtils.smoothstep(cycle, 0.29, 0.48);
-  const recover = THREE.MathUtils.smoothstep(cycle, 0.48, 0.82);
-  const swing = windup * (1 - strike) + strike * (1 - recover);
-  setRotation(rig, "torso", joints.torso, 0.02 - swing * 0.2, swing * 0.15, -swing * 0.08);
-  setRotation(rig, "arm.right", joints["arm.right"], -0.08 - windup * 0.28 + strike * 0.1, 0, -swing * 0.24);
-  setRotation(rig, "weapon.main", weaponPivots.main, -swing * 0.32, 0, -windup * 0.18 + strike * 0.9);
-  setRotation(rig, "arm.left", joints["arm.left"], 0.08 + swing * 0.12, 0, swing * 0.08);
-}
-
-function disposeScene(scene: THREE.Scene): void {
+export function disposeHeroPreviewScene(scene: THREE.Scene): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   scene.traverse((object) => {
@@ -90,7 +46,7 @@ function disposeScene(scene: THREE.Scene): void {
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
   });
   for (const geometry of geometries) geometry.dispose();
-  for (const material of materials) material.dispose();
+  for (const material of materials) if (!isSharedUnitMaterial(material)) material.dispose();
 }
 
 /**
@@ -186,7 +142,8 @@ export function createHeroModelPreview(
   try {
     rig = buildBattlefieldHero(model, entity, TEAM_COLOR, options.appearanceKey);
   } catch (error) {
-    disposeScene(scene);
+    controls.dispose();
+    disposeHeroPreviewScene(scene);
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
@@ -208,6 +165,7 @@ export function createHeroModelPreview(
 
   const recordFrame = () => {
     renderer.domElement.dataset.camera = [...camera.position.toArray(), ...controls.target.toArray()].map(value => value.toFixed(4)).join(",");
+    renderer.domElement.dataset.bodyPoseSample = [model.rotation.z, rig.joints.torso?.rotation.z ?? 0].map(value => value.toFixed(4)).join(",");
     renderer.domElement.dataset.poseSample = [rig.joints["leg.left"], rig.joints["arm.right"], rig.weaponPivots.main]
       .map(joint => joint ? joint.rotation.toArray().slice(0, 3).map(value => Number(value).toFixed(4)).join(",") : "none").join(":");
   };
@@ -216,7 +174,7 @@ export function createHeroModelPreview(
   };
   const animate = (time: number) => {
     if (disposed) return;
-    applyPose(rig, pose, Math.max(0, (time - poseStarted) / 1000), false, model);
+    applyHeroPreviewMotion(rig, model, pose, Math.max(0, (time - poseStarted) / 1000), false);
     controls.update();
     renderer.render(scene, camera);
     recordFrame();
@@ -254,7 +212,7 @@ export function createHeroModelPreview(
     observer.observe(host);
   } else window.addEventListener("resize", resize);
   resize();
-  if (reducedMotion) applyPose(rig, pose, 0, true, model);
+  if (reducedMotion) applyHeroPreviewMotion(rig, model, pose, 0, true);
   else renderer.setAnimationLoop(animate);
   render();
 
@@ -263,10 +221,8 @@ export function createHeroModelPreview(
       pose = nextPose;
       poseStarted = performance.now();
       renderer.domElement.dataset.pose = nextPose;
-      if (reducedMotion) {
-        applyPose(rig, pose, 0, true, model);
-        render();
-      }
+      applyHeroPreviewMotion(rig, model, pose, 0, reducedMotion);
+      render();
     },
     resetView() {
       const damping = controls.enableDamping;
@@ -290,7 +246,7 @@ export function createHeroModelPreview(
       controls.dispose();
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
-      disposeScene(scene);
+      disposeHeroPreviewScene(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
