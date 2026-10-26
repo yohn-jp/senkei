@@ -1,7 +1,7 @@
 import * as THREE from "three";
 export { createHeroModelPreview } from "./renderer-hero-model-preview";
 import { fitBattlefieldCameraFrame } from "./battlefield-camera";
-import { KnownBaseSites } from "./base-sites";
+import { findScreenLabelPosition, KnownBaseSites } from "./base-sites";
 import { BattlefieldLandmarks } from "./battlefield-landmarks";
 import { BattlefieldFog } from "./battlefield-fog";
 import { buildBattlefieldLaneGuides } from "./battlefield-lane-guides";
@@ -2519,6 +2519,7 @@ export class Battlefield {
       const hostRect = this.host.getBoundingClientRect();
       const labelPlacements: WorldLabelPlacement[] = [];
       const overlaps = screenRectsOverlap;
+      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       const cueCameraSignature = [
         ...this.camera.position.toArray(),
         ...this.camera.quaternion.toArray(),
@@ -2557,8 +2558,17 @@ export class Battlefield {
           if (projected.right >= hostRect.left && projected.left <= hostRect.right && projected.bottom >= hostRect.top && projected.top <= hostRect.bottom)
             this.protectedSilhouetteRects.push(projected);
         }
+        for (const rect of this.baseSites.projectedSilhouetteRects()) {
+          const projected = {
+            left: hostRect.left + rect.left,
+            right: hostRect.left + rect.right,
+            top: hostRect.top + rect.top,
+            bottom: hostRect.top + rect.bottom,
+          };
+          if (projected.right >= hostRect.left && projected.left <= hostRect.right && projected.bottom >= hostRect.top && projected.top <= hostRect.bottom)
+            this.protectedSilhouetteRects.push(projected);
+        }
       }
-      this.baseSites.render(this.state, this.camera, this.host.clientWidth, this.host.clientHeight);
       for (const element of this.host.querySelectorAll<HTMLElement>(".base-site-label")) {
         if (element.hidden) continue;
         const start = element.getBoundingClientRect();
@@ -2569,22 +2579,16 @@ export class Battlefield {
           [-96, -42], [96, -42], [-96, 42], [96, 42],
           [0, -84], [0, 84], [-192, 0], [192, 0],
         ] as const;
-        let placed: DOMRect | undefined;
-        for (const [dx, dy] of shifts) {
-          const candidate = {
-            left: start.left + dx, right: start.right + dx,
-            top: start.top + dy, bottom: start.bottom + dy,
-          };
-          if (candidate.left < hostRect.left + 4 || candidate.right > hostRect.right - 4 ||
-            candidate.top < hostRect.top + 4 || candidate.bottom > hostRect.bottom - 4 ||
-            overlapsProtectedSilhouette(candidate, this.protectedSilhouetteRects)) continue;
-          placed = start;
-          element.style.left = `${left + dx}px`;
-          element.style.top = `${top + dy}px`;
-          break;
-        }
+        const placed = findScreenLabelPosition(
+          { left: start.left, right: start.right, top: start.top, bottom: start.bottom },
+          shifts,
+          { left: hostRect.left + 4, right: hostRect.right - 4, top: hostRect.top + 4, bottom: hostRect.bottom - 4 },
+          this.protectedSilhouetteRects,
+        );
         if (!placed) element.hidden = true;
         else {
+          element.style.left = `${left + placed.left - start.left}px`;
+          element.style.top = `${top + placed.top - start.top}px`;
           const rect = element.getBoundingClientRect();
           labelPlacements.push({ element, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, priority: 0 });
         }
