@@ -96,6 +96,10 @@ jobs:
       - run: npm run build
       - name: Build the native dispatcher for Campaign browser fixtures
         run: cargo build --locked --release -p senkei-wasm --bin senkei-wasm-dispatch
+      # Cargo cache can restore target/browser-scenarios/campaign-native from an older run.
+      # Remove only that generated cache before the strict immutable producer runs.
+      - name: Remove cached Campaign fixture output
+        run: rm -rf target/browser-scenarios/campaign-native
       - name: Generate immutable native browser scenarios once
         run: bash scripts/ci/prepare-browser-scenarios.sh target/browser-scenarios
       - name: Generate immutable native Campaign fixtures once
