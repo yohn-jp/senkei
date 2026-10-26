@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { Replay, Event as GraphicsEvent } from "@senkei/replay-contract";
 import { matchesPresentedEntity, type PresentedEntityIdentity } from "./battle-entity-identity";
@@ -64,6 +64,7 @@ interface TimelineRow {
 }
 
 const EVENT_PAGE_SIZE = 24;
+const DIAGNOSTIC_PAGE_SIZE = 24;
 const EMPTY_EVENTS: readonly GraphicsEvent[] = [];
 
 function scalar(value: DomainValue | undefined): string | null {
@@ -259,6 +260,7 @@ export function BattleAnalysis({
   const [eventFilter, setEventFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [diagnosticPage, setDiagnosticPage] = useState(0);
 
   const roster = useMemo(() => run ? runHeroes(run) : [], [run]);
   const attribution = useMemo(() => run ? attributeOwnHeroes(run) : new Map<string, EntityAttribution>(), [run]);
@@ -266,6 +268,12 @@ export function BattleAnalysis({
   const events = run?.graphicsReplay.timeline ?? EMPTY_EVENTS;
   const diagnostics = run?.response.restricted_diagnostics;
   const ownDiagnostics = useMemo(() => diagnosticsForAttacker(diagnostics), [diagnostics]);
+  useEffect(() => { setDiagnosticPage(0); }, [diagnostics]);
+  const diagnosticPageCount = Math.max(1, Math.ceil(ownDiagnostics.length / DIAGNOSTIC_PAGE_SIZE));
+  const currentDiagnosticPage = Math.min(diagnosticPage, diagnosticPageCount - 1);
+  const diagnosticStart = currentDiagnosticPage * DIAGNOSTIC_PAGE_SIZE;
+  const diagnosticEnd = Math.min(diagnosticStart + DIAGNOSTIC_PAGE_SIZE, ownDiagnostics.length);
+  const diagnosticRows = ownDiagnostics.slice(diagnosticStart, diagnosticEnd);
   const squads = useMemo(() => [...new Set(roster.map((hero) => hero.squad))].sort(), [roster]);
   const rows = useMemo<TimelineRow[]>(() => events.map((event, index) => {
     const ids = eventEntityIds(event);
@@ -364,8 +372,17 @@ export function BattleAnalysis({
             <header><div><span className="battle-analysis-eyebrow">RESTRICTED LOCAL CHANNEL</span><h4>Decision Trace / Diagnostics</h4></div><span>ATTACKER ONLY</span></header>
             {diagnostics ? <>
               <div className="battle-analysis-cu"><span><small>自軍 CU</small><strong>{diagnostics.cu_by_side.attacker}</strong></span><span><small>自軍 Trace Events</small><strong>{ownDiagnostics.length}</strong></span></div>
-              {ownDiagnostics.length ? <ol className="battle-analysis-diagnostic-list">{ownDiagnostics.slice(0, 60).map((entry, index) => <li key={`${entry.tick}-${entry.sequence}-${index}`}><button onClick={() => onReplayTick(entry.tick)} type="button"><span>{formatStamp(String(entry.tick))}</span><div><strong>{diagnosticTitle(entry.record.kind)}</strong><small>{diagnosticSummary(entry)}</small></div><b>Replay ↗</b></button></li>)}</ol> : <p className="battle-analysis-unavailable">Enbu supplied authorized RestrictedDiagnostics, but emitted no attacker-side trace events for this run.</p>}
-              {ownDiagnostics.length > 60 && <p className="battle-analysis-boundary">Showing the first 60 of {ownDiagnostics.length} authorized attacker-side events.</p>}
+              {ownDiagnostics.length ? <>
+                <p className="battle-analysis-boundary" role="status">{`${diagnosticStart + 1}–${diagnosticEnd} / ${ownDiagnostics.length} supplied attacker events · page ${currentDiagnosticPage + 1}/${diagnosticPageCount}`}</p>
+                <nav aria-label="Diagnostic pages" className="battle-analysis-pages battle-analysis-diagnostic-pages">
+                  <button disabled={currentDiagnosticPage === 0} onClick={() => setDiagnosticPage(0)} type="button">最初のTrace</button>
+                  <button disabled={currentDiagnosticPage === 0} onClick={() => setDiagnosticPage(currentDiagnosticPage - 1)} type="button">前のTrace</button>
+                  <button disabled={currentDiagnosticPage === diagnosticPageCount - 1} onClick={() => setDiagnosticPage(currentDiagnosticPage + 1)} type="button">次のTrace</button>
+                  <button disabled={currentDiagnosticPage === diagnosticPageCount - 1} onClick={() => setDiagnosticPage(diagnosticPageCount - 1)} type="button">最後のTrace</button>
+                </nav>
+                <ol key={currentDiagnosticPage} aria-label="Supplied attacker diagnostics" className="battle-analysis-diagnostic-list">{diagnosticRows.map((entry, index) => <li key={`${entry.tick}-${entry.sequence}-${index}`}><button onClick={() => onReplayTick(entry.tick)} type="button"><span>{formatStamp(String(entry.tick))}</span><div><strong>{diagnosticTitle(entry.record.kind)}</strong><small>{diagnosticSummary(entry)}</small></div><b>Replay ↗</b></button></li>)}</ol>
+                <p className="battle-analysis-boundary">Only records supplied by Enbu are available here; later unprovided records are not inferred.</p>
+              </> : <p className="battle-analysis-unavailable">Enbu supplied authorized RestrictedDiagnostics, but emitted no attacker-side trace events for this run.</p>}
             </> : <p className="battle-analysis-unavailable" role="status">RestrictedDiagnostics were not supplied for this Run. Decision Trace is unavailable; no Observed result is inferred from the Jinrei source or Coverage.</p>}
             {run.sourceReplay.perspective === "attacker" && <p className="battle-analysis-boundary">The trace is a local-only Enbu channel. Defender diagnostics, private enemy Jinrei and hidden enemy state are not shown.</p>}
           </section>
