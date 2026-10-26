@@ -1,10 +1,10 @@
-# Integration checkpoint at main 54011ea
+# Integration checkpoint at main 5c84c85
 
-Observed 2026-10-26 against committed main `54011ea0d04cbfbb4400daa065af0681affad3d5`. This overlay supersedes the historical PR-state statements in this directory. It does not regenerate the [47-document source register](CLAUSE-INDEX.md), whose source baseline remains `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Its 2,682 source units are not distinct contracts or verified requirements. No exhaustive four-category contract totals, global completion, or release readiness is asserted.
+Observed 2026-10-26 against committed main `5c84c85e4a935dae4881af87eb2b8f607987c786`. This overlay supersedes the historical PR-state statements in this directory. It does not regenerate the [47-document source register](CLAUSE-INDEX.md), whose source baseline remains `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. Its 2,682 source units are not distinct contracts or verified requirements. No exhaustive four-category contract totals, global completion, or release readiness is asserted.
 
 ## Integration state
 
-GitHub was queried directly. The scoped queue contains **15 merged implementation PRs (#24–#38)** and **one open implementation PR (#39)**. Merge state records integration, not acceptance of every associated contract. Documentation PR23 is separate.
+GitHub was queried directly. PR24–PR39 and PR41 are merged. Campaign PR40 remains open under independent review; browser-contract alignment PR42 is open. Merge state records integration, not acceptance of every associated contract. Documentation PR23 is separate. The [current contract matrix](CURRENT-CONTRACT-MATRIX.md) maps selected historical gap rows to their actual implementation, owner, dependency and proof limits.
 
 | PR | Bounded change | GitHub state | Merge commit (or open head) |
 | --- | --- | --- | --- |
@@ -23,27 +23,32 @@ GitHub was queried directly. The scoped queue contains **15 merged implementatio
 | [#36](https://github.com/yohn-jp/senkei/pull/36) | feat(behavior): validate and consume authored cross-capability orders | MERGED | `4b8ca49755abf3c5124973d62d75135395afcf47` |
 | [#37](https://github.com/yohn-jp/senkei/pull/37) | feat: preserve Replay analysis context and inspect verified Action source | MERGED | `12a029a6f570079125c9ee6ad0acc14337006eaa` |
 | [#38](https://github.com/yohn-jp/senkei/pull/38) | feat: preserve structured preflight repair targets | MERGED | `54011ea0d04cbfbb4400daa065af0681affad3d5` |
-| [#39](https://github.com/yohn-jp/senkei/pull/39) | feat(next): derive improved rematches from original run conditions | OPEN | `f87d838da6dab5eed808909af96c51d6ddd391a2` |
+| [#39](https://github.com/yohn-jp/senkei/pull/39) | feat(next): derive improved rematches from original run conditions | MERGED; producer only | `5c84c85e4a935dae4881af87eb2b8f607987c786` |
+| [#40](https://github.com/yohn-jp/senkei/pull/40) | Live Campaign completion, next/final actions and exact Core slot interoperability | OPEN; independent review | `4d4ada7e13bd26e2aee6c293b43718d39e8daf20` |
+| [#41](https://github.com/yohn-jp/senkei/pull/41) | Selected visible workspace tabs retain keyboard focus | MERGED | `f14b003b1902e0496a145b3f36dd32f856c5f668` |
+| [#42](https://github.com/yohn-jp/senkei/pull/42) | Align six browser specs with existing restore/analysis flows | OPEN; test-only patch | `b82cbf76d403d4ce9c0dde275baa2f9dca09dd77` |
 
 ## CI state
 
-Main [run 40275861697](https://github.com/yohn-jp/senkei/actions/runs/40275861697), at `54011ea`, was still in progress when queried, with **Browser / journeys-workbench already failed** and journeys-ui still running. Native Rust, real WebAssembly conformance, web/build, all five Quick widths, all six visual shards, both verification shards and journeys-analysis had succeeded. The run is not green; successful visual automation is not final art or physical-device acceptance. Failure cause was not investigated in this documentation task.
+Main [run 40279716616](https://github.com/yohn-jp/senkei/actions/runs/40279716616), at `5c84c85`, was **queued** when queried. The preceding `f14b003` run was cancelled. Neither proves current-main acceptance.
 
-The earlier [4b8ca49 run](https://github.com/yohn-jp/senkei/actions/runs/40270167730) completed with failure, including journeys-workbench and journeys-ui. Runs [40269960132](https://github.com/yohn-jp/senkei/actions/runs/40269960132) (`12a029a`), [40268048117](https://github.com/yohn-jp/senkei/actions/runs/40268048117) (`97abc6f`), [40267689736](https://github.com/yohn-jp/senkei/actions/runs/40267689736) (`f8a91d4`) and [40267684657](https://github.com/yohn-jp/senkei/actions/runs/40267684657) were cancelled. Cancelled runs do not prove acceptance. These are observed snapshots, not assertions about later CI state.
+The [54011ea run](https://github.com/yohn-jp/senkei/actions/runs/40275861697) completed with failure. PR39's exact-head [run 40273788585](https://github.com/yohn-jp/senkei/actions/runs/40273788585) passed Rust, real WebAssembly conformance and web/build checks, but journeys-workbench and journeys-ui failed and the aggregate browser smoke failed. Those results are not an all-green claim; the producer has no UI caller in that PR.
+
+The baseline owner has committed PR42's six test-contract alignments and reports 18 affected cases passing against verified main `54011ea` production artifact `12630087483`. This is test alignment evidence, not acceptance of active C04/C10/C14 work or proof that the new combined main CI is green. PR42 and PR40 remain subject to their current-head checks and review. Successful visual automation is not final art or physical-device acceptance.
 
 ## Remaining consumer and proof boundaries
 
-| Clause / seam | Implemented scope now integrated | Remaining work / verification |
+| Clause / seam | Actual integrated or active scope | Remaining dependency / owner / proof |
 | --- | --- | --- |
-| C01/C02/C03/C09 and Library | PR24/25/27/29/33/34 integrate bounded navigation, candidate, NPC, restore-review, retention and focus changes | Broad origin/return state, physical devices and exact-current-main combined acceptance remain distinct. The historical queue is not an assertion that these merged changes are still missing |
-| C04 repair destination | PR38 preserves structured preflight problem targets | Target-specific UI consumption and actual repair return paths remain INCOMPLETE / NOT_CHECKED here; producer merge alone does not implement the operation |
-| C06 source/diagnostic access | PR30 supplied-diagnostic access, PR31 parser source locations and PR37 Replay context/source inspection | Production profile-to-result tracing and broader context/device cases remain separate. Existing finite diagnostic access is no longer an unallocated missing leaf |
-| C07/C08 comparison/improvement | PR32 classifies completed comparisons by full inputs; PR39 is open for improvement from original conditions | Actual improved-rematch operation, exact frozen-input interoperability and browser victory acceptance are not established by classification tests |
-| C10 Campaign completion | PR35 supplies strict completion-aware progress producer | Live UI/persistence consumer and actual final-victory/reload/final-known-versus-all-recorded proof remain INCOMPLETE / NOT_CHECKED by this checkpoint. No inspection of another worker's uncommitted Campaign implementation was performed |
-| Core slot identity interoperability | Shared Core accepts bounded opaque slot IDs; committed UI parser restricts the own formation to padded positional IDs | Exact native Snapshot input must not be rewritten to padded IDs. Existing consumer alignment and real-Core/browser proof are assigned separately; no universal arbitrary-Snapshot importer is claimed as a documented product feature |
-| BH03 authored ordering | PR36 integrates typed authored cross-capability ordering and fail-closed consumption, with native/WASM fixture evidence | General static completeness and production Behavior/Enbu integration remain defined outstanding work. Unauthored production profile/rank/game-policy choices alone remain DECISION_REQUIRED. Fixture execution is not production Enbu execution |
-| Presentation | PR26 mobile Follow fix and PR28 seek-independent orientation are merged | Exact-current-main visual judgment, physical touch/IME/GPU and balance proof remain separate, NOT_CHECKED here |
-| Progression/equipment/relations/economy | No new completion evidence collected here | Defined UI operations remain in scope; genuinely unauthored producer values, authority and economic/game rules remain deferred as detailed in the historical boundary register |
+| C01/C02/C03/C09 and Library retention | PR24/25/27/29/33 integrate bounded conditions, candidate, NPC, restore-review and retention changes | These are no longer unallocated missing leaves. Broader return-state/device/current-main combined acceptance remains separate |
+| C04 repair destination | PR38 structured target producer is merged; optional Hero/Jinrei focus producers are active with `ux_audit` | Ready parent caller remains unwired. Producer fixtures use real Core `8ec4…`; no full product repair/return PASS. Coordinator allocates caller work after producer symbols and file handoff |
+| C06/C07 diagnostics and exact source | PR30 supplied-record access, PR31 parser locations and PR37 Replay/analysis/source context are merged | Broader production profile-to-result tracing remains a separate Behavior seam. Existing finite record/source access must not be reclassified as wholly missing |
+| C08 three replay/comparison operations | PR32 comparison classifier and PR39 original-context improvement helper are merged | Actual improved-rematch UI is still missing. `source_locations` is available after C10/C14 releases NextWorkspace; exact original context/opponent, Core preflight and real browser return paths must be exercised by that consumer |
+| C10 Import / C14 failed-Core export | `presentation_audit` owns active import validation and Core-independent storage/read/export work | Actual red probes found incompatible imported conditions replacing valid storage, and export disabled on Core failure. Branch build passes; actual green browser verification and a committed PR are pending. No acceptance yet |
+| C11 Campaign completion and exits | PR35 producer is merged; PR40 UI/persistence/interoperability head `4d4ada7` is open | `progression_audit` authored; `core_audit` independent review active. Author reports 242 unit tests, build, 18 browser cases and separate actual first/final WASM victories with entire native/WASM Snapshot/result equality. Branch evidence does not merge PR40 or certify broad progression |
+| C12 tab focus | PR34 Library focus and PR41 generic selected-visible-tab guard are merged | PR41 reproduced eight real browser failures, then passed eight new cases plus four unchanged Library controls at 320/390/430/1440. Ordinary entry/reentry headings remain verified. Broad Back/Sheet/rotation/IME and physical-device proof remain separate |
+| BH03 authored ordering | PR36 typed authored domains, strict local/global ordering and fail-closed consumption are merged | Universal static completeness remains **DEFINED and outstanding**. Production profiles, rankings/groups and game-specific mappings remain separately DECISION_REQUIRED; fixture native/WASM resolver proof is not production Enbu execution |
+| Progression / presentation | No new broad completion evidence from this documentation update | Defined operations remain in scope. Unaudited acceptance and unauthored game/economic values stay distinct; see the selected current matrix and historical boundary register |
 
 ## C13/C14 Recovery quota and same-package Core retry probe
 
