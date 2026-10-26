@@ -11,7 +11,12 @@ describe("catalog Hero animation", () => {
   it("samples movement, attack, hit and death through separate shared action channels", () => {
     expect(heroPreviewPose("move", 0.2, false).walk).not.toBe(0);
     expect(heroPreviewPose("attack", 0.4, false).strike).toBeGreaterThan(0.5);
+    expect(heroPreviewPose("attack", 0.3625, false).strikePhase).toBeCloseTo(0.25);
+    expect(heroPreviewPose("attack", 0.725, false).strikePhase).toBeCloseTo(0.5);
+    expect(heroPreviewPose("attack", 1.0875, false).strikePhase).toBeCloseTo(0.75);
     expect(heroPreviewPose("hit", 0.2, false).hit).toBeGreaterThan(0.5);
+    expect(heroPreviewPose("hit", 0.2, false).hitPhase).toBeCloseTo(0.25);
+    expect(heroPreviewPose("hit", 0.6, false).hitPhase).toBeCloseTo(0.75);
     expect(heroPreviewPose("hit", 0.2, false).strike).toBe(0);
     expect(heroPreviewPose("death", 2, false).death).toBe(1);
     expect(heroPreviewPose("death", 3, false)).toEqual(heroPreviewPose("death", 2, false));

@@ -2408,7 +2408,13 @@ export class Battlefield {
         g.userData.actionPose = actionPose;
         const entity = this.state?.entities[g.userData.entityId];
         const heroEntity = Boolean(entity && this.isHero(entity));
-        const rigMotion = battlefieldUnitRigMotion(actionPose, heroEntity);
+        const actionPhase = this.playing && !this.reducedMotion ? phase : 0.5;
+        const rigPose = {
+          ...actionPose,
+          ...(actionPose.strike > 0 ? { strikePhase: actionPhase } : {}),
+          ...(actionPose.hit > 0 ? { hitPhase: actionPhase } : {}),
+        };
+        const rigMotion = battlefieldUnitRigMotion(rigPose, heroEntity);
         const rig = g.userData.animationRig as BattlefieldUnitRig | undefined;
         if (rig) {
           const focused = this.selected === g.userData.entityId || this.trackedIds.includes(g.userData.entityId);

@@ -28,7 +28,10 @@ const rotation = (x = 0, y = 0, z = 0): BattlefieldRotationDelta => ({
  * The caller resets each group to its model-authored rest pose before applying
  * the deltas, so Hero-specific stances supplied by the model remain intact.
  */
-export function battlefieldUnitRigMotion(pose: BattlefieldUnitPose, heroDeathFall = false): BattlefieldRigMotion {
+export function battlefieldUnitRigMotion(
+  pose: BattlefieldUnitPose & { readonly strikePhase?: number; readonly hitPhase?: number },
+  heroMotion = false,
+): BattlefieldRigMotion {
   const alive = 1 - pose.death;
   const step = pose.walk * alive;
   const strike = pose.strike * alive;
@@ -36,38 +39,48 @@ export function battlefieldUnitRigMotion(pose: BattlefieldUnitPose, heroDeathFal
   const hit = pose.hit * alive;
   const death = pose.death;
   const settledFall = death * death * (3 - 2 * death);
+  const strikePhase = THREE.MathUtils.clamp(pose.strikePhase ?? 0.5, 0, 1);
+  const hitPhase = THREE.MathUtils.clamp(pose.hitPhase ?? 0.5, 0, 1);
+  const attackPrep = strikePhase < 0.5 ? Math.sin(Math.PI * strikePhase * 2) : 0;
+  const attackFollowThrough = strikePhase > 0.5 ? Math.sin(Math.PI * (strikePhase - 0.5) * 2) : 0;
+  const hitRecovery = hitPhase > 0.5 ? Math.sin(Math.PI * (hitPhase - 0.5) * 2) : 0;
 
   return {
     joints: {
-      "leg.left": rotation(step + (heroDeathFall ? settledFall * 0.1 : 0)),
-      "leg.right": rotation(-step - (heroDeathFall ? settledFall * 0.2 : 0)),
-      "shin.left": rotation(Math.max(0, step) * 0.32 + (heroDeathFall ? settledFall * 0.34 : 0)),
-      "shin.right": rotation(Math.max(0, -step) * 0.32 + (heroDeathFall ? settledFall * 0.12 : 0)),
-      "arm.left": heroDeathFall
-        ? rotation(-step * 0.55 - skill * 0.72 - settledFall * 0.28, 0, settledFall * 0.42)
+      "leg.left": rotation(step + (heroMotion ? settledFall * 0.1 : 0)),
+      "leg.right": rotation(-step - (heroMotion ? settledFall * 0.2 : 0)),
+      "shin.left": rotation(Math.max(0, step) * 0.32 + (heroMotion ? settledFall * 0.34 : 0)),
+      "shin.right": rotation(Math.max(0, -step) * 0.32 + (heroMotion ? settledFall * 0.12 : 0)),
+      "arm.left": heroMotion
+        ? rotation(-step * 0.55 - skill * 0.72 - settledFall * 0.28 + strike * 0.12 + attackPrep * 0.35 + hit * 0.3 + hitRecovery * 0.08,
+          0, settledFall * 0.42 - attackPrep * 0.25 + attackFollowThrough * 0.18 + hit * 0.24)
         : rotation(-step * 0.55 - skill * 0.72),
-      "arm.right": heroDeathFall
-        ? rotation(step * 0.55 - strike * 0.85 + settledFall * 0.36, 0, -settledFall * 0.22)
+      "arm.right": heroMotion
+        ? rotation(step * 0.55 - strike * 0.85 - attackPrep * 0.72 + attackFollowThrough * 0.55 + settledFall * 0.36 - hit * 0.16 - hitRecovery * 0.12,
+          0, strike * 0.5 + attackPrep * 0.35 + attackFollowThrough * 0.65 - settledFall * 0.22 - hit * 0.36 - hitRecovery * 0.2)
         : rotation(step * 0.55 - strike * 0.85),
-      "forearm.left": rotation(heroDeathFall ? settledFall * 0.2 : 0),
-      "forearm.right": rotation(heroDeathFall ? -settledFall * 0.24 : 0),
-      torso: heroDeathFall
-        ? rotation(hit * 0.32 + settledFall * 0.08, 0, hit * 0.22)
+      "forearm.left": rotation(heroMotion ? settledFall * 0.2 + hit * 0.18 + hitRecovery * 0.1 + attackPrep * 0.08 : 0, 0,
+        heroMotion ? hit * 0.12 + hitRecovery * 0.08 : 0),
+      "forearm.right": rotation(heroMotion ? -settledFall * 0.24 + strike * 0.08 + attackPrep * 0.38 - attackFollowThrough * 0.32 + hit * 0.22 + hitRecovery * 0.18 : 0, 0,
+        heroMotion ? strike * 0.12 + attackFollowThrough * 0.18 - hit * 0.2 - hitRecovery * 0.14 : 0),
+      torso: heroMotion
+        ? rotation(hit * 0.42 + settledFall * 0.08 + strike * 0.2 + attackPrep * 0.12, 0, hit * 0.26 + attackFollowThrough * 0.22 - attackPrep * 0.22)
         : rotation(0, 0, hit * 0.12 + death * 0.68),
-      head: heroDeathFall
-        ? rotation(-hit * 0.12 - settledFall * 0.08, hit * 0.05, death * 0.1)
+      head: heroMotion
+        ? rotation(-hit * 0.22 - hitRecovery * 0.08 - settledFall * 0.08, hit * 0.06, death * 0.1)
         : rotation(0, 0, death * 0.24),
-      pelvis: rotation(death * (heroDeathFall ? 0.12 : 0.12)),
-      cape: rotation(Math.abs(step) * 0.18 + death * (heroDeathFall ? 0.36 : 0.3)),
+      pelvis: rotation(death * 0.12 - (heroMotion ? hit * 0.08 + hitRecovery * 0.04 : 0)),
+      cape: rotation(Math.abs(step) * 0.18 + death * 0.36 + (heroMotion ? hit * 0.42 + hitRecovery * 0.15 : death * -0.06)),
     },
     weaponPivots: {
-      main: rotation(-strike * 0.22),
+      main: rotation(-strike * 0.22 + (heroMotion ? attackPrep * 0.35 - attackFollowThrough * 0.2 : 0), 0,
+        heroMotion ? strike * 0.18 + attackPrep * 0.08 + attackFollowThrough * 0.3 : 0),
       off: rotation(-skill * 0.16, 0, skill * 0.52),
     },
     // Heroes settle onto their side as a completed presentation pose. The
     // renderer supplies the geometry-dependent root Y support correction;
     // other unit types retain their existing small death lean.
-    rootZ: pose.attackLean * alive + (heroDeathFall ? settledFall * 1.45 : death * 0.06),
+    rootZ: pose.attackLean * alive * (heroMotion ? 1.25 : 1) + (heroMotion ? attackPrep * 0.1 - attackFollowThrough * 0.16 - hit * 0.1 : 0) + (heroMotion ? settledFall * 1.45 : death * 0.06),
   };
 }
 
