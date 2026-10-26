@@ -124,7 +124,8 @@ test("a failed replacement write preserves the existing Run, Draft and durable e
   replacement.experiments[0].id += "-replacement";
   await page.getByLabel("Import Next experiment file").setInputFiles({ name: "valid-replacement.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(replacement)) });
   await page.getByRole("button", { name: "Validate and import", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /storage|quota/i }).last()).toBeVisible();
+  // Import reproduction runs before the durable IndexedDB write; allow the observed Core runtime to finish.
+  await expect(page.getByRole("alert").filter({ hasText: /storage|quota/i }).last()).toBeVisible({ timeout: 120_000 });
   expect(await storedIdentity(page)).toEqual(before);
   expect(await page.evaluate(() => localStorage.getItem("senkei.next-workspace-recovery.v1"))).toBe(draftBefore);
   await expect(page.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled();
