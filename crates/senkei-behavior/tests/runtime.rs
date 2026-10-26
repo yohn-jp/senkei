@@ -180,6 +180,7 @@ fn test_extension(
         hero_defaults.insert(hero_id.clone(), values);
     }
     let behavior_profiles = BehaviorProfileMetadata {
+        cross_capability_order: None,
         inheritance_order: vec![
             ProfileLayer::SenritsuDefault,
             ProfileLayer::HeroCatalogDefault,

@@ -333,6 +333,9 @@ pub struct CatalogMetadataExtension {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BehaviorProfileMetadata {
+    /// Authored actor-local orders. Absent means no cross-capability preference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross_capability_order: Option<BehaviorOrderContract>,
     /// Applied from least-specific to most-specific. A source may be omitted
     /// only when the authored RulePackage intentionally does not support it.
     pub inheritance_order: Vec<ProfileLayer>,
@@ -342,6 +345,24 @@ pub struct BehaviorProfileMetadata {
     /// Keys are stable Hero Catalog IDs, never runtime entity IDs.
     pub hero_defaults: BTreeMap<String, BTreeMap<String, DomainValue>>,
     pub presets: BTreeMap<String, NamedBehaviorPreset>,
+}
+
+/// Action selection and field composition are distinct arbitration domains.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BehaviorOrderContract {
+    pub intent_selection: Vec<BehaviorOrderDeclaration>,
+    pub field_writers: BTreeMap<String, Vec<BehaviorOrderDeclaration>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BehaviorOrderDeclaration {
+    pub scope: BehaviorScope,
+    pub actor_type: TypeId,
+    pub capabilities: BTreeSet<CapabilityId>,
+    /// A strict actor-local SelectOrdered order; no engine-supplied tie-break.
+    pub arbitration: ArbitrationRule,
 }
 
 impl BehaviorProfileMetadata {
@@ -1338,11 +1359,94 @@ fn validate_extension(
         next_rules,
         &mut issues,
     );
+    validate_behavior_orders(extension, domain, &mut issues);
     if issues.is_empty() {
         Ok(())
     } else {
         issues.sort_by(|a, b| (&a.path, a.code, &a.message).cmp(&(&b.path, b.code, &b.message)));
         Err(DomainCatalogError { issues })
+    }
+}
+
+// This validates declared domains, not arbitrary predicate mutual exclusion.
+// Uncovered runtime collisions must still fail closed in the resolver.
+fn validate_behavior_orders(extension: &CatalogMetadataExtension, domain: &DomainSchema, issues: &mut Vec<DomainCatalogIssue>) {
+    let Some(contract) = &extension.behavior_profiles.cross_capability_order else { return };
+    let mut emit = |path: String, message: &str| issues.push(DomainCatalogIssue {
+        code: "invalid_behavior_order", path, message: message.into(),
+    });
+    if contract.intent_selection.len() > 256 || contract.field_writers.len() > 256 {
+        emit("extension.behaviorProfiles.crossCapabilityOrder".into(), "order domain count exceeds 256");
+        return;
+    }
+    let domains = std::iter::once((None, &contract.intent_selection))
+        .chain(contract.field_writers.iter().map(|(field, orders)| (Some(field), orders)));
+    for (field, orders) in domains {
+        let path = format!("extension.behaviorProfiles.crossCapabilityOrder.{}", field.map_or("intentSelection", String::as_str));
+        if orders.len() > 256 { emit(path, "order count exceeds 256"); continue; }
+        for (index, declaration) in orders.iter().enumerate() {
+            let path = format!("{path}.{index}");
+            let expected_scope = match declaration.scope {
+                BehaviorScope::Army => EntityControlScope::Army,
+                BehaviorScope::Squad => EntityControlScope::Squad,
+                BehaviorScope::Hero => EntityControlScope::Hero,
+                BehaviorScope::LaneLimitedMinion => EntityControlScope::LaneLimitedMinion,
+            };
+            if extension.entity_scopes.get(&declaration.actor_type) != Some(&expected_scope) {
+                emit(path.clone(), "actor type must have the exact authored control scope");
+            }
+            if declaration.capabilities.is_empty() || declaration.capabilities.len() > 1024 {
+                emit(path.clone(), "order must name 1..1024 capabilities");
+            }
+            if orders[..index].iter().any(|prior| prior.scope == declaration.scope && prior.actor_type == declaration.actor_type
+                && !prior.capabilities.is_disjoint(&declaration.capabilities)) {
+                emit(path.clone(), "overlapping order declarations are ambiguous");
+            }
+            if field.is_some_and(|id| !extension.behavior_profiles.fields.get(id).is_some_and(|definition|
+                definition.scopes.contains(&declaration.scope) && definition.override_policy.conditional_tick_override)) {
+                emit(path.clone(), "field order requires a declared conditional field in this scope");
+            }
+            if declaration.arbitration.conflict_keys != vec![IntentKey::Actor]
+                && declaration.arbitration.conflict_keys != vec![IntentKey::Side, IntentKey::Actor] {
+                emit(path.clone(), "actor-local conflict keys must be Actor or Side,Actor");
+            }
+            let ArbitrationResolution::SelectOrdered { sort_by, max_accepted: 1 } = &declaration.arbitration.resolution else {
+                emit(path, "actor-local order must select exactly one candidate"); continue;
+            };
+            let keys = sort_by.iter().map(|term| term.key.clone()).collect::<BTreeSet<_>>();
+            if keys.len() != sort_by.len() || !keys.contains(&IntentKey::ActionId) {
+                emit(path.clone(), "order needs unique explicit sort keys including stable ActionId");
+            }
+            let mut argument_types = BTreeMap::new();
+            for capability_id in &declaration.capabilities {
+                let Some(capability) = domain.capabilities.get(capability_id) else {
+                    emit(path.clone(), "order references an unknown capability"); continue;
+                };
+                let actor = capability.actor_argument.and_then(|index| capability.arguments.get(index as usize));
+                if !actor.is_some_and(|actor| !actor.optional && actor.value_type == (DomainType::Entity { entity_type: Some(declaration.actor_type.clone()) })) {
+                    emit(path.clone(), "members must require the same concrete typed actor");
+                }
+                if field.is_some_and(|id| !extension.capabilities.get(capability_id)
+                    .is_some_and(|metadata| metadata.behavior_override_arguments.contains_key(id))) {
+                    emit(path.clone(), "every field-order member must bind that exact field");
+                }
+                for key in &keys {
+                    if let IntentKey::Argument(index) = key {
+                        let parameter = capability.arguments.get(*index as usize);
+                        match parameter {
+                            Some(parameter) if !parameter.optional && matches!(parameter.value_type,
+                                DomainType::Bool | DomainType::Integer { .. } | DomainType::Fixed { .. } |
+                                DomainType::String { .. } | DomainType::Enum { .. } | DomainType::Entity { .. }) => {
+                                if argument_types.insert(*index, parameter.value_type.clone()).is_some_and(|prior| prior != parameter.value_type) {
+                                    emit(path.clone(), "argument sort keys must have the same scalar type across members");
+                                }
+                            }
+                            _ => emit(path.clone(), "argument sort key must be a required scalar in every member"),
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2121,6 +2225,7 @@ mod tests {
         let persistent_capability = CapabilityId::new("retreat");
         let string_type = DomainType::String { max_bytes: 64 };
         let behavior_profiles = BehaviorProfileMetadata {
+            cross_capability_order: None,
             inheritance_order: vec![
                 ProfileLayer::SenritsuDefault,
                 ProfileLayer::HeroCatalogDefault,
@@ -2776,4 +2881,52 @@ mod tests {
             .iter()
             .any(|issue| issue.code == "invalid_aggregation_type"));
     }
+    #[test]
+    fn authored_cross_capability_orders_are_typed_and_semantically_bound() {
+        let plan = verified_next_without_behavior();
+        let mut extension = test_extension(&plan, "steady");
+        let baseline = catalog_semantics_digest(&extension).unwrap();
+        assert!(serde_json::to_value(&extension.behavior_profiles).unwrap().get("crossCapabilityOrder").is_none());
+        let declaration = BehaviorOrderDeclaration {
+            scope: BehaviorScope::Hero, actor_type: TypeId::new("hero"),
+            capabilities: [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect(),
+            arbitration: ArbitrationRule {
+                conflict_keys: vec![IntentKey::Side, IntentKey::Actor],
+                resolution: ArbitrationResolution::SelectOrdered {
+                    sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }], max_accepted: 1,
+                },
+            },
+        };
+        extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
+            intent_selection: vec![declaration.clone()], field_writers: BTreeMap::new(),
+        });
+        let issues_for = |extension: &CatalogMetadataExtension| {
+            let mut issues = Vec::new();
+            validate_behavior_orders(extension, &plan.plan().domain, &mut issues);
+            issues
+        };
+        assert!(issues_for(&extension).is_empty());
+        assert_ne!(baseline, catalog_semantics_digest(&extension).unwrap());
+        let valid = extension.clone();
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection.push(declaration.clone());
+        assert!(issues_for(&extension).iter().any(|issue| issue.message.contains("overlapping")));
+        extension = valid.clone();
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection[0].actor_type = TypeId::new("squad");
+        assert!(!issues_for(&extension).is_empty());
+        extension = valid.clone();
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().field_writers.insert("navigation.mode".into(), vec![declaration]);
+        assert!(issues_for(&extension).iter().any(|issue| issue.message.contains("exact field")));
+        extension = valid.clone();
+        if let ArbitrationResolution::SelectOrdered { sort_by, .. } = &mut extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection[0].arbitration.resolution {
+            sort_by[0].key = IntentKey::Capability;
+        }
+        assert!(issues_for(&extension).iter().any(|issue| issue.message.contains("ActionId")));
+        extension = valid;
+        let authored = catalog_semantics_digest(&extension).unwrap();
+        if let ArbitrationResolution::SelectOrdered { sort_by, .. } = &mut extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection[0].arbitration.resolution {
+            sort_by[0].direction = SortDirection::Descending;
+        }
+        assert_ne!(authored, catalog_semantics_digest(&extension).unwrap());
+    }
+
 }

@@ -52,7 +52,22 @@ export interface BehaviorFieldMetadata {
   unit: string | null;
 }
 export interface NamedBehaviorPreset { name: string; scope: BehaviorScope; values: Record<string, DomainValue>; description: string; }
+export type BehaviorIntentKey = { kind: "priority" | "side" | "actor" | "target" | "action_id" | "capability" } | { kind: "argument"; value: number };
+export interface BehaviorOrderDeclaration {
+  scope: BehaviorScope;
+  actorType: string;
+  capabilities: string[];
+  arbitration: {
+    conflict_keys: BehaviorIntentKey[];
+    resolution: { kind: "select_ordered"; value: { sort_by: Array<{ key: BehaviorIntentKey; direction: "ascending" | "descending" }>; max_accepted: 1 } };
+  };
+}
+export interface BehaviorOrderContract {
+  intentSelection: BehaviorOrderDeclaration[];
+  fieldWriters: Record<string, BehaviorOrderDeclaration[]>;
+}
 export interface BehaviorProfileMetadata {
+  crossCapabilityOrder?: BehaviorOrderContract;
   inheritanceOrder: ProfileLayer[];
   fields: Record<string, BehaviorFieldMetadata>;
   senritsuDefault: Record<string, DomainValue>;
@@ -208,9 +223,32 @@ function domainValueMatches(value: DomainValue, type: DomainType, depth = 0): bo
   }
 }
 
+function isBehaviorOrderContract(value: unknown): value is BehaviorOrderContract {
+  if (!object(value) || !Array.isArray(value.intentSelection) || !object(value.fieldWriters)) return false;
+  const key = (value: unknown): value is BehaviorIntentKey => object(value)
+    && (["priority", "side", "actor", "target", "action_id", "capability"].includes(String(value.kind))
+      || (value.kind === "argument" && Number.isInteger(value.value) && (value.value as number) >= 0 && (value.value as number) <= 65535));
+  const orders = (items: unknown): boolean => Array.isArray(items) && items.length <= 256 && items.every((item) => {
+    if (!object(item) || !["army", "squad", "hero", "lane_limited_minion"].includes(String(item.scope))
+      || !string(item.actorType) || !Array.isArray(item.capabilities) || item.capabilities.length === 0 || item.capabilities.length > 1024
+      || !item.capabilities.every(string) || new Set(item.capabilities).size !== item.capabilities.length || !object(item.arbitration)) return false;
+    const rule = item.arbitration;
+    if (!Array.isArray(rule.conflict_keys) || !rule.conflict_keys.every(key)
+      || !["actor", "side,actor"].includes(rule.conflict_keys.map((key) => key.kind).join(","))
+      || !object(rule.resolution) || rule.resolution.kind !== "select_ordered" || !object(rule.resolution.value)) return false;
+    const order = rule.resolution.value;
+    return order.max_accepted === 1 && Array.isArray(order.sort_by)
+      && order.sort_by.every((term) => object(term) && key(term.key) && ["ascending", "descending"].includes(String(term.direction)))
+      && order.sort_by.some((term) => object(term) && object(term.key) && term.key.kind === "action_id")
+      && new Set(order.sort_by.map((term) => JSON.stringify((term as { key: unknown }).key))).size === order.sort_by.length;
+  });
+  return orders(value.intentSelection) && Object.keys(value.fieldWriters).length <= 256 && Object.values(value.fieldWriters).every(orders);
+}
+
 function isBehaviorProfileMetadata(value: unknown): value is BehaviorProfileMetadata {
   if (!object(value) || !Array.isArray(value.inheritanceOrder) || !object(value.fields)
     || !object(value.senritsuDefault) || !object(value.heroDefaults) || !object(value.presets)) return false;
+  if (value.crossCapabilityOrder !== undefined && !isBehaviorOrderContract(value.crossCapabilityOrder)) return false;
   const layers = new Set(["senritsu_default", "hero_catalog_default", "army_preference", "squad_aggregate", "jinrei_conditional_preference"]);
   if (!value.inheritanceOrder.every((layer) => typeof layer === "string" && layers.has(layer))) return false;
   const scopes = new Set(["army", "squad", "hero", "lane_limited_minion"]);
@@ -318,6 +356,35 @@ function assertCatalogShape(value: unknown): asserts value is DomainCatalogDocum
         const argument = capability.arguments[argumentIndex];
         if (!field || !argument || stableJson(field.valueType) !== stableJson(argument.value_type)) {
           throw new CatalogLoadError("invalid_shape", `Capability '${id}' profile field '${fieldId}' does not match its argument signature.`);
+        }
+      }
+    }
+  }
+  if (profiles.status === "authored_extension" && profiles.value.metadata.crossCapabilityOrder) {
+    const contract = profiles.value.metadata.crossCapabilityOrder;
+    const domains: Array<[string | undefined, BehaviorOrderDeclaration[]]> = [[undefined, contract.intentSelection], ...Object.entries(contract.fieldWriters)];
+    for (const [field, declarations] of domains) for (const [index, declaration] of declarations.entries()) {
+      const fail = () => { throw new CatalogLoadError("invalid_shape", "Behavior order declarations must match typed capability and field domains."); };
+      if (declarations.slice(0, index).some((prior) => prior.scope === declaration.scope && prior.actorType === declaration.actorType
+        && prior.capabilities.some((id) => declaration.capabilities.includes(id)))) fail();
+      const argumentTypes = new Map<number, string>();
+      for (const id of declaration.capabilities) {
+        const capability = value.capabilities[id];
+        if (!object(capability) || !object(capability.actorScope) || capability.actorScope.kind !== (declaration.scope === "lane_limited_minion" ? "minion_lane_limited" : declaration.scope)
+          || !Array.isArray(capability.arguments) || !Number.isInteger(capability.actorArgument)) { fail(); continue; }
+        const actor = capability.arguments[capability.actorArgument as number];
+        if (!object(actor) || actor.optional !== false || !object(actor.value_type) || actor.value_type.kind !== "entity"
+          || !object(actor.value_type.value) || actor.value_type.value.entity_type !== declaration.actorType) fail();
+        if (field !== undefined && (!profiles.value.metadata.fields[field]?.scopes.includes(declaration.scope)
+          || !profiles.value.metadata.fields[field]?.overridePolicy.conditionalTickOverride
+          || !object(capability.behaviorOverrideArguments) || capability.behaviorOverrideArguments[field] === undefined)) fail();
+        for (const term of declaration.arbitration.resolution.value.sort_by) if (term.key.kind === "argument") {
+          const argument = capability.arguments[term.key.value];
+          if (!object(argument) || argument.optional !== false || !object(argument.value_type)
+            || !["bool", "integer", "fixed", "string", "enum", "entity"].includes(String(argument.value_type.kind))) { fail(); continue; }
+          const type = stableJson(argument.value_type);
+          if (argumentTypes.has(term.key.value) && argumentTypes.get(term.key.value) !== type) fail();
+          argumentTypes.set(term.key.value, type);
         }
       }
     }
