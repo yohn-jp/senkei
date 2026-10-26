@@ -33,8 +33,8 @@ async function prepare(page: Page, final: boolean) {
   await page.getByRole("button", { name: "Heroを変更", exact: true }).click();
   if (!final) {
     // Exercise an authored legal roster and explicit persistent movement.
-    // One Squad with this roster wins in the browser; the measured five-Solo
-    // setup reaches the 600-tick Draw without changing the authored opponent.
+    // A quintet with this roster wins; the identical five-Hero roster in
+    // five Solo Squads produces a time-limit Draw in the current Enbu.
     for (const [index, id] of ["F02", "F04", "R01", "R03", "R05"].entries()) {
       await page.getByRole("button", { name: `Choose hero for slot ${index + 1}`, exact: true }).click();
       await page.locator(".next-catalog-card").filter({ has: page.locator(".ha-hero-id", { hasText: new RegExp(`^${id}$`) }) }).click();
