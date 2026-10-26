@@ -2397,6 +2397,11 @@ export class Battlefield {
             g.position.copy(g.userData.to);
           else g.position.lerpVectors(g.userData.from, g.userData.to, phase);
         }
+        const entity = this.state?.entities[g.userData.entityId];
+        const heroEntity = Boolean(entity && this.isHero(entity));
+        const idleTickDurationMs = heroEntity && entity && !entity.destroyed
+          ? this.replay.presentation.tickDurationMs
+          : undefined;
         const actionPose = battlefieldUnitPose(
           this.state?.tick ?? 0,
           this.state?.cues ?? [],
@@ -2404,10 +2409,9 @@ export class Battlefield {
           Boolean(g.userData.walking),
           this.playing && !this.reducedMotion,
           phase,
+          idleTickDurationMs,
         );
         g.userData.actionPose = actionPose;
-        const entity = this.state?.entities[g.userData.entityId];
-        const heroEntity = Boolean(entity && this.isHero(entity));
         const actionPhase = this.playing && !this.reducedMotion ? phase : 0.5;
         const rigPose = {
           ...actionPose,
