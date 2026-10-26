@@ -32,6 +32,8 @@ test("Genuine native Campaign Experiment preserves exact IDs and wins an unchang
   const editableSource = await page.evaluate(() => JSON.parse(localStorage.getItem("senkei.next-workspace-recovery.v1")!).draft.program_input.source);
   await page.evaluate(({ digest, legacy }) => { localStorage.removeItem(`senkei.next-campaign-progress.v2:${digest}`); localStorage.setItem(`senkei.next-campaign-progress.v1:${digest}`, legacy); }, { digest: definition.ruleset.digest, legacy: fixture.legacy });
   await page.reload();
+  // The app restores Core and migrates legacy Campaign progress asynchronously after reload.
+  await expect.poll(readProgress).not.toBeNull();
   await page.getByTestId("nav-library").click();
   const library = page.getByTestId("next-library");
   await library.getByLabel("Import Next experiment file").setInputFiles(path);
