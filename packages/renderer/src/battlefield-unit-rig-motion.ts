@@ -52,6 +52,9 @@ export function battlefieldUnitRigMotion(pose: BattlefieldUnitPose): Battlefield
       main: rotation(-strike * 0.22),
       off: rotation(-skill * 0.16, 0, skill * 0.52),
     },
-    rootZ: pose.attackLean * alive + death * 0.5,
+    // Keep the supporting boots near the ground while the torso takes the
+    // stronger death lean above the hips. Rotating the whole unit by 0.5 rad
+    // drove one boot through the floor and lifted the other in every Hero LOD.
+    rootZ: pose.attackLean * alive + death * 0.06,
   };
 }
