@@ -11,7 +11,7 @@ import { buildImprovedRematch } from "./improved-rematch";
 import { actionSourceRange, verifyRunSourceMap } from "./tactical-context";
 import type { BattleAnalysisContext, AnalysisSourceContext } from "./tactical-context";
 import type { ActionSourceMap, DiagnosticEvent } from "../../contracts";
-import { validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
+import { reproductionSnapshotDigest, validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay, validateNextExperimentReproduction } from "./experiment-restoration";
 import { matchesPresentedEntity } from "./battle-entity-identity";
 import { loadNextExperimentPayload, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore, PersistenceError } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +42,7 @@ import {
   type TacticalInput,
   type TacticalSource,
   type RulesetRef,
+  type ReproductionAssets,
   type LocalPveScenario,
   type LocalNextExperiment,
   type LocalNextExperimentStore,
@@ -123,6 +124,8 @@ interface BattleRun {
   readonly experimentId: string;
   readonly createdAt: string;
   readonly snapshot: SimulationSnapshot;
+  readonly reproductionAssets: ReproductionAssets;
+  readonly snapshotDigest: string;
   readonly response: SimulationResponse;
   readonly sourceReplay: PresentationReplay;
   readonly graphicsReplay: Replay;
@@ -395,10 +398,6 @@ function newExperimentId(matchId: string): string {
   return `${matchId}-${nonce}`;
 }
 
-function experimentStoreDigestMatches(store: LocalNextExperimentStore, packageValue: RulePackage): boolean {
-  return store.ruleset_digest === packageValue.ruleset.digest;
-}
-
 function textValue(value: string): DomainValue {
   return { kind: "string", value };
 }
@@ -641,20 +640,22 @@ function eventDetails(event: PresentationEvent): string {
   return Object.entries(event.payload).map(([key, value]) => `${formatId(key)} ${domainLabel(value)}`).join(" · ");
 }
 
-/** Validates stored/imported artifacts before they can replace completed Runs. No simulation is executed. */
+/** Reproduces stored/imported artifacts before they can replace completed Runs. */
 export async function prepareNextExperimentStore(
   stored: LocalNextExperimentStore, packageValue: RulePackage, core: CoreClient, campaignScenarios: readonly LocalPveScenario[] = [],
 ): Promise<BattleRun[]> {
-  const next = packageValue.next;
-  if (!next) throw new Error("The current Next RulePackage is unavailable; existing experiments were preserved.");
-  if (!experimentStoreDigestMatches(stored, packageValue)) {
-    throw new Error(`Stored package digest ${stored.ruleset_digest} differs from ${packageValue.ruleset.digest}.`);
-  }
-  const probe = await core.newMatchContext(packageValue.ruleset, "next-experiment-identity-probe");
-  const expectedWorld = next.world_identity;
-  const expectedMapWorld = next.map.world_identity;
   const restored: BattleRun[] = [];
   for (const item of stored.experiments) {
+    const reproductionAssets = item.reproduction_assets;
+    const retainedPackage = reproductionAssets?.rule_package;
+    const next = retainedPackage?.next;
+    if (!reproductionAssets || reproductionAssets.format_version !== 1 || !retainedPackage || !next) {
+      throw new Error(`Experiment ${item.id} does not retain a supported Next RulePackage and authored World.`);
+    }
+    const actualSnapshotDigest = await reproductionSnapshotDigest(item.snapshot);
+    if (item.snapshot_digest !== actualSnapshotDigest) {
+      throw new Error(`Experiment ${item.id} snapshot digest does not match its complete immutable input.`);
+    }
     validateNextExperimentAuthorization(item.response, item.include_diagnostics);
     if (item.include_diagnostics) await validateNextExperimentDiagnostics(item.response, item.snapshot);
     const setup = parseSavedNextSetup(item.setup);
@@ -663,43 +664,45 @@ export async function prepareNextExperimentStore(
     if (!setup || !result || !sourceReplay || item.snapshot.context.match_id !== item.match_id || result.match_id !== item.match_id) {
       throw new Error(`Experiment ${item.id} has incomplete match, setup, result or replay data.`);
     }
-    const mismatch = savedSetupMismatch(setup, packageValue, next);
-    if (mismatch) throw new Error(`Experiment ${item.id} cannot be restored: ${mismatch}`);
+    const mismatch = savedSetupMismatch(setup, retainedPackage, next);
+    if (mismatch) throw new Error(`Experiment ${item.id} cannot be reproduced: ${mismatch}`);
     const replays = [item.response.outcome.presentation_replay, item.response.owner_replays?.attacker,
       item.response.owner_replay].filter((replay): replay is PresentationReplay => Boolean(replay));
     for (const replay of replays) {
-      if (!item.snapshot.context.world_identity || !expectedWorld || !expectedMapWorld ||
-          canonicalKey(item.snapshot.context.world_identity) !== canonicalKey(expectedWorld) ||
-          canonicalKey(expectedMapWorld) !== canonicalKey(expectedWorld) ||
-          canonicalKey(replay.world_identity) !== canonicalKey(expectedWorld)) {
-        throw new Error(`Experiment ${item.id} World identity or paired World projection does not match the current package.`);
+      if (!item.snapshot.context.world_identity || !next.world_identity || !next.map.world_identity ||
+          canonicalKey(item.snapshot.context.world_identity) !== canonicalKey(next.world_identity) ||
+          canonicalKey(next.map.world_identity) !== canonicalKey(next.world_identity) ||
+          canonicalKey(replay.world_identity) !== canonicalKey(next.world_identity)) {
+        throw new Error(`Experiment ${item.id} World identity or paired World projection does not match its retained RulePackage.`);
       }
-      if (!item.snapshot.context.ruleset || !sameRulesetRef(item.snapshot.context.ruleset, packageValue.ruleset) ||
-          !sameRulesetRef(item.snapshot.attacker.ruleset, packageValue.ruleset) ||
-          !sameRulesetRef(item.snapshot.defender.ruleset, packageValue.ruleset) ||
-          !replay.ruleset || !sameRulesetRef(replay.ruleset, packageValue.ruleset)) {
-        throw new Error(`Experiment ${item.id} Ruleset identity does not match the current package.`);
+      if (!item.snapshot.context.ruleset || !sameRulesetRef(item.snapshot.context.ruleset, retainedPackage.ruleset) ||
+          !sameRulesetRef(item.snapshot.attacker.ruleset, retainedPackage.ruleset) ||
+          !sameRulesetRef(item.snapshot.defender.ruleset, retainedPackage.ruleset) ||
+          !replay.ruleset || !sameRulesetRef(replay.ruleset, retainedPackage.ruleset)) {
+        throw new Error(`Experiment ${item.id} Ruleset identity does not match its retained RulePackage.`);
       }
       try { await validateNextExperimentReplay(replay, result, item.match_id); }
       catch (cause) {
         throw new Error(`Experiment ${item.id} replay does not match its immutable result or attacker perspective: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     }
-    if (stableKey(item.snapshot.context.versions) !== stableKey(probe.versions)) {
-      throw new Error(`Experiment ${item.id} compiler, engine or mechanics versions differ from this runtime.`);
-    }
     if (item.include_diagnostics && item.response.authorized_side !== "attacker") {
       throw new Error(`Experiment ${item.id} does not carry attacker-authorized diagnostics.`);
     }
-    // Validate the frozen input itself, including its compiled programs, without replaying the battle.
-    await core.preflight(item.snapshot);
-    const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, result, item.snapshot.context.versions.engine);
-    const campaignAssociation = await verifyCampaignAssociation(core, packageValue, campaignScenarios, setup, item.snapshot);
+    const reproduced = await core.reproduce(item.snapshot, reproductionAssets, item.snapshot_digest,
+      item.include_diagnostics ? { include_diagnostics: true, diagnostics_side: "attacker" } : { include_diagnostics: false });
+    await validateNextExperimentReproduction(reproduced, item.response, item.snapshot, item.include_diagnostics);
+    const graphicsReplay = presentationToGraphics(sourceReplay, retainedPackage, result, item.snapshot.context.versions.engine);
+    const campaignAssociation = sameRulesetRef(packageValue.ruleset, retainedPackage.ruleset)
+      ? await verifyCampaignAssociation(core, retainedPackage, campaignScenarios, setup, item.snapshot)
+      : null;
     restored.push({
       campaignAssociation,
       experimentId: item.id,
       createdAt: item.created_at,
       snapshot: item.snapshot,
+      reproductionAssets,
+      snapshotDigest: item.snapshot_digest,
       response: item.response,
       sourceReplay,
       graphicsReplay,
@@ -746,7 +749,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const setExactRun = useCallback((value: BattleRun | null) => setFrozenRematch(value ? { kind: "exact", run: value } : null), []);
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
-  const [prepared, setPrepared] = useState<{ key: string; snapshot: SimulationSnapshot } | null>(null);
+  const [prepared, setPrepared] = useState<{
+    key: string; snapshot: SimulationSnapshot; reproductionAssets: ReproductionAssets; snapshotDigest: string;
+  } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; problem: ClassifiedPreflightProblem; exactSource: string | null } | null>(null);
   const [heroRepairFocus, setHeroRepairFocus] = useState<HeroRepairFocusRequest | null>(null);
   const [jinreiRepairFocus, setJinreiRepairFocus] = useState<JinreiRepairFocusRequest | null>(null);
@@ -894,12 +899,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       match_id: item.snapshot.context.match_id,
       created_at: item.createdAt,
       snapshot: item.snapshot,
+      reproduction_assets: item.reproductionAssets,
+      snapshot_digest: item.snapshotDigest,
       response: item.response,
       setup: JSON.parse(JSON.stringify(item.setup)) as CoreJsonValue,
       include_diagnostics: item.includeDiagnostics,
       estimated_cu: item.estimatedCU,
     }));
-    const store: LocalNextExperimentStore = { format_version: 1, ruleset_digest: digest, experiments };
+    const store: LocalNextExperimentStore = { format_version: 2, experiments };
     const generation = ++experimentPersistGeneration.current;
     void enqueueExperimentWrite(() => saveNextExperimentStore(store)).then(() => {
       if (generation === experimentPersistGeneration.current) setExperimentStore(store);
@@ -1747,25 +1754,29 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
   const prepareBattle = async (): Promise<SimulationSnapshot> => {
     preflightStage.current = "availability";
-    if (!core || !packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
-      throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
+    if (!core) {
+      throw new PreflightProblem("Core が未準備です。読込後に再試行してください。", "unverified");
     }
-    const campaignScenario = entryMode === "campaign" ? selectedScenario : null;
     const key = launchKey;
     if (exactRun) {
-      if (!sameRulesetRef(exactRun.snapshot.attacker.ruleset, packageValue.ruleset)) {
-        throw new PreflightProblem("The original match RulePackage differs from the current package. Preserve/export the draft and use a compatible package.", "invalid");
+      const snapshotDigest = await reproductionSnapshotDigest(exactRun.snapshot);
+      if (frozenRematch?.kind !== "improved" && snapshotDigest !== exactRun.snapshotDigest) {
+        throw new PreflightProblem("The original Run snapshot no longer matches its saved identity.", "invalid");
       }
       preflightStage.current = "snapshot_preflight";
-      await core.preflight(exactRun.snapshot);
+      await core.preflightReproduction(exactRun.snapshot, exactRun.reproductionAssets, snapshotDigest);
       if (launchKeyRef.current !== key) {
         const message = "再戦対象が変更されました。再検証してください。";
         preflightStage.current = "stale_inputs";
         throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
       }
-      setPrepared({ key, snapshot: exactRun.snapshot });
+      setPrepared({ key, snapshot: exactRun.snapshot, reproductionAssets: exactRun.reproductionAssets, snapshotDigest });
       return exactRun.snapshot;
     }
+    if (!packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
+      throw new PreflightProblem(editorCatalogError ?? "Core / RulePackage / Catalog が未準備です。読込後に再試行してください。", "unverified");
+    }
+    const campaignScenario = entryMode === "campaign" ? selectedScenario : null;
     if (entryMode === "campaign" && (!campaignScenario || !unlockedScenarioSet.has(campaignScenario.id))) {
       const message = "選択したCampaign Challengeは未解除か、現在のRulesetでは利用できません。";
       preflightStage.current = "scenario_selection";
@@ -1810,13 +1821,19 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, scenario_id: campaignScenario?.id ?? null, attacker, defender }));
     const snapshot = { attacker, defender, context };
     preflightStage.current = "snapshot_preflight";
-    await core.preflight(snapshot);
+    const reproductionAssets = await core.reproductionAssets();
+    if (canonicalKey(reproductionAssets.rule_package.ruleset) !== canonicalKey(packageValue.ruleset)) {
+      const message = "Core reproduction assets do not match the currently loaded Next RulePackage.";
+      throw new PreflightProblem(message, "invalid", new PreflightLocalFailure(message, "invalid"));
+    }
+    const snapshotDigest = await reproductionSnapshotDigest(snapshot);
+    await core.preflightReproduction(snapshot, reproductionAssets, snapshotDigest);
     if (launchKeyRef.current !== key) {
       const message = "設定が変更されました。現在の設定を再検証してください。";
       preflightStage.current = "stale_inputs";
       throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
     }
-    setPrepared({ key, snapshot });
+    setPrepared({ key, snapshot, reproductionAssets, snapshotDigest });
     return snapshot;
   };
 
@@ -1849,35 +1866,51 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   };
 
   const launchBattle = async (): Promise<void> => {
-    if (operationInFlight.current || !core || !packageValue || !readySnapshot) return;
+    if (operationInFlight.current || !core || !readySnapshot || (!exactRun && !packageValue)) return;
     operationInFlight.current = true;
     setBusy(true);
     setScreen("running");
     setError(null);
     setRendererError(null);
     try {
-      const snapshot = readySnapshot;
+      const ready = prepared?.key === launchKey ? prepared : null;
+      if (!ready) throw new Error("Run readiness changed. Validate the current snapshot again.");
+      const snapshot = ready.snapshot;
       const setup = exactRun?.setup ?? buildSavedSetup();
       if (!setup) throw new Error("The launch draft is unavailable. Return to Ready and validate again.");
       const diagnosticsRequested = exactRun?.includeDiagnostics ?? includeDiagnostics;
       const estimatedCU = exactRun?.estimatedCU ?? activeCompilation?.estimated_cu;
       if (estimatedCU === undefined) throw new Error("The original compile estimate is unavailable. Validate the current Draft before launch.");
-      const response = diagnosticsRequested
-        ? await core.simulate(snapshot, { include_diagnostics: true, diagnostics_side: "attacker" })
-        : await core.simulate(snapshot, { include_diagnostics: false });
+      const reproductionAssets = exactRun?.reproductionAssets ?? ready.reproductionAssets;
+      if (!exactRun && (!packageValue || canonicalKey(reproductionAssets.rule_package.ruleset) !== canonicalKey(packageValue.ruleset))) {
+        throw new Error("Core reproduction assets do not match the currently loaded Next RulePackage. No Run was started.");
+      }
+      const snapshotDigest = await reproductionSnapshotDigest(snapshot);
+      if (snapshotDigest !== ready.snapshotDigest) {
+        throw new Error("The snapshot changed after readiness validation. Validate it again before starting a Run.");
+      }
+      if (exactRun && frozenRematch?.kind !== "improved" && snapshotDigest !== exactRun.snapshotDigest) {
+        throw new Error("The original Run snapshot no longer matches its saved identity. No Run was started.");
+      }
+      const response = await core.reproduce(snapshot, reproductionAssets, snapshotDigest, diagnosticsRequested
+        ? { include_diagnostics: true, diagnostics_side: "attacker" }
+        : { include_diagnostics: false });
       if (diagnosticsRequested && response.authorized_side !== "attacker") {
         throw new Error("The local Enbu did not confirm attacker authorization for the requested diagnostics.");
       }
       const sourceReplay = response.owner_replays?.attacker ?? response.outcome.presentation_replay;
-      const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
-      const campaignAssociation = await verifyCampaignAssociation(core, packageValue, campaignScenarios, setup, snapshot);
+      const graphicsReplay = presentationToGraphics(sourceReplay, reproductionAssets.rule_package, response.outcome.result, snapshot.context.versions.engine);
+      const campaignAssociation = packageValue && sameRulesetRef(reproductionAssets.rule_package.ruleset, packageValue.ruleset)
+        ? await verifyCampaignAssociation(core, reproductionAssets.rule_package, campaignScenarios, setup, snapshot)
+        : null;
       if (campaignAssociation?.eligible && setup.campaign_scenario_id) {
         setCampaignProgress(previous => previous ? reduceCampaignProgress(previous, campaignScenarioIds, {
           scenario_id: setup.campaign_scenario_id ?? null, context: snapshot.context, result: response.outcome.result,
         }) : previous);
       }
       setBaselineRun(run);
-      setRun({ campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
+      setRun({ campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
+        reproductionAssets, snapshotDigest, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
       setCameraMode("tactical");
@@ -2216,7 +2249,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const associated = [run, baselineRun].find(candidate => candidate?.experimentId === item.id && candidate.snapshot === item.snapshot && candidate.campaignAssociation?.eligible);
       const scenario = associated ? campaignScenarios.find(candidate => candidate.id === associated.campaignAssociation?.scenarioId) : null;
       const result = item.response?.outcome?.result;
-      return { id: item.id, created_at: item.created_at, scenario_title: scenario?.title ?? null,
+      return { id: item.id, created_at: item.created_at, ruleset: item.reproduction_assets.rule_package.ruleset, scenario_title: scenario?.title ?? null,
         outcome: typeof result?.outcome === "string" ? result.outcome : "unverified",
         final_tick: Number.isSafeInteger(result?.final_tick) ? result.final_tick : null };
     })}
@@ -2226,21 +2259,21 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     experimentsCompatible={Boolean(core && packageValue && experimentLoadedDigest === packageValue.ruleset.digest && !experimentMismatch)}
     experimentError={experimentError} experimentMismatch={experimentMismatch}
     onOpenExperiments={() => {
-      if (!core || experimentLoadedDigest !== packageValue?.ruleset.digest || experimentMismatch || !run) throw new Error(experimentMismatch ?? "No compatible Next experiment is available.");
+      if (!core || experimentLoadedDigest !== packageValue?.ruleset.digest || experimentMismatch || !run) throw new Error(experimentMismatch ?? "No verified Next experiment is available.");
       setTab("analysis"); setScreen("workspace");
     }}
     onExportExperiments={() => {
       if (!experimentPreservedRaw && !experimentStore) throw new Error("There are no stored Next experiments to export.");
       const link = document.createElement("a");
       link.href = URL.createObjectURL(new Blob([experimentPreservedRaw ?? serializeNextExperimentStore(experimentStore!)], { type: "application/json" }));
-      link.download = `senkei-next-experiments-${experimentPreservedRaw ? "preserved" : experimentStore!.ruleset_digest.slice(0, 12)}.json`;
+      link.download = `senkei-next-experiments${experimentPreservedRaw ? "-preserved" : ""}.json`;
       link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
     }}
     onImportExperiments={async (file) => {
       const request = ++experimentImportGeneration.current;
       const generation = experimentPersistGeneration.current;
       const runtime = experimentRuntime.current;
-      if (!runtime.core || !runtime.packageValue?.next) throw new Error("Core and the current Next RulePackage are required to validate an import. Existing experiments were preserved.");
+      if (!runtime.core || !runtime.packageValue?.next) throw new Error("Core and a loaded Next runtime are required to reproduce imported Runs. Existing experiments were preserved.");
       const current = () => request === experimentImportGeneration.current && generation === experimentPersistGeneration.current
         && experimentRuntime.current.core === runtime.core && experimentRuntime.current.packageValue === runtime.packageValue;
       assertNextExperimentImportSize(file.size);
