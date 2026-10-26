@@ -61,13 +61,13 @@ function createTerrainTexture(kind: BattlefieldTerrainMaterialKind): THREE.DataT
 
   for (let y = 0; y < textureSize; y++) {
     for (let x = 0; x < textureSize; x++) {
-      // Broad flecks repeat in irregular cells while a restrained fine grain
-      // stays legible after mipmapping. The tint remains neutral enough for
-      // Replay-derived vertex colors to set the actual terrain regions.
-      const cell = periodicNoise(x, y, 16, seed) - 0.5;
-      const grain = periodicNoise(x, y, 32, seed + 31) - 0.5;
-      const chip = periodicNoise(x, y, 32, seed + 67);
-      const amount = 1 + cell * 0.17 + grain * 0.105 + (chip - 0.5) * 0.035;
+      // Broad quiet patches support the actual terrain facets. Fine grain
+      // stays subordinate so the map cannot substitute for modeled relief
+      // or compete with unit silhouettes when the camera pulls back.
+      const cell = periodicNoise(x, y, 4, seed) - 0.5;
+      const grain = periodicNoise(x, y, 8, seed + 31) - 0.5;
+      const chip = periodicNoise(x, y, 16, seed + 67);
+      const amount = 1 + cell * 0.17 + grain * 0.04 + (chip - 0.5) * 0.012;
 
       const offset = (y * textureSize + x) * 4;
       pixels[offset] = Math.max(0, Math.min(255, palette[0] * amount));

@@ -6,6 +6,20 @@ import {
 } from "./battlefield-terrain-materials";
 
 describe("battlefield surface materials", () => {
+  it("keeps fine grain subordinate to broad material color regions", () => {
+    const material = createBattlefieldTerrainMaterial("meadow");
+    const pixels = (material.map as THREE.DataTexture).image.data as Uint8Array;
+    let adjacentDifference = 0;
+    for (let y = 0; y < 128; y++) for (let x = 0; x < 127; x++) {
+      adjacentDifference += Math.abs(pixels[(y * 128 + x) * 4] - pixels[(y * 128 + x + 1) * 4]);
+    }
+    expect(adjacentDifference / (128 * 127)).toBeLessThan(0.8);
+    expect(material.flatShading).toBe(true);
+    expect(material.roughness).toBeGreaterThanOrEqual(0.9);
+    expect(material.metalness).toBe(0);
+    material.dispose();
+  });
+
   it("creates stable, distinct tileable material maps with mip filtering", () => {
     const grass = createBattlefieldTerrainMaterial("meadow", { vertexColors: true });
     const soil = createBattlefieldTerrainMaterial("packed-earth");

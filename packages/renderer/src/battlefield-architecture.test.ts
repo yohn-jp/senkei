@@ -25,6 +25,34 @@ function entity(overrides: Partial<DisplayEntity> = {}): DisplayEntity {
 }
 
 describe("Battlefield architectural models", () => {
+  it("builds faction cloth with an actual broad fold and a matte surface", () => {
+    const tower = buildBattlefieldTower(new THREE.Scene(), entity({ side: "azure", kind: "tower" }));
+    const cloth = tower.getObjectByName("azure-battlefield-tower-facility-test-standard-cloth") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const positions = cloth.geometry.getAttribute("position");
+    const depths = Array.from({ length: positions.count }, (_, index) => positions.getZ(index));
+    expect(Math.max(...depths) - Math.min(...depths)).toBeGreaterThan(0.05);
+    cloth.geometry.computeBoundingBox();
+    expect(cloth.geometry.boundingBox!.min.x).toBeCloseTo(0);
+    expect(cloth.geometry.boundingBox!.max.x).toBeCloseTo(0.83 * 0.8);
+    expect(cloth.geometry.boundingBox!.min.y).toBeCloseTo(-0.62 * 0.8);
+    expect(cloth.material.flatShading).toBe(true);
+    expect(cloth.material.roughness).toBeGreaterThanOrEqual(0.9);
+    expect(cloth.material.metalness).toBe(0);
+    expect(cloth.material.side).toBe(THREE.DoubleSide);
+    expect(cloth.material.color.getHex()).toBe(0x4d9fa4);
+    const indices = cloth.geometry.index!;
+    const faceNormals: THREE.Vector3[] = [];
+    for (let offset = 0; offset < indices.count; offset += 3) {
+      const a = new THREE.Vector3().fromBufferAttribute(positions, indices.getX(offset));
+      const b = new THREE.Vector3().fromBufferAttribute(positions, indices.getX(offset + 1));
+      const c = new THREE.Vector3().fromBufferAttribute(positions, indices.getX(offset + 2));
+      const normal = b.sub(a).cross(c.sub(a));
+      expect(normal.z).toBeGreaterThan(0);
+      faceNormals.push(normal.normalize());
+    }
+    expect(faceNormals.some((normal) => normal.dot(faceNormals[0]) < 0.95)).toBe(true);
+  });
+
   it("distinguishes site knowledge from normal, expanded and destroyed bridge geometry", () => {
     const scene = new THREE.Scene();
     const route = {

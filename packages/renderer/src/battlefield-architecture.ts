@@ -106,20 +106,27 @@ function addBanner(parent: THREE.Object3D, side: Faction, name: string, position
   const pole = mesh(group, new THREE.CylinderGeometry(0.045 * scale, 0.065 * scale, 1.8 * scale, 5), palette.agedWood, `${name}-mast`, [0, 0.85 * scale, 0]);
   pole.castShadow = true;
   cone(group, `${name}-finial`, 0.1 * scale, 0.22 * scale, [0, 1.82 * scale, 0], palette.bronze, 4);
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(0.83 * scale, -0.13 * scale);
-  shape.lineTo(0.83 * scale, -0.6 * scale);
-  shape.lineTo(0.48 * scale, -0.45 * scale);
-  shape.lineTo(0, -0.62 * scale);
-  shape.closePath();
+  // Keep the authored swallowtail outline; a single raised cloth ridge gives
+  // the banner a real fold under directional light instead of a painted facet.
+  const clothGeometry = new THREE.BufferGeometry();
+  clothGeometry.setAttribute("position", new THREE.Float32BufferAttribute([
+    0, 0, 0,
+    0.83, -0.13, 0.015,
+    0.83, -0.6, 0.015,
+    0.48, -0.45, 0.12,
+    0, -0.62, 0,
+    0.415, -0.065, 0.14,
+    0.415, -0.4730208333, 0.14,
+  ].map((coordinate) => coordinate * scale), 3));
+  clothGeometry.setIndex([0, 6, 5, 0, 4, 6, 5, 2, 1, 5, 3, 2, 5, 6, 3]);
+  clothGeometry.computeVertexNormals();
   const flag = mesh(
     group,
-    new THREE.ShapeGeometry(shape),
+    clothGeometry,
     factionColor(side),
     `${name}-cloth`,
     [0.05 * scale, 1.63 * scale, 0.035 * scale],
-    { side: THREE.DoubleSide, roughness: 0.8 },
+    { side: THREE.DoubleSide, roughness: 0.94 },
   );
   flag.castShadow = true;
   return { group, flag };
