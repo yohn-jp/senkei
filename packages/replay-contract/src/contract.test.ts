@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Ajv2020 from "ajv/dist/2020.js";
 import { decodeReplay } from "./index";
-import type { Event, PresentationReplay } from "./generated";
+import type { Event, PresentationReplay, WorldIdentityRef } from "./generated";
 import schema from "../replay.schema.json";
 import basic from "../fixtures/basic-three-lane.json";
 import clash from "../fixtures/clash-and-loss.json";
@@ -47,9 +47,9 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
       r.timeline[19].tick = 0;
     }, "Event order");
   });
-  it("requires and cross-checks complete RulePackage and paired World identity on executed 0.3 replays", () => {
+  it("requires and cross-checks exact World Compiler identity on executed 0.4 replays", () => {
     const r = structuredClone(basic) as PresentationReplay;
-    r.schemaVersion = "0.3";
+    r.schemaVersion = "0.4";
     r.header.origin = "local";
     r.header.enbuVersion = "1.2.0";
     r.scene.nodes = [{ id: "a", allegiance: "A", position: { x: 1, y: 1 } }];
@@ -58,12 +58,23 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
     r.header.ruleset = { id: r.header.senritsu.id, version: { major: 2, minor: 0, patch: 0 }, digest: "a".repeat(64) };
     r.header.world = {
       world_id: "world-a", schema_version: { major: 1, minor: 0, patch: 0 },
+      compiler_version: { major: 1, minor: 0, patch: 0 },
       minimum_compiler: { major: 1, minor: 0, patch: 0 }, maximum_compiler_exclusive: null,
       validation_profile_id: null, validation_profile_version: null,
       logic_digest: "b".repeat(64), presentation_digest: "c".repeat(64),
     };
     r.header.senritsu.digest = `sha256:${"a".repeat(64)}`;
     expect(decodeReplay(r).header.world?.presentation_digest).toBe("c".repeat(64));
+    const missingCompiler = structuredClone(r);
+    delete (missingCompiler.header.world as unknown as Record<string, unknown>).compiler_version;
+    expect(() => decodeReplay(missingCompiler)).toThrow("Replay 0.4 requires an exact World Compiler version");
+    const zeroCompiler = structuredClone(r);
+    (zeroCompiler.header.world as WorldIdentityRef).compiler_version = { major: 0, minor: 0, patch: 0 };
+    expect(() => decodeReplay(zeroCompiler)).toThrow("World compiler version cannot be zero");
+    const legacy = structuredClone(r);
+    legacy.schemaVersion = "0.3";
+    delete (legacy.header.world as unknown as Record<string, unknown>).compiler_version;
+    expect(decodeReplay(legacy).header.world?.world_id).toBe("world-a");
     r.header.ruleset.digest = "d".repeat(64);
     expect(() => decodeReplay(r)).toThrow("does not match the Senritsu reference");
   });
