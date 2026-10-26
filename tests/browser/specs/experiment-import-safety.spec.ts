@@ -166,7 +166,7 @@ test("unrecognized saved schema remains exportable while Core is unavailable", a
   const clear = page.getByRole("button", { name: /Clear experiments/ });
   await expect(clear).toBeEnabled();
   await clear.click();
-  const confirmation = page.getByRole("alertdialog", { name: "Confirm Library change" });
+  const confirmation = page.getByRole("alertdialog", { name: "Clear saved experiments?" });
   await expect(confirmation).toContainText("preserved raw experiment payload");
   await confirmation.getByRole("button", { name: "Confirm clear", exact: true }).click();
   await expect(page.getByRole("button", { name: "Export experiments", exact: true })).toBeDisabled();
