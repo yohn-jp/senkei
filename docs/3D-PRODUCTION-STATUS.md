@@ -17,13 +17,13 @@
 
 | Hero | Identity 30% | Silhouette/Proportion 25% | Geometry/Material 20% | Animation 15% | Tactical Readability 10% | 加重平均 | 独立評価証拠 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | 4.0 | 3.5 | 3.0 (FAIL) | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、`0654af6` の修正後画像待ち |
+| F01 Bannerhold | 4.0 | 4.0 | 4.0 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [0654独立レビュー](evidence/art-production/recheck-0654af6/independent-visual-review.md)、[98ee実アプリ画像](evidence/art-production/app-recheck-98ee865/README.md) |
 | F02 Stoneheart | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F03 Breach | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F04 Rook | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F05 Lockstep | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F06 Pathfinder | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
-| R01 Tempest | 4.0 | 4.0 | 3.5 (暫定) | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、`0654af6` の修正後画像待ち |
+| R01 Tempest | 4.0 | 4.0 | 4.0 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | [0654独立レビュー](evidence/art-production/recheck-0654af6/independent-visual-review.md)、[98ee実アプリ画像](evidence/art-production/app-recheck-98ee865/README.md) |
 | R02 Farshot | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | R03 Farwatch | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | R04 Lifeline | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
@@ -32,27 +32,27 @@
 
 | Hero | Identity | Geometry | Material | Animation | LOD | Integration | Determinism | Reproducibility |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | NOT_CHECKED | FAIL | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
+| F01 Bannerhold | PARTIAL | PARTIAL | PARTIAL | FAIL | NOT_CHECKED | PARTIAL | NOT_CHECKED | PARTIAL |
 | F02 Stoneheart | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F03 Breach | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F04 Rook | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F05 Lockstep | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | F06 Pathfinder | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
-| R01 Tempest | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
+| R01 Tempest | PARTIAL | PARTIAL | PARTIAL | FAIL | NOT_CHECKED | PARTIAL | NOT_CHECKED | PARTIAL |
 | R02 Farshot | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | R03 Farwatch | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | R04 Lifeline | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | R05 Conductor | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 | R06 Aegis | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED |
 
-F01/R01のd5修正前Visual FAILは履歴として維持する。`0654af6` の最新画像の独立採点とHard Gate再確認が終わるまで、両候補の採用判定と残り10体への展開を保留する。
+F01/R01のd5修正前Visual FAILは履歴として維持する。`0654af6` の最新静止画像は独立評価者が目視可能な3軸を各4.0と判定した。実アプリにも修正が届いたことを `98ee865` で確認したが、死亡終端の接地プローブで両Heroの足が床を貫通する欠陥が見つかったため、Animation Hard GateはFAILとする。修正・全LOD回帰試験・変更後のcaptureと再評価が済むまで、両候補の採用判定と残り10体への展開を保留する。
 
 ## Hero別の状態
 
 | Hero | 制作段階 | Functional | Visual | Interaction | Performance | 今回の証拠 |
 | --- | --- | --- | --- | --- | --- | --- |
-| F01 Bannerhold | 先行候補、d5で確認した胸板と攻撃時の剣可読性を `0654af6` で修正。再撮影・独立再評価待ち | 部分PASS（`39742e6` 実アプリcapture、修正前コード） | FAIL（d5、胸中央が別の盾に見え、攻撃時に剣刃の接続が見えない）。`0654af6` のVisualは未検証 | 部分PASS（旧撮影と `39742e6`） | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[実アプリbaseline](evidence/art-production/app-recheck-39742e6/README.md) |
-| R01 Tempest | 先行候補、d5の布胸面の懸念に `0654af6` で断面付きshellを追加。再撮影・独立再評価待ち | 部分PASS（`39742e6` 実アプリcapture、修正前コード） | NOT_CHECKED（d5のGeometry/Material暫定3.5。硬い胸板にも見え、修正後未検証） | 部分PASS（旧撮影と `39742e6`） | NOT_CHECKED | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[実アプリbaseline](evidence/art-production/app-recheck-39742e6/README.md) |
+| F01 Bannerhold | 先行候補、胸甲と攻撃時の剣を `0654af6` で修正。採用・展開は死亡終端の修正待ち | 部分PASS（`98ee865` 実アプリでHero Detail、Jinrei compile、Ready preflight、Battlefield T000を確認） | FAIL（d5の盾状胸板と剣隠れは解消。現在の静止造形3軸は各4.0だが、死亡終端で片足が床へ約9.7cm貫通し、他方が約5.9cm浮く） | 部分PASS（Hero Detail操作と390×844 overflow確認。実機touch未確認） | NOT_CHECKED（SwiftShaderのみ） | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[0654独立再評価](evidence/art-production/recheck-0654af6/independent-visual-review.md)、[98ee修正後実アプリ証拠](evidence/art-production/app-recheck-98ee865/README.md) |
+| R01 Tempest | 先行候補、胸部を布チュニックへ `0654af6` で修正。採用・展開は死亡終端の修正待ち | 部分PASS（`98ee865` 実アプリでHero Detail、Jinrei compile、Ready preflight、Battlefield T000を確認） | FAIL（d5の硬い胸面の懸念は解消。現在の静止造形3軸は各4.0だが、死亡終端で片足が床へ約6.3cm貫通し、他方が約8.7cm浮く） | 部分PASS（Hero Detail操作と390×844 overflow確認。実機touch未確認） | NOT_CHECKED（SwiftShaderのみ） | [d5独立レビュー](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)、[0654独立再評価](evidence/art-production/recheck-0654af6/independent-visual-review.md)、[98ee修正後実アプリ証拠](evidence/art-production/app-recheck-98ee865/README.md) |
 | F02 Stoneheart | 残り10体への展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F03 Breach | 展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
 | F04 Rook | 展開待ち | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 未採取 |
@@ -92,9 +92,10 @@ SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／
 ## 再開後の実装・検証
 
 - d5 `a3d01d6` production builderのisolated captureを独立レビューし、具体的なF01胸中央の盾状輪郭とattack時の剣刃隠れ、R01胸布の硬さを記録した。[画像ごとのSHAと暫定採点](evidence/art-production/recheck-d5cfd807/independent-visual-review.md)を参照。F01/R01の修正前Visual FAILは上の表に反映済み。
-- `0654af6` はF01 command breastplateを肋骨形状にし、正面の中央稜を細くし、R01 channelerを断面付きcloth shellと浅いfoldへ変更した。F01/R01の13 focused tests、`tsc --noEmit -p tsconfig.graphics.json`、isolated lab buildはPASS。Chromium 156/SwiftShaderのclean 22-image captureがあり、faviconを含むconsole/page errorは0件。独立visual reviewは進行中で、まだ採用判定にはしていない。
-- [`39742e6` actual app baseline](evidence/art-production/app-recheck-39742e6/README.md)ではHero Detail、Jinrei compile、Ready preflight、Battlefield T000のTactical/Cinematic描画までPlaywright 1件がPASS。これは`0654af6`より前のGenerator image evidenceであり、現在の修正後モデル受入には使わない。実Battlefieldの交戦・橋・終局・Replayは未検証。
-- `0654af6` の後に共有Core入力と一致するWASM SHA `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a` でArt checkoutの `npm run build` とtypecheckはPASS。アプリ再captureは修正後の専用ブラウザ検証として続ける。SwiftShaderは物理GPU性能の証拠にならない。
+- `0654af6` はF01 command breastplateを肋骨形状にし、正面の中央稜を細くし、R01 channelerを断面付きcloth shellと浅いfoldへ変更した。F01/R01の13 focused tests、`tsc --noEmit -p tsconfig.graphics.json`、isolated lab buildはPASS。Chromium 156/SwiftShaderのclean 22-image captureに対する独立レビューで、見えるIdentity、Silhouette/Proportion、Geometry/Materialを両Heroとも各4.0と採点した。全採点はAnimation/Tactical未評価のため計算していない。[撮影manifestと画像SHA](evidence/art-production/recheck-0654af6/manifest.json)を参照。
+- [修正後の実アプリcapture `98ee865`](evidence/art-production/app-recheck-98ee865/README.md)は `npm run build` とPlaywright 1件がPASS。Hero Detail、Jinrei compile、Ready preflight、Battlefield T000のTactical/Cinematic描画を確認し、page/console/HTTP errorはすべて0件。実Battlefieldの交戦、橋状態、徒歩渡河、終局、fog、Replayは未検証。
+- `98ee865` の死亡終端姿勢をCPU probeした結果、F01は全LODで左boot下端が地面より0.0969低く右bootが0.0588高い。R01は左が0.0634低く右が0.0867高い。よって両HeroのAnimation GateをFAILとし、Rig/LOD担当が死亡leanを保ちながら接地するpresentation修正とF01/R01全LOD回帰テストを実装中。変更後captureと独立視覚確認が終わるまではFAILのまま保持する。
+- `0654af6` の後に共有Core入力と一致するWASM SHA `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a` でArt checkoutの `npm run build` とtypecheckはPASS。`98ee865` 実アプリ検証にも同WASMを使用した。SwiftShaderは物理GPU性能の証拠にならない。
 
 ## 共通資産と実戦の状態
 
