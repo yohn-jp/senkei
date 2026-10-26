@@ -1,0 +1,46 @@
+import { readFileSync } from "node:fs";
+import { createServer } from "vite";
+import { expect, test } from "@playwright/test";
+import { campaignCore } from "../helpers/campaign-core";
+import { nativeCampaignFixture, nativeCampaignStore } from "../helpers/native-campaign-fixture";
+import { completePreflight } from "../helpers/preflight";
+test.use({ actionTimeout: 20_000 });
+test("Published first-march own setup wins a genuine Campaign rematch and prepares its immediate next challenge", async ({ page }) => {
+  test.setTimeout(600_000);
+  const fixture = await nativeCampaignFixture("first-march"), core = await campaignCore();
+  const compilation = core("compile_text", { ruleset_ref: fixture.rules.ruleset, source: fixture.source });
+  expect(compilation.program.content_digest).toBe(fixture.snapshot.attacker.program.content_digest);
+  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  try {
+    const { verifyCampaignAssociation } = await server.ssrLoadModule("/apps/web/src/features/next/NextWorkspace.tsx");
+    const { createNextCampaignScenarios } = await server.ssrLoadModule("/scenarios/next/campaign.ts");
+    const bridge = { compile: async (request: any) => core("compile_text", { source: request.source, ruleset_ref: request.ruleset_ref }), newMatchContext: async (ruleset_ref: any, match_id: string) => core("new_match_context", { ruleset_ref, match_id }) };
+    expect(await verifyCampaignAssociation(bridge, fixture.rules, createNextCampaignScenarios(fixture.rules), { campaign_scenario_id: fixture.scenario.id }, fixture.snapshot)).toMatchObject({ eligible: true });
+  } finally { await server.close(); }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const progress = () => page.evaluate(digest => JSON.parse(localStorage.getItem(`senkei.next-campaign-progress.v2:${digest}`)!), fixture.rules.ruleset.digest);
+  await expect.poll(progress).not.toBeNull();
+  await page.getByTestId("nav-library").click();
+  const library = page.getByTestId("next-library");
+  await library.getByLabel("Import Next experiment file").setInputFiles({ name: "actual-native-first-march.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(nativeCampaignStore(fixture, compilation.estimated_cu))) });
+  await expect(library.getByRole("button", { name: "Open latest comparison", exact: true })).toBeEnabled({ timeout: 60_000 });
+  await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
+  expect((await progress()).completed_scenario_ids).toEqual([]);
+  await page.getByRole("button", { name: /同条件で再戦 · Run Snapshot/ }).click();
+  await completePreflight(page);
+  const confirmed = page.getByText(/Confirmed result · (Attacker Victory|Defender Victory|Draw)/i);
+  await expect(confirmed).toBeVisible({ timeout: 300_000 });
+  await expect(confirmed).toContainText("Attacker Victory");
+  await expect.poll(progress).toMatchObject({ completed_scenario_ids: ["first-march"], unlocked_scenario_ids: ["first-march", "read-the-map"], history_incomplete: false });
+  await page.getByTestId("nav-library").click();
+  await expect(library.locator(".next-library-experiment-list li")).toHaveCount(2, { timeout: 60_000 });
+  const downloadEvent = page.waitForEvent("download");
+  await library.getByRole("button", { name: "Export experiments", exact: true }).click();
+  await (await downloadEvent).saveAs("test-results/campaign-first-exact-rematch-records.json");
+  const actual = JSON.parse(readFileSync("test-results/campaign-first-exact-rematch-records.json", "utf8")).experiments[0];
+  expect(actual.snapshot).toEqual(fixture.snapshot); expect(actual.response.outcome.result).toEqual(fixture.actual.result);
+  await library.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("region", { name: "Campaign next actions" }).getByRole("button", { name: "次の課題を準備 · Scout the center", exact: true }).click();
+  await expect(page.getByTestId("journey-preset")).toContainText("Scout the center");
+});

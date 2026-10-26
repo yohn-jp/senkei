@@ -13,6 +13,7 @@ import type {
   RestrictedDiagnostics,
 } from "../../contracts";
 import "./battle-analysis.css";
+import { CampaignRunActions, type CampaignRunActionsProps } from "./CampaignProgressViews";
 import type { BattleAnalysisContext } from "./tactical-context";
 import type { DiagnosticEvent } from "../../contracts";
 import { canonicalInputKey, classifyRunComparison } from "./run-comparison";
@@ -47,6 +48,8 @@ export interface BattleAnalysisProps {
   readonly onImprovedRematch?: () => void;
   /** Reopens Ready with the current editable Draft and sends it through current validation. */
   readonly onRevisedRematch: () => void;
+  readonly campaignReferenceReason?: string | null;
+  readonly campaignActions?: CampaignRunActionsProps | null;
   readonly campaignScenario: LocalPveScenario | null;
   readonly campaignFeedback: { readonly status: "victory" | "defeat" | "draw" | "incomplete"; readonly headline: string; readonly detail: string } | null;
 }
@@ -251,6 +254,8 @@ export function BattleAnalysis({
   onRevisedRematch,
   campaignScenario,
   campaignFeedback,
+  campaignActions,
+  campaignReferenceReason,
 }: BattleAnalysisProps): ReactElement {
   const [heroFilter, setHeroFilter] = useState("all");
   const [squadFilter, setSquadFilter] = useState("all");
@@ -333,6 +338,7 @@ export function BattleAnalysis({
         <div className="battle-analysis-result-identity"><small>FINAL STATE DIGEST</small><code>{result.final_state_digest}</code><small>Replay {run.graphicsReplay.schemaVersion} · {run.graphicsReplay.timeline.length} authorized presentation events</small></div>
       </section>
 
+      {campaignReferenceReason && <p className="battle-analysis-unavailable" role="status">Reference Run · {campaignReferenceReason} This result does not record Campaign completion.</p>}
       {campaignScenario && campaignFeedback && <section aria-label="Campaign challenge result" className={`battle-analysis-campaign-feedback is-${campaignFeedback.status}`}>
         <header><div><span className="battle-analysis-eyebrow">LOCAL CAMPAIGN · {campaignScenario.campaign_title}</span><h4>{campaignScenario.title}</h4></div><strong>{campaignFeedback.headline}</strong></header>
         <p>{campaignFeedback.detail}</p><p><b>Objective</b> · {campaignScenario.objective}</p>
@@ -425,6 +431,7 @@ export function BattleAnalysis({
         </aside>
       </div>
 
+      {campaignActions && <CampaignRunActions {...campaignActions} onResult={onBattle} resultLabel="Replayで結果を見る" />}
       <section aria-label="次の改善・再戦" className="battle-analysis-next-step">
         <div><span className="battle-analysis-eyebrow">NEXT ACTION</span><h4>再戦の比較条件を選ぶ</h4><p>同条件再戦は元Run全体を再実行します。改良比較は自軍の変更対象以外を元Runに固定し、新しい条件での対戦は現在の相手選択とDraftを使います。いずれもReadyで再検証します。</p></div>
         <div className="battle-analysis-rematch-actions">

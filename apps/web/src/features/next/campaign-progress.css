@@ -1,0 +1,12 @@
+.campaign-run-actions { border: 1px solid rgba(189,237,149,.25); border-radius: 5px; margin-block: 16px; padding: 16px; }
+.campaign-run-actions > strong { display: block; }
+.campaign-run-actions p, .journey-campaign-history { font-size: 12px; line-height: 1.65; }
+.campaign-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.campaign-action-buttons button { background: #24342d; border: 1px solid #4b6552; border-radius: 4px; color: #e0eddb; cursor: pointer; font: inherit; min-height: 40px; padding: 10px 14px; }
+.campaign-action-buttons button:disabled { cursor: default; opacity: .45; }
+.journey-campaign-summary { display: grid; gap: 6px; margin-bottom: 15px; }
+.journey-campaign-summary p { margin: 0; }
+.journey-campaign-card[aria-current="true"]::before { content: "現在選択"; color: #c8eead; font-size: 11px; }
+@media (max-width: 760px) { .campaign-action-buttons { display: grid; } .campaign-action-buttons button { min-height: 44px; } }
+.is-battle-workspace .next-panel.next-battle-panel.has-campaign-result { overflow-y: auto; }
+.is-battle-workspace .next-battle-panel > .campaign-run-actions { flex: 0 0 auto; margin: 8px 0; }

@@ -1,5 +1,8 @@
 import { CoreClientError } from "../../worker";
 import { JourneyScreens } from "./JourneyScreens";
+import { CampaignRunActions } from "./CampaignProgressViews";
+import { campaignConditionMismatch, type CampaignAssociation } from "./campaign-run-eligibility";
+import { CAMPAIGN_PROGRESS_PREFIX, LEGACY_CAMPAIGN_PROGRESS_PREFIX, createCampaignProgress, parseCampaignProgress, migrateLegacyCampaignProgress, serializeCampaignProgress, reduceCampaignProgress, campaignCompletionSummary, type CampaignProgress } from "./campaign-progress";
 import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
@@ -64,7 +67,6 @@ const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 const NEXT_RECOVERY_KEY = "senkei.next-workspace-recovery.v1";
-const NEXT_CAMPAIGN_PROGRESS_KEY = "senkei.next-campaign-progress.v1";
 const VISIBLE_ENTITY_CLUSTER_RADIUS = 0.8;
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
@@ -124,6 +126,7 @@ interface BattleRun {
   readonly setup: SavedNextSetup;
   readonly includeDiagnostics: boolean;
   readonly estimatedCU: number;
+  readonly campaignAssociation: CampaignAssociation | null;
 }
 
 interface SavedNextSetup {
@@ -141,11 +144,6 @@ interface SavedNextSetup {
   readonly campaign_scenario_id?: string | null;
 }
 
-interface SavedCampaignProgress {
-  readonly format_version: 1;
-  readonly ruleset_digest: string;
-  readonly unlocked_scenario_ids: readonly string[];
-}
 
 interface WorkspaceProps {
   readonly active: boolean;
@@ -281,13 +279,16 @@ function parseRulesetRef(value: unknown): RulesetRef | null {
   return version ? { id: value.id, version, digest: value.digest } : null;
 }
 
-function parseFormationSlots(value: unknown): readonly FormationSlot[] | null {
+export function parseFormationSlots(value: unknown): readonly FormationSlot[] | null {
   if (!Array.isArray(value) || value.length !== SLOT_IDS.length) return null;
-  const slots: (FormationSlot | null)[] = value.map((slot, index) => {
-    if (!isRecord(slot) || slot.slot_id !== SLOT_IDS[index]) return null;
+  const seen = new Set<string>();
+  const slots: (FormationSlot | null)[] = value.map((slot) => {
+    if (!isRecord(slot) || typeof slot.slot_id !== "string" || !slot.slot_id.replace(/\p{White_Space}/gu, "")
+      || /[\uD800-\uDFFF]/u.test(slot.slot_id) || new TextEncoder().encode(slot.slot_id).byteLength > 48 || seen.has(slot.slot_id)) return null;
+    seen.add(slot.slot_id);
     if (![slot.catalog_id, slot.squad, slot.node, slot.skill_path].every((field) => typeof field === "string" && field.length > 0)) return null;
     return {
-      slot_id: SLOT_IDS[index],
+      slot_id: slot.slot_id,
       catalog_id: slot.catalog_id as string,
       squad: slot.squad as string,
       node: slot.node as string,
@@ -323,7 +324,7 @@ function parseDraft(value: unknown): SenkeiDraft | null {
   };
 }
 
-function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
+export function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
   if (!isRecord(value) || value.format_version !== 1 || typeof value.saved_at !== "string") return null;
   const ruleset = parseRulesetRef(value.ruleset);
   const schemaVersion = parseVersion(value.schema_version);
@@ -350,11 +351,6 @@ function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
   };
 }
 
-function parseCampaignProgress(value: unknown, rulesetDigest: string): SavedCampaignProgress | null {
-  if (!isRecord(value) || value.format_version !== 1 || value.ruleset_digest !== rulesetDigest ||
-      !Array.isArray(value.unlocked_scenario_ids) || !value.unlocked_scenario_ids.every((id) => typeof id === "string")) return null;
-  return { format_version: 1, ruleset_digest: rulesetDigest, unlocked_scenario_ids: value.unlocked_scenario_ids as string[] };
-}
 
 function savedSetupMismatch(setup: SavedNextSetup, packageValue: RulePackage | null, rules: NextRules | null): string | null {
   if (!packageValue || !rules) return "The current Next ruleset is still loading.";
@@ -470,7 +466,13 @@ function createTacticDraft(packageValue: RulePackage, rules: NextRules, side: Si
   };
 }
 
-function createStarterJinrei(packageValue: RulePackage, side: Side, slots: readonly FormationSlot[]): string {
+/** Mirrors Jinrei's canonical Rust formatter; JSON-only escapes are not DSL escapes. */
+export function jinreiStringLiteral(value: string): string {
+  return '"' + value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n").replaceAll("\r", "\\r").replaceAll("\t", "\\t") + '"';
+}
+
+export function createStarterJinrei(packageValue: RulePackage, side: Side, slots: readonly FormationSlot[]): string {
   const rules = packageValue.next;
   if (!rules) throw new Error("The selected ruleset does not contain versioned Next battle data.");
   const heroCollection = Object.entries(packageValue.domain.collections).find(([, collection]) =>
@@ -501,7 +503,7 @@ function createStarterJinrei(packageValue: RulePackage, side: Side, slots: reado
     const actorKey = actorSchema.unique_keys.find((key) => key.kind === "fields")?.value[0]
       ?? ("slot_id" in actorSchema.visible_fields ? "slot_id" : keyField);
     const rank = ["level", "xp", "hp"].find((field) => field in actorSchema.visible_fields) ?? rankField;
-    const selector = `argmin hero in filter hero in ${actorCollection} { hero.${actorKey} == "${slot.slot_id}", } by hero.${rank} then hero.${actorKey}`;
+    const selector = `argmin hero in filter hero in ${actorCollection} { hero.${actorKey} == ${jinreiStringLiteral(slot.slot_id)}, } by hero.${rank} then hero.${actorKey}`;
     const args = Array.from({ length: movement.arguments.length }, (_, argumentIndex) => {
       if (argumentIndex === 0) return selector;
       if (argumentIndex === nodeArgument || movement.arguments[argumentIndex]?.value_type.kind === "string") {
@@ -510,7 +512,7 @@ function createStarterJinrei(packageValue: RulePackage, side: Side, slots: reado
       return `"${node}"`;
     });
     const needsGoal = "goal" in actorSchema.visible_fields
-      ? `any hero in ${actorCollection} { hero.${actorKey} == "${slot.slot_id}", hero.goal == "", hero.hp > 0, }`
+      ? `any hero in ${actorCollection} { hero.${actorKey} == ${jinreiStringLiteral(slot.slot_id)}, hero.goal == "", hero.hp > 0, }`
       : "match.tick == 1";
     return `    action advance_${String(index + 1).padStart(2, "0")} {\n        when ${needsGoal},\n        do move(${args.join(", ")}),\n    }`;
   });
@@ -530,8 +532,8 @@ function createStarterJinrei(packageValue: RulePackage, side: Side, slots: reado
     const actorSchema = ownHeroes[1];
     const actorKey = actorSchema.unique_keys.find((key) => key.kind === "fields")?.value[0] ?? "slot_id";
     const actorRank = ["level", "xp", "hp"].find((field) => field in actorSchema.visible_fields) ?? "hp";
-    const actor = `argmin hero in filter hero in ${ownHeroes[0]} { hero.${actorKey} == "${slot.slot_id}", } by hero.${actorRank} then hero.${actorKey}`;
-    const ready = `any hero in ${ownHeroes[0]} { hero.slot_id == "${slot.slot_id}", hero.level >= ${skill.unlock_level}, hero.energy >= ${skill.cost}, hero.cooldowns.${skill.id} <= match.tick, }`;
+    const actor = `argmin hero in filter hero in ${ownHeroes[0]} { hero.${actorKey} == ${jinreiStringLiteral(slot.slot_id)}, } by hero.${actorRank} then hero.${actorKey}`;
+    const ready = `any hero in ${ownHeroes[0]} { hero.slot_id == ${jinreiStringLiteral(slot.slot_id)}, hero.level >= ${skill.unlock_level}, hero.energy >= ${skill.cost}, hero.cooldowns.${skill.id} <= match.tick, }`;
     let target = actor;
     let when = ready;
     if (skill.target === "ally") {
@@ -595,6 +597,23 @@ function scenarioFormation(scenario: LocalPveScenario, rules: NextRules): Format
   });
 }
 
+export async function verifyCampaignAssociation(core: Pick<CoreClient, "compile" | "newMatchContext">, ruleset: RulePackage, scenarios: readonly LocalPveScenario[], setup: Pick<SavedNextSetup, "campaign_scenario_id">, snapshot: SimulationSnapshot): Promise<CampaignAssociation | null> {
+  const scenarioId = setup.campaign_scenario_id;
+  if (!scenarioId) return null;
+  const scenario = scenarios.find(candidate => candidate.id === scenarioId);
+  if (!scenario || !ruleset.next) return { scenarioId, eligible: false, reason: "The saved scenario is not in the current Campaign catalog." };
+  try {
+    const npc = scenario.npc;
+    const program = (await core.compile(npc.program_input.kind === "text"
+      ? { kind: "text", ruleset_ref: npc.ruleset, source: npc.program_input.source }
+      : { kind: "structured_ast", ruleset_ref: npc.ruleset, ast: npc.program_input.ast })).program;
+    const expectedNpc = makeSideSnapshot(npc, program, scenarioFormation(scenario, ruleset.next));
+    const expectedContext = await core.newMatchContext(ruleset.ruleset, snapshot.context.match_id);
+    const reason = campaignConditionMismatch(snapshot, expectedNpc, expectedContext);
+    return { scenarioId, eligible: reason === null, reason: reason ?? "Authored NPC and complete default context verified." };
+  } catch (cause) { return { scenarioId, eligible: false, reason: `Campaign conditions could not be verified: ${cause instanceof Error ? cause.message : String(cause)}` }; }
+}
+
 function domainLabel(value: DomainValue): string {
   if (value.kind === "null") return "—";
   if (value.kind === "string" || value.kind === "enum" || value.kind === "entity") return value.value;
@@ -621,7 +640,7 @@ function eventDetails(event: PresentationEvent): string {
 
 /** Validates stored/imported artifacts before they can replace completed Runs. No simulation is executed. */
 export async function prepareNextExperimentStore(
-  stored: LocalNextExperimentStore, packageValue: RulePackage, core: CoreClient,
+  stored: LocalNextExperimentStore, packageValue: RulePackage, core: CoreClient, campaignScenarios: readonly LocalPveScenario[] = [],
 ): Promise<BattleRun[]> {
   const next = packageValue.next;
   if (!next) throw new Error("The current Next RulePackage is unavailable; existing experiments were preserved.");
@@ -671,7 +690,9 @@ export async function prepareNextExperimentStore(
     // Validate the frozen input itself, including its compiled programs, without replaying the battle.
     await core.preflight(item.snapshot);
     const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, result, item.snapshot.context.versions.engine);
+    const campaignAssociation = await verifyCampaignAssociation(core, packageValue, campaignScenarios, setup, item.snapshot);
     restored.push({
+      campaignAssociation,
       experimentId: item.id,
       createdAt: item.created_at,
       snapshot: item.snapshot,
@@ -690,7 +711,15 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const nextRules = packageValue?.next ?? null;
   const campaignScenarios = useMemo(() => packageValue?.next ? createNextCampaignScenarios(packageValue) : [], [packageValue]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("first-march");
-  const [unlockedScenarioIds, setUnlockedScenarioIds] = useState<readonly string[]>([]);
+  const campaignScenarioIds = useMemo(() => campaignScenarios.map(scenario => scenario.id), [campaignScenarios]);
+  const [campaignProgress, setCampaignProgress] = useState<CampaignProgress | null>(null);
+  const activeCampaignProgress = campaignProgress?.ruleset_digest === packageValue?.ruleset.digest ? campaignProgress : null;
+  const unlockedScenarioIds = activeCampaignProgress?.unlocked_scenario_ids ?? [];
+  const [campaignProgressRaw, setCampaignProgressRaw] = useState<{ current: string | null; legacy: string | null }>({ current: null, legacy: null });
+  const [campaignProgressAttempt, setCampaignProgressAttempt] = useState(0);
+  const [campaignProgressReadBlocked, setCampaignProgressReadBlocked] = useState(false);
+  const campaignProgressReadGeneration = useRef(0);
+  const [campaignProgressLoadedGeneration, setCampaignProgressLoadedGeneration] = useState(0);
   const [campaignProgressLoadedDigest, setCampaignProgressLoadedDigest] = useState<string | null>(null);
   const [campaignProgressError, setCampaignProgressError] = useState<string | null>(null);
   const [experimentStore, setExperimentStore] = useState<LocalNextExperimentStore | null>(null);
@@ -828,7 +857,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         setExperimentPreservedRaw(null);
         setExperimentStore(stored);
         if (!core || !packageValue?.next || !digest) return;
-        const restored = stored ? await prepareNextExperimentStore(stored, packageValue, core) : [];
+        const restored = stored ? await prepareNextExperimentStore(stored, packageValue, core, campaignScenarios) : [];
         if (generation !== experimentRestoreGeneration.current) return;
         setRun(restored[0] ?? null);
         setBaselineRun(restored[1] ?? null);
@@ -889,39 +918,51 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
   useEffect(() => {
     const digest = packageValue?.ruleset.digest;
-    if (!digest || campaignScenarios.length === 0) return;
+    if (!digest || campaignScenarioIds.length === 0) return;
+    const generation = ++campaignProgressReadGeneration.current;
     setCampaignProgressLoadedDigest(null);
     setCampaignProgressError(null);
-    const firstId = campaignScenarios[0].id;
+    setCampaignProgressReadBlocked(false);
+    setCampaignProgressRaw({ current: null, legacy: null });
     try {
-      const serialized = window.localStorage.getItem(`${NEXT_CAMPAIGN_PROGRESS_KEY}:${digest}`);
-      const stored = serialized === null ? null : parseCampaignProgress(JSON.parse(serialized) as unknown, digest);
-      const validIds = stored?.unlocked_scenario_ids.filter((id) => campaignScenarios.some((scenario) => scenario.id === id)) ?? [];
-      setUnlockedScenarioIds([...new Set([firstId, ...validIds])]);
-      setSelectedScenarioId((current) => campaignScenarios.some((scenario) => scenario.id === current) ? current : firstId);
+      const current = window.localStorage.getItem(`${CAMPAIGN_PROGRESS_PREFIX}:${digest}`);
+      setCampaignProgressRaw({ current, legacy: null });
+      const legacy = window.localStorage.getItem(`${LEGACY_CAMPAIGN_PROGRESS_PREFIX}:${digest}`);
+      setCampaignProgressRaw({ current, legacy });
+      const progress = current !== null ? parseCampaignProgress(current, digest, campaignScenarioIds)
+        : legacy !== null ? migrateLegacyCampaignProgress(legacy, digest, campaignScenarioIds)
+        : createCampaignProgress(digest, campaignScenarioIds);
+      setCampaignProgress(progress);
+      setSelectedScenarioId(id => campaignScenarioIds.includes(id) ? id : campaignScenarioIds[0]);
     } catch (cause) {
-      setCampaignProgressError(cause instanceof Error
-        ? `Campaign progress could not be read and was preserved: ${cause.message}`
-        : "Campaign progress could not be read and was preserved.");
-      setUnlockedScenarioIds([firstId]);
-      setSelectedScenarioId(firstId);
-    } finally {
-      setCampaignProgressLoadedDigest(digest);
-    }
-  }, [campaignScenarios, packageValue?.ruleset.digest]);
+      setCampaignProgressError(`Campaign progress could not be read. Original bytes are preserved and automatic writes are blocked: ${cause instanceof Error ? cause.message : String(cause)}`);
+      setCampaignProgressReadBlocked(true);
+      setCampaignProgress({ ...createCampaignProgress(digest, campaignScenarioIds), history_incomplete: true });
+      setSelectedScenarioId(campaignScenarioIds[0]);
+    } finally { setCampaignProgressLoadedDigest(digest); setCampaignProgressLoadedGeneration(generation); }
+  }, [campaignScenarioIds, packageValue?.ruleset.digest, campaignProgressAttempt]);
 
   useEffect(() => {
     const digest = packageValue?.ruleset.digest;
-    if (!digest || campaignProgressLoadedDigest !== digest || campaignProgressError) return;
-    const progress: SavedCampaignProgress = { format_version: 1, ruleset_digest: digest, unlocked_scenario_ids: unlockedScenarioIds };
+    if (!digest || campaignProgressLoadedDigest !== digest || campaignProgressLoadedGeneration !== campaignProgressReadGeneration.current
+      || campaignProgressError || !campaignProgress || campaignProgress.ruleset_digest !== digest) return;
     try {
-      window.localStorage.setItem(`${NEXT_CAMPAIGN_PROGRESS_KEY}:${digest}`, JSON.stringify(progress));
+      const current = serializeCampaignProgress(campaignProgress, campaignScenarioIds);
+      window.localStorage.setItem(`${CAMPAIGN_PROGRESS_PREFIX}:${digest}`, current);
+      setCampaignProgressRaw(previous => ({ ...previous, current }));
     } catch (cause) {
-      setCampaignProgressError(cause instanceof Error
-        ? `Campaign progress could not be saved: ${cause.message}`
-        : "Campaign progress could not be saved in this browser.");
+      setCampaignProgressError(`Campaign progress could not be saved. Progress in this session remains available; stored originals are unchanged: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
-  }, [campaignProgressError, campaignProgressLoadedDigest, packageValue?.ruleset.digest, unlockedScenarioIds]);
+  }, [campaignProgress, campaignProgressError, campaignProgressLoadedDigest, campaignProgressLoadedGeneration, campaignScenarioIds, packageValue?.ruleset.digest]);
+
+  const exportCampaignProgress = (kind: "current" | "legacy"): void => {
+    const raw = campaignProgressRaw[kind];
+    if (raw === null) return;
+    const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `senkei-campaign-${kind}-preserved.json`; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
 
   const workspaceHost = useRef<HTMLElement>(null);
   const scrollPositions = useRef(new Map<string, number>());
@@ -1112,7 +1153,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     ? compilation.result
     : null;
   const selectedScenario = campaignScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? campaignScenarios[0] ?? null;
-  const campaignFeedback = run?.setup.campaign_scenario_id
+  const campaignFeedback = run?.campaignAssociation?.eligible && run?.setup.campaign_scenario_id
     ? (() => {
         const scenario = campaignScenarios.find((candidate) => candidate.id === run.setup.campaign_scenario_id);
         return scenario ? { scenarioId: scenario.id, scenario, ...getNextCampaignRunFeedback(run.response.outcome.result) } : null;
@@ -1769,17 +1810,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       }
       const sourceReplay = response.owner_replays?.attacker ?? response.outcome.presentation_replay;
       const graphicsReplay = presentationToGraphics(sourceReplay, packageValue, response.outcome.result, snapshot.context.versions.engine);
-      if (setup.campaign_scenario_id && response.outcome.result.outcome === "attacker_victory" &&
-          response.outcome.result.termination_reason === "base_destroyed") {
-        const completedIndex = campaignScenarios.findIndex((scenario) => scenario.id === setup.campaign_scenario_id);
-        const nextScenario = completedIndex >= 0 ? campaignScenarios[completedIndex + 1] : undefined;
-        const nextUnlocked = new Set(unlockedScenarioIds);
-        nextUnlocked.add(setup.campaign_scenario_id);
-        if (nextScenario) nextUnlocked.add(nextScenario.id);
-        setUnlockedScenarioIds([...nextUnlocked]);
+      const campaignAssociation = await verifyCampaignAssociation(core, packageValue, campaignScenarios, setup, snapshot);
+      if (campaignAssociation?.eligible && setup.campaign_scenario_id) {
+        setCampaignProgress(previous => previous ? reduceCampaignProgress(previous, campaignScenarioIds, {
+          scenario_id: setup.campaign_scenario_id ?? null, context: snapshot.context, result: response.outcome.result,
+        }) : previous);
       }
       setBaselineRun(run);
-      setRun({ experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
+      setRun({ campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
       setCameraMode("tactical");
@@ -1794,6 +1832,14 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       setPrepared(null);
       setScreen("ready");
     } finally { operationInFlight.current = false; setBusy(false); }
+  };
+
+  const exactCampaignRematch = (): void => {
+    if (!run) return;
+    setExactRun(run);
+    if (run.campaignAssociation?.eligible && run.setup.campaign_scenario_id) { setEntryMode("campaign"); setSelectedScenarioId(run.setup.campaign_scenario_id); }
+    else setEntryMode("quick");
+    setPrepared(null); setScreen("ready");
   };
 
   const rematch = (): void => { setExactRun(null); if (run) setScreen("ready"); };
@@ -2044,6 +2090,21 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     </div>
   );
 
+  const campaignSummary = activeCampaignProgress && campaignScenarioIds.length ? campaignCompletionSummary(activeCampaignProgress, campaignScenarioIds) : null;
+  const completedScenarioIndex = campaignFeedback ? campaignScenarios.findIndex(scenario => scenario.id === campaignFeedback.scenarioId) : -1;
+  const followingScenario = completedScenarioIndex >= 0 ? campaignScenarios[completedScenarioIndex + 1] ?? null : null;
+  const nextCampaignScenario = followingScenario && unlockedScenarioSet.has(followingScenario.id) ? followingScenario : null;
+  const campaignRunActions = campaignFeedback && run ? {
+    title: campaignFeedback.scenario.title, status: campaignFeedback.status,
+    finalScenario: completedScenarioIndex === campaignScenarios.length - 1,
+    allRecordedComplete: campaignSummary?.allRecordedComplete ?? false,
+    nextTitle: nextCampaignScenario?.title ?? null, busy,
+    onNext: () => { if (!nextCampaignScenario || campaignFeedback.status !== "victory") return; setExactRun(null); setPrepared(null); setEntryMode("campaign"); setSelectedScenarioId(nextCampaignScenario.id); setScreen("preset"); },
+    onRetry: exactCampaignRematch,
+    onImprove: () => { setEntryMode("campaign"); setSelectedScenarioId(campaignFeedback.scenarioId); editScreen("jinrei"); },
+    onResult: openAnalysis, onHome: () => setScreen("home"),
+  } : null;
+
   const library = <NextLibrary view={libraryView} onViewChange={setLibraryView}
     saved={savedSetup} recovery={recoverySetup} savedRaw={savedRaw} recoveryRaw={recoveryRaw} restoreDifferences={restoreDifferences}
     savedError={savedSetupError} recoveryError={recoveryLoadError}
@@ -2059,7 +2120,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     onRetryCore={() => { setRuntimeFailure(null); setError(null); onRetryCore(); setCatalogAttempt(attempt => attempt + 1); }}
     onReady={() => { setExactRun(null); setScreen("ready"); }} onBack={() => setScreen(libraryReturn)}
     experiments={(experimentStore?.experiments ?? []).map((item) => {
-      const scenario = campaignScenarios.find((candidate) => candidate.id === parseSavedNextSetup(item.setup)?.campaign_scenario_id);
+      const associated = [run, baselineRun].find(candidate => candidate?.experimentId === item.id && candidate.snapshot === item.snapshot && candidate.campaignAssociation?.eligible);
+      const scenario = associated ? campaignScenarios.find(candidate => candidate.id === associated.campaignAssociation?.scenarioId) : null;
       const result = item.response?.outcome?.result;
       return { id: item.id, created_at: item.created_at, scenario_title: scenario?.title ?? null,
         outcome: typeof result?.outcome === "string" ? result.outcome : "unverified",
@@ -2090,7 +2152,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         && experimentRuntime.current.core === runtime.core && experimentRuntime.current.packageValue === runtime.packageValue;
       assertNextExperimentImportSize(file.size);
       const imported = parseNextExperimentStore(JSON.parse(await file.text()) as unknown);
-      const restored = await prepareNextExperimentStore(imported, runtime.packageValue, runtime.core);
+      const restored = await prepareNextExperimentStore(imported, runtime.packageValue, runtime.core, campaignScenarios);
       await enqueueExperimentWrite(async () => {
         if (!current()) throw new Error("The runtime or completed Runs changed during import. Existing experiments were preserved; review the file again.");
         await saveNextExperimentStore(imported, () => {
@@ -2144,7 +2206,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       </header>
 
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
-      {campaignProgressError && <div className="next-error" role="alert"><span>{campaignProgressError}</span></div>}
+      {campaignProgressError && <div className="next-error" role="alert" data-testid="campaign-storage-error"><div><p>{campaignProgressError}</p><p>Local PvE remains free to run. Existing completion history is not reset; the displayed session state is not a successful storage save.</p><button type="button" onClick={() => campaignProgressReadBlocked ? setCampaignProgressAttempt(attempt => attempt + 1) : setCampaignProgressError(null)}>{campaignProgressReadBlocked ? "Retry campaign storage" : "Retry progress save"}</button>{campaignProgressRaw.current !== null && <button type="button" onClick={() => exportCampaignProgress("current")}>Export preserved v2 progress</button>}{campaignProgressRaw.legacy !== null && <button type="button" onClick={() => exportCampaignProgress("legacy")}>Export preserved legacy progress</button>}</div></div>}
       {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => setCatalogAttempt(attempt => attempt + 1)}>Catalogを再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>}
       {rendererError && <div className="next-error next-renderer-error" role="alert"><span>{rendererError} Playback is paused at the current tick.</span><button type="button" onClick={retryRenderer}>Retry battlefield renderer</button></div>}
 
@@ -2198,7 +2260,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           setFormationShape("single"); updateDraft(createTacticDraft(packageValue, nextRules, "attacker"));
           setPrepared(null); setPreflightFailure(null); setScreen("preset");
         }} scenarios={campaignScenarios} selectedScenarioId={exactRun ? exactRun.setup.campaign_scenario_id ?? "" : selectedScenario?.id ?? ""}
-        onScenarioChange={selectCampaignScenario} unlockedScenarioIds={unlockedScenarioIds}
+        onScenarioChange={selectCampaignScenario} unlockedScenarioIds={unlockedScenarioIds} campaignProgress={activeCampaignProgress}
         latestScenarioFeedback={campaignFeedback} />
       <div className="journey-workspace" hidden={screen !== "workspace"}>
       <div className="journey-toolbar" hidden={tab === "battle"}><button type="button" onClick={() => setScreen("home")}>Homeへ戻る</button><button type="button" onClick={() => openLibrary()}>Library</button><span>Hero / Jinrei / Replay / Analysis</span><button hidden={tab === "jinrei"} type="button" onClick={() => { setExactRun(null); setScreen("ready"); }}>準備確認へ</button></div>
@@ -2244,7 +2306,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
               onReady={() => { setExactRun(null); setScreen("ready"); }} onFormation={() => editScreen("squads")} />
           </section>
 
-          <section aria-labelledby="next-tab-battle" className="next-panel next-battle-panel" hidden={tab !== "battle" || screen !== "workspace"} id="next-panel-battle" role="tabpanel">
+          <section aria-labelledby="next-tab-battle" className={`next-panel next-battle-panel${campaignRunActions ? " has-campaign-result" : ""}`} hidden={tab !== "battle" || screen !== "workspace"} id="next-panel-battle" role="tabpanel">
             <div className="next-panel-header next-battle-header"><div><span className="next-eyebrow">03 · LOCAL ENBU REPLAY</span><h3>Battlefield <em>console</em></h3><p>{run ? `${run.graphicsReplay.header.view === "attacker" ? "Local owner view" : "Public replay"} · Tick ${displayState?.tick ?? 0} / ${run.graphicsReplay.result.tick}` : "Launch a compiled local battle, then observe the confirmed replay."}</p></div><div className="next-battle-actions"><button aria-label="Battle situation details" aria-expanded={battleInspectorOpen} className="next-secondary-button next-desktop-inspector-toggle" disabled={!run} onClick={() => setBattleInspectorOpen(value => !value)} type="button">{battleInspectorOpen ? "Close details" : "Situation details"}</button><button className="next-secondary-button" disabled={!run || busy || !activeCompilation} onClick={rematch} type="button">{runIsCurrent ? "Rematch" : "Run revised battle"} <b>↻</b></button><button className="next-launch-button" disabled={busy || !activeCompilation} onClick={() => setScreen("ready")} type="button"><span>{busy ? "◌" : "▶"}</span>{busy ? "Running local core…" : run ? "New local battle" : "Launch local battle"}</button></div></div>
             <div className="next-battle-setup"><details className="next-battle-options"><summary>Replay access · {includeDiagnostics ? "owner diagnostics on" : "public replay only"}</summary><label className="next-diagnostic-toggle"><input checked={includeDiagnostics} onChange={(event) => setIncludeDiagnostics(event.target.checked)} type="checkbox" /><span className="next-checkbox" /><span><strong>Include my local replay and diagnostics</strong><small>Owner replay, visible Hero state, ability trace, intents and CU only</small></span></label></details>{displayState?.fog && <span className="next-fog-legend" role="note">Fog: dark unexplored · muted explored · clear visible · dashed site last observed</span>}<span className="next-match-badge">{runResult ? `MATCH ${runResult.match_id.slice(0, 16)}` : "READY WHEN JINREI IS COMPILED"}</span></div>
             <div className="next-battle-view-controls" aria-label="Replay presentation">
@@ -2354,6 +2416,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                 <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
               </div>
               <details className="next-result-disclosure"><summary><span>Confirmed result · {formatId(runResult.outcome)}</span><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks · {run.graphicsReplay.timeline.length} public presentation events</small></summary><div className="next-result-detail"><span>YOUR CU <strong>{runResult.cu_spent.attacker}</strong></span><span>REPLAY VIEW <strong>{run.graphicsReplay.header.view === "attacker" ? "Owner" : "Public"}</strong></span><button className="next-result-analysis" onClick={openAnalysis} type="button">Analyze <b>↗</b></button></div></details>
+              {run.campaignAssociation && !run.campaignAssociation.eligible && <p className="next-save-message" role="status">Reference Run · {run.campaignAssociation.reason} This result does not record Campaign completion.</p>}
+              {campaignRunActions && <CampaignRunActions {...campaignRunActions} />}
               <nav className="next-battle-mobile-tabs" aria-label="Battlefield console" data-testid="battle-mobile-console">
                 {([ ["battle", "Battle"], ["overview", "Overview"], ["follow", "Follow"], ["timeline", "Timeline"], ["details", "Details"] ] as const).map(([view, label]) => <button aria-label={`${label} view`} aria-pressed={battleMobileView === view} className={battleMobileView === view ? "is-active" : ""} key={view} onClick={() => setBattleView(view)} type="button"><span>{view === "battle" ? "⌖" : view === "overview" ? "◇" : view === "follow" ? "◎" : view === "timeline" ? "≋" : "◉"}</span>{label}</button>)}
               </nav>
@@ -2365,12 +2429,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
               onReplayEvent={inspectReplayEvent}
               onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}
               onBattle={() => setTab("battle")} onEdit={editScreen}
-              campaignScenario={campaignFeedback?.scenario ?? null} campaignFeedback={campaignFeedback}
-              onExactRematch={() => { if (run) {
-                setExactRun(run);
-                setPrepared(null);
-                setScreen("ready");
-              } }}
+              campaignScenario={campaignFeedback?.scenario ?? null} campaignFeedback={campaignFeedback} campaignActions={campaignRunActions} campaignReferenceReason={run?.campaignAssociation && !run.campaignAssociation.eligible ? run.campaignAssociation.reason : null}
+              onExactRematch={exactCampaignRematch}
               onImprovedRematch={() => void improveRematch()}
               onRevisedRematch={rematch} />
           </section>
