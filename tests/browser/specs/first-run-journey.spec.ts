@@ -227,7 +227,7 @@ test("Custom setup rejects invalid Jinrei and an invalid Squad at real Preflight
   await firstSquadNode.selectOption(originalNode);
   await expect(firstSquadNode).toHaveValue(originalNode);
   await page.getByRole("button", { name: "Ready ↗", exact: true }).click();
-  await page.locator("#next-tab-jinrei").click();
+  await page.getByTestId("journey-ready").getByRole("button", { name: "Jinreiを変更", exact: true }).click();
   await page.getByRole("tab", { name: "Jinrei Text", exact: true }).click();
   await expect(page.locator(".next-compile-state")).toHaveText("COMPILE REQUIRED");
   await page.getByRole("button", { name: "Compile tactics" }).click();
