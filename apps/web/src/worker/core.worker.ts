@@ -2,6 +2,7 @@ import { simulationAuthorizationError } from "./simulation-authorization";
 import { CORE_API_VERSION, WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts/core";
 import { WasmRuntime } from "./wasm-runtime";
+import { isCombatantSide, simulationDiagnosticsRequestError } from "./simulation-request";
 
 const MAX_WORKER_REQUEST_BYTES = 16 * 1024 * 1024;
 const MAX_WORKER_RESPONSE_BYTES = 64_000_000;
@@ -202,14 +203,14 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       requireRecord(payload.ruleset_ref, "format_ast.ruleset_ref");
       requireRecord(payload.ast, "format_ast.ast");
       return;
-    case "simulate":
+    case "simulate": {
       requireRecord(payload.snapshot, "simulate.snapshot");
       requireBoolean(payload.include_diagnostics, "simulate.include_diagnostics");
-      if (payload.diagnostics_side !== undefined && payload.diagnostics_side !== "attacker" && payload.diagnostics_side !== "defender") {
-        throw new RequestFailure("invalid_request", "simulate.diagnostics_side must identify one owner side.");
-      }
+      const diagnosticsRequestError = simulationDiagnosticsRequestError(payload.include_diagnostics, payload.diagnostics_side);
+      if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
       validateSnapshot(payload.snapshot, "simulate.snapshot");
       return;
+    }
     case "preflight":
       requireRecord(payload.snapshot, "preflight.snapshot");
       validateSnapshot(payload.snapshot, "preflight.snapshot");
@@ -298,13 +299,17 @@ async function runSimulation(
 ): Promise<unknown> {
   const snapshot = requireRecord(payload.snapshot, "simulate.snapshot");
   const includeDiagnostics = payload.include_diagnostics === true;
-  const diagnosticsSide = payload.diagnostics_side ?? "attacker";
+  const diagnosticsRequestError = simulationDiagnosticsRequestError(includeDiagnostics, payload.diagnostics_side);
+  if (diagnosticsRequestError !== null) throw new RequestFailure("invalid_request", diagnosticsRequestError);
+  const diagnosticsSide = includeDiagnostics && isCombatantSide(payload.diagnostics_side)
+    ? payload.diagnostics_side
+    : undefined;
   const coreResult = await callCore("simulate", {
     attacker: snapshot.attacker,
     defender: snapshot.defender,
     context: snapshot.context,
     include_diagnostics: includeDiagnostics,
-    ...(includeDiagnostics ? { diagnostics_side: diagnosticsSide } : {}),
+    ...(diagnosticsSide !== undefined ? { diagnostics_side: diagnosticsSide } : {}),
   }, webRequestId);
   const local = requireRecord(coreResult, "core.simulate.result");
   const result = requireRecord(local.result, "core.simulate.result.result");

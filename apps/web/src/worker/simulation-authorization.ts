@@ -36,6 +36,12 @@ export function simulationAuthorizationError(
     diagnostics.events.some((event: unknown) => record(event)?.side !== requestedSide)) {
     return "The core returned unauthorized diagnostic events.";
   }
+  if (diagnostics.identity !== undefined) {
+    const identity = record(diagnostics.identity);
+    if (identity?.side !== requestedSide) {
+      return "The core returned a diagnostic identity for a different owner side.";
+    }
+  }
   for (const field of ["cu_by_side", "final_memory_by_side"]) {
     const values = record(diagnostics[field]);
     if (values === null || Object.keys(values).some((side) => side !== requestedSide)) {

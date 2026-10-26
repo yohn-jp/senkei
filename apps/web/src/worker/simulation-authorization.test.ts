@@ -12,6 +12,19 @@ describe("simulation owner authorization", () => {
     expect(simulationAuthorizationError(authorized(), "attacker")).toBeNull();
     expect(simulationAuthorizationError({ owner_replays: {}, diagnostics: null }, null)).toBeNull();
   });
+  it("accepts a diagnostic identity for the requested side and rejects a different or malformed side", () => {
+    const matchingIdentity = authorized();
+    matchingIdentity.diagnostics.identity = { side: "attacker" };
+    expect(simulationAuthorizationError(matchingIdentity, "attacker")).toBeNull();
+
+    const foreignIdentity = authorized();
+    foreignIdentity.diagnostics.identity = { side: "defender" };
+    expect(simulationAuthorizationError(foreignIdentity, "attacker")).toMatch(/diagnostic identity/);
+
+    const malformedIdentity = authorized();
+    Object.assign(malformedIdentity.diagnostics, { identity: null });
+    expect(simulationAuthorizationError(malformedIdentity, "attacker")).toMatch(/diagnostic identity/);
+  });
   it("rejects a forged map key around a different perspective", () => {
     const response = authorized();
     response.owner_replays.attacker.perspective = "defender";
