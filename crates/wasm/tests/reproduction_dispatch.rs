@@ -2,7 +2,7 @@ use enbu::new_match_context;
 use jinrei::compile;
 use senkei_model::*;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn dispatch(operation: &str, payload: Value) -> Value {
     let request = json!({
@@ -109,45 +109,152 @@ fn valid_snapshot(rules: &VerifiedRulePlan, side: CombatantSide) -> SenkeiSnapsh
     }
 }
 
+fn validate_retained_assets(assets: &ReproductionAssets) -> VerifiedRulePlan {
+    let definition: senkei_world::WorldDefinition =
+        serde_json::from_value(assets.world_definition.clone()).expect("typed retained World");
+    let world = senkei_world::compile(definition).expect("retained World compiles");
+    let mut resolver = senkei_world::WorldResolver::default();
+    resolver.insert(world).expect("retained World has a unique exact identity");
+    let extension = assets
+        .catalog_metadata_extension
+        .clone()
+        .map(|value| serde_json::from_value(value).expect("typed retained extension"));
+    senritsu::validate_with_world_resolver_and_catalog_extension(
+        assets.rule_package.clone(),
+        &senritsu::next_engine_compatibility(),
+        &resolver,
+        extension,
+    )
+    .expect("retained package validates with its exact World and extension")
+}
+
 fn valid_reproduction_request() -> (Value, Value) {
     let assets = dispatch("next_reproduction_assets", json!({}));
     assert_eq!(assets["ok"], true, "current package and World assets are available");
+    valid_reproduction_request_from_assets(assets["result"].clone())
+}
+
+fn valid_reproduction_request_from_assets(asset_value: Value) -> (Value, Value) {
     let parsed_assets: ReproductionAssets =
-        serde_json::from_value(assets["result"].clone()).expect("typed reproduction assets");
-    let rules = senritsu::validate(
-        parsed_assets.rule_package.clone(),
-        &senritsu::next_engine_compatibility(),
-    )
-    .expect("current Next package validates");
+        serde_json::from_value(asset_value.clone()).expect("typed reproduction assets");
+    let rules = validate_retained_assets(&parsed_assets);
+    let extension_present = parsed_assets.catalog_metadata_extension.is_some();
     let mut context = new_match_context(&rules, MatchId::new("reproduction-api-test"));
     context.max_ticks = 1;
-    let snapshot = json!({
-        "attacker": valid_snapshot(&rules, CombatantSide::Attacker),
-        "defender": valid_snapshot(&rules, CombatantSide::Defender),
-        "context": context,
-    });
-    let baseline = dispatch(
-        "simulate",
-        json!({
-            "attacker": snapshot["attacker"],
-            "defender": snapshot["defender"],
-            "context": snapshot["context"],
-            "include_diagnostics": true,
-            "diagnostics_side": "attacker",
-        }),
-    );
-    assert_eq!(baseline["ok"], true, "same-runtime baseline simulation succeeds");
-    let snapshot_digest = baseline["result"]["diagnostics"]["identity"]["snapshot_digest"]
-        .as_str()
-        .expect("diagnostic identity carries canonical snapshot digest");
+    let snapshot = ReproductionSnapshot {
+        attacker: valid_snapshot(&rules, CombatantSide::Attacker),
+        defender: valid_snapshot(&rules, CombatantSide::Defender),
+        context,
+    };
+    let snapshot_digest = enbu::reproduction_snapshot_digest(
+        &snapshot.attacker,
+        &snapshot.defender,
+        &snapshot.context,
+    )
+    .expect("canonical snapshot digest");
+    let baseline = if extension_present {
+        let mut vm = jinrei::Vm::new(&rules);
+        let artifact = enbu::simulate(
+            &snapshot.attacker,
+            &snapshot.defender,
+            &rules,
+            &snapshot.context,
+            &mut vm,
+        )
+        .expect("same-runtime fixture simulation succeeds");
+        json!({"ok": true, "result": artifact.diagnostic_response(CombatantSide::Attacker)})
+    } else {
+        let response = dispatch(
+            "simulate",
+            json!({
+                "attacker": snapshot.attacker.clone(),
+                "defender": snapshot.defender.clone(),
+                "context": snapshot.context.clone(),
+                "include_diagnostics": true,
+                "diagnostics_side": "attacker",
+            }),
+        );
+        assert_eq!(response["ok"], true, "same-runtime baseline simulation succeeds");
+        response
+    };
     let request = json!({
-        "assets": assets["result"],
+        "assets": asset_value,
         "snapshot": snapshot,
         "snapshot_digest": snapshot_digest,
         "include_diagnostics": true,
         "diagnostics_side": "attacker",
     });
     (request, baseline["result"].clone())
+}
+
+fn fixture_extension_assets() -> Value {
+    let mut assets = dispatch("next_reproduction_assets", json!({}))["result"].clone();
+    let mut package: RulePackage =
+        serde_json::from_value(assets["rule_package"].clone()).unwrap();
+    let initial_plan = senritsu::validate(
+        package.clone(),
+        &senritsu::next_engine_compatibility(),
+    )
+    .unwrap();
+    let field_id = "navigation.mode".to_owned();
+    let value = DomainValue::String("safest".to_owned());
+    let mut extension = senritsu::CatalogMetadataExtension {
+        schema_version: senritsu::DOMAIN_CATALOG_SCHEMA_VERSION,
+        ruleset_id: initial_plan.ruleset().id.clone(),
+        ruleset_version: initial_plan.ruleset().version,
+        ruleset_digest: initial_plan.package_digest().clone(),
+        entity_scopes: BTreeMap::new(),
+        capabilities: BTreeMap::new(),
+        behavior_profiles: senritsu::BehaviorProfileMetadata {
+            cross_capability_order: None,
+            inheritance_order: vec![
+                senritsu::ProfileLayer::SenritsuDefault,
+                senritsu::ProfileLayer::HeroCatalogDefault,
+                senritsu::ProfileLayer::ArmyPreference,
+                senritsu::ProfileLayer::SquadAggregate,
+                senritsu::ProfileLayer::JinreiConditionalPreference,
+            ],
+            fields: BTreeMap::from([(
+                field_id.clone(),
+                senritsu::BehaviorFieldDefinition {
+                    value_type: DomainType::String { max_bytes: 64 },
+                    scopes: BTreeSet::from([senritsu::BehaviorScope::Hero]),
+                    aggregation: None,
+                    override_policy: senritsu::BehaviorOverridePolicy {
+                        conditional_tick_override: true,
+                        persistent_capability: None,
+                    },
+                    description: "Fixture navigation preference".into(),
+                    unit: None,
+                },
+            )]),
+            senritsu_default: BTreeMap::from([(field_id.clone(), value.clone())]),
+            hero_defaults: BTreeMap::new(),
+            presets: BTreeMap::from([(
+                "navigation.safest".into(),
+                senritsu::NamedBehaviorPreset {
+                    name: "Safest path".into(),
+                    scope: senritsu::BehaviorScope::Hero,
+                    values: BTreeMap::from([(field_id, value)]),
+                    description: "Fixture named preference".into(),
+                },
+            )]),
+        },
+    };
+    package.catalog_semantics_digest = Some(
+        senritsu::catalog::catalog_semantics_digest(&extension).unwrap(),
+    );
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    senritsu::validate_with_catalog_extension(
+        package.clone(),
+        &senritsu::next_engine_compatibility(),
+        extension.clone(),
+    )
+    .expect("fixture package binds its authored metadata extension");
+    assets["rule_package"] = serde_json::to_value(package).unwrap();
+    assets["catalog_metadata_extension"] = serde_json::to_value(extension).unwrap();
+    assets
 }
 
 fn preflight_request_from(reproduction: &Value) -> Value {
@@ -199,6 +306,39 @@ fn current_builtin_assets_can_reproduce_a_match_from_retained_inputs() {
     assert_eq!(actual["replay"], baseline["replay"]);
     assert_eq!(actual["owner_replays"], baseline["owner_replays"]);
     assert_eq!(actual["diagnostics"], baseline["diagnostics"]);
+}
+
+#[test]
+fn retained_catalog_extension_is_verified_and_reproduces_with_exact_world() {
+    let (request, baseline) = valid_reproduction_request_from_assets(fixture_extension_assets());
+    let ready = dispatch("preflight_reproduction", preflight_request_from(&request));
+    assert_eq!(ready["ok"], true, "typed Catalog extension and retained World pass Ready validation");
+    assert!(ready["result"].is_null());
+
+    let reproduced = dispatch("reproduce", request);
+    assert_eq!(reproduced["ok"], true, "verified Catalog extension is accepted for exact rerun");
+    assert_eq!(reproduced["result"], baseline);
+}
+
+#[test]
+fn retained_catalog_extension_rejects_tampering_and_unbound_fields() {
+    let (valid, _) = valid_reproduction_request_from_assets(fixture_extension_assets());
+
+    let mut tampered = valid.clone();
+    tampered["assets"]["catalog_metadata_extension"]["rulesetDigest"] = json!("0".repeat(64));
+    let rejected = dispatch("reproduce", tampered);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "validation_failed");
+
+    let mut unknown = preflight_request_from(&valid);
+    unknown["assets"]["catalog_metadata_extension"]["unbound_note"] = json!("must not be ignored");
+    let rejected = dispatch("preflight_reproduction", unknown);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "validation_failed");
+    assert!(rejected["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("unrecognized or noncanonical fields"));
 }
 
 #[test]
@@ -272,10 +412,10 @@ fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension
     let rejected = dispatch("reproduce", extension);
     assert_eq!(rejected["ok"], false);
     assert_eq!(rejected["error"]["code"], "validation_failed");
-    assert!(rejected["error"]["message"]
+    assert!(rejected["error"]["details"]["issues"]
         .as_str()
         .unwrap()
-        .contains("extension artifact"));
+        .contains("missing_catalog_semantics_extension"));
 
     let mut extension = preflight_request_from(&valid);
     let mut package: RulePackage = serde_json::from_value(extension["assets"]["rule_package"].clone()).unwrap();
@@ -285,10 +425,10 @@ fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension
     let preflight_rejected = dispatch("preflight_reproduction", extension);
     assert_eq!(preflight_rejected["ok"], false);
     assert_eq!(preflight_rejected["error"]["code"], "validation_failed");
-    assert!(preflight_rejected["error"]["message"]
+    assert!(preflight_rejected["error"]["details"]["issues"]
         .as_str()
         .unwrap()
-        .contains("extension artifact"));
+        .contains("missing_catalog_semantics_extension"));
 }
 
 #[test]

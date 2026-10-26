@@ -630,6 +630,12 @@ function assertReproductionAssets(value: unknown, path: string): asserts value i
   }
   assertRulePackage(value.rule_package, `${path}.rule_package`);
   assertJsonValue(value.world_definition, `${path}.world_definition`, MAX_EXPORT_NODES);
+  if (value.catalog_metadata_extension !== undefined) {
+    assertJsonValue(value.catalog_metadata_extension, `${path}.catalog_metadata_extension`, MAX_EXPORT_NODES);
+    if (!isRecord(value.catalog_metadata_extension)) {
+      throw new PersistenceError("invalid_data", `${path}.catalog_metadata_extension must be an object.`);
+    }
+  }
 
   const next = value.rule_package.next;
   const worldDefinition = value.world_definition;

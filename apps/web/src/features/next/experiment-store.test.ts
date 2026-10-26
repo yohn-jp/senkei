@@ -62,6 +62,7 @@ function reproductionAssets(): ReproductionAssets {
       limits: {},
     },
     world_definition: { id: "world-a", schema_version: version },
+    catalog_metadata_extension: { schemaVersion: version, fixtureOnly: true },
   } as unknown as ReproductionAssets;
 }
 
@@ -254,6 +255,21 @@ describe("Next experiment store bounds", () => {
     expect(restored.experiments[0]?.reproduction_assets).toEqual(record.reproduction_assets);
     expect(restored.experiments[0]?.snapshot_digest).toBe(record.snapshot_digest);
     expect(restored.experiments[0]?.snapshot).toEqual(record.snapshot);
+  });
+
+  it("preserves an optional private Catalog extension and rejects non-object extension bytes", () => {
+    const record = experiment("extension", 0);
+    const validStore = { format_version: 2, experiments: [record] };
+    const restored = parseNextExperimentStore(JSON.parse(serializeNextExperimentStore(validStore as unknown as LocalNextExperimentStore)));
+    expect(restored.experiments[0]?.reproduction_assets.catalog_metadata_extension)
+      .toEqual(record.reproduction_assets.catalog_metadata_extension);
+
+    record.reproduction_assets = {
+      ...record.reproduction_assets,
+      catalog_metadata_extension: [] as unknown as ReproductionAssets["catalog_metadata_extension"],
+    };
+    expect(() => parseNextExperimentStore({ format_version: 2, experiments: [record] }))
+      .toThrow(/catalog_metadata_extension must be an object/);
   });
 
   it("rejects legacy typed records while leaving their raw JSON exportable", () => {

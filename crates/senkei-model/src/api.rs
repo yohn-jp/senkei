@@ -30,6 +30,12 @@ pub struct ReproductionAssets {
     pub format_version: u16,
     pub rule_package: crate::RulePackage,
     pub world_definition: serde_json::Value,
+    /// Optional authored catalog/Behavior metadata referenced by the package.
+    /// It stays untrusted transport JSON here because Senkei Model does not
+    /// depend on Senritsu's validator-owned CatalogMetadataExtension type.
+    /// The Core adapter must decode and validate it before execution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_metadata_extension: Option<serde_json::Value>,
 }
 
 /// Explicitly replays an immutable local Run using its retained package and

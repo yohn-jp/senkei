@@ -215,6 +215,7 @@ fn next_reproduction_assets(payload: Value) -> Result<(Value, u64), ApiError> {
         format_version: REPRODUCTION_ASSETS_FORMAT_VERSION,
         rule_package,
         world_definition,
+        catalog_metadata_extension: None,
     };
     let max_output_bytes = assets.rule_package.limits.max_output_bytes;
     Ok((encode(&assets, "result")?, max_output_bytes))
@@ -383,13 +384,34 @@ fn validate_reproduction_assets(assets: ReproductionAssets) -> Result<VerifiedRu
     }
 
     let package = assets.rule_package;
-    if package.catalog_semantics_digest.is_some() {
-        return Err(api_error(
-            ApiErrorCode::ValidationFailed,
-            Some("payload.assets.rule_package.catalog_semantics_digest"),
-            "this reproduction requires a Catalog/Behavior extension artifact that was not retained",
-        ));
-    }
+    let extension = assets
+        .catalog_metadata_extension
+        .map(|value| {
+            let extension = serde_json::from_value::<senritsu::CatalogMetadataExtension>(value.clone())
+                .map_err(|error| {
+                    api_error(
+                        ApiErrorCode::ValidationFailed,
+                        Some("payload.assets.catalog_metadata_extension"),
+                        format!("stored Catalog/Behavior extension is malformed: {error}"),
+                    )
+                })?;
+            let canonical = serde_json::to_value(&extension).map_err(|error| {
+                api_error(
+                    ApiErrorCode::ValidationFailed,
+                    Some("payload.assets.catalog_metadata_extension"),
+                    format!("stored Catalog/Behavior extension could not be serialized: {error}"),
+                )
+            })?;
+            if canonical != value {
+                return Err(api_error(
+                    ApiErrorCode::ValidationFailed,
+                    Some("payload.assets.catalog_metadata_extension"),
+                    "stored Catalog/Behavior extension contains unrecognized or noncanonical fields",
+                ));
+            }
+            Ok(extension)
+        })
+        .transpose()?;
     let expected_world_identity = package
         .next
         .as_ref()
@@ -471,10 +493,11 @@ fn validate_reproduction_assets(assets: ReproductionAssets) -> Result<VerifiedRu
             "stored RulePackage digest does not match its content",
         ));
     }
-    senritsu::validate_with_world_resolver(
+    senritsu::validate_with_world_resolver_and_catalog_extension(
         package,
         &senritsu::next_engine_compatibility(),
         &resolver,
+        extension,
     ).map_err(|issues| {
         let mut error = api_error(
             ApiErrorCode::ValidationFailed,

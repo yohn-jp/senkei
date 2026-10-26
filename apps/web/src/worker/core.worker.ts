@@ -225,6 +225,9 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       }
       requireRecord(assets.rule_package, "reproduce.assets.rule_package");
       requireRecord(assets.world_definition, "reproduce.assets.world_definition");
+      if (assets.catalog_metadata_extension !== undefined) {
+        requireRecord(assets.catalog_metadata_extension, "reproduce.assets.catalog_metadata_extension");
+      }
       requireRecord(payload.snapshot, "reproduce.snapshot");
       const snapshotDigest = requireString(payload.snapshot_digest, "reproduce.snapshot_digest");
       if (!/^[0-9a-f]{64}$/.test(snapshotDigest)) {
@@ -243,6 +246,9 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       }
       requireRecord(assets.rule_package, "preflight_reproduction.assets.rule_package");
       requireRecord(assets.world_definition, "preflight_reproduction.assets.world_definition");
+      if (assets.catalog_metadata_extension !== undefined) {
+        requireRecord(assets.catalog_metadata_extension, "preflight_reproduction.assets.catalog_metadata_extension");
+      }
       requireRecord(payload.snapshot, "preflight_reproduction.snapshot");
       const snapshotDigest = requireString(payload.snapshot_digest, "preflight_reproduction.snapshot_digest");
       if (!/^[0-9a-f]{64}$/.test(snapshotDigest)) {

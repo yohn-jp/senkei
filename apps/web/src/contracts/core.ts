@@ -109,6 +109,8 @@ export interface ReproductionAssets {
   readonly rule_package: RulePackage;
   /** Authored World Definition JSON; the core recompiles and verifies it. */
   readonly world_definition: CoreJsonValue;
+  /** Optional private authored Catalog/Behavior metadata; the Core validates it against the package digest. */
+  readonly catalog_metadata_extension?: CoreJsonValue;
 }
 
 export interface BenchmarkCase {

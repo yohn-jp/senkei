@@ -42,6 +42,7 @@ const assets: ReproductionAssets = {
   format_version: 1,
   rule_package: {} as RulePackage,
   world_definition: { id: "battlefield" },
+  catalog_metadata_extension: { schemaVersion: { major: 1, minor: 0, patch: 0 } },
 };
 const snapshot: SimulationSnapshot = {
   attacker: {} as SimulationSnapshot["attacker"],
