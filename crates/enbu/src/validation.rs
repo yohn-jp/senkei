@@ -60,8 +60,8 @@ pub(crate) fn validate_inputs(
     if attacker.schema_version != MODEL_VERSION || defender.schema_version != MODEL_VERSION {
         return Err(version_error("snapshot model schema version is unsupported"));
     }
-    validate_program(&attacker.program, rules)?;
-    validate_program(&defender.program, rules)?;
+    validate_program(&attacker.program, rules).map_err(|error| program_error(error, "attacker"))?;
+    validate_program(&defender.program, rules).map_err(|error| program_error(error, "defender"))?;
 
     if context.max_ticks == 0 || context.max_ticks > plan.termination.max_ticks {
         return Err(invalid("context maximum ticks must be positive and no greater than the rule maximum"));
@@ -85,6 +85,13 @@ pub(crate) fn validate_inputs(
     // RulePlan's configuration projection. Validate them after projection has
     // been applied to the base world in `simulate`.
     Ok(())
+}
+
+fn program_error(mut error: ApiError, side: &str) -> ApiError {
+    if error.path.is_none() { error.path = Some(format!("{side}.program")); }
+    error.details.entry("preflight_side".into()).or_insert_with(|| side.into());
+    error.details.entry("preflight_field".into()).or_insert_with(|| "program".into());
+    error
 }
 
 fn validate_ruleset_ref(actual: &RulesetRef, expected: &RulesetRef) -> Result<(), ApiError> {
