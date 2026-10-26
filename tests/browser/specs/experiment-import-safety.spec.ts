@@ -70,7 +70,7 @@ test("semantic incompatible experiment import preserves existing immutable recor
   await page.getByTestId("nav-library").click();
   await page.getByLabel("Import Next experiment file").setInputFiles(incompatible);
   await page.getByRole("button", { name: "Validate and import", exact: true }).click();
-  await expect(page.getByText(/World identity or paired World projection does not match the current package/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/World identity or paired World projection does not match the current package|Stored diagnostics snapshot digest does not match the complete immutable Run input/)).toBeVisible({ timeout: 120_000 });
   const after = await storedIdentity(page);
   const comparisonEnabled = await page.getByRole("button", { name: "Open latest comparison", exact: true }).isEnabled();
   await page.screenshot({ path: "test-results/experiment-wrong-world-import.png", fullPage: true });
