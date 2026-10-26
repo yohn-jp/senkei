@@ -409,17 +409,19 @@ function addHumanoidBody(
       builder.panel(leg, "armor", [[-0.085, 0.1], [0.085, 0.1], [0.1, -0.11], [0, -0.17], [-0.095, -0.11]], palette.armor, [0, -0.19, 0.11], 0.045, 0.025);
       builder.sphere(leg, "armor", [0.11 * bulk, 0.095, 0.13], palette.accent, [0, -0.45, 0.07]);
     } else builder.sphere(leg, "armor", [0.105, 0.09, 0.12], palette.armor, [0, -0.43, 0.065]);
-    const shin = builder.part(`joint.shin.${side < 0 ? "left" : "right"}`, leg, [0, -0.13, 0]);
+    // Bend at the kneecap, retaining the authored neutral surface positions.
+    // The old pivot sat high inside the thigh and swept the entire boot outward.
+    const shin = builder.part(`joint.shin.${side < 0 ? "left" : "right"}`, leg, [0, -0.45, 0]);
     builder.profile(shin, "leather", [
-      { y: -0.02, radiusX: 0.095, radiusZ: 0.105 },
-      { y: -0.25, radiusX: 0.083, radiusZ: 0.1 },
-      { y: -0.56, radiusX: 0.075, radiusZ: 0.085 },
+      { y: 0.3, radiusX: 0.095, radiusZ: 0.105 },
+      { y: 0.07, radiusX: 0.083, radiusZ: 0.1 },
+      { y: -0.24, radiusX: 0.075, radiusZ: 0.085 },
     ], 0x453e37);
-    builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, -0.09, 0.08], 0.042, 0.02);
+    builder.panel(shin, "armor", [[-0.075, 0.16], [0.075, 0.16], [0.065, -0.11], [0, -0.2], [-0.07, -0.12]], palette.armor, [0, 0.23, 0.08], 0.042, 0.02);
     builder.profile(shin, "leather", [
-      { y: -0.58, radiusX: 0.11, radiusZ: 0.17 },
-      { y: -0.73, x: 0, z: 0.055, radiusX: 0.12, radiusZ: 0.22 },
-      { y: -0.77, x: 0, z: 0.06, radiusX: 0.1, radiusZ: 0.2 },
+      { y: -0.26, radiusX: 0.11, radiusZ: 0.17 },
+      { y: -0.41, x: 0, z: 0.055, radiusX: 0.12, radiusZ: 0.22 },
+      { y: -0.45, x: 0, z: 0.06, radiusX: 0.1, radiusZ: 0.2 },
     ], 0x51453b);
     legs.push(leg);
   }

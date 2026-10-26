@@ -179,6 +179,27 @@ describe("Battlefield unit models", () => {
     }
   });
 
+  it("bends golden shins about the authored kneecaps while keeping the knee attached", () => {
+    for (const id of ["F01", "R01"]) {
+      const group = new THREE.Group();
+      const key = `senkei.next.hero.${id.toLowerCase()}`;
+      const rig = buildBattlefieldHero(group, entity(id, key, id), 0x347e83, key);
+      for (const side of ["left", "right"]) {
+        const leg = rig.joints[`leg.${side}`];
+        const shin = rig.joints[`shin.${side}`];
+        expect(shin.parent).toBe(leg);
+        const kneeInLeg = new THREE.Vector3(0, -0.45, 0);
+        expect(shin.position.distanceTo(kneeInLeg)).toBeLessThan(1e-8);
+        group.updateMatrixWorld(true);
+        const before = shin.getWorldPosition(new THREE.Vector3());
+        shin.rotation.x += 0.4;
+        group.updateMatrixWorld(true);
+        expect(shin.getWorldPosition(new THREE.Vector3()).distanceTo(before)).toBeLessThan(1e-8);
+        expect(leg.localToWorld(kneeInLeg).distanceTo(before)).toBeLessThan(1e-8);
+      }
+    }
+  });
+
   it("gives each Hero an authored stance and a distinct shape signature independent of palette colors", () => {
     const identities = ["f01", "f02", "f03", "f04", "f05", "f06", "r01", "r02", "r03", "r04", "r05", "r06"];
     const stances = new Set<string>();
