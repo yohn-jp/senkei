@@ -477,11 +477,11 @@ fn collect_basic_attacks(
                 .map(|(id, entity)| (id.clone(), entity))
         });
         let Some((target_id, _)) = selected else { continue };
+        // Selection for every combatant reads the same pre-attack lock state.
+        // Do not publish a squad member's new action lock until all attacks
+        // have been selected; doing so suppresses later members in ID order.
         if let Some(source_now) = world.entities.get_mut(source_id) {
             support::set_int(source_now, "attack_ready", i64::from(tick).saturating_add(interval));
-            let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
-            let recovery = support::param(rules, "attack_recovery_ticks", 1).max(0);
-            support::set_int(source_now, "action_lock_until", i64::from(tick).saturating_add(preparation.saturating_add(recovery).max(1)));
         }
         attacks.push(Hit {
             source: source_id.clone(),
@@ -1704,6 +1704,29 @@ mod tests {
     #[test]
     fn no_eligible_recipients_do_not_divide() {
         assert_eq!(exact_xp_share(100, 0), 0);
+    }
+
+    #[test]
+    fn all_ready_squad_members_attack_in_the_same_tick() {
+        let mut world = WorldState::default();
+        for (id, x) in [("hero.a", 0), ("hero.b", 1)] {
+            let mut attacker = entity("hero", Some(CombatantSide::Attacker), x, 50, 10, 10);
+            support::set_string(&mut attacker, "squad", "squad.1");
+            insert(&mut world, id, attacker);
+        }
+        insert(&mut world, "enemy", entity("hero", Some(CombatantSide::Defender), 2, 100, 0, 0));
+
+        let events = resolve(&mut world, &rules(), &[], 0);
+        assert_eq!(
+            events.iter().filter(|event| event.event.as_str() == "next.attack").count(),
+            2,
+            "an earlier squad member's attack must not suppress a later member",
+        );
+        assert_eq!(support::int(&world.entities[&EntityId::from("enemy")], "hp"), 80);
+        for id in ["hero.a", "hero.b"] {
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "attack_ready"), 1);
+            assert_eq!(support::int(&world.entities[&EntityId::from(id)], "action_lock_until"), 1);
+        }
     }
 
     #[test]
