@@ -18,6 +18,16 @@ describe("structured Preflight problem classification", () => {
     expect(classifyPreflightProblem(targetError("defender", "node"), context)).toMatchObject({ side: "defender", repair: { kind: "scenario", scenarioId: "protect-core" } });
   });
 
+  it("routes a fixed bundled opponent without an editable scenario to existing recovery", () => {
+    const fixedOpponent = { ...context, scenarioId: null };
+    expect(classifyPreflightProblem(targetError("defender", "node"), fixedOpponent)).toMatchObject({ side: "defender", target: { kind: "hero", field: "node" }, repair: { kind: "recovery" } });
+    const compileFailure = api({ code: "compile_failed", path: "source@27" });
+    expect(classifyPreflightProblem(compileFailure, { ...fixedOpponent, stage: "opponent_compile" }))
+      .toMatchObject({ side: "defender", target: { kind: "program", path: "source@27" }, repair: { kind: "recovery" } });
+    expect(classifyPreflightProblem(compileFailure, { ...context, stage: "opponent_compile" }))
+      .toMatchObject({ side: "defender", repair: { kind: "scenario", scenarioId: "protect-core" } });
+  });
+
   it.each(["attacker", "defender"] as const)("does not infer %s ownership from human messages", side => {
     const result = classifyPreflightProblem(api({ message: `${side} Hero slot-b invalid skill at line 99` }), context);
     expect(result).toMatchObject({ side: "unknown", target: { kind: "unknown" }, repair: { kind: "recovery" } });
