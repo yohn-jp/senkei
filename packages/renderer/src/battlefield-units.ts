@@ -125,7 +125,7 @@ function assetRecord(assetKey: string, appearanceKey: string, lod: readonly stri
     assetKey,
     appearanceKey,
     generator: UNIT_GENERATOR,
-    generatorVersion: 3,
+    generatorVersion: 4,
     sourceFiles: [
       "packages/renderer/src/battlefield-units.ts",
       "packages/renderer/src/battlefield-unit-geometry.ts",
