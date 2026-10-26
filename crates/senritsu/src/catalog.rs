@@ -333,7 +333,7 @@ pub struct CatalogMetadataExtension {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BehaviorProfileMetadata {
-    /// Authored actor-local orders. Absent means no cross-capability preference.
+    /// Authored actor-local orders. Required when the typed package schema permits cross-capability conflicts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cross_capability_order: Option<BehaviorOrderContract>,
     /// Applied from least-specific to most-specific. A source may be omitted
@@ -1371,7 +1371,10 @@ fn validate_extension(
 // This validates declared domains, not arbitrary predicate mutual exclusion.
 // Uncovered runtime collisions must still fail closed in the resolver.
 fn validate_behavior_orders(extension: &CatalogMetadataExtension, domain: &DomainSchema, issues: &mut Vec<DomainCatalogIssue>) {
-    let Some(contract) = &extension.behavior_profiles.cross_capability_order else { return };
+    let Some(contract) = &extension.behavior_profiles.cross_capability_order else {
+        validate_behavior_order_completeness(extension, domain, None, issues);
+        return;
+    };
     let mut emit = |path: String, message: &str| issues.push(DomainCatalogIssue {
         code: "invalid_behavior_order", path, message: message.into(),
     });
@@ -1447,6 +1450,152 @@ fn validate_behavior_orders(extension: &CatalogMetadataExtension, domain: &Domai
                 }
             }
         }
+    }
+    validate_behavior_order_completeness(extension, domain, Some(contract), issues);
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RequiredBehaviorOrder {
+    scope: BehaviorScope,
+    actor_type: TypeId,
+    capabilities: BTreeSet<CapabilityId>,
+}
+
+fn behavior_actor_context(
+    capability: &CapabilitySchema,
+    entity_scopes: &BTreeMap<TypeId, EntityControlScope>,
+) -> Option<(BehaviorScope, TypeId)> {
+    let actor = capability.actor_argument.and_then(|index| capability.arguments.get(index as usize))?;
+    if actor.optional { return None; }
+    let DomainType::Entity { entity_type: Some(actor_type) } = &actor.value_type else { return None };
+    let scope = match entity_scopes.get(actor_type)? {
+        EntityControlScope::Army => BehaviorScope::Army,
+        EntityControlScope::Squad => BehaviorScope::Squad,
+        EntityControlScope::Hero => BehaviorScope::Hero,
+        EntityControlScope::LaneLimitedMinion => BehaviorScope::LaneLimitedMinion,
+    };
+    Some((scope, actor_type.clone()))
+}
+
+fn potential_conflict_groups(
+    domain: &DomainSchema,
+    entity_scopes: &BTreeMap<TypeId, EntityControlScope>,
+    candidates: impl IntoIterator<Item = CapabilityId>,
+    can_write_different_values: impl Fn(&CapabilityId, &CapabilityId) -> bool,
+) -> Vec<RequiredBehaviorOrder> {
+    let mut by_actor = BTreeMap::<(BehaviorScope, TypeId), Vec<CapabilityId>>::new();
+    for capability_id in candidates {
+        let Some(capability) = domain.capabilities.get(&capability_id) else { continue };
+        if capability.phases.is_empty() { continue; }
+        let Some(context) = behavior_actor_context(capability, entity_scopes) else { continue };
+        by_actor.entry(context).or_default().push(capability_id);
+    }
+
+    let mut required = Vec::new();
+    for ((scope, actor_type), capabilities) in by_actor {
+        let mut remaining = capabilities.into_iter().collect::<BTreeSet<_>>();
+        while let Some(seed) = remaining.iter().next().cloned() {
+            remaining.remove(&seed);
+            let mut component = BTreeSet::from([seed]);
+            loop {
+                let connected = remaining.iter().filter(|candidate| component.iter().any(|member| {
+                    let left = &domain.capabilities[member];
+                    let right = &domain.capabilities[*candidate];
+                    !left.phases.is_disjoint(&right.phases) && can_write_different_values(member, candidate)
+                })).cloned().collect::<Vec<_>>();
+                if connected.is_empty() { break; }
+                for capability in connected {
+                    remaining.remove(&capability);
+                    component.insert(capability);
+                }
+            }
+            if component.len() > 1 {
+                required.push(RequiredBehaviorOrder { scope, actor_type: actor_type.clone(), capabilities: component });
+            }
+        }
+    }
+    required
+}
+
+fn singleton_domain_value(value_type: &DomainType) -> Option<DomainValue> {
+    match value_type {
+        DomainType::Integer { min: Some(min), max: Some(max) } if min == max => Some(DomainValue::Integer(*min)),
+        DomainType::Fixed { scale, min: Some(min), max: Some(max) } if min == max =>
+            Some(DomainValue::Fixed { coefficient: *min, scale: *scale }),
+        DomainType::String { max_bytes: 0 } => Some(DomainValue::String(String::new())),
+        DomainType::Enum { values, .. } if values.len() == 1 => values.iter().next().cloned().map(DomainValue::Enum),
+        _ => None,
+    }
+}
+
+fn required_intent_orders(extension: &CatalogMetadataExtension, domain: &DomainSchema) -> Vec<RequiredBehaviorOrder> {
+    potential_conflict_groups(domain, &extension.entity_scopes, domain.capabilities.keys().cloned(), |_, _| true)
+}
+
+fn required_field_writer_orders(
+    extension: &CatalogMetadataExtension,
+    domain: &DomainSchema,
+    field: &str,
+) -> Vec<RequiredBehaviorOrder> {
+    let mut argument_types = BTreeMap::<CapabilityId, DomainType>::new();
+    for (capability_id, metadata) in &extension.capabilities {
+        let Some(argument_index) = metadata.behavior_override_arguments.get(field) else { continue };
+        let Some(argument) = domain.capabilities.get(capability_id)
+            .and_then(|capability| capability.arguments.get(*argument_index as usize)) else { continue };
+        argument_types.insert(capability_id.clone(), argument.value_type.clone());
+    }
+    let candidates = argument_types.keys().cloned().collect::<Vec<_>>();
+    potential_conflict_groups(domain, &extension.entity_scopes, candidates, |left, right| {
+        match (argument_types.get(left).and_then(singleton_domain_value), argument_types.get(right).and_then(singleton_domain_value)) {
+            (Some(left), Some(right)) => left != right,
+            _ => true,
+        }
+    })
+}
+
+fn validate_required_orders(
+    required: Vec<RequiredBehaviorOrder>,
+    declarations: &[BehaviorOrderDeclaration],
+    path: &str,
+    issues: &mut Vec<DomainCatalogIssue>,
+) {
+    for group in required {
+        let matching = declarations.iter().filter(|declaration| declaration.scope == group.scope
+            && declaration.actor_type == group.actor_type
+            && group.capabilities.is_subset(&declaration.capabilities)).count();
+        if matching != 1 {
+            let missing = group.capabilities.iter().map(CapabilityId::as_str).collect::<Vec<_>>().join(", ");
+            issues.push(DomainCatalogIssue {
+                code: "invalid_behavior_order",
+                path: path.into(),
+                message: format!("missing one complete actor-local order for {} ({missing})", group.actor_type),
+            });
+        }
+    }
+}
+
+fn validate_behavior_order_completeness(
+    extension: &CatalogMetadataExtension,
+    domain: &DomainSchema,
+    contract: Option<&BehaviorOrderContract>,
+    issues: &mut Vec<DomainCatalogIssue>,
+) {
+    let empty = Vec::new();
+    let intent_orders = contract.map_or(empty.as_slice(), |value| value.intent_selection.as_slice());
+    validate_required_orders(
+        required_intent_orders(extension, domain), intent_orders,
+        "extension.behaviorProfiles.crossCapabilityOrder.intentSelection", issues,
+    );
+
+    let fields = extension.capabilities.values()
+        .flat_map(|metadata| metadata.behavior_override_arguments.keys().cloned())
+        .collect::<BTreeSet<_>>();
+    for field in fields {
+        let writer_orders = contract.and_then(|value| value.field_writers.get(&field)).map_or(empty.as_slice(), Vec::as_slice);
+        validate_required_orders(
+            required_field_writer_orders(extension, domain, &field), writer_orders,
+            &format!("extension.behaviorProfiles.crossCapabilityOrder.fieldWriters.{field}"), issues,
+        );
     }
 }
 
@@ -2307,7 +2456,7 @@ mod tests {
                 },
             )]),
         };
-        CatalogMetadataExtension {
+        let mut extension = CatalogMetadataExtension {
             schema_version: DOMAIN_CATALOG_SCHEMA_VERSION,
             ruleset_id: plan.ruleset().id.clone(),
             ruleset_version: plan.ruleset().version,
@@ -2344,6 +2493,31 @@ mod tests {
                 ),
             ]),
             behavior_profiles,
+        };
+        let intent_selection = required_intent_orders(&extension, &plan.plan().domain)
+            .iter().map(test_order_declaration).collect();
+        extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
+            intent_selection,
+            field_writers: BTreeMap::new(),
+        });
+        extension
+    }
+
+    fn test_order_declaration(group: &RequiredBehaviorOrder) -> BehaviorOrderDeclaration {
+        BehaviorOrderDeclaration {
+            scope: group.scope,
+            actor_type: group.actor_type.clone(),
+            capabilities: group.capabilities.clone(),
+            arbitration: ArbitrationRule {
+                conflict_keys: vec![IntentKey::Actor],
+                resolution: ArbitrationResolution::SelectOrdered {
+                    sort_by: vec![IntentSortTerm {
+                        key: IntentKey::ActionId,
+                        direction: SortDirection::Ascending,
+                    }],
+                    max_accepted: 1,
+                },
+            },
         }
     }
 
@@ -2885,8 +3059,10 @@ mod tests {
     fn authored_cross_capability_orders_are_typed_and_semantically_bound() {
         let plan = verified_next_without_behavior();
         let mut extension = test_extension(&plan, "steady");
-        let baseline = catalog_semantics_digest(&extension).unwrap();
-        assert!(serde_json::to_value(&extension.behavior_profiles).unwrap().get("crossCapabilityOrder").is_none());
+        let mut absent_order = extension.clone();
+        absent_order.behavior_profiles.cross_capability_order = None;
+        let baseline = catalog_semantics_digest(&absent_order).unwrap();
+        assert!(serde_json::to_value(&absent_order.behavior_profiles).unwrap().get("crossCapabilityOrder").is_none());
         let declaration = BehaviorOrderDeclaration {
             scope: BehaviorScope::Hero, actor_type: TypeId::new("hero"),
             capabilities: [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect(),
@@ -2897,8 +3073,10 @@ mod tests {
                 },
             },
         };
+        let complete_intent_orders = required_intent_orders(&extension, &plan.plan().domain)
+            .iter().map(test_order_declaration).collect();
         extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
-            intent_selection: vec![declaration.clone()], field_writers: BTreeMap::new(),
+            intent_selection: complete_intent_orders, field_writers: BTreeMap::new(),
         });
         let issues_for = |extension: &CatalogMetadataExtension| {
             let mut issues = Vec::new();
@@ -2927,6 +3105,89 @@ mod tests {
             sort_by[0].direction = SortDirection::Descending;
         }
         assert_ne!(authored, catalog_semantics_digest(&extension).unwrap());
+    }
+
+    #[test]
+    fn behavior_order_completeness_rejects_missing_groups_and_respects_typed_boundaries() {
+        let plan = verified_next_without_behavior();
+        let mut extension = test_extension(&plan, "steady");
+        let required = required_intent_orders(&extension, &plan.plan().domain);
+        assert_eq!(required.len(), 1);
+        assert!(required[0].capabilities.len() > 2);
+
+        let mut missing_contract = extension.clone();
+        missing_contract.behavior_profiles.cross_capability_order = None;
+        let mut issues = Vec::new();
+        validate_behavior_orders(&missing_contract, &plan.plan().domain, &mut issues);
+        assert!(issues.iter().any(|issue| issue.path.ends_with("intentSelection")
+            && issue.message.contains("missing one complete actor-local order")));
+
+        let contract = extension.behavior_profiles.cross_capability_order.as_mut().unwrap();
+        contract.intent_selection[0].capabilities.remove(&CapabilityId::new("activate"));
+        issues.clear();
+        validate_behavior_orders(&extension, &plan.plan().domain, &mut issues);
+        assert!(issues.iter().any(|issue| issue.message.contains("missing one complete actor-local order")));
+
+        let mut domain = plan.plan().domain.clone();
+        let move_capability = domain.capabilities[&CapabilityId::new("move")].clone();
+        let activate_capability = domain.capabilities[&CapabilityId::new("activate")].clone();
+        domain.capabilities = BTreeMap::from([
+            (CapabilityId::new("move"), move_capability.clone()),
+            (CapabilityId::new("activate"), activate_capability.clone()),
+        ]);
+        domain.capabilities.get_mut(&CapabilityId::new("move")).unwrap().phases =
+            [PhaseId::new("first")].into_iter().collect();
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().phases =
+            [PhaseId::new("second")].into_iter().collect();
+        assert!(required_intent_orders(&extension, &domain).is_empty(),
+            "capabilities that cannot be active in the same phase do not need a shared order");
+
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().phases =
+            [PhaseId::new("first")].into_iter().collect();
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().arguments[0].value_type =
+            DomainType::Entity { entity_type: Some(TypeId::new("squad")) };
+        let mut scopes = extension.entity_scopes.clone();
+        scopes.insert(TypeId::new("squad"), EntityControlScope::Squad);
+        assert!(potential_conflict_groups(&domain, &scopes, domain.capabilities.keys().cloned(), |_, _| true).is_empty(),
+            "different authored actor types and scopes are separate order domains");
+
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().arguments[0].value_type =
+            DomainType::Entity { entity_type: Some(TypeId::new("hero")) };
+        let same_value = DomainType::Enum {
+            domain: SymbolDomainId::new("fixture.destination"),
+            values: [SymbolId::new("same")].into_iter().collect(),
+        };
+        domain.capabilities.get_mut(&CapabilityId::new("move")).unwrap().arguments[1].value_type = same_value.clone();
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().arguments[1].value_type = same_value;
+        let mut activate_metadata = extension.capabilities[&CapabilityId::new("move")].clone();
+        activate_metadata.behavior_override_arguments = BTreeMap::from([("navigation.destination".into(), 1)]);
+        extension.capabilities.insert(CapabilityId::new("activate"), activate_metadata);
+        let move_and_activate = RequiredBehaviorOrder {
+            scope: BehaviorScope::Hero,
+            actor_type: TypeId::new("hero"),
+            capabilities: [CapabilityId::new("move"), CapabilityId::new("activate")].into_iter().collect(),
+        };
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().intent_selection =
+            vec![test_order_declaration(&move_and_activate)];
+        assert!(required_field_writer_orders(&extension, &domain, "navigation.destination").is_empty(),
+            "equal singleton field values cannot collide");
+
+        domain.capabilities.get_mut(&CapabilityId::new("activate")).unwrap().arguments[1].value_type = DomainType::Enum {
+            domain: SymbolDomainId::new("fixture.destination"),
+            values: [SymbolId::new("different")].into_iter().collect(),
+        };
+        assert_eq!(required_field_writer_orders(&extension, &domain, "navigation.destination").len(), 1,
+            "different singleton values still require a declared writer order");
+        issues.clear();
+        validate_behavior_orders(&extension, &domain, &mut issues);
+        assert!(issues.iter().any(|issue| issue.path.ends_with("fieldWriters.navigation.destination")
+            && issue.message.contains("missing one complete actor-local order")));
+        extension.behavior_profiles.cross_capability_order.as_mut().unwrap().field_writers.insert(
+            "navigation.destination".into(), vec![test_order_declaration(&move_and_activate)],
+        );
+        issues.clear();
+        validate_behavior_orders(&extension, &domain, &mut issues);
+        assert!(issues.is_empty(), "a complete typed field-writer order validates");
     }
 
     #[test]
