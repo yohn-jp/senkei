@@ -76,3 +76,9 @@ All top-level Markdown documents are listed below, including runtime integration
 ## Remaining checkpoints
 
 Complete clause-level extraction and four-way counts; inspect fixed-Wave diffs; run changed-branch tests and real desktop/mobile browser actions; publish implementation PRs; review actual CI; integrate only verified dependency order; rerun acceptance on resulting main. Missing evidence remains NOT_CHECKED. Physical touch/IME/GPU, final art acceptance and balance cannot be inferred from headless browser tests.
+
+## Wave 1 implementation checkpoint
+
+Journey PR [#24](https://github.com/yohn-jp/senkei/pull/24), commit `d0b040c`: Campaign inspection preserves match mode and returns to Ready; saved equality includes Scenario. New Chromium regressions 4/4 at 390/1440 and existing Campaign picker checks 4/4 at 320/390/430/1440 pass; Vitest 174/174 and build/typecheck pass. Independent source review found no concrete defect. Full C09 restore-confirmation acceptance remains incomplete. CI is pending; PR is not merged.
+
+Coverage PR [#23](https://github.com/yohn-jp/senkei/pull/23) is an audit deliverable, not implementation completion. All main integration and post-main acceptance remain pending at this checkpoint.
