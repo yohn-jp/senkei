@@ -49,6 +49,8 @@
 
 SHA-256は上記22画像manifestの値。前回から変化した外観の判定は、対応する画像を組み合わせて行った。
 
+F01/R01それぞれの正面・斜め・背面・攻撃時・medium-closeの10枚は、manifestのSHAと一致する全解像度PNGを [`images/`](images/) に保持した。残り12枚は上記manifestのハッシュを維持し、独立レビュー当時のcapture worktreeにある。
+
 | 画像 | SHA-256 | 確認内容 |
 | --- | --- | --- |
 | `F01-front-idle.png` | `a88b4fe02ee86de66accb4b4831ac43d43c75224b77c4097899e65633e224cd5` | 正面胸甲、盾、旗、装備輪郭 |
