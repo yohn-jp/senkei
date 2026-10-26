@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
-import { reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
+import { reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay, validateNextExperimentReproduction } from "./experiment-restoration";
 
 const result: MatchResult = {
   match_id: "match-a",
@@ -62,6 +62,24 @@ async function responseWithDiagnostics(snapshot: SimulationSnapshot): Promise<Si
         program_digest: "attacker-program",
       },
       events: [], cu_by_side: { attacker: 1, defender: 0 }, final_memory_by_side: { attacker: {}, defender: {} },
+    },
+  };
+}
+
+async function responseForReproduction(snapshot: SimulationSnapshot, includeDiagnostics: boolean): Promise<SimulationResponse> {
+  const publicReplay = { ...replay, perspective: undefined };
+  if (!includeDiagnostics) return { outcome: { result, presentation_replay: publicReplay } };
+  const source = await responseWithDiagnostics(snapshot);
+  const diagnostics = source.restricted_diagnostics!;
+  return {
+    ...source,
+    outcome: { result, presentation_replay: publicReplay },
+    owner_replay: replay,
+    owner_replays: { attacker: replay },
+    restricted_diagnostics: {
+      ...diagnostics,
+      cu_by_side: { attacker: diagnostics.cu_by_side.attacker },
+      final_memory_by_side: { attacker: diagnostics.final_memory_by_side.attacker },
     },
   };
 }
@@ -158,6 +176,37 @@ describe("Next experiment diagnostics lineage", () => {
     const response = await responseWithDiagnostics(snapshot);
     const legacy = { ...response, restricted_diagnostics: { events: [], cu_by_side: {}, final_memory_by_side: {} } } as unknown as SimulationResponse;
     await expect(validateNextExperimentDiagnostics(legacy, snapshot)).rejects.toThrow(/no Run identity/);
+  });
+});
+
+describe("Next experiment reproduction comparison", () => {
+  it("accepts identical same-runtime result, public replay, and authorized projections", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const publicResponse = await responseForReproduction(snapshot, false);
+    await expect(validateNextExperimentReproduction(publicResponse, publicResponse, snapshot, false)).resolves.toBeUndefined();
+
+    const localResponse = await responseForReproduction(snapshot, true);
+    await expect(validateNextExperimentReproduction(localResponse, localResponse, snapshot, true)).resolves.toBeUndefined();
+  });
+
+  it("rejects a changed public replay frame or owner diagnostics after verifying each Run identity", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const publicResponse = await responseForReproduction(snapshot, false);
+    const changedReplay = { ...publicResponse.outcome.presentation_replay, frames: [{ tick: 1, events: [] }] };
+    await expect(validateNextExperimentReproduction(
+      publicResponse,
+      { ...publicResponse, outcome: { ...publicResponse.outcome, presentation_replay: changedReplay } },
+      snapshot,
+      false,
+    )).rejects.toThrow(/differs from the stored Run/);
+
+    const localResponse = await responseForReproduction(snapshot, true);
+    const changedDiagnostics = {
+      ...localResponse,
+      restricted_diagnostics: { ...localResponse.restricted_diagnostics!, events: [{ tick: 1, side: "attacker", diagnostic: "changed" }] },
+    } as unknown as SimulationResponse;
+    await expect(validateNextExperimentReproduction(localResponse, changedDiagnostics, snapshot, true))
+      .rejects.toThrow(/differs from the stored Run/);
   });
 });
 

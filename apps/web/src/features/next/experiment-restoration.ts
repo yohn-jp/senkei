@@ -142,3 +142,37 @@ export async function validateNextExperimentReplay(
     throw new Error("Replay result digest does not match the immutable Enbu result.");
   }
 }
+
+function reproductionResponseView(response: SimulationResponse): unknown {
+  return {
+    authorized_side: response.authorized_side,
+    result: response.outcome?.result,
+    presentation_replay: response.outcome?.presentation_replay,
+    owner_replay: response.owner_replay,
+    owner_replays: response.owner_replays,
+    restricted_diagnostics: response.restricted_diagnostics,
+  };
+}
+
+/** Confirms that a same-runtime replay reproduces the exact stored local response. */
+export async function validateNextExperimentReproduction(
+  actualResponse: SimulationResponse,
+  storedResponse: SimulationResponse,
+  snapshot: SimulationSnapshot,
+  includeDiagnostics: boolean,
+): Promise<void> {
+  for (const response of [actualResponse, storedResponse]) {
+    validateNextExperimentAuthorization(response, includeDiagnostics);
+    const result = response.outcome?.result;
+    const replay = response.outcome?.presentation_replay;
+    if (!result || !replay) {
+      throw new Error("Reproduction response is missing its authoritative result or public replay.");
+    }
+    await validateNextExperimentReplay(replay, result, snapshot.context.match_id);
+    if (includeDiagnostics) await validateNextExperimentDiagnostics(response, snapshot);
+  }
+
+  if (canonicalJson(reproductionResponseView(actualResponse)) !== canonicalJson(reproductionResponseView(storedResponse))) {
+    throw new Error("Reproduced Enbu result, replay, or authorized local projection differs from the stored Run.");
+  }
+}

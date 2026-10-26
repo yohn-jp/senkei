@@ -83,7 +83,6 @@ export interface LocalNextExperiment {
 /** Bounded store: at most the latest experiment and one prior comparison run. */
 export interface LocalNextExperimentStore {
   readonly format_version: 2;
-  readonly ruleset_digest: string;
   readonly experiments: readonly LocalNextExperiment[];
 }
 

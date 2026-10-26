@@ -1366,8 +1366,7 @@ export async function loadWorkspaceData(documentId: string): Promise<LocalSenkei
 }
 
 function assertNextExperimentStore(value: unknown): asserts value is LocalNextExperimentStore {
-  if (!isRecord(value) || value.format_version !== 2 || typeof value.ruleset_digest !== "string" || !/^[0-9a-f]{64}$/.test(value.ruleset_digest) ||
-      !Array.isArray(value.experiments) || value.experiments.length > 2) {
+  if (!isRecord(value) || value.format_version !== 2 || !Array.isArray(value.experiments) || value.experiments.length > 2) {
     throw new PersistenceError("invalid_data", "Next experiment store has an unsupported or malformed format.");
   }
   const seen = new Set<string>();

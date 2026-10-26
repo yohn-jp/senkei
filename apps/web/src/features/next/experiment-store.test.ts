@@ -139,23 +139,42 @@ describe("Next experiment store bounds", () => {
   it("accepts two individually bounded complete records when their aggregate exceeds the single-export node cap", () => {
     const first = experiment("latest", 2_050_000);
     const second = experiment("baseline", 2_050_000);
-    const store = { format_version: 2 as const, ruleset_digest: ruleset.digest, experiments: [first, second] };
+    const store = { format_version: 2 as const, experiments: [first, second] };
     expect(countJsonValues(first)).toBeLessThanOrEqual(4_000_000);
     expect(countJsonValues(second)).toBeLessThanOrEqual(4_000_000);
     expect(countJsonValues(store)).toBeGreaterThan(4_000_000);
     expect(parseNextExperimentStore(store).experiments).toHaveLength(2);
   }, resourceBoundaryTimeout);
 
+  it("keeps each Run bound to its own package so a pair can span package revisions", () => {
+    const latest = experiment("latest-package", 0);
+    const baseline = experiment("prior-package", 0);
+    const priorRuleset = { id: "senkei.next", version: { major: 1, minor: 9, patch: 0 }, digest: "f".repeat(64) };
+    const priorPackage = { ...baseline.reproduction_assets.rule_package, ruleset: priorRuleset };
+    const priorProgram = { ...program, ruleset: priorRuleset };
+    baseline.reproduction_assets = { ...baseline.reproduction_assets, rule_package: priorPackage } as ReproductionAssets;
+    baseline.snapshot = {
+      ...baseline.snapshot,
+      attacker: { ...baseline.snapshot.attacker, ruleset: priorRuleset, program: priorProgram },
+      defender: { ...baseline.snapshot.defender, ruleset: priorRuleset, program: priorProgram },
+      context: { ...baseline.snapshot.context, ruleset: priorRuleset },
+    };
+
+    const restored = parseNextExperimentStore({ format_version: 2, experiments: [latest, baseline] });
+    expect(restored.experiments.map((item) => item.reproduction_assets.rule_package.ruleset.digest))
+      .toEqual([ruleset.digest, priorRuleset.digest]);
+  });
+
   it("still rejects any one experiment that exceeds the 4M per-record cap", () => {
     const oversized = experiment("oversized", 4_000_010);
-    const store = { format_version: 2 as const, ruleset_digest: ruleset.digest, experiments: [oversized] };
+    const store = { format_version: 2 as const, experiments: [oversized] };
     expect(() => parseNextExperimentStore(store)).toThrow(/Next experiment 1 has too many JSON values/);
   }, resourceBoundaryTimeout);
 
   it("accepts two records each under 64 MiB when the pair exceeds the single-export byte cap", () => {
     const first = experimentWithBytes("latest", 34 * 1024 * 1024);
     const second = experimentWithBytes("baseline", 34 * 1024 * 1024);
-    const store = { format_version: 2 as const, ruleset_digest: ruleset.digest, experiments: [first, second] };
+    const store = { format_version: 2 as const, experiments: [first, second] };
     const firstBytes = new TextEncoder().encode(JSON.stringify(first)).byteLength;
     const secondBytes = new TextEncoder().encode(JSON.stringify(second)).byteLength;
     const storeBytes = new TextEncoder().encode(JSON.stringify(store)).byteLength;
@@ -171,7 +190,7 @@ describe("Next experiment store bounds", () => {
 
   it("rejects a single record over the 64 MiB per-experiment byte cap", () => {
     const oversized = experimentWithBytes("oversized", 65 * 1024 * 1024);
-    const store = { format_version: 2 as const, ruleset_digest: ruleset.digest, experiments: [oversized] };
+    const store = { format_version: 2 as const, experiments: [oversized] };
     expect(() => parseNextExperimentStore(store)).toThrow(/exceeds the 64 MiB per-experiment limit/);
   }, resourceBoundaryTimeout);
 
@@ -211,7 +230,6 @@ describe("Next experiment store bounds", () => {
       let current = true;
       const replacement = {
         format_version: 2 as const,
-        ruleset_digest: ruleset.digest,
         experiments: [experiment("replacement", 0)],
       } as unknown as LocalNextExperimentStore;
       const pending = saveNextExperimentStore(replacement, () => {
@@ -230,7 +248,7 @@ describe("Next experiment store bounds", () => {
   it("round-trips the retained package, authored World bytes, and complete input digest", () => {
     const record = experiment("exact", 0);
     record.snapshot_digest = "f".repeat(64);
-    const store = { format_version: 2 as const, ruleset_digest: ruleset.digest, experiments: [record] };
+    const store = { format_version: 2 as const, experiments: [record] };
     const serialized = serializeNextExperimentStore(store as unknown as LocalNextExperimentStore);
     const restored = parseNextExperimentStore(JSON.parse(serialized));
     expect(restored.experiments[0]?.reproduction_assets).toEqual(record.reproduction_assets);
