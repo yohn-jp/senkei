@@ -1,8 +1,8 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-tower-pressure",
-  "request_sha256": "3501cf218b59c90c09dbdc3669e66831dd01c40f7cd8d840b870ae8cb8aeacbf",
-  "response_sha256": "073bbb3583f81d70c6a0c862de2e1affcfc06c4b10ab4df23166e13110c6f790",
+  "request_sha256": "0b3dbcc290b182305cc7f73da0cebe3a42e604b84247186293b622879a26189d",
+  "response_sha256": "c6a851fbf91c32c4e915bcfbf2d7e9551fac5e443da0fbe599baa8aa5e863bc0",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
