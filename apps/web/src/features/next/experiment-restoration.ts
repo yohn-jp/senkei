@@ -78,6 +78,15 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** SHA-256 of the complete input tuple, encoded like serde_json::Value. */
+export async function reproductionSnapshotDigest(snapshot: SimulationSnapshot): Promise<string> {
+  return sha256Hex(canonicalJson({
+    attacker: snapshot.attacker,
+    context: snapshot.context,
+    defender: snapshot.defender,
+  }));
+}
+
 /** Binds imported owner diagnostics to the exact Run, public result and authorized Program. */
 export async function validateNextExperimentDiagnostics(
   response: SimulationResponse,
@@ -108,8 +117,7 @@ export async function validateNextExperimentDiagnostics(
   if (typeof programDigest !== "string" || identity.program_digest !== programDigest) {
     throw new Error("Stored diagnostics Program digest does not match the authorized Run Program.");
   }
-  const snapshotValue = { attacker: snapshot.attacker, context: snapshot.context, defender: snapshot.defender };
-  const actualSnapshotDigest = await sha256Hex(canonicalJson(snapshotValue));
+  const actualSnapshotDigest = await reproductionSnapshotDigest(snapshot);
   if (identity.snapshot_digest !== actualSnapshotDigest) {
     throw new Error("Stored diagnostics snapshot digest does not match the complete immutable Run input.");
   }

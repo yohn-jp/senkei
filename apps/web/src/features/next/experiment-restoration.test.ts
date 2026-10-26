@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
-import { validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
+import { reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
 
 const result: MatchResult = {
   match_id: "match-a",
@@ -106,6 +106,25 @@ describe("Next experiment replay restoration identity", () => {
 });
 
 describe("Next experiment diagnostics lineage", () => {
+  it("uses the Rust serde_json canonical snapshot digest, including Unicode scalar key ordering", async () => {
+    const snapshot = diagnosticsSnapshot();
+    const digest = await reproductionSnapshotDigest(snapshot);
+    const independentlyCanonicalized = await sha256(canonicalForTest({
+      attacker: snapshot.attacker,
+      context: snapshot.context,
+      defender: snapshot.defender,
+    }));
+    expect(digest).toBe(independentlyCanonicalized);
+    expect(digest).toBe((await responseWithDiagnostics(snapshot)).restricted_diagnostics?.identity.snapshot_digest);
+
+    const reordered = {
+      defender: snapshot.defender,
+      context: snapshot.context,
+      attacker: { "\u{10000}": "supplementary-key", program: { content_digest: "attacker-program" }, configuration: { "10": "ten", "2": "two" }, "\uE000": "bmp-key" },
+    } as unknown as SimulationSnapshot;
+    expect(await reproductionSnapshotDigest(reordered)).toBe(digest);
+  });
+
   it("accepts the exact authorized Run using serde-compatible Unicode scalar key order", async () => {
     const snapshot = diagnosticsSnapshot();
     const response = await responseWithDiagnostics(snapshot);
