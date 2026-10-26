@@ -196,6 +196,12 @@ export interface CoreClient {
   compile(input: TacticalInput): Promise<CompileOutcome>;
   /** Validate the exact Enbu launch snapshot without executing any match ticks. */
   preflight(snapshot: SimulationSnapshot): Promise<void>;
+  /** Validate a retained package, World, and snapshot without executing match ticks. */
+  preflightReproduction(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
+  ): Promise<void>;
   simulate(
     snapshot: SimulationSnapshot,
     options?: SimulationRequestOptions,

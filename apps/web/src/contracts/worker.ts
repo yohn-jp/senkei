@@ -71,6 +71,14 @@ export type WebWorkerRequest =
       } & SimulationRequestPayload;
     })
   | (WorkerRequestBase & {
+      readonly operation: "preflight_reproduction";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot: SimulationSnapshot;
+        readonly snapshot_digest: ContentDigest;
+      };
+    })
+  | (WorkerRequestBase & {
       readonly operation: "preflight";
       readonly payload: { readonly snapshot: SimulationSnapshot };
     })
@@ -135,6 +143,11 @@ export type WebWorkerResponse =
       readonly operation: "reproduce";
       readonly ok: true;
       readonly result: SimulationResponse;
+    })
+  | (WorkerResponseBase & {
+      readonly operation: "preflight_reproduction";
+      readonly ok: true;
+      readonly result: null;
     })
   | (WorkerResponseBase & {
       readonly operation: "preflight";
@@ -210,6 +223,14 @@ export type WebCoreApiEnvelope =
         readonly snapshot_digest: ContentDigest;
         readonly snapshot: SimulationSnapshot;
       } & SimulationRequestPayload;
+    })
+  | (WebCoreApiRequestBase & {
+      readonly operation: "preflight_reproduction";
+      readonly payload: {
+        readonly assets: ReproductionAssets;
+        readonly snapshot_digest: ContentDigest;
+        readonly snapshot: SimulationSnapshot;
+      };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "preflight";

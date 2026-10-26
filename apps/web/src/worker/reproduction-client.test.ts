@@ -21,6 +21,8 @@ class RecordingWorker {
     this.requests.push(request);
     const result = request.operation === "next_reproduction_assets"
       ? assets
+      : request.operation === "preflight_reproduction"
+        ? null
       : response;
     queueMicrotask(() => this.listeners.get("message")?.({
       data: {
@@ -84,6 +86,23 @@ describe("reproduction Core client transport", () => {
         diagnostics_side: "attacker",
       },
     });
+    client.dispose();
+  });
+
+  it("validates retained inputs through preflight_reproduction without requesting simulation", async () => {
+    const worker = new RecordingWorker();
+    const client = new WorkerCoreClient({ worker: worker as unknown as Worker });
+
+    await expect(client.preflightReproduction(snapshot, assets, "b".repeat(64))).resolves.toBeUndefined();
+    expect(worker.requests[0]).toMatchObject({
+      operation: "preflight_reproduction",
+      payload: {
+        assets,
+        snapshot,
+        snapshot_digest: "b".repeat(64),
+      },
+    });
+    expect(worker.requests.some(({ operation }) => operation === "simulate" || operation === "reproduce")).toBe(false);
     client.dispose();
   });
 

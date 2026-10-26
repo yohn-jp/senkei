@@ -22,6 +22,7 @@ type RequestOperation =
   | "preflight"
   | "simulate"
   | "reproduce"
+  | "preflight_reproduction"
   | "benchmark";
 
 interface WorkerRequest {
@@ -140,6 +141,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "preflight" &&
     operation !== "simulate" &&
     operation !== "reproduce" &&
+    operation !== "preflight_reproduction" &&
     operation !== "benchmark"
   ) {
     throw new RequestFailure("invalid_request", "Worker operation is unknown.");
@@ -234,6 +236,21 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       validateSnapshot(payload.snapshot, "reproduce.snapshot");
       return;
     }
+    case "preflight_reproduction": {
+      const assets = requireRecord(payload.assets, "preflight_reproduction.assets");
+      if (assets.format_version !== 1) {
+        throw new RequestFailure("invalid_request", "preflight_reproduction.assets.format_version is unsupported.");
+      }
+      requireRecord(assets.rule_package, "preflight_reproduction.assets.rule_package");
+      requireRecord(assets.world_definition, "preflight_reproduction.assets.world_definition");
+      requireRecord(payload.snapshot, "preflight_reproduction.snapshot");
+      const snapshotDigest = requireString(payload.snapshot_digest, "preflight_reproduction.snapshot_digest");
+      if (!/^[0-9a-f]{64}$/.test(snapshotDigest)) {
+        throw new RequestFailure("invalid_request", "preflight_reproduction.snapshot_digest must be a lowercase SHA-256 digest.");
+      }
+      validateSnapshot(payload.snapshot, "preflight_reproduction.snapshot");
+      return;
+    }
     case "preflight":
       requireRecord(payload.snapshot, "preflight.snapshot");
       validateSnapshot(payload.snapshot, "preflight.snapshot");
@@ -307,6 +324,17 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
       return runSimulation(request.payload, request.request_id);
     case "reproduce":
       return runReproduction(request.payload, request.request_id);
+    case "preflight_reproduction": {
+      const coreResult = await callCore("preflight_reproduction", {
+        assets: request.payload.assets,
+        snapshot: request.payload.snapshot,
+        snapshot_digest: request.payload.snapshot_digest,
+      }, request.request_id);
+      if (coreResult !== null) {
+        throw new RequestFailure("core_error", "The reproduction preflight core operation must return null.");
+      }
+      return null;
+    }
     case "preflight": {
       const snapshot = requireRecord(request.payload.snapshot, "preflight.snapshot");
       return callCore("preflight", {

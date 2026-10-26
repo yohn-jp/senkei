@@ -14,7 +14,7 @@ import type {
   WorkerFailureCode,
   RulesetRef,
 } from "../contracts/core";
-import type { MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
+import type { ContentDigest, MatchContext, RulePackage, StructuredTacticsAst } from "../contracts/core-model";
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
@@ -118,6 +118,21 @@ export class WorkerCoreClient implements CoreClient {
 
   preflight(snapshot: SimulationSnapshot): Promise<void> {
     return this.request("preflight", { snapshot }) as Promise<void>;
+  }
+
+  preflightReproduction(
+    snapshot: SimulationSnapshot,
+    assets: ReproductionAssets,
+    snapshot_digest: ContentDigest,
+  ): Promise<void> {
+    return this.request("preflight_reproduction", { assets, snapshot, snapshot_digest }).then((result) => {
+      if (result !== null) {
+        throw new CoreClientError({
+          code: "core_error",
+          message: "The reproduction preflight worker operation must return null.",
+        });
+      }
+    });
   }
 
   simulate(
