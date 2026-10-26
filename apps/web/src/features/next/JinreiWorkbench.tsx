@@ -9,6 +9,9 @@ import "./jinrei-workbench.css";
 import { compilerTextOffset } from "./compiler-location";
 import type { AnalysisSourceContext } from "./tactical-context";
 import { textareaSourceSelection } from "./tactical-context";
+import { repairSourceCursor } from "./repair-focus";
+import type { JinreiRepairFocusRequest } from "./repair-focus";
+export type { JinreiRepairFocusRequest } from "./repair-focus";
 
 export interface JinreiWorkbenchSlot {
   readonly slot_id: string;
@@ -23,8 +26,9 @@ type WorkbenchView = "no-code" | "text" | "catalog";
 type BehaviorScope = "hero" | "squad" | "army";
 
 export interface JinreiWorkbenchProps {
-  /** True only while S08 is the visible workspace screen. */
+  /** True while the Jinrei workspace (Workbench or Coverage) is visible. */
   readonly active?: boolean;
+  readonly repairFocus?: JinreiRepairFocusRequest | null;
   readonly analysisSource?: AnalysisSourceContext | null;
   readonly onReturnToAnalysis?: () => void;
   readonly core: CoreClient | null;
@@ -65,6 +69,7 @@ function diagnosticPath(message: string): string | null {
 
 export function JinreiWorkbench({
   active = false,
+  repairFocus,
   analysisSource,
   onReturnToAnalysis,
   core,
@@ -101,6 +106,45 @@ export function JinreiWorkbench({
   const activeHero = slots[activeSlot] ?? null;
   const parsedText = useRef<{ source: string; ast: string; rulesetDigest: string } | null>(null);
   const editorHost = useRef<HTMLDivElement>(null);
+  const repairStatusRef = useRef<HTMLElement>(null), compilerDiagnosticsRef = useRef<HTMLElement>(null);
+  const [repairStatus, setRepairStatus] = useState<string | null>(null);
+  const consumedRepair = useRef<string | null>(null);
+  const pendingRepair = useRef<{ request: JinreiRepairFocusRequest; source: string | null; key: string | null; resolved: ReturnType<typeof repairSourceCursor> } | null>(null);
+  const rawSource = draft?.program_input.kind === "text" ? draft.program_input.source : null;
+  const latestRepair = useRef({ active, repairFocus, rawSource, draftKey });
+  latestRepair.current = { active, repairFocus, rawSource, draftKey };
+  useEffect(() => {
+    if (!active) { pendingRepair.current = null; return; }
+    if (!repairFocus || consumedRepair.current === repairFocus.requestId) return;
+    consumedRepair.current = repairFocus.requestId;
+    const resolved = repairSourceCursor(rawSource, repairFocus);
+    setRepairStatus(resolved.reason);
+    if (resolved.stale) { pendingRepair.current = null; return; }
+    pendingRepair.current = { request: repairFocus, source: rawSource, key: draftKey, resolved };
+    firstVisitStarted.current = true;
+    onScreenChange("workbench"); setWorkbenchView(rawSource === null ? "no-code" : "text");
+  }, [active, repairFocus?.requestId]);
+  useEffect(() => {
+    const pending = pendingRepair.current;
+    if (!active || !pending || repairFocus?.requestId !== pending.request.requestId || repairStatus !== pending.resolved.reason) return;
+    if (rawSource !== pending.source || draftKey !== pending.key) { pendingRepair.current = null; return; }
+    if (screen !== "workbench" || workbenchView !== (rawSource === null ? "no-code" : "text")) return;
+    let second = 0;
+    const frame = requestAnimationFrame(() => { second = requestAnimationFrame(() => {
+      const latest = latestRepair.current;
+      if (!latest.active || latest.repairFocus?.requestId !== pending.request.requestId || latest.rawSource !== pending.source || latest.draftKey !== pending.key) return;
+      const editor = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
+      const cursor = pending.resolved.cursor;
+      pendingRepair.current = null;
+      if (cursor && editor?.getClientRects().length && editor.value === cursor.source) {
+        editor.focus(); editor.setSelectionRange(cursor.start, cursor.end); editor.scrollIntoView({ block: "center" });
+      } else {
+        const diagnostics = compilerDiagnosticsRef.current ?? repairStatusRef.current;
+        if (diagnostics?.getClientRects().length) { diagnostics.focus(); diagnostics.scrollIntoView({ block: "center" }); }
+      }
+    }); });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(second); if (pendingRepair.current === pending) pendingRepair.current = null; };
+  }, [active, repairFocus?.requestId, screen, workbenchView, rawSource, draftKey, repairStatus]);
   const [completions, setCompletions] = useState<CompletionItem[]>([]);
   const completionActor = catalog ? actorSelection(coverageScope, activeHero ? {
     slotId: activeHero.slot_id, squadId: activeHero.squad, heroCatalogId: activeHero.catalog_id,
@@ -197,7 +241,7 @@ export function JinreiWorkbench({
   };
 
   useEffect(() => {
-    if (!active || !ruleset || !core || !draft || firstVisitStarted.current || analysisSource) return;
+    if (!active || !ruleset || !core || !draft || firstVisitStarted.current || analysisSource || repairFocus) return;
     firstVisitStarted.current = true;
     if (draft.program_input.kind === "structured_ast") {
       setWorkbenchView("no-code");
@@ -278,6 +322,7 @@ export function JinreiWorkbench({
         <div className={`next-jinrei-compile-badge${compilation ? " is-current" : ""}`} aria-live="polite"><span>{compilation ? "✓" : "◌"}</span><strong className={`next-compile-state${compilation ? " is-ready" : ""}`}>{compileState}</strong><small>{compileStateDetail}</small></div>
       </header>
 
+      {repairStatus && <section ref={repairStatusRef} tabIndex={-1} role="status" aria-label="Jinrei repair focus"><p>{repairStatus}</p></section>}
       {analysisSource && <section aria-label="Analysis source context" className="next-jinrei-source-context">
         <strong>Original Run {analysisSource.context.matchId} · Tick {analysisSource.context.trace?.tick ?? analysisSource.context.tick} · Action {analysisSource.actionId}</strong>
         <p>Original Program <code>{analysisSource.programDigest}</code>. {sourceMatches ? "Exact source correspondence from verified parser locations." : "Current Draft differs or has no matching compiled Program. Precise editor jump is disabled; your Draft is preserved."}</p>
@@ -331,7 +376,7 @@ export function JinreiWorkbench({
             {completions.map(item => <button key={`${item.kind}:${item.insertText}`} type="button" role="option" onMouseDown={event => event.preventDefault()} onClick={() => applyCompletion(item)}><code>{item.insertText}</code><span>{item.kind} · {item.detail}</span></button>)}
           </div>}
           {compileError && <section className="next-jinrei-diagnostic-alert" role="alert"><div><strong>Compile needs attention</strong><p>{compileError}</p></div><button onClick={() => void openDiagnostic(diagnosticPath(compileError))} type="button">Open Jinrei editor ↗</button></section>}
-          {diagnosticRows.length > 0 && <section className="next-jinrei-diagnostic-card" aria-label="Jinrei compiler diagnostics">
+          {diagnosticRows.length > 0 && <section ref={compilerDiagnosticsRef} tabIndex={-1} className="next-jinrei-diagnostic-card" aria-label="Jinrei compiler diagnostics">
             <header><div><span className="next-eyebrow">CURRENT COMPILE</span><strong>{compilation?.estimated_cu.toLocaleString()} CU · {diagnosticRows.length} diagnostic{diagnosticRows.length === 1 ? "" : "s"}</strong></div></header>
             <ul>{diagnosticRows.map((diagnostic, index) => <li key={`${diagnostic.path ?? diagnostic.code}-${index}`}>
               <div><strong>{diagnostic.code}</strong><span>{diagnostic.message}</span>{diagnostic.path && <code>{diagnostic.path}</code>}</div>
