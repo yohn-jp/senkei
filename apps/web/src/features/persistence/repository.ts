@@ -1349,8 +1349,8 @@ export function assertNextExperimentImportSize(byteLength: number): void {
   }
 }
 
-/** Reads the two latest immutable Next Enbu experiments from the local workspace database. */
-export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
+/** Reads bounded JSON without requiring a current schema or simulation runtime, so preserved data can be exported. */
+export async function loadNextExperimentPayload(): Promise<CoreJsonValue | null> {
   return withTransaction(NEXT_EXPERIMENT_STORE, "readonly", (transaction, setResult) => {
     const request = transaction.objectStore(NEXT_EXPERIMENT_STORE).get("latest");
     request.onsuccess = () => {
@@ -1359,10 +1359,16 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
         setResult(null);
         return;
       }
-      const copy = parseNextExperimentStore(record.payload);
+      const copy = cloneJson(record.payload, "Preserved Next experiments", NEXT_EXPERIMENT_STORE_MAX_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES) as CoreJsonValue;
       setResult(copy);
     };
   }, "Could not restore Next experiments");
+}
+
+/** Reads the two latest immutable Next Enbu experiments using the current storage schema. */
+export async function loadNextExperimentStore(): Promise<LocalNextExperimentStore | null> {
+  const payload = await loadNextExperimentPayload();
+  return payload === null ? null : parseNextExperimentStore(payload);
 }
 
 /** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
