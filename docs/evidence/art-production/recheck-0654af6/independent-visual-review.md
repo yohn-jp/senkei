@@ -9,9 +9,8 @@
 - Build HEAD / capture source HEAD: `0654af6294b5838bf53839be5dd3b28844b03d02`
 - clean worktreeのsource file: `packages/renderer/src/battlefield-units.ts` blob `25f4e4f1237a204b2ca589e0505f23aed4f9f5fd`
 - capture tool: `tools/art/capture-lab.mjs` blob `a3d01d65bd7caeb64b313f8231ea18417d993174`
-- raw runtime capture manifest: `/home/sophia/src/senkei-art-fix/test-results/art-production/lab/head-0654af6/manifest.json`、SHA-256 `5ce614e1cfbd9aa7163bd28867e86fe9747589d48fe9382317a9ba083269662a`、20 captures。
-- reviewed manifest: `/home/sophia/src/senkei-art-fix/docs/evidence/art-production/recheck-0654af6/manifest.json`、SHA-256 `88dd67deb1588732f62a1381c23f3d6768f37c69baa4894d3b760cbc8eedd734`。`sourceRevision=0654af6...`、`dirtyWorktree=""`、Chromium `156.0.8078.47`、`Chromium/SwiftShader software GPU`、22画像、page/runtime errorsなし。これはraw captureの20枚にF01/R01のmedium-closeを加えたcurated manifest。
-- full-resolution PNG: `/home/sophia/src/senkei-art-fix/test-results/art-production/lab/head-0654af6/`。reviewed manifestにある22枚すべてを個別に確認した。
+- capture manifest: `/home/sophia/src/senkei-art-fix/test-results/art-production/lab/head-0654af6/manifest.json` と reviewed copy `/home/sophia/src/senkei-art-fix/docs/evidence/art-production/recheck-0654af6/manifest.json`。いずれも現在SHA-256 `88dd67deb1588732f62a1381c23f3d6768f37c69baa4894d3b760cbc8eedd734`、`sourceRevision=0654af6...`、`dirtyWorktree=""`、Chromium `156.0.8078.47`、`Chromium/SwiftShader software GPU`、22画像、page/runtime errorsなし。raw capture時に20枚だったmanifestへF01/R01のmedium-closeを追記した保存状態。
+- full-resolution PNG: `/home/sophia/src/senkei-art-fix/test-results/art-production/lab/head-0654af6/`。manifestにある22枚すべてを個別に確認した。
 - このmanifestは `captureKind=production-preview-isolated-lab-NOT-app-integration` と記録する。撮影は実Battlefield統合やユーザー向け画面の受入ではない。
 - 比較した前回記録: [`d5cfd807` 独立レビュー](../recheck-d5cfd807/independent-visual-review.md)。
 - 採点基準は前回レビューと同じ `origin/main` の `LOCAL-CODEX-GOAL.md`（HEAD `224332e70b26dd9e4f31c64dbad21631c6990158`、文書blob `7b6d8f571b3c060d30091768d4ed2ae45102cc46`）。Identity 30%、Silhouette/Proportion 25%、Geometry/Material 20%、Animation 15%、Tactical Readability 10%。各Heroの加重平均は4.0以上、全軸3.5以上が必要。
