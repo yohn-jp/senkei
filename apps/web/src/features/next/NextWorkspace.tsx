@@ -10,7 +10,7 @@ import type { BattleAnalysisContext, AnalysisSourceContext } from "./tactical-co
 import type { ActionSourceMap, DiagnosticEvent } from "../../contracts";
 import { validateNextExperimentAuthorization, validateNextExperimentReplay } from "./experiment-restoration";
 import { matchesPresentedEntity } from "./battle-entity-identity";
-import { loadNextExperimentPayload, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore } from "../persistence/repository";
+import { loadNextExperimentPayload, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore, PersistenceError } from "../persistence/repository";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { Battlefield as BattlefieldRenderer, BattlefieldInformationLayers } from "@senkei/renderer";
@@ -805,6 +805,8 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setExperimentMismatch(null);
     setExperimentError(null);
     setExperimentStorageLoaded(false);
+    setExperimentStore(null);
+    setExperimentPreservedRaw(null);
     void (async () => {
       try {
         // Reading/exporting completed records does not require the simulation runtime.
@@ -2061,6 +2063,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     })}
     experimentsLoaded={experimentStorageLoaded}
     canExportExperiments={experimentPreservedRaw !== null || Boolean(experimentStore?.experiments.length)}
+    hasPreservedExperiments={experimentPreservedRaw !== null}
     experimentsCompatible={Boolean(core && packageValue && experimentLoadedDigest === packageValue.ruleset.digest && !experimentMismatch)}
     experimentError={experimentError} experimentMismatch={experimentMismatch}
     onOpenExperiments={() => {
@@ -2086,7 +2089,9 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const restored = await prepareNextExperimentStore(imported, runtime.packageValue, runtime.core);
       await enqueueExperimentWrite(async () => {
         if (!current()) throw new Error("The runtime or completed Runs changed during import. Existing experiments were preserved; review the file again.");
-        await saveNextExperimentStore(imported);
+        await saveNextExperimentStore(imported, () => {
+          if (!current()) throw new PersistenceError("conflict", "The runtime or completed Runs changed during import. Existing experiments were preserved; review the file again.");
+        });
       });
       if (!current()) return;
       experimentPersistGeneration.current += 1;

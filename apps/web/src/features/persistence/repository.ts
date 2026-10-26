@@ -1372,9 +1372,10 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
 }
 
 /** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
-export async function saveNextExperimentStore(value: LocalNextExperimentStore): Promise<void> {
+export async function saveNextExperimentStore(value: LocalNextExperimentStore, beforePut?: () => void): Promise<void> {
   const copied = parseNextExperimentStore(value);
   await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
+    beforePut?.();
     transaction.objectStore(NEXT_EXPERIMENT_STORE).put({ id: "latest", payload: copied });
     setResult(undefined);
   }, "Could not save Next experiments");

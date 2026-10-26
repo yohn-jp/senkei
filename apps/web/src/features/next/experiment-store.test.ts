@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { LocalNextExperimentStore } from "../../contracts";
-import { NEXT_EXPERIMENT_STORE_MAX_BYTES, assertNextExperimentImportSize, parseNextExperimentStore, serializeNextExperimentStore } from "../persistence/repository";
+import { NEXT_EXPERIMENT_STORE_MAX_BYTES, PersistenceError, assertNextExperimentImportSize, parseNextExperimentStore, saveNextExperimentStore, serializeNextExperimentStore } from "../persistence/repository";
 
 function countJsonValues(value: unknown): number {
   if (Array.isArray(value)) return 1 + value.reduce((sum, item) => sum + countJsonValues(item), 0);
@@ -82,5 +82,51 @@ describe("Next experiment store bounds", () => {
   it("rejects a portable file above the paired-store byte budget before reading it", () => {
     expect(() => assertNextExperimentImportSize(NEXT_EXPERIMENT_STORE_MAX_BYTES + 1)).toThrow(/128 MiB paired-store limit/);
     expect(() => assertNextExperimentImportSize(NEXT_EXPERIMENT_STORE_MAX_BYTES)).not.toThrow();
+  });
+
+  it("rechecks an import generation after IndexedDB opens and before replacing saved records", async () => {
+    const original = { id: "latest", payload: { sentinel: "existing" } };
+    const records = new Map<string, { id: string; payload: unknown }>([["latest", original]]);
+    const stores = new Set<string>();
+    let puts = 0;
+    const transaction = {
+      oncomplete: null as null | (() => void),
+      onerror: null as null | (() => void),
+      onabort: null as null | (() => void),
+      objectStore: () => ({ put: (record: { id: string; payload: unknown }) => { puts += 1; records.set(record.id, record); } }),
+      abort() { queueMicrotask(() => this.onabort?.()); },
+    };
+    const database = {
+      objectStoreNames: { contains: (name: string) => stores.has(name) },
+      createObjectStore(name: string) { stores.add(name); return { createIndex() {} }; },
+      transaction: () => transaction,
+      close() {},
+      onversionchange: null as null | (() => void),
+    };
+    const request: { result: typeof database; onupgradeneeded?: () => void; onsuccess?: () => void } = { result: database };
+    vi.stubGlobal("indexedDB", {
+      open: () => {
+        queueMicrotask(() => { request.onupgradeneeded?.(); request.onsuccess?.(); });
+        return request;
+      },
+    });
+
+    try {
+      let current = true;
+      const replacement = {
+        format_version: 1 as const,
+        ruleset_digest: "ruleset-digest",
+        experiments: [experiment("replacement", 0)],
+      } as unknown as LocalNextExperimentStore;
+      const pending = saveNextExperimentStore(replacement, () => {
+        if (!current) throw new PersistenceError("conflict", "The current import generation changed.");
+      });
+      current = false;
+      await expect(pending).rejects.toMatchObject({ code: "conflict" });
+      expect(puts).toBe(0);
+      expect(records.get("latest")).toBe(original);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -163,4 +163,12 @@ test("unrecognized saved schema remains exportable while Core is unavailable", a
   expect(downloaded.format_version).toBe(99);
   expect(downloaded.experiments[0].id).toBe(before.ids[0]);
   expect(await storedIdentity(page)).toEqual(before);
+  const clear = page.getByRole("button", { name: /Clear experiments/ });
+  await expect(clear).toBeEnabled();
+  await clear.click();
+  const confirmation = page.getByRole("alertdialog", { name: "Confirm Library change" });
+  await expect(confirmation).toContainText("preserved raw experiment payload");
+  await confirmation.getByRole("button", { name: "Confirm clear", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Export experiments", exact: true })).toBeDisabled();
+  expect((await storedIdentity(page)).ids).toBeUndefined();
 });
