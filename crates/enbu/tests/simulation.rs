@@ -193,7 +193,8 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         world_identity: None,
         versions: ComponentVersions {
             model: v(), engine: ENGINE_VERSION, ruleset: v(),
-            jinrei_language: v(), structured_ast: v(), typed_ir: v(), bytecode: v(), cost_schedule: v(), replay_schema: v(),
+            jinrei_language: v(), structured_ast: v(), typed_ir: v(), bytecode: v(), cost_schedule: v(),
+            replay_schema: enbu::new_match_context(&verified, id("simulation-context-template")).versions.replay_schema,
         },
         initial_world: WorldState {
             entities: BTreeMap::from([
