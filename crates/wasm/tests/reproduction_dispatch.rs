@@ -217,7 +217,7 @@ fn reproduction_rejects_unsupported_world_compiler_and_missing_catalog_extension
     let mut package: RulePackage = serde_json::from_value(valid["assets"]["rule_package"].clone()).unwrap();
     package.catalog_semantics_digest = Some(ContentDigest::new("c".repeat(64)));
     package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
-    let mut extension = valid;
+    let mut extension = valid.clone();
     extension["assets"]["rule_package"] = serde_json::to_value(package).unwrap();
     let rejected = dispatch("reproduce", extension);
     assert_eq!(rejected["ok"], false);
