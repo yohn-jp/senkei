@@ -33,7 +33,8 @@ async function prepare(page: Page, final: boolean) {
   await page.getByRole("button", { name: "Heroを変更", exact: true }).click();
   if (!final) {
     // Exercise an authored legal roster and explicit persistent movement.
-    // This exact current browser setup was measured to reach the time-limit Draw.
+    // The same five-Hero roster in one Squad wins, while five Solo squads
+    // with the unchanged opponent and 600-tick Core produce a natural Draw.
     for (const [index, id] of ["F02", "F04", "R01", "R03", "R05"].entries()) {
       await page.getByRole("button", { name: `Choose hero for slot ${index + 1}`, exact: true }).click();
       await page.locator(".next-catalog-card").filter({ has: page.locator(".ha-hero-id", { hasText: new RegExp(`^${id}import { expect, test, type Page } from "@playwright/test";
@@ -71,15 +72,16 @@ async function prepare(page: Page, final: boolean) {
   await page.getByRole("button", { name: "Heroを変更", exact: true }).click();
   if (!final) {
     // Exercise an authored legal roster and explicit persistent movement.
-    // This exact current browser setup was measured to reach the time-limit Draw.
+    // The same five-Hero roster in one Squad wins, while five Solo squads
+    // with the unchanged opponent and 600-tick Core produce a natural Draw.
+    for (const [index, id] of ["F02", "F04", "R01", "R03", "R05"].entries()) {
+      await page.getByRole("button", { name: `Choose hero for slot ${index + 1}`, exact: true }).click();
 ) }) }).click();
     }
-    // The previously selected five-Solo setup now wins. Explicitly exercise
-    // the measured time-limited quintet instead; retain the actual Enbu Draw
-    // and the strict "no campaign clear" assertions below.
     await page.getByRole("tab", { name: "Squad Assembly" }).click();
-    await page.getByRole("button", { name: "Use squad split 5", exact: true }).click();
-    await page.locator('select[data-repair-field="node"][data-repair-squad-id="squad-1"]').selectOption("A.BASE");
+    const soloPattern = page.getByRole("button", { name: "Use squad split 1+1+1+1+1", exact: true });
+    await soloPattern.click();
+    await expect(soloPattern).toHaveAttribute("aria-pressed", "true");
   } else {
     // This is an explicit legal player deployment through the current UI, not
     // a changed opponent, map, victory condition, or difficulty definition.
