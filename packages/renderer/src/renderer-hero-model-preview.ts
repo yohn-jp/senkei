@@ -47,6 +47,29 @@ function materialProfile(root: THREE.Object3D): string {
   return JSON.stringify([...counts].sort(([left], [right]) => left.localeCompare(right)).map(([profile, slots]) => ({ profile, slots })));
 }
 
+function surfaceResponseProfile(root: THREE.Object3D): string {
+  const meshes: Array<{ mesh: string; vertexCount: number; itemSize: number; uniqueVectors: Array<{ vector: number[]; vertexCount: number }> }> = [];
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const attribute = object.geometry.getAttribute("senkeiSurfaceResponse");
+    if (!attribute) return;
+    const counts = new Map<string, number>();
+    for (let index = 0; index < attribute.count; index++) {
+      const vector = Array.from({ length: attribute.itemSize }, (_, component) =>
+        Number(attribute.array[index * attribute.itemSize + component]!.toFixed(6)));
+      const key = vector.join(",");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    meshes.push({
+      mesh: object.name,
+      vertexCount: attribute.count,
+      itemSize: attribute.itemSize,
+      uniqueVectors: [...counts].map(([key, vertexCount]) => ({ vector: key.split(",").map(Number), vertexCount })),
+    });
+  });
+  return JSON.stringify(meshes);
+}
+
 function createCatalogEntity(options: HeroModelPreviewOptions): DisplayEntity {
   return {
     id: `hero-preview:${options.catalogId}`,
@@ -176,6 +199,7 @@ export function createHeroModelPreview(
   }
   const heroLod = model.children.find((child): child is THREE.LOD => child instanceof THREE.LOD);
   const lodProfiles = heroLod?.levels.map(({ object }) => materialProfile(object)) ?? [];
+  const lodSurfaceResponses = heroLod?.levels.map(({ object }) => surfaceResponseProfile(object)) ?? [];
   let motionRig = rig;
   if (options.lodOverride) {
     if (!heroLod) throw new Error("Hero preview LOD override requested, but the generated Hero has no LOD.");
@@ -216,6 +240,7 @@ export function createHeroModelPreview(
       renderer.domElement.dataset.lodChild = selected?.name ?? "none";
       renderer.domElement.dataset.lodVisible = heroLod.levels.map(({ object }) => String(object.visible)).join(",");
       renderer.domElement.dataset.lodMaterialProfile = selectedIndex >= 0 ? lodProfiles[selectedIndex] ?? "[]" : "[]";
+      renderer.domElement.dataset.lodSurfaceResponse = selectedIndex >= 0 ? lodSurfaceResponses[selectedIndex] ?? "[]" : "[]";
     }
   };
   const render = () => {
