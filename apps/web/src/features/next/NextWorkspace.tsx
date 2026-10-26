@@ -1951,9 +1951,10 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
   const exactCampaignRematch = (): void => {
     if (!run) return;
+    // The frozen Snapshot drives the exact challenge's Ready display.
+    // Keep the player's independent current Quick/Custom/Campaign selection
+    // untouched so exiting exact replay returns to those same conditions.
     setExactRun(run);
-    if (run.campaignAssociation?.eligible && run.setup.campaign_scenario_id) { setEntryMode("campaign"); setSelectedScenarioId(run.setup.campaign_scenario_id); }
-    else setEntryMode("quick");
     setPrepared(null); setScreen("ready");
   };
 

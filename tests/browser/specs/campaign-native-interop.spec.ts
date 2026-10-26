@@ -43,6 +43,14 @@ test("Genuine native Campaign Experiment preserves exact IDs and wins an unchang
   expect((await readProgress()).completed_scenario_ids).toEqual([]); // Viewing an actual old win must not award progress.
   await page.getByRole("button", { name: /同条件で再戦 · Run Snapshot/ }).click();
   await expect(page.getByTestId("journey-ready")).toContainText("Regroup for a base defense");
+  // Frozen original conditions are visible, but closing the frozen rematch
+  // must return to the player's Quick choice, not mutate it into Campaign.
+  await page.getByRole("button", { name: "現在のDraftで準備する", exact: true }).click();
+  await expect(page.getByTestId("journey-ready").locator(".journey-ready-challenge")).toHaveCount(0);
+  await page.getByTestId("nav-library").click();
+  await library.getByRole("button", { name: "Open latest comparison", exact: true }).click();
+  await page.getByRole("button", { name: /同条件で再戦 · Run Snapshot/ }).click();
+  await expect(page.getByTestId("journey-ready")).toContainText("Regroup for a base defense");
   await completePreflight(page);
   const confirmed = page.getByText(/Confirmed result · (Attacker Victory|Defender Victory|Draw)/i);
   await expect(confirmed).toBeVisible({ timeout: 300_000 });
