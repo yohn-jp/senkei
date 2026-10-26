@@ -370,16 +370,18 @@ function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: n
     // opens briefly over the back, then narrows into two lifted tail points.
     const foldedHemY = pattern === "long" ? 0.72 : lower;
     const rows = [
-      { y: 1.94, width: 0.18, z: 0.035, centerX: 0 },
-      { y: 1.58, width: 0.25, z: -0.08, centerX: -0.025 },
-      { y: 1.22, width: 0.29, z: -0.16, centerX: -0.018 },
-      { y: 0.94, width: 0.24, z: -0.29, centerX: 0.025 },
-      { y: foldedHemY, width: 0.16, z: -0.43, centerX: 0.02 },
+      { y: 1.94, width: 0.18, z: 0.035, centerX: 0, standOff: 0.025 },
+      { y: 1.58, width: 0.25, z: -0.08, centerX: -0.025, standOff: 0.075 },
+      { y: 1.22, width: 0.29, z: -0.16, centerX: -0.018, standOff: 0.12 },
+      { y: 0.94, width: 0.24, z: -0.29, centerX: 0.025, standOff: 0.1 },
+      { y: foldedHemY, width: 0.16, z: -0.43, centerX: 0.02, standOff: 0.045 },
     ];
     const vertices: number[] = [];
     const indices: number[] = [];
     const columns = [-1, -0.64, -0.28, 0, 0.3, 0.65, 1];
     const folds = [0.012, -0.075, 0.05, -0.11, 0.08, -0.065, 0.012];
+    const hangingFolds = [0.015, -0.025, 0.03, -0.018, 0.025, -0.028, 0.012];
+    const drapeByRow = [0.08, 0.34, 0.72, 1, 0.66];
     const hem = [0.015, -0.14, 0.035, 0.16, 0.045, -0.15, 0.02];
     for (const back of [false, true]) {
       rows.forEach((row, r) => columns.forEach((column, c) => {
@@ -387,8 +389,8 @@ function addCape(builder: UnitBuilder, root: THREE.Group, cloth: number, team: n
         const foldDepth = folds[c] * (0.5 + r * 0.22);
         vertices.push(
           row.centerX * spread + column * row.width * spread,
-          row.y + hemWave,
-          row.z + foldDepth + (back ? -0.028 : 0),
+          row.y + hemWave + hangingFolds[c] * drapeByRow[r],
+          row.z + foldDepth - row.standOff * (1 - column * column) + (back ? -0.028 : 0),
         );
       }));
     }

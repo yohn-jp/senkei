@@ -188,8 +188,15 @@ describe("Battlefield unit models", () => {
         expect(centerHem.length).toBeGreaterThan(0);
         expect(outerTails.length).toBeGreaterThan(0);
         expect(Math.min(...centerHem), `${id} LOD ${levelIndex} has a lifted central notch`).toBeGreaterThan(Math.min(...outerTails) + 0.12);
-        const midBackFold = points.filter(point => Math.abs(point.y - 1.22) < 1e-6);
+        const midBackFold = points.filter(point => Math.abs(point.y - 1.22) < 0.045);
+        expect(Math.max(...midBackFold.map(point => point.y)) - Math.min(...midBackFold.map(point => point.y)), `${id} LOD ${levelIndex} has hanging crosswise drape`).toBeGreaterThan(0.035);
         expect(Math.max(...midBackFold.map(point => point.z)) - Math.min(...midBackFold.map(point => point.z)), `${id} LOD ${levelIndex} has broad vertical folds`).toBeGreaterThan(0.14);
+        const centerBack = midBackFold.filter(point => Math.abs(point.x) < 0.03);
+        const outerBack = midBackFold.filter(point => Math.abs(point.x) > 0.18);
+        expect(centerBack.length).toBeGreaterThan(0);
+        expect(outerBack.length).toBeGreaterThan(0);
+        const outerMeanZ = outerBack.reduce((sum, point) => sum + point.z, 0) / outerBack.length;
+        expect(Math.max(...centerBack.map(point => point.z)), `${id} LOD ${levelIndex} bows away behind the back`).toBeLessThan(outerMeanZ - 0.1);
         expect(Math.max(...points.map(point => point.z)) - Math.min(...points.map(point => point.z)), `${id} LOD ${levelIndex} has a swept rear drape`).toBeGreaterThan(0.38);
 
         const worldPoints = capeVertices(level, true);
