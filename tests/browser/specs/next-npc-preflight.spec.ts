@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { createServer } from "vite";
 import type { LocalPveScenario } from "../../../apps/web/src/contracts/workspace";
 
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
 async function campaign(rules: RulePackage): Promise<readonly LocalPveScenario[]> {
-  const server = await createServer({ configFile: false, root: process.cwd(), logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+  const server = await createServer({ configFile: false, root: repositoryRoot, logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
   try {
     const { createNextCampaignScenarios } = await server.ssrLoadModule("/scenarios/next/campaign.ts");
     return createNextCampaignScenarios(rules);
@@ -16,7 +19,7 @@ import type { RulePackage, SenkeiSnapshot, CompileResult, MatchContext } from ".
 // Exercise the shipped Rust/WASM dispatcher with the exact drafts produced by
 // the browser's scenario factory; source-only compilation misses invalid squads.
 async function loadCore() {
-  const { instance } = await WebAssembly.instantiate(readFileSync(resolve("apps/web/public/wasm/senkei_wasm.wasm")), {});
+  const { instance } = await WebAssembly.instantiate(readFileSync(resolve(repositoryRoot, "apps/web/public/wasm/senkei_wasm.wasm")), {});
   const memory = instance.exports.memory as WebAssembly.Memory;
   const allocate = instance.exports.senkei_alloc as (size: number) => number;
   const dispatch = instance.exports.senkei_dispatch as (pointer: number, size: number) => bigint;
