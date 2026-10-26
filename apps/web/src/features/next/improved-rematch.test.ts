@@ -13,7 +13,7 @@ function original(): SimulationSnapshot {
     versions: Object.fromEntries(["model", "engine", "ruleset", "jinrei_language", "structured_ast", "typed_ir", "bytecode", "cost_schedule", "replay_schema"].map(key => [key, version])),
     host_limits: { max_input_bytes: 100000, max_entities: 100, max_events: 1000, max_diagnostic_events: 1000, max_output_bytes: 100000 },
     initial_world: { entities: {}, global_fields: {}, collections: {} },
-    world_identity: { world_id: "world", schema_version: version, minimum_compiler: version, maximum_compiler_exclusive: null,
+    world_identity: { world_id: "world", schema_version: version, compiler_version: version, minimum_compiler: version, maximum_compiler_exclusive: null,
       validation_profile_id: null, validation_profile_version: null, logic_digest: "logic", presentation_digest: "art" },
   } }) as unknown as SimulationSnapshot;
 }
