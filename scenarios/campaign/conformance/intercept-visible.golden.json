@@ -2,7 +2,7 @@
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-intercept-visible",
   "request_sha256": "a8d05d9bdb42b510db5fe594f6ac4d10ea64fd6fc9ff31c5c9133f2a260daeb2",
-  "response_sha256": "1d11c340142836f280bd2315e7088e80575c57a15e8c0a5e401f8b52d3acb227",
+  "response_sha256": "ddd887f40bff0cd66877366eec750cc3f425b7bcf956eae0c00815b2564ee3e7",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",

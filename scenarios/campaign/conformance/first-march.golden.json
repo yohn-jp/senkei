@@ -2,7 +2,7 @@
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-first-march",
   "request_sha256": "e2fc8edad5b6f395964dddfb36370010068896ece903a1f9b010e6ee08b706df",
-  "response_sha256": "69f43ab39b0bf740e0f196ad9b20d18d5dfa1cec201e1927db2ebc4fda69c3ec",
+  "response_sha256": "92ff7c248ce9742ea6d55dfb3a5876612cdc21461e66ba5e7579d4f5f800586f",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",

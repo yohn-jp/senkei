@@ -2,7 +2,7 @@
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-core-pressure",
   "request_sha256": "06c13bb3a71bf00f9183d28a0e349b3bdef61c9c3bae8d7167f3f5221c86457b",
-  "response_sha256": "5f6941227cce29304a1918ca35c48bb04c22b9a395dab74a8d8f555c529c89ca",
+  "response_sha256": "eff1d3dac913b51b79e42761ee121054087e5e76da5c4fa19cffaf417471fd2e",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",

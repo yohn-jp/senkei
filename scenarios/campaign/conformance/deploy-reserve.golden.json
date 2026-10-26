@@ -2,7 +2,7 @@
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-deploy-reserve",
   "request_sha256": "59cb516779019cf00ff89d404b0d799fb27950a79b2fa39797c3542b6243025b",
-  "response_sha256": "a4441a0e484ca5a6c1268f4a5da353ed72e95386546531c859a51510899c29a9",
+  "response_sha256": "be989b90688b288e55e8e23110bd46da747b8fb53b9f53a68e5d31c50a7a9863",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
