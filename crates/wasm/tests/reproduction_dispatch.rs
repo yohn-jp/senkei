@@ -459,6 +459,16 @@ fn reproduction_and_ready_reject_unknown_enum_payload_fields() {
     let (valid, _) = valid_reproduction_request();
     let cases = [
         (
+            "future_sort_term",
+            {
+                let mut request = valid.clone();
+                let term = &mut request["assets"]["rule_package"]["arbitration"]["move"]["resolution"]["value"]["sort_by"][0];
+                assert!(term.is_object(), "mutate an existing, valid nested sort term");
+                term["future_sort_term"] = json!(true);
+                request
+            },
+        ),
+        (
             "future_domain_value_semantics",
             {
                 let mut request = valid.clone();

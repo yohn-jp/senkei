@@ -442,6 +442,7 @@ pub enum SortDirection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntentSortTerm {
     pub key: IntentKey,
     pub direction: SortDirection,
