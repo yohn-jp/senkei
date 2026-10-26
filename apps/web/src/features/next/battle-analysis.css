@@ -231,3 +231,6 @@
 @media (prefers-reduced-motion: reduce) {
   .battle-analysis *, .battle-analysis *::before, .battle-analysis *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+.battle-analysis-context { border: 1px solid #748b73; border-radius: 4px; padding: 14px; margin-block: 14px; overflow-wrap: anywhere; font-size: 12px; }
+.battle-analysis-trace-source { padding: 4px 8px 12px; }
+.battle-analysis-trace-source small { display: block; overflow-wrap: anywhere; line-height: 1.5; }

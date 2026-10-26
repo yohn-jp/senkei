@@ -4,6 +4,9 @@ import { NextLibrary } from "./NextLibrary";
 import { HeroAtelier } from "./HeroAtelier";
 import { JinreiWorkbench } from "./JinreiWorkbench";
 import { BattleAnalysis } from "./BattleAnalysis";
+import { actionSourceRange, verifyRunSourceMap } from "./tactical-context";
+import type { BattleAnalysisContext, AnalysisSourceContext } from "./tactical-context";
+import type { ActionSourceMap, DiagnosticEvent } from "../../contracts";
 import { validateNextExperimentAuthorization, validateNextExperimentReplay } from "./experiment-restoration";
 import { matchesPresentedEntity } from "./battle-entity-identity";
 import { loadNextExperimentStore, saveNextExperimentStore, clearNextExperimentStore, parseNextExperimentStore, assertNextExperimentImportSize, serializeNextExperimentStore } from "../persistence/repository";
@@ -665,6 +668,29 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
   const [baselineRun, setBaselineRun] = useState<BattleRun | null>(null);
+  const [analysisContext, setAnalysisContext] = useState<BattleAnalysisContext | null>(null);
+  const [analysisSource, setAnalysisSource] = useState<AnalysisSourceContext | null>(null);
+  const sourceRequestSequence = useRef(0);
+  const [replayEventSelection, setReplayEventSelection] = useState<{ experimentId: string; tick: number; order: number } | null>(null);
+  const [runSourceProof, setRunSourceProof] = useState<{ experimentId: string; map: ActionSourceMap | null; reason: string } | null>(null);
+  useEffect(() => {
+    if (!run) return;
+    let obsolete = false;
+    const original = run.setup.draft;
+    const unavailable = (reason: string) => setRunSourceProof({ experimentId: run.experimentId, map: null, reason });
+    if (!core || !packageValue || !sameRulesetRef(original.ruleset, packageValue.ruleset)
+      || !sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset)) {
+      unavailable("Original Run RulePackage is unavailable. No source correspondence was inferred."); return;
+    }
+    if (original.program_input.kind !== "text") { unavailable("Original Run has no text source locations. Structured AST was not converted into guessed spans."); return; }
+    const source = original.program_input.source;
+    unavailable("Checking original Run source and Program identity…");
+    void core.compile({ kind: "text", source, ruleset_ref: original.ruleset })
+      .then(result => verifyRunSourceMap(source, run.snapshot.attacker.program.content_digest, result))
+      .then(proof => { if (!obsolete) setRunSourceProof({ experimentId: run.experimentId, ...proof }); })
+      .catch(cause => { if (!obsolete) unavailable(`Original source verification failed: ${cause instanceof Error ? cause.message : String(cause)}`); });
+    return () => { obsolete = true; };
+  }, [run, core, packageValue]);
   const experimentRestoreGeneration = useRef(0);
   const experimentPersistGeneration = useRef(0);
   const experimentWriteQueue = useRef<Promise<void>>(Promise.resolve());
@@ -1853,7 +1879,44 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setFollowedSquadId(id);
     setFocusedReplayPoint(null);
   };
+  const captureAnalysisContext = (): BattleAnalysisContext | null => {
+    if (!run) return null;
+    const state = player?.state ?? displayState;
+    const tick = state?.tick ?? 0;
+    const entity = selectedEntityId ? state?.entities[selectedEntityId] : null;
+    return { experimentId: run.experimentId, matchId: run.response.outcome.result.match_id,
+      perspective: run.graphicsReplay.header.view, tick,
+      entityId: entity && !entity.destroyed && entity.hp > 0 ? selectedEntityId : null,
+      event: replayEventSelection?.experimentId === run.experimentId && replayEventSelection.tick === tick
+        ? { tick, order: replayEventSelection.order } : null, trace: null };
+  };
+  const openAnalysis = (): void => {
+    player?.pause(); setAnalysisSource(null); setAnalysisContext(captureAnalysisContext()); setTab("analysis");
+  };
+  const traceSourceStatus = (entry: DiagnosticEvent): { available: boolean; reason: string } => {
+    if (!run || entry.side !== "attacker" || !run.response.restricted_diagnostics?.events.includes(entry)) return { available: false, reason: "No authorized original Run diagnostic." };
+    if (!entry.action_id) return { available: false, reason: "This diagnostic has no associated Action." };
+    if (runSourceProof?.experimentId !== run.experimentId || !runSourceProof.map) return { available: false, reason: runSourceProof?.experimentId === run.experimentId ? runSourceProof.reason : "Original source correspondence has not been checked." };
+    const source = run.setup.draft.program_input;
+    const range = source.kind === "text" ? actionSourceRange(source.source, runSourceProof.map, entry.action_id) : null;
+    if (!range) return { available: false, reason: "No unique parser source location for this Action." };
+    const matches = source.kind === "text" && draft?.program_input.kind === "text" && draft.program_input.source === source.source
+      && activeCompilation?.program.content_digest === run.snapshot.attacker.program.content_digest;
+    return { available: true, reason: matches ? "Verified original Action source; current source and Program match." : "Original Action source is available. Current Draft differs; precise editor jump is disabled." };
+  };
+  const inspectTraceSource = (entry: DiagnosticEvent): void => {
+    if (!run || !traceSourceStatus(entry).available || !entry.action_id || !runSourceProof?.map || run.setup.draft.program_input.kind !== "text") return;
+    const range = actionSourceRange(run.setup.draft.program_input.source, runSourceProof.map, entry.action_id);
+    const origin = analysisContext?.experimentId === run.experimentId ? analysisContext : captureAnalysisContext();
+    if (!range || !origin) return;
+    const context = { ...origin, trace: { tick: entry.tick, sequence: entry.sequence } };
+    setAnalysisContext(context);
+    setAnalysisSource({ identity: `${run.experimentId}:${entry.sequence}:${++sourceRequestSequence.current}`, context, actionId: entry.action_id,
+      programDigest: run.snapshot.attacker.program.content_digest, source: run.setup.draft.program_input.source, range });
+    editScreen("jinrei");
+  };
   const inspectReplayEvent = (event: GraphicsEvent): void => {
+    if (run && run.graphicsReplay.timeline.includes(event)) setReplayEventSelection({ experimentId: run.experimentId, tick: event.tick, order: event.order });
     player?.pause();
     player?.seek(event.tick);
     const entityId = event.type === "spawn" ? event.entity.id : "entityId" in event ? event.entityId : null;
@@ -2051,7 +2114,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
               className={`next-tab${tab === item.id ? " is-active" : ""}`}
               id={`next-tab-${item.id}`}
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => item.id === "analysis" && tab === "battle" ? openAnalysis() : setTab(item.id)}
               role="tab"
               type="button"
             ><span>{item.number}</span><strong>{item.label}</strong><small>{item.id === "formation" ? "5 HEROES" : item.id === "jinrei" ? "TACTICS" : item.id === "battle" ? "REPLAY" : "TRACE"}</small></button>
@@ -2070,7 +2133,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
-            <JinreiWorkbench active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
+            <JinreiWorkbench analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
               catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
               catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
               compilation={activeCompilation} slots={slots} activeSlot={activeSlot}
@@ -2169,7 +2232,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                     {selectedEntity && fieldInteger(selectedEntity.fields.xp) !== null && <div className="next-xp-bar"><span>XP <b>{formatExperience(fieldInteger(selectedEntity.fields.xp) ?? 0, nextRules)}</b></span><span>Level <b>{fieldInteger(selectedEntity.fields.level) ?? 1}</b></span></div>}
                     {Boolean(displayState?.fog?.state.facilities.length) && <details className="next-facility-history" data-testid="battle-facility-history"><summary>Last observations · current state unknown</summary><ul>{displayState!.fog!.state.facilities.map(facility => <li key={facility.id}><strong>{facility.kind} · {facility.site}</strong><span>Observed Tick {facility.last_seen_tick} · Current unknown</span>{Object.entries(facility.facility_state ?? {}).map(([field, value]) => <small key={field}>{formatId(field)}: {value} (last observed)</small>)}</li>)}</ul></details>}
                   </section>
-                  <section className="next-detail-card next-event-card"><div className="next-card-heading"><div><span className="next-eyebrow">BATTLE EVENTS</span><h4>Current tick</h4></div><button onClick={() => setTab("analysis")} type="button">Full analysis ↗</button></div>
+                  <section className="next-detail-card next-event-card"><div className="next-card-heading"><div><span className="next-eyebrow">BATTLE EVENTS</span><h4>Current tick</h4></div><button onClick={openAnalysis} type="button">Full analysis ↗</button></div>
                     {frameEvents.length ? <ul className="next-event-list">{frameEvents.slice(-6).map((event, index) => <li key={`${event.event}-${event.entity}-${index}`}><span>T{selectedFrame?.tick}</span><div><strong>{eventTitle(event)}</strong><small>{eventDetails(event) || event.entity || "Battle system"}</small></div></li>)}</ul> : <p className="next-empty-detail">No visible event is recorded at this tick.</p>}
                   </section>
                 </div>
@@ -2192,7 +2255,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
                 </div>
                 <div className="next-seekbar"><input aria-label="Seek replay tick" disabled={!player || run.graphicsReplay.result.tick === 0} max={run.graphicsReplay.result.tick} min="0" onChange={(event) => player?.seek(Number(event.target.value))} type="range" value={displayState?.tick ?? 0} /><div><span>START · 00</span><span>FINAL · {String(run.graphicsReplay.result.tick).padStart(2, "0")}</span></div></div>
               </div>
-              <details className="next-result-disclosure"><summary><span>Confirmed result · {formatId(runResult.outcome)}</span><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks · {run.graphicsReplay.timeline.length} public presentation events</small></summary><div className="next-result-detail"><span>YOUR CU <strong>{runResult.cu_spent.attacker}</strong></span><span>REPLAY VIEW <strong>{run.graphicsReplay.header.view === "attacker" ? "Owner" : "Public"}</strong></span><button className="next-result-analysis" onClick={() => setTab("analysis")} type="button">Analyze <b>↗</b></button></div></details>
+              <details className="next-result-disclosure"><summary><span>Confirmed result · {formatId(runResult.outcome)}</span><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks · {run.graphicsReplay.timeline.length} public presentation events</small></summary><div className="next-result-detail"><span>YOUR CU <strong>{runResult.cu_spent.attacker}</strong></span><span>REPLAY VIEW <strong>{run.graphicsReplay.header.view === "attacker" ? "Owner" : "Public"}</strong></span><button className="next-result-analysis" onClick={openAnalysis} type="button">Analyze <b>↗</b></button></div></details>
               <nav className="next-battle-mobile-tabs" aria-label="Battlefield console" data-testid="battle-mobile-console">
                 {([ ["battle", "Battle"], ["overview", "Overview"], ["follow", "Follow"], ["timeline", "Timeline"], ["details", "Details"] ] as const).map(([view, label]) => <button aria-label={`${label} view`} aria-pressed={battleMobileView === view} className={battleMobileView === view ? "is-active" : ""} key={view} onClick={() => setBattleView(view)} type="button"><span>{view === "battle" ? "⌖" : view === "overview" ? "◇" : view === "follow" ? "◎" : view === "timeline" ? "≋" : "◉"}</span>{label}</button>)}
               </nav>
@@ -2200,7 +2263,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
-            <BattleAnalysis run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy}
+            <BattleAnalysis context={analysisContext} traceSourceStatus={traceSourceStatus} onTraceSource={inspectTraceSource} run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy}
               onReplayEvent={inspectReplayEvent}
               onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}
               onBattle={() => setTab("battle")} onEdit={editScreen}
