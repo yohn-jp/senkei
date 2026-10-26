@@ -1,0 +1,66 @@
+{
+  "sourceArtifactSHA256": "19c1ebe2e7b8373a255a43310e0166ba1ff3ef250ce5c5425c7288bbe358063d",
+  "injectedVariantSHA256": "6efe31673e53db308531233ede18a3393a78360ce0a957bf4d964d0253e0d8a7",
+  "before": {
+    "sha256": "1735c88c6b9d50434935e7c741d86af5c10c674311f88ce104e473fee264a7e9",
+    "bytes": 46594491,
+    "ids": [
+      "next-650a44b8fd7ea340c94a175c35b11ff0-374dd770-15d8-444c-9543-ec9820b4e885"
+    ],
+    "world": {
+      "logic_digest": "9958b7ac4f0e1352881da3a3d1a544a4167812ee9f6453360bea7aeb3699224e",
+      "maximum_compiler_exclusive": null,
+      "minimum_compiler": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "presentation_digest": "49c58dd220f81e1c0346914aaaa866e0ead2197398ce274cb8503ab713be0353",
+      "schema_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "validation_profile_id": "senkei.battlefield.initial",
+      "validation_profile_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "world_id": "senkei-battlefield"
+    }
+  },
+  "after": {
+    "sha256": "1735c88c6b9d50434935e7c741d86af5c10c674311f88ce104e473fee264a7e9",
+    "bytes": 46594491,
+    "ids": [
+      "next-650a44b8fd7ea340c94a175c35b11ff0-374dd770-15d8-444c-9543-ec9820b4e885"
+    ],
+    "world": {
+      "logic_digest": "9958b7ac4f0e1352881da3a3d1a544a4167812ee9f6453360bea7aeb3699224e",
+      "maximum_compiler_exclusive": null,
+      "minimum_compiler": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "presentation_digest": "49c58dd220f81e1c0346914aaaa866e0ead2197398ce274cb8503ab713be0353",
+      "schema_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "validation_profile_id": "senkei.battlefield.initial",
+      "validation_profile_version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0
+      },
+      "world_id": "senkei-battlefield"
+    }
+  },
+  "resultDigest": "d467faff366c1ed016679a0b4a52e04a3dc589669c7f51c26dc0aa6d9c3e6afa",
+  "resultDigestAfter": "d467faff366c1ed016679a0b4a52e04a3dc589669c7f51c26dc0aa6d9c3e6afa",
+  "draftPreserved": true,
+  "comparisonEnabled": true
+}
