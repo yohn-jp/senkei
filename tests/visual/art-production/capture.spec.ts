@@ -37,6 +37,12 @@ test("actual Hero Detail golden candidates and production battlefield", async ({
   page.on("pageerror", error => errors.push(error.message));
   const consoleErrors: string[] = [];
   page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  const httpErrors: Array<{ status: number; method: string; url: string }> = [];
+  page.on("response", response => {
+    if (response.status() >= 400) httpErrors.push({
+      status: response.status(), method: response.request().method(), url: response.url(),
+    });
+  });
   const revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const dirty = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim();
   const wasm = resolve("apps/web/public/wasm/senkei_wasm.wasm");
@@ -45,7 +51,7 @@ test("actual Hero Detail golden candidates and production battlefield", async ({
     browser: browser.version(), viewport: { width: 1440, height: 1000 },
     renderer: "Chromium SwiftShader software GPU; timings do not predict physical GPU performance",
     wasmSha256: existsSync(wasm) ? createHash("sha256").update(readFileSync(wasm)).digest("hex") : null,
-    goldenCandidates: goldenHeroes, captures, errors, consoleErrors,
+    goldenCandidates: goldenHeroes, captures, errors, consoleErrors, httpErrors,
     acceptance: "UNVERIFIED: capture success is not artistic acceptance; inspect images and record review separately",
     unavailableEvidence: ["neutral-clay override (no public control)", "LOD selection (no public control)", "physical GPU timings", "source concept comparison"],
     status: "running", failure: null as string | null,
