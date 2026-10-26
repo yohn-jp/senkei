@@ -270,3 +270,9 @@
 .next-jinrei-source-context { border: 1px solid #748b73; border-radius: 4px; padding: 14px; margin-block: 14px; font-size: 12px; overflow-wrap: anywhere; }
 .next-jinrei-source-context pre { max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .next-jinrei-source-context button { min-height: 44px; }
+
+@media (min-width: 761px) and (max-width: 1000px) and (max-height: 500px) and (orientation: landscape) {
+  .next-jinrei-editor-pane .editor-layout { grid-template-columns: minmax(0, 1fr); }
+  .next-jinrei-editor-pane .editor-configuration { order: 2; }
+  .next-jinrei-editor-pane .editor-tactics { order: 1; }
+}

@@ -179,3 +179,42 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .primary-nav { align-items: start; }
   .primary-nav > .nav-item { min-height: 48px; text-align: center; }
 }
+
+/* In a short landscape Next workspace, keep both navigation rails horizontal
+   so the Jinrei editor does not share a narrow column with two sidebars. */
+@media (min-width: 761px) and (max-width: 1000px) and (max-height: 500px) and (orientation: landscape) {
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar {
+    min-height: auto;
+    padding: 8px 12px 7px;
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .workspace-label,
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .sidebar-bottom {
+    display: none;
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .primary-nav {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .nav-item {
+    flex: 1;
+    font-size: 11px;
+    grid-template-columns: auto 1fr auto;
+    min-height: 38px;
+    padding: 5px 8px;
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .nav-number,
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .sidebar .nav-arrow {
+    display: none;
+  }
+  .app-shell:has(.page-content[data-view="next"] .next-jinrei-panel:not([hidden])) > .workspace > .topbar {
+    height: 44px;
+    padding-inline: 12px;
+  }
+  .page-content[data-view="next"]:has(.next-jinrei-panel:not([hidden])) {
+    padding: 8px 10px 12px;
+  }
+}
