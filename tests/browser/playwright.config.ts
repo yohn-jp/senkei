@@ -13,16 +13,41 @@ const grepInvert = process.env.SENKEI_BROWSER_GREP_INVERT;
 // Heavy capture files use their existing viewport selectors on separate runners.
 // New ordinary specs automatically join journeys, so no test allowlist can omit them.
 const suite = process.env.SENKEI_BROWSER_SUITE ?? "all";
-if (!["all", "journeys", "verification", "visual"].includes(suite)) {
+const journeySpecGroups = {
+  campaign: [
+    "**/campaign-enbu-progress.spec.ts",
+    "**/campaign-native-progress.spec.ts",
+    "**/campaign-progress-live.spec.ts",
+    "**/campaign-quota-retry.spec.ts",
+    "**/formation-slot-identity.spec.ts",
+    "**/next-npc-preflight.spec.ts",
+    "**/worker-benchmark.spec.ts",
+  ],
+  retention: ["**/library-retention.spec.ts", "**/legacy-recovery.spec.ts", "**/restore-review.spec.ts"],
+  rematch: ["**/improved-rematch-journey.spec.ts", "**/run-comparison-classification.spec.ts", "**/campaign-next-challenge.spec.ts"],
+  skill: ["**/hero-atelier.spec.ts", "**/s06-skill-progress-live.spec.ts"],
+  import: ["**/campaign-native-interop.spec.ts", "**/campaign-reference.spec.ts", "**/experiment-import-safety.spec.ts"],
+} as const;
+const journeyGroups = Object.keys(journeySpecGroups).map(group => `journeys-${group}`);
+const validSuites = ["all", "journeys", "journeys-ui", ...journeyGroups, "verification", "visual"];
+if (!validSuites.includes(suite)) {
   throw new Error(`Unknown SENKEI_BROWSER_SUITE: ${suite}`);
 }
 const heavySpecs = ["**/battlefield-verification.spec.ts", "**/visual-battlefield.spec.ts"];
+const heavyJourneySpecs = Object.values(journeySpecGroups).flat();
+const journeyGroup = suite.startsWith("journeys-") && suite !== "journeys-ui" ? suite.slice("journeys-".length) as keyof typeof journeySpecGroups : null;
+const testMatch = suite === "verification" ? heavySpecs[0]
+  : suite === "visual" ? heavySpecs[1]
+  : journeyGroup ? journeySpecGroups[journeyGroup]
+  : "**/*.spec.ts";
+const testIgnore = suite === "journeys" || journeyGroup ? heavySpecs
+  : suite === "journeys-ui" ? [...heavySpecs, ...heavyJourneySpecs]
+  : [];
 
 export default defineConfig({
   testDir: "./specs",
-  testMatch: suite === "verification" ? heavySpecs[0]
-    : suite === "visual" ? heavySpecs[1] : "**/*.spec.ts",
-  testIgnore: suite === "journeys" ? heavySpecs : [],
+  testMatch,
+  testIgnore,
   ...(grep ? { grep: new RegExp(grep) } : {}),
   ...(grepInvert ? { grepInvert: new RegExp(grepInvert) } : {}),
   fullyParallel: false,

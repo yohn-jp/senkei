@@ -94,8 +94,14 @@ jobs:
       - run: npm ci
       - run: bash scripts/wasm/build.sh
       - run: npm run build
+      - name: Build the native dispatcher for Campaign browser fixtures
+        run: cargo build --locked --release -p senkei-wasm --bin senkei-wasm-dispatch
       - name: Generate immutable native browser scenarios once
         run: bash scripts/ci/prepare-browser-scenarios.sh target/browser-scenarios
+      - name: Generate immutable native Campaign fixtures once
+        run: node scripts/ci/browser/prepare-native-campaign-fixtures.mjs prepare target/browser-scenarios/campaign-native
+        env:
+          SENKEI_NATIVE_DISPATCHER: ${{ github.workspace }}/target/release/senkei-wasm-dispatch
       - name: Record the exact browser build
         run: |
           git rev-parse HEAD > dist/browser-build-revision.txt
@@ -126,8 +132,18 @@ jobs:
           - name: journeys-workbench
             suite: journeys
             grep: real WASM Next workbench
+          - name: journeys-campaign
+            suite: journeys-campaign
+          - name: journeys-retention
+            suite: journeys-retention
+          - name: journeys-rematch
+            suite: journeys-rematch
+          - name: journeys-skill
+            suite: journeys-skill
+          - name: journeys-import
+            suite: journeys-import
           - name: journeys-ui
-            suite: journeys
+            suite: journeys-ui
             grep_invert: S13 uses real Enbu|first-run Quick|real WASM Next workbench
             graphics_g1: true
           - name: quick-mobile-320
@@ -190,6 +206,8 @@ jobs:
         run: |
           test "$(cat dist/browser-build-revision.txt)" = "$(git rev-parse HEAD)"
           sha256sum --check dist/browser-build-sha256.txt
+      - name: Verify immutable Campaign fixture provenance
+        run: node scripts/ci/browser/prepare-native-campaign-fixtures.mjs verify target/browser-scenarios/campaign-native "$(git rev-parse HEAD)"
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - name: Install root Graphics G1 Playwright browser
         if: matrix.graphics_g1 == true
@@ -205,6 +223,7 @@ jobs:
           SENKEI_FIRST_RUN_VIEWPORTS: ${{ matrix.first_run_viewports }}
           SENKEI_UX_EVIDENCE_DIR: ${{ github.workspace }}/test-results/ci-browser/journey
           BATTLEFIELD_PREBUILT_SCENARIO_DIR: ${{ github.workspace }}/target/browser-scenarios
+          SENKEI_CAMPAIGN_NATIVE_FIXTURE_DIR: ${{ github.workspace }}/target/browser-scenarios/campaign-native
           BATTLEFIELD_VIEWPORTS: ${{ matrix.verification_viewports }}
           BATTLEFIELD_VISUAL_VIEWPORTS: ${{ matrix.visual_viewports }}
           BATTLEFIELD_EXPECT_BUILD_REVISION: "true"
