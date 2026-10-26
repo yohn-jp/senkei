@@ -97,6 +97,8 @@ SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／
 - `98ee865` の死亡終端姿勢をCPU probeした結果、F01は全LODで左boot下端が地面より0.0969低く右bootが0.0588高い。R01は左が0.0634低く右が0.0867高い。よって両HeroのAnimation GateをFAILとし、Rig/LOD担当が死亡leanを保ちながら接地するpresentation修正とF01/R01全LOD回帰テストを実装中。変更後captureと独立視覚確認が終わるまではFAILのまま保持する。
 - `0654af6` の後に共有Core入力と一致するWASM SHA `ae2f786e671bc99b34dea4e97120179380c7bac6aadc1e9068b071f1e1454c2a` でArt checkoutの `npm run build` とtypecheckはPASS。`98ee865` 実アプリ検証にも同WASMを使用した。SwiftShaderは物理GPU性能の証拠にならない。
 
+- 別の地形／施設担当が `98ee865` のT000両モード画像を実寸で確認した。[独立visual report](evidence/art-production/reviews/battlefield-t000-98ee865-review.md)では近傍terrain、Fortress、2塔を部分判定したが、地形起伏が弱く、Fortress中央ラベルが中庭とKeepを覆う。河岸、全3レーン、両ジャングル、キャンプ、橋・渡河・損傷状態はこの視野では未検証。実装テストのPASSだけでVisual受入にしない。
+
 ## 共通資産と実戦の状態
 
 | 対象 | Functional | Visual | Interaction | Performance | 必要な確認 |
@@ -104,8 +106,8 @@ SwiftShaderの単発telemetryはTactical 1,078 draw calls／147,822 triangles／
 | 共通Generator、材質、LOD | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 生成版とmanifest、近遠景、面と陰影、切替 |
 | Minion melee/ranged | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | Heroとの差、密集、進軍と停止攻撃 |
 | Monster 3種 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 種別の輪郭、4キャンプ配置、実Replay |
-| 地形、川、ジャングル | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 3レーン、2ジャングル、河岸、枝道、4キャンプ |
-| 橋、渡河、MID基地、塔、拠点 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 橋3状態と徒歩渡河、建築、所属、損傷 |
+| 地形、川、ジャングル | NOT_CHECKED | PARTIAL | NOT_CHECKED | NOT_CHECKED | [T000独立レビュー](evidence/art-production/reviews/battlefield-t000-98ee865-review.md): ローカル地形面と地図端の崖は見えるが、中央の高低差は弱い。中央河岸、3レーン全景、2ジャングル、4キャンプは未確認 |
+| 橋、渡河、MID基地、塔、拠点 | NOT_CHECKED | PARTIAL | NOT_CHECKED | NOT_CHECKED | [T000独立レビュー](evidence/art-production/reviews/battlefield-t000-98ee865-review.md): Fortressと隣接2塔は識別できるが、中心ラベルが中庭とKeepを隠す。橋3状態、徒歩渡河、MID基地、損傷段階は未確認 |
 | 実試合の各カメラと表示モード | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 同じ認可済みReplay、確定イベント、Fog |
 | Desktop/Mobile操作 | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | 契約の5画面幅、選択とパネル往復、状態保持 |
 | 物理GPU、実機タッチ | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | ソフトウェア描画の証拠から区別 |
