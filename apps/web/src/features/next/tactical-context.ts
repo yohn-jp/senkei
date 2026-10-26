@@ -47,3 +47,9 @@ export function actionSourceRange(source: string, map: ActionSourceMap, actionId
   const end = compilerTextOffset(source, `source@${action.end_utf8}`);
   return start === null || end === null ? null : { start, end };
 }
+
+/** Native textarea values normalize CRLF and lone CR to LF. Raw source stays untouched. */
+export function textareaSourceSelection(source: string, range: { readonly start: number; readonly end: number }): { source: string; start: number; end: number } {
+  const normalize = (value: string) => value.replace(/\r\n?/g, "\n");
+  return { source: normalize(source), start: normalize(source.slice(0, range.start)).length, end: normalize(source.slice(0, range.end)).length };
+}

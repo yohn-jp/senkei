@@ -8,6 +8,7 @@ import { JinreiDomainPanel, actorSelection, capabilityMatchesScope } from "./Jin
 import "./jinrei-workbench.css";
 import { compilerTextOffset } from "./compiler-location";
 import type { AnalysisSourceContext } from "./tactical-context";
+import { textareaSourceSelection } from "./tactical-context";
 
 export interface JinreiWorkbenchSlot {
   readonly slot_id: string;
@@ -247,18 +248,24 @@ export function JinreiWorkbench({
 
   const sourceMatches = Boolean(analysisSource && draft?.program_input.kind === "text"
     && draft.program_input.source === analysisSource.source && compilation?.program.content_digest === analysisSource.programDigest);
+  const sourceFocusState = useRef({ identity: analysisSource?.identity, active, matches: sourceMatches });
+  sourceFocusState.current = { identity: analysisSource?.identity, active, matches: sourceMatches };
+  const focusAnalysisSource = (): boolean => {
+    if (!analysisSource || !sourceFocusState.current.active || !sourceFocusState.current.matches
+      || sourceFocusState.current.identity !== analysisSource.identity) return false;
+    const editor = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
+    const selection = textareaSourceSelection(analysisSource.source, analysisSource.range);
+    if (!editor?.getClientRects().length || editor.value !== selection.source) return false;
+    editor.focus(); editor.setSelectionRange(selection.start, selection.end);
+    editor.scrollIntoView({ block: "center" });
+    return true;
+  };
   useEffect(() => {
     if (!active || !analysisSource || consumedAnalysisSource.current === analysisSource.identity) return;
     consumedAnalysisSource.current = analysisSource.identity;
     firstVisitStarted.current = true;
     onScreenChange("workbench"); setWorkbenchView(draft?.program_input.kind === "text" ? "text" : "no-code");
-    const frame = requestAnimationFrame(() => {
-      const editor = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
-      if (editor && sourceMatches && editor.value === analysisSource.source) {
-        editor.focus(); editor.setSelectionRange(analysisSource.range.start, analysisSource.range.end);
-        editor.scrollIntoView({ block: "center" });
-      }
-    });
+    const frame = requestAnimationFrame(focusAnalysisSource);
     return () => cancelAnimationFrame(frame);
   }, [active, analysisSource?.identity]);
 
@@ -276,11 +283,8 @@ export function JinreiWorkbench({
         <p>Original Program <code>{analysisSource.programDigest}</code>. {sourceMatches ? "Exact source correspondence from verified parser locations." : "Current Draft differs or has no matching compiled Program. Precise editor jump is disabled; your Draft is preserved."}</p>
         <details><summary>Original Action source (read only)</summary><pre>{analysisSource.source.slice(analysisSource.range.start, analysisSource.range.end)}</pre></details>
         <button type="button" disabled={!sourceMatches} onClick={() => {
-          setWorkbenchView("text");
-          requestAnimationFrame(() => {
-            const editor = editorHost.current?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Jinrei source']");
-            if (sourceMatches && editor?.value === analysisSource.source) { editor.focus(); editor.setSelectionRange(analysisSource.range.start, analysisSource.range.end); editor.scrollIntoView({ block: "center" }); }
-          });
+          onScreenChange("workbench"); setWorkbenchView("text");
+          if (!focusAnalysisSource()) requestAnimationFrame(() => requestAnimationFrame(focusAnalysisSource));
         }}>Select matching current source</button>
         <button type="button" onClick={onReturnToAnalysis}>Back to original Analysis</button>
       </section>}

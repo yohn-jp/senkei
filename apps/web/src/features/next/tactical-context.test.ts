@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionSourceRange, verifyRunSourceMap, sourceDigest } from "./tactical-context";
+import { actionSourceRange, verifyRunSourceMap, sourceDigest, textareaSourceSelection } from "./tactical-context";
 import type { CompileOutcome } from "../../contracts";
 
 describe("verified Run Action source correspondence", () => {
@@ -28,5 +28,22 @@ describe("verified Run Action source correspondence", () => {
     expect(actionSourceRange(source, map, "missing")).toBeNull();
     expect(actionSourceRange(source, { ...map, actions: [...map.actions, ...map.actions] }, "advance")).toBeNull();
     expect(actionSourceRange(source, { ...map, actions: [{ ...map.actions[0], start_utf8: 4 }] }, "advance")).toBeNull();
+  });
+});
+
+
+describe("native textarea source presentation", () => {
+  it("adapts Unicode CRLF and lone CR prefixes without changing the raw read-only span", () => {
+    const raw = "日本語🐺\r\n\raction jump {\r\n}\r";
+    const range = { start: 8, end: 24 };
+    const selection = textareaSourceSelection(raw, range);
+    expect(selection).toEqual({ source: "日本語🐺\n\naction jump {\n}\n", start: 7, end: 22 });
+    expect(raw.slice(range.start, range.end)).toBe("action jump {\r\n}");
+    expect(selection.source.slice(selection.start, selection.end)).toBe("action jump {\n}");
+    expect(range).toEqual({ start: 8, end: 24 });
+  });
+  it("keeps LF-only source and UTF-16 offsets unchanged", () => {
+    expect(textareaSourceSelection("🐺\naction jump {}", { start: 3, end: 17 }))
+      .toEqual({ source: "🐺\naction jump {}", start: 3, end: 17 });
   });
 });
