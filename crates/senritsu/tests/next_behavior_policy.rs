@@ -6,7 +6,7 @@ fn policy(rules: &VerifiedRulePlan) -> NextBehaviorPolicy {
     NextBehaviorPolicy {
         schema_version: 1, policy_id: "test-policy".into(), version: Version::new(1, 0, 0),
         ruleset_digest: rules.package_digest().clone(), test_only: true,
-        composition: BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad },
+        composition: BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc },
         hero_defaults: rules.plan().next.as_ref().unwrap().heroes.iter().map(|hero| (hero.id.clone(), NextBehaviorProfile::default())).collect(),
         domains: BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] },
         candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Retreat, capability: "retreat".into(), arguments: vec![BehaviorArgument::Actor] }],
@@ -26,6 +26,9 @@ fn validates_bound_test_policy_and_rejects_malformed_policies() {
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
     let mut invalid = p.clone(); invalid.domains.navigation.clear();
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut target = p.clone(); target.candidates.push(BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Target, capability: "select_target".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObservedTarget] });
+    // Target exists in the explicit trial package, not the ordinary Next package.
+    assert!(validate_next_behavior_policy(target, &rules).is_err());
     let mut invalid = p.clone(); invalid.candidates.push(invalid.candidates[0].clone());
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
     let mut invalid = p.clone(); invalid.candidates[0].capability = "move".into();

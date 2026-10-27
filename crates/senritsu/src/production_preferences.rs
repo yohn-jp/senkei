@@ -14,6 +14,15 @@ pub fn add_trial_behavior_preferences(package: &mut RulePackage) {
         actor_argument: Some(0), target_argument: None, target_type: None, target_owner: TargetOwnerConstraint::Any,
         phases: ["transition".into()].into_iter().collect(), preconditions: vec![], issue_cost: "jinrei.capability_issue".into(),
     });
+    package.domain.capabilities.insert("select_target".into(), CapabilitySchema {
+        arguments: vec![param("hero", DomainType::Entity { entity_type: Some("hero".into()) }), param("target", DomainType::Entity { entity_type: None })],
+        actor_argument: Some(0), target_argument: Some(1), target_type: None, target_owner: TargetOwnerConstraint::OtherSide,
+        phases: ["transition".into()].into_iter().collect(), preconditions: vec![], issue_cost: "jinrei.capability_issue".into(),
+    });
+    package.arbitration.insert("select_target".into(), ArbitrationRule {
+        conflict_keys: vec![IntentKey::Side, IntentKey::Actor],
+        resolution: ArbitrationResolution::SelectOrdered { sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }], max_accepted: 1 },
+    });
     package.arbitration.insert("behavior_preference".into(), ArbitrationRule {
         conflict_keys: vec![IntentKey::Side, IntentKey::Actor, IntentKey::Argument(1)],
         resolution: ArbitrationResolution::SelectOrdered { sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }], max_accepted: package.limits.max_intents_per_side_per_tick },

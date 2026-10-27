@@ -7,6 +7,11 @@ fn trial_preference_is_typed_valid_and_charged() {
     add_trial_behavior_preferences(&mut package);
     package.ruleset.digest = canonical_digest(&package).unwrap();
     let rules = validate(package, &next_engine_compatibility()).unwrap();
+    let target = &rules.domain_schema().capabilities[&CapabilityId::new("select_target")];
+    assert_eq!(target.target_argument, Some(1));
+    assert_eq!(target.target_owner, TargetOwnerConstraint::OtherSide);
+    let target_source = r#"senkei trial { action choose { when match.tick == 1, do select_target(argmin hero in allies.heroes by hero.hp then hero.id, argmin enemy in enemies.visible_heroes by enemy.hp then enemy.id), }, }"#;
+    jinrei::compile(target_source, &rules).unwrap();
     let cap = &rules.domain_schema().capabilities[&CapabilityId::new("behavior_preference")];
     assert_eq!(cap.actor_argument, Some(0));
     assert_eq!(cap.issue_cost.as_str(), "jinrei.capability_issue");

@@ -333,7 +333,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             .domain
             .capabilities
             .keys()
-            .all(|id| CAPS.contains(&id.as_str()) || (trial_preferences && id.as_str() == "behavior_preference")),
+            .all(|id| CAPS.contains(&id.as_str()) || (trial_preferences && matches!(id.as_str(), "behavior_preference" | "select_target"))),
         "domain.capabilities",
         "unsupported finite battle capability",
     );

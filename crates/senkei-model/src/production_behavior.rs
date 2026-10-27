@@ -11,13 +11,13 @@ pub enum BehaviorSignal {
     Constant, ActorHealthPercent, TargetHealthPercent, TargetProximity,
     ObservedDanger, ObjectiveValue, RouteCost, SquadHealthPercent,
     /// 100 when the evaluated candidate has the corresponding kind, otherwise 0.
-    CandidateMove, CandidatePursue, CandidateRetreat,
+    CandidateMove, CandidatePursue, CandidateRetreat, CandidateTarget,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BehaviorScoreTerm { pub signal: BehaviorSignal, pub weight: i64 }
-/// Move uses Navigation and Objective; Pursue uses Engagement, Targeting and
-/// Pursuit; Retreat uses Survival. Unknown
+/// Move uses Navigation and Objective; Target uses Engagement and Targeting;
+/// Pursue uses Pursuit; Retreat uses Survival. Unknown
 /// signals make the candidate ineligible; arithmetic is checked integer math.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,7 +28,7 @@ pub struct BehaviorDomains {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BehaviorCandidateKind { Move, Pursue, Retreat }
+pub enum BehaviorCandidateKind { Move, Pursue, Retreat, Target }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BehaviorArgument { Actor, ObservedTarget, ObjectiveNode }
@@ -46,7 +46,14 @@ pub enum BehaviorHeroAggregation { MeanFloor }
 pub enum BehaviorOverrideOrder { ArmyThenSquad }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BehaviorComposition { pub hero_aggregation: BehaviorHeroAggregation, pub override_order: BehaviorOverrideOrder }
+pub struct BehaviorComposition { pub hero_aggregation: BehaviorHeroAggregation, pub override_order: BehaviorOverrideOrder, pub action_order: BehaviorActionOrder }
+/// Descending score, then ascending stable action ID. Shared movement orders
+/// write the squad goal, target and retreating state and conflict with every
+/// Target in the squad; Target writes only its Hero target and conflicts only
+/// with that Hero’s Target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BehaviorActionOrder { ScoreDescThenActionIdAsc }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NextBehaviorPolicy {
@@ -57,9 +64,8 @@ pub struct NextBehaviorPolicy {
     pub domains: BehaviorDomains, pub candidates: Vec<BehaviorCandidateDefinition>,
 }
 
-/// Optional offsets scoped to candidate domains. None inherits its previous value. Move uses Navigation and
-/// Objective; Pursue uses Engagement, Targeting and Pursuit; Retreat uses
-/// Survival. Runtime composes current Hero defaults, Army, then Squad overrides.
+/// Optional offsets scoped to candidate domains. None inherits its previous value. Move uses Navigation and Objective; Target uses Engagement and Targeting;
+/// Pursue uses Pursuit; Retreat uses Survival. Runtime composes current Hero defaults, Army, then Squad overrides.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NextBehaviorProfile {

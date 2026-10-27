@@ -46,7 +46,7 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
             bound = bound.checked_add(contribution).ok_or("score overflow")?;
         }
     }
-    if policy.candidates.is_empty() || policy.candidates.len() > 3 { return Err("invalid candidate count".into()); }
+    if policy.candidates.is_empty() || policy.candidates.len() > 4 { return Err("invalid candidate count".into()); }
     let mut kinds = BTreeSet::new();
     for candidate in &policy.candidates {
         if !kinds.insert(candidate.kind) { return Err("duplicate candidate kind".into()); }
@@ -54,13 +54,15 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
             BehaviorCandidateKind::Move => ("move", &[BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode]),
             BehaviorCandidateKind::Pursue => ("pursue", &[BehaviorArgument::Actor, BehaviorArgument::ObservedTarget]),
             BehaviorCandidateKind::Retreat => ("retreat", &[BehaviorArgument::Actor]),
+            BehaviorCandidateKind::Target => ("select_target", &[BehaviorArgument::Actor, BehaviorArgument::ObservedTarget]),
         };
         let schema = rules.domain_schema().capabilities.get(&candidate.capability).ok_or("unknown capability")?;
         if candidate.capability.as_str() != name || candidate.arguments != args || schema.arguments.len() != args.len()
-            || schema.actor_argument != Some(0) || schema.target_argument != if candidate.kind == BehaviorCandidateKind::Pursue { Some(1) } else { None }
+            || schema.actor_argument != Some(0) || schema.target_argument != if matches!(candidate.kind, BehaviorCandidateKind::Pursue | BehaviorCandidateKind::Target) { Some(1) } else { None }
             || !matches!(&schema.arguments[0].value_type, DomainType::Entity { entity_type: Some(id) } if id.as_str() == "hero")
             || (candidate.kind == BehaviorCandidateKind::Move && !matches!(&schema.arguments[1].value_type, DomainType::String { .. }))
-            || (candidate.kind == BehaviorCandidateKind::Pursue && !matches!(&schema.arguments[1].value_type, DomainType::Entity { .. })) {
+            || (matches!(candidate.kind, BehaviorCandidateKind::Pursue | BehaviorCandidateKind::Target) && !matches!(&schema.arguments[1].value_type, DomainType::Entity { .. }))
+            || (candidate.kind == BehaviorCandidateKind::Target && schema.target_owner != TargetOwnerConstraint::OtherSide) {
             return Err("candidate template does not match capability metadata".into());
         }
     }
