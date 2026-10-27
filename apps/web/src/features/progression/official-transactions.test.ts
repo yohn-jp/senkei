@@ -43,13 +43,14 @@ it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromi
   const transformed = typescript.transpileModule(source, { compilerOptions: {
     target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.ESNext,
   }, fileName: "official-transactions.ts" }).outputText;
-  const browser = await chromium.launch({ executablePath: process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromium", args: ["--no-sandbox", "--no-proxy-server"] });
+  const browser = await chromium.launch({ executablePath: process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromium", args: ["--no-sandbox", "--no-proxy-server"], timeout: 45_000 });
   try {
     const page = await browser.newPage();
     await page.route("http://localhost/**", route => route.fulfill(route.request().url().endsWith(".ts")
       ? { contentType: "text/javascript", body: transformed }
       : { contentType: "text/html", body: "<!doctype html><title>Test</title>" }));
-    await page.goto("http://localhost/");
+    await page.goto("http://localhost/", { timeout: 20_000 });
+    // Chromium launches under a heavily contended Rust/Playwright CI runner. Bound each actual stage independently.
     const result = await page.evaluate(async () => {
       const modulePath = "/apps/web/src/features/progression/official-transactions.ts";
       const { OfficialTransactionEvidenceStore, createOfficialTransaction } = await (new Function("path", "return import(path)"))(modulePath);
@@ -72,4 +73,4 @@ it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromi
   } finally {
     await browser.close();
   }
-}, 30000);
+}, 120000);
