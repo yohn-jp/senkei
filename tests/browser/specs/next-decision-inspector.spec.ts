@@ -48,6 +48,13 @@ for (const width of [1440, 390]) {
     await candidates.first().locator("summary").click();
     await expect(candidates.first()).toContainText("Arguments:");
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const replayButton = result.getByRole("button", { name: "Open committed Tick in Replay" }).first();
+    await expect(replayButton).toBeVisible();
+    await replayButton.click();
+    await expect(page.locator("#next-tab-battle")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByLabel("Seek replay tick")).toHaveValue("1");
+    await page.locator("#next-tab-analysis").click();
+    await expect(result).toBeVisible();
     const firstHero = await hero.inputValue();
     const secondHero = await hero.locator("option").nth(1).getAttribute("value");
     expect(secondHero).toBeTruthy();
