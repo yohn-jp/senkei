@@ -103,3 +103,7 @@ Enbu RestrictedDiagnostics[t] ──────→ 所有者向けDecision Trac
 4. **Compatibility**：Catalog/RulePackageの版変更で必要な型検査が再実行され、古いEditorキャッシュが有効のふりをしない。
 
 **現在の実装済み状態の主張ではない。** 本書は今後のSenritsu RulePackage・Compiler・Editorの共有契約である。
+
+## 本番Behaviorの評価境界
+
+Navigation / Engagement / Targeting / Pursuit / Survival / ObjectiveはSenritsu所有の有限・型付きProfileとする。合法な観測・対象・候補、宣言的な有限値の式・重み、安定したTie-breakを版付き定義で検証する。最終WAITの適用条件も検証済みRulePlanに固定する。未定義のフィールド値、重み、閾値、Capability対応を推測して実行しない。複数fieldへ作用するIntentは行動単位で原子的に確定する。

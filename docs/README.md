@@ -76,3 +76,5 @@ UX-INTERACTION-CONTRACTSは採用後に画面間の状態保持・操作結果�
 ## 変更の作法
 
 契約を変更する実装は、該当する文書も更新します。実装と設計上の将来案を混在させず、将来のAPIやPvPを初期MVPの必須依存として導入しません。仕様文書には日付を埋め込まず、履歴はGitで追跡します。
+
+現在の追加実装と未接続境界は [Wave 2 checkpoint](implementation/canonical-coverage/WAVE2-CHECKPOINT.md) を参照する。設計確定と実行検証のPASSを区別する。

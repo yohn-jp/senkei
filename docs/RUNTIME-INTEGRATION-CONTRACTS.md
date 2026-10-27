@@ -153,3 +153,9 @@ producer／consumer契約を満たすにはend-to-endでidentityを照合し、�
 | Web Worker／core-WASM client | Worker protocol 1とcore API 1.0.0は独立したwire contract。 | Protocol versionだけでは各message境界に必要なCatalog key、World identity、RulePackage／Program digestを代替しない。 |
 
 artifact resolverを越える保存・配布とEnbu interval消費のend-to-end適合検証は残る。各検証境界は必須identityを照合し、missing／mismatchを拒否する。match-affecting Behavior extensionを参照するpackageは、そのextensionが実行時に解決・照合されるまでverified planとして受理しない。
+
+## Local / Officialと恒久資産
+
+ローカル試行資産と公式資産は異なる権威に属する。ローカルMatch成功は公式取得・抽選・Libra発行の証拠ではない。恒久資産RepositoryはExperiment保存と分離し、Player・個体identity・版付き定義を保持する。装備と関係性の戦闘用投影はMatch開始前に固定し、Replayから最新Repositoryを読み直さない。
+
+公式取引は安定したOperation / Request IDと権威identityを持ち、submitted / pending / committed / rejected / outcome_unknownを区別する。同一要求照会、冪等commit、永続証拠、Resultと取得・決済記録の分離を検証する。ローカル保存は権威の検証を代替しない。
