@@ -20,7 +20,7 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
     let version = Version::new(1, 0, 0);
     let definition = EquipmentEffectDefinition { version, effects: vec![StatEffect { stat: ProjectedStat::Attack, add: 7 }] };
     let digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&definition).unwrap())));
-    let policy = ProjectionPolicy { schema_version: 1, equipment: BTreeMap::from([("blade".into(), definition)]), relation: None };
+    let mut policy = ProjectionPolicy { schema_version: 1, test_only: true, hero_catalog_id: "catalogs".into(), hero_catalog_version: version, hero_catalog_digest: ContentDigest::new("catalog-digest"), equipment: BTreeMap::from([("blade".into(), definition)]), relation: None };
     let mut world = WorldState::default();
     let mut sides = BTreeMap::new();
     for side in [CombatantSide::Attacker, CombatantSide::Defender] {
@@ -33,10 +33,12 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
                 (FieldId::from("slot_id"), DomainValue::String(slot.clone())),
                 (FieldId::from("catalog_id"), DomainValue::String("catalog".into())),
                 (FieldId::from("attack"), DomainValue::Integer(10)),
+                (FieldId::from("defense"), DomainValue::Integer(10)),
+                (FieldId::from("squad"), DomainValue::String("group".into())),
             ]) });
-            heroes.push(ProjectedHero { slot_id: slot, owner_id: owner.clone(), instance_id: instance, catalog_id: "catalog".into(), equipment: if n == 0 && side == CombatantSide::Attacker { vec![ProjectedEquipment { instance_id: "item".into(), owner_id: owner.clone(), definition_id: "blade".into(), definition_version: version, definition_digest: digest.clone() }] } else { vec![] } });
+            heroes.push(ProjectedHero { slot_id: slot, owner_id: owner.clone(), instance_id: instance, catalog_id: "catalog".into(), definition_catalog_id: "catalogs".into(), definition_version: version, definition_digest: ContentDigest::new("catalog-digest"), equipment: if n == 0 && side == CombatantSide::Attacker { vec![ProjectedEquipment { instance_id: "item".into(), owner_id: owner.clone(), definition_id: "blade".into(), definition_version: version, definition_digest: digest.clone() }] } else { vec![] } });
         }
-        sides.insert(side, ProjectedSide { owner_id: owner, heroes, relations: vec![] });
+        sides.insert(side, ProjectedSide { owner_id: owner, authority: senkei_model::AssetAuthority::Local, heroes, relations: vec![] });
     }
     let mut projection = MatchProjection { schema_version: 1, sides };
     let original = world.clone();
@@ -46,4 +48,33 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
     projection.sides.get_mut(&CombatantSide::Attacker).unwrap().heroes[0].equipment[0].definition_digest = digest;
     apply(&mut world, Some(&policy), &projection).unwrap();
     assert_eq!(world.entities[&EntityId::from("Attacker-0")].fields[&FieldId::from("attack")], DomainValue::Integer(17));
+    use senkei_model::{ProjectedRelation, RelationFormula, RelationRounding};
+    let formula = RelationFormula { version, stat: ProjectedStat::Defense, add_per_level: 1, max_level: 10, max_bonus: 10, rounding: RelationRounding::Floor };
+    let formula_digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&formula).unwrap())));
+    policy.relation = Some(formula);
+    let player = projection.sides.get_mut(&CombatantSide::Attacker).unwrap();
+    for (from, to, level) in [("Attacker-0", "Attacker-1", Some(4)), ("Attacker-1", "Attacker-0", Some(8)), ("Attacker-0", "Attacker-2", Some(2)), ("Attacker-2", "Attacker-0", Some(2))] {
+        player.relations.push(ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level, formula_version: version, formula_digest: formula_digest.clone() });
+    }
+    let mut first = original.clone();
+    apply(&mut first, Some(&policy), &projection).unwrap();
+    for (id, expected) in [("Attacker-0", 14), ("Attacker-1", 16), ("Attacker-2", 12)] {
+        assert_eq!(first.entities[&EntityId::from(id)].fields[&FieldId::from("defense")], DomainValue::Integer(expected));
+    }
+    let player = projection.sides.get_mut(&CombatantSide::Attacker).unwrap();
+    player.heroes.reverse(); player.relations.reverse();
+    for r in &mut player.relations {
+        if r.from_instance_id == "Attacker-0" && r.to_instance_id == "Attacker-1" { r.level = Some(8); }
+        if r.from_instance_id == "Attacker-1" && r.to_instance_id == "Attacker-0" { r.level = Some(4); }
+    }
+    let mut reordered = original.clone();
+    apply(&mut reordered, Some(&policy), &projection).unwrap();
+    assert_eq!(first, reordered);
+    let player = projection.sides.get_mut(&CombatantSide::Attacker).unwrap();
+    for r in &mut player.relations { if r.from_instance_id == "Attacker-1" { r.level = None; } }
+    let mut undefined = original.clone();
+    apply(&mut undefined, Some(&policy), &projection).unwrap();
+    assert_eq!(undefined.entities[&EntityId::from("Attacker-1")].fields[&FieldId::from("defense")], DomainValue::Integer(10));
+    projection.sides.get_mut(&CombatantSide::Attacker).unwrap().relations.pop();
+    assert!(apply(&mut original.clone(), Some(&policy), &projection).is_err());
 }

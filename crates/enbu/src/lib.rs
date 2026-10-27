@@ -129,6 +129,11 @@ fn initialize_match(
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
         if let Some(projection) = &context.match_projection {
+            if let Some(policy) = &next.projection_policy {
+                if policy.hero_catalog_version != next.mechanics_version || policy.hero_catalog_digest != digest_json(&next.heroes)? {
+                    return Err(invalid_plan("Hero catalog identity does not match the verified rules"));
+                }
+            }
             projected_assets::apply(&mut world, next.projection_policy.as_ref(), projection)?;
         }
         next_combat::initialize_objectives(&mut world, next);

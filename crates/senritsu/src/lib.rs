@@ -32,4 +32,4 @@ mod next_content;
 pub mod next_world;
 mod next_domain;
 mod next_package;
-pub use next_package::{next_package,next_engine_compatibility};
+pub use next_package::{next_package,next_local_trial_package,next_engine_compatibility};

@@ -13,6 +13,7 @@ pub struct MatchProjection {
 #[serde(deny_unknown_fields)]
 pub struct ProjectedSide {
     pub owner_id: String,
+    pub authority: AssetAuthority,
     pub heroes: Vec<ProjectedHero>,
     pub relations: Vec<ProjectedRelation>,
 }
@@ -23,6 +24,9 @@ pub struct ProjectedHero {
     pub owner_id: String,
     pub instance_id: String,
     pub catalog_id: String,
+    pub definition_catalog_id: String,
+    pub definition_version: Version,
+    pub definition_digest: crate::ContentDigest,
     pub equipment: Vec<ProjectedEquipment>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,10 +38,14 @@ pub struct ProjectedEquipment {
     pub definition_version: Version,
     pub definition_digest: crate::ContentDigest,
 }
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionPolicy {
     pub schema_version: u32,
+    pub test_only: bool,
+    pub hero_catalog_id: String,
+    pub hero_catalog_version: Version,
+    pub hero_catalog_digest: crate::ContentDigest,
     pub equipment: BTreeMap<String, EquipmentEffectDefinition>,
     pub relation: Option<RelationFormula>,
 }
@@ -59,7 +67,7 @@ pub enum ProjectedStat { Attack, Defense, Speed, Range, Vision, MaxHp }
 pub struct ProjectedRelation {
     pub from_instance_id: String,
     pub to_instance_id: String,
-    pub level: i64,
+    pub level: Option<i64>,
     pub formula_version: Version,
     pub formula_digest: crate::ContentDigest,
 }
@@ -70,4 +78,13 @@ pub struct RelationFormula {
     pub stat: ProjectedStat,
     pub add_per_level: i64,
     pub max_level: i64,
+    pub max_bonus: i64,
+    pub rounding: RelationRounding,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetAuthority { Local, Official }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RelationRounding { Floor }

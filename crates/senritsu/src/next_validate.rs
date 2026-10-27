@@ -10,6 +10,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         }
     };
     if let Some(policy) = &r.projection_policy {
+        check(policy.test_only && policy.hero_catalog_id == "senkei.next.heroes" && policy.hero_catalog_version == r.mechanics_version && serde_json::to_vec(&r.heroes).ok().map(|bytes| { use sha2::{Digest, Sha256}; ContentDigest::new(format!("{:x}", Sha256::digest(bytes))) }) == Some(policy.hero_catalog_digest.clone()), "next.projection_policy", "test policy must bind the exact Hero catalog");
         check(policy.schema_version == 1, "next.projection_policy.schema_version", "unsupported projection policy version");
         check(policy.equipment.len() <= 1024, "next.projection_policy.equipment", "too many equipment definitions");
         for (id, definition) in &policy.equipment {
@@ -18,7 +19,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             check(definition.effects.iter().all(|e| (-1_000_000..=1_000_000).contains(&e.add)), "next.projection_policy.equipment", "equipment effect outside supported range");
         }
         if let Some(formula) = &policy.relation {
-            check(formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (-1_000_000..=1_000_000).contains(&formula.add_per_level), "next.projection_policy.relation", "invalid relation formula");
+            check(formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (0..=1_000_000).contains(&formula.add_per_level) && (0..=1_000_000).contains(&formula.max_bonus), "next.projection_policy.relation", "invalid relation formula");
         }
     }
     let paired_world_matches = match (&r.world_identity, &r.map.world_identity) {
