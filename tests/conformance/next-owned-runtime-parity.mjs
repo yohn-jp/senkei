@@ -60,6 +60,17 @@ try {
     assert(n.ok===ok,`${label}: expected ok=${ok}, got ${JSON.stringify(n.error)}`);
     return n.result;
   }
+  const genericFixture=JSON.parse(await readFile(resolve(root,'tests/conformance/behavior-fixture.request.json'),'utf8')).payload;
+  const genericBinding=genericFixture.behavior_inputs.bindings.attacker;
+  const profileRequest={revision:1,stamp:genericFixture.behavior_inputs.catalog_key,rulePackage:genericFixture.rule_package,
+    catalogMetadataExtension:genericFixture.catalog_metadata_extension,
+    actor:{subjectId:genericBinding.actor,scope:'army',heroCatalogId:null,squadMembers:[]},
+    preferences:{armyId:genericBinding.army_id,army:genericBinding.preferences,squadId:'',squad:{}},
+    tick:1,side:'attacker',evaluation:{kind:'defaults_only'}};
+  const profile=await both('editor_resolve_behavior',profileRequest,{label:'Catalog-bound profile composition'});
+  assert(profile.status==='resolved' && profile.composition.values['navigation.lane'].value==='mid','Catalog profile composition failed');
+  const staleProfile=clone(profileRequest); staleProfile.stamp.catalogDigest='f'.repeat(64);
+  await both('editor_resolve_behavior',staleProfile,{ok:false,label:'stale Catalog profile'});
   const packageValue=await both('next_ruleset',{local_trial:true},{label:'trial rules'});
   const policy=packageValue.next.projection_policy;
   assert(policy?.test_only && policy.equipment['test.blade'] && policy.relation,'trial projection policy missing');
