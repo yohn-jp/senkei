@@ -62,6 +62,7 @@ pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inp
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         let next = plan.next.as_ref().unwrap();
+        let overrides = consume_preferences(validated, outputs, tick, diagnostics, sequence)?;
         for side in [CombatantSide::Attacker, CombatantSide::Defender] {
             if outputs.iter().find(|(s,_)| *s == side).unwrap().1.status != senkei_model::TacticalExecutionStatus::Completed { continue; }
             // Only values in the already frozen RulePlan observation are eligible.
@@ -88,15 +89,22 @@ impl Hook<'_> {
                     }
                     member_profiles.insert(member.clone(), values);
                 }
+                // Army and Squad are field replacements, then the conditional
+                // preference overrides that member for this tick only.
+                for (member, values) in &mut member_profiles {
+                    for profile in [self.inputs.army.get(&side), self.inputs.squads.get(&side).and_then(|m| m.get(&squad))].into_iter().flatten() {
+                        for (value, override_value) in values.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
+                    }
+                    for (field, value) in values.iter_mut().enumerate() {
+                        if let Some(conditional) = overrides.get(&(side, member.clone(), field)) { *value = *conditional; }
+                    }
+                }
                 let mut shared = [0i64;6];
                 for values in member_profiles.values() { for (sum,value) in shared.iter_mut().zip(values) { *sum += value; } }
                 for value in &mut shared { *value = value.div_euclid(members.len() as i64); }
                 for actor in &members {
                 let mut offsets = shared;
                 offsets[2] = member_profiles[actor][2];
-                for profile in [self.inputs.army.get(&side), self.inputs.squads.get(&side).and_then(|m| m.get(&squad))].into_iter().flatten() {
-                    for (value, override_value) in offsets.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
-                }
                 let own = &view.entities[actor];
                 let target_ids: Vec<_> = view.entities.iter().filter(|(_,e)| e.owner != Some(side) && matches!(e.entity_type.as_str(), "hero"|"minion"|"monster"|"tower"|"base")).map(|(id,_)| id.clone()).collect();
                 for definition in &self.policy.policy().candidates {
@@ -128,6 +136,36 @@ impl Hook<'_> {
     }
     pub fn record_arbitration(&mut self,tick:u32,accepted:&[(CombatantSide,Intent)]) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.arbitration_accepted = t.selected.as_ref().is_some_and(|i| accepted.iter().any(|(s,a)| *s == t.side && a == i)); } }
     pub fn record_transition(&mut self,tick:u32) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.transition_completed = true; } }
+}
+/// Consume validated preference intents once. Different values for the same
+/// subject and field are ambiguous and all are rejected; identical values
+/// retain each originating accepted action in owner diagnostics.
+fn consume_preferences(validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], tick: u32, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<BTreeMap<(CombatantSide, EntityId, usize), i64>, ApiError> {
+    let mut groups: BTreeMap<(CombatantSide, EntityId, usize), Vec<(Intent,i64)>> = BTreeMap::new();
+    let mut extracted = Vec::new();
+    validated.retain(|(side, intent)| {
+        if intent.capability.as_str() == "behavior_preference" { extracted.push((*side,intent.clone())); false } else { true }
+    });
+    for (side,intent) in extracted {
+        if !outputs.iter().any(|(candidate_side, output)| *candidate_side == side && output.status == senkei_model::TacticalExecutionStatus::Completed) {
+            push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentRejected { intent, reason: "enbu.behavior_incomplete_execution".into() })?;
+            continue;
+        }
+        let (Some(actor), Some(DomainValue::Enum(field)), Some(DomainValue::Integer(value))) = (&intent.actor,intent.arguments.get(1),intent.arguments.get(2)) else { return Err(api_error(ApiErrorCode::InternalError, "invalid validated behavior preference")); };
+        let index = match field.as_str() { "navigation"=>0, "engagement"=>1, "targeting"=>2, "pursuit"=>3, "survival"=>4, "objective"=>5, _=>return Err(api_error(ApiErrorCode::InternalError, "invalid behavior field")) };
+        let key = (side, actor.clone(), index); let value = *value;
+        groups.entry(key).or_default().push((intent,value));
+    }
+    let mut result = BTreeMap::new();
+    for (key, proposals) in groups {
+        let consistent = proposals.iter().all(|(_,value)| *value == proposals[0].1);
+        if consistent { result.insert(key.clone(),proposals[0].1); }
+        for (intent,_) in proposals {
+            let record = if consistent { DiagnosticRecord::IntentAccepted { intent } } else { DiagnosticRecord::IntentRejected { intent, reason: "enbu.behavior_preference_conflict".into() } };
+            push_diagnostic(diagnostics, sequence, tick, key.0, record)?;
+        }
+    }
+    Ok(result)
 }
 fn observed_view(observation: &ObservationSnapshot) -> senkei_model::WorldStateView {
     let mut entities = BTreeMap::new();

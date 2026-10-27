@@ -120,6 +120,9 @@ fn initialize_match(
 ) -> Result<(WorldState, world::ProjectionIndex, Option<projected_assets::RelationRuntime>), ApiError> {
     validation::validate_inputs(attacker, defender, rules, context)?;
     let plan = rules.plan();
+    if plan.domain.capabilities.contains_key(&"behavior_preference".into()) && context.next_behavior.is_none() {
+        return Err(api_error(ApiErrorCode::ValidationFailed, "behavior_preference requires frozen Next Behavior inputs"));
+    }
     let (mut world, projection_index) = world::initialize(
         &context.initial_world,
         attacker,
