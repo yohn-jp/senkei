@@ -15,10 +15,15 @@ type AuthorizedResponse = {
 const authorized = (): AuthorizedResponse => ({
   authorized_side: "attacker",
   owner_replays: { attacker: { perspective: "attacker" } },
-  diagnostics: { events: [{ side: "attacker" }], cu_by_side: { attacker: 3 }, final_memory_by_side: { attacker: {} } },
+  diagnostics: { identity: { side: "attacker" }, events: [{ side: "attacker" }], cu_by_side: { attacker: 3 }, final_memory_by_side: { attacker: {} } },
 });
 
 describe("simulation owner authorization", () => {
+  it("rejects a restricted trace without its mandatory owner identity", () => {
+    const response = authorized();
+    delete response.diagnostics.identity;
+    expect(simulationAuthorizationError(response, "attacker")).toMatch(/diagnostic identity/);
+  });
   it("accepts the requested side and public responses without restricted channels", () => {
     expect(simulationAuthorizationError(authorized(), "attacker")).toBeNull();
     expect(simulationAuthorizationError({ owner_replays: {}, diagnostics: null }, null)).toBeNull();
