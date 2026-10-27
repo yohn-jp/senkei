@@ -7,7 +7,7 @@ export interface NextDecisionInspectionRequest {
   readonly assets: ReproductionAssets;
   readonly snapshot: SimulationSnapshot;
   readonly snapshot_digest: string;
-  readonly authorized_side: "attacker";
+  readonly authorized_side: CombatantSide;
   readonly selector: { readonly tick: number; readonly slot_id: string };
 }
 
