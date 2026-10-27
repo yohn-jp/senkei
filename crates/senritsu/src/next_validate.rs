@@ -73,6 +73,9 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     }
     let mut supported = package.clone();
     crate::next_domain::configure(&mut supported);
+    let trial_preferences = package.domain.capabilities.contains_key(&CapabilityId::new("behavior_preference"))
+        && r.projection_policy.as_ref().is_some_and(|p| p.test_only);
+    if trial_preferences { crate::production_preferences::add_trial_behavior_preferences(&mut supported); }
     check(
         package.domain == supported.domain && package.world == supported.world,
         "domain",
@@ -330,7 +333,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             .domain
             .capabilities
             .keys()
-            .all(|id| CAPS.contains(&id.as_str())),
+            .all(|id| CAPS.contains(&id.as_str()) || (trial_preferences && id.as_str() == "behavior_preference")),
         "domain.capabilities",
         "unsupported finite battle capability",
     );

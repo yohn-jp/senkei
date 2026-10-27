@@ -5,6 +5,8 @@ mod initial;
 mod validate;
 mod next_validate;
 mod production_behavior;
+mod production_preferences;
+pub use production_preferences::add_trial_behavior_preferences;
 pub use production_behavior::{validate_next_behavior_policy, VerifiedNextBehaviorPolicy};
 pub mod catalog;
 
