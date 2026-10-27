@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { applyOfficialResponse, createOfficialTransaction, inquiryFor, officialProducer } from "./official-transactions";
+import { applyOfficialResponse, createOfficialTransaction, inquiryFor, officialProducer, type OfficialResponse } from "./official-transactions";
 
 const identity = { operationId: "op-1", requestId: "req-1", playerId: "player-1", authorityId: "authority-1" } as const;
 const submitted = createOfficialTransaction(identity);
@@ -17,6 +17,11 @@ describe("official transaction boundary", () => {
     expect(committed.status).toBe("committed");
     expect(await applyOfficialResponse(committed, response, verifier)).toEqual(committed);
     await expect(applyOfficialResponse(committed, { ...response, resultId: "different" }, { verify: async () => ({ ...response, resultId: "different" }) })).rejects.toThrow();
+  });
+  it("does not let a verifier mutate the original claims during verification", async () => {
+    const mutating = { verify: async (claim: OfficialResponse) => { (claim as { playerId: string }).playerId = "other"; return claim; } };
+    await expect(applyOfficialResponse(submitted, response, mutating)).rejects.toThrow("Evidence claims mismatch");
+    expect(response.playerId).toBe("player-1");
   });
   it("inquires only with the same request after an unknown outcome", async () => {
     const unknown = await applyOfficialResponse(submitted, { ...identity, status: "outcome_unknown" }, undefined);

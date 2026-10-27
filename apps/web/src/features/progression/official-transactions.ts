@@ -67,6 +67,8 @@ export function inquiryFor(transaction: OfficialTransaction): OfficialIdentity {
   return { operationId, requestId, playerId, authorityId };
 }
 export async function applyOfficialResponse(current: OfficialTransaction, response: OfficialResponse, verifier?: OfficialEvidenceVerifier): Promise<OfficialTransaction> {
+  current = structuredClone(current);
+  response = structuredClone(response);
   checkIdentity(current);
   checkResponse(response);
   if (!sameIdentity(current, response)) throw new Error("Official response identity mismatch");
@@ -75,7 +77,7 @@ export async function applyOfficialResponse(current: OfficialTransaction, respon
   }
   if (response.status !== "outcome_unknown") {
     if (!verifier) throw new Error("Official evidence verifier not configured");
-    const verified = await verifier.verify(response);
+    const verified = await verifier.verify(structuredClone(response));
     checkResponse(verified);
     if (!sameResponse(response, verified)) throw new Error("Evidence claims mismatch");
   }

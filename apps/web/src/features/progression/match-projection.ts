@@ -25,11 +25,11 @@ async function digestJson(value: unknown): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-export async function buildMatchProjection(input: TrialProjectionInput) {
-  input = structuredClone(input);
-  const { policy } = input;
-  if (policy.schema_version !== 1 || policy.test_only !== true || !digestShape(input.rulesetDigest) || input.rulesetDigest !== input.approvedRulesetDigest || !digestShape(policy.hero_catalog_digest)) throw new Error('Unapproved trial policy');
-  async function side(source: TrialSideInput) {
+/** Validate and freeze one local side against the trial policy; this does not approve a ruleset. */
+export async function buildOwnedSideProjection(policyInput: TrialPolicy, sourceInput: TrialSideInput) {
+    const policy = structuredClone(policyInput);
+    const source = structuredClone(sourceInput);
+    if (policy.schema_version !== 1 || policy.test_only !== true || !digestShape(policy.hero_catalog_digest)) throw new Error('Unapproved trial policy');
     if (!source.playerId.trim() || source.heroSnapshot.playerId !== source.playerId || source.slots.length !== 5 || source.slots.some(s => !s.slotId.trim() || !s.heroInstanceId.trim()) || new Set(source.slots.map(s => s.slotId)).size !== 5 || new Set(source.slots.map(s => s.heroInstanceId)).size !== 5) throw new Error('Invalid formation ownership');
     const ownedIds = new Set(source.heroSnapshot.heroes.map(h => h.instanceId));
     if (ownedIds.size !== source.heroSnapshot.heroes.length || source.heroSnapshot.heroes.some(h => !h.instanceId.trim() || h.playerId !== source.playerId || h.authority !== 'local')) throw new Error('Invalid Hero ownership snapshot');
@@ -71,9 +71,13 @@ export async function buildMatchProjection(input: TrialProjectionInput) {
         for (const [from, to, value] of [[ids[i], ids[j], a?.value ?? null], [ids[j], ids[i], b?.value ?? null]] as const) relations.push({ from_instance_id: from, to_instance_id: to, level: value, formula_version: formula.version, formula_digest: formulaDigest });
       }
     }
-    return { owner_id: source.playerId, authority: 'local' as const, heroes, relations };
-  }
-  const [attacker, defender] = await Promise.all([side(input.attacker), side(input.defender)]);
+    return freeze(structuredClone({ owner_id: source.playerId, authority: 'local' as const, heroes, relations }));
+}
+export async function buildMatchProjection(input: TrialProjectionInput) {
+  input = structuredClone(input);
+  const { policy } = input;
+  if (policy.schema_version !== 1 || policy.test_only !== true || !digestShape(input.rulesetDigest) || input.rulesetDigest !== input.approvedRulesetDigest || !digestShape(policy.hero_catalog_digest)) throw new Error('Unapproved trial policy');
+  const [attacker, defender] = await Promise.all([buildOwnedSideProjection(policy, input.attacker), buildOwnedSideProjection(policy, input.defender)]);
   const instances = [...attacker.heroes, ...defender.heroes].map(h => h.instance_id);
   const items = [...attacker.heroes, ...defender.heroes].flatMap(h => h.equipment.map(e => e.instance_id));
   if (new Set(instances).size !== instances.length || new Set(items).size !== items.length) throw new Error('Duplicate asset identity');
