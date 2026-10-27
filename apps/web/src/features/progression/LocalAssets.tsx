@@ -11,7 +11,7 @@ export function LocalAssets() {
   const [busy, setBusy] = useState(false);
   const perform = async (action: () => Promise<void>) => {
     setBusy(true);
-    try { await action(); } catch (error) { setStatus(`Storage operation failed: ${error instanceof Error ? error.message : String(error)}. Original records are retained; retry or export before recovery.`); }
+    try { await action(); } catch (error) { setStatus(`Storage operation failed: ${error instanceof Error ? error.message : String(error)}. Retry the operation or export available data before recovery.`); }
     finally { setBusy(false); }
   };
   const repository = () => new EquipmentRepository();
@@ -24,7 +24,7 @@ export function LocalAssets() {
     <button type="button" disabled={busy || !playerId.trim()} onClick={() => void perform(async () => { setArchive(JSON.stringify(await repository().export(playerId), null, 2)); setStatus("Local archive prepared. Copy it to retain a backup."); })}>Prepare export</button>
     <label>Local equipment recovery archive <textarea value={archive} onChange={event => setArchive(event.target.value)} disabled={busy}/></label>
     <p>Recovery validates schema, Player identity and approved definition references. No effect definitions are configured; unapproved assets are rejected.</p>
-    <button type="button" disabled={busy || !playerId.trim() || !archive.trim()} onClick={() => void perform(async () => { await repository().import(playerId, JSON.parse(archive)); setItems(await repository().list(playerId)); setStatus("Local recovery committed."); })}>Validate and recover local archive</button>
+    <button type="button" disabled={busy || !playerId.trim() || !archive.trim()} onClick={() => void perform(async () => { await repository().import(playerId, JSON.parse(archive)); setStatus("Local recovery committed. Reload to inspect recovered equipment."); setItems(null); })}>Validate and recover local archive</button>
     <p role="status">{status}</p>
   </details>;
 }
