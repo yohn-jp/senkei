@@ -30,6 +30,25 @@ struct MovementIntent {
 /// world-unit result floors fractional progress. Arrival discards surplus
 /// movement, and another edge cannot be entered until a later tick.
 pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
+    advance_inner(world, rules, tick, None);
+}
+
+/// Apply frozen, committed route choices through the same movement engine.
+pub(crate) fn advance_with_routes(
+    world: &mut WorldState,
+    rules: &NextRules,
+    tick: u32,
+    routes: &mut crate::next_route::Runtime,
+) {
+    advance_inner(world, rules, tick, Some(routes));
+}
+
+fn advance_inner(
+    world: &mut WorldState,
+    rules: &NextRules,
+    tick: u32,
+    mut routes: Option<&mut crate::next_route::Runtime>,
+) {
     let snapshot = world.clone();
     let mut ids = snapshot
         .entities
@@ -65,7 +84,8 @@ pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
             continue;
         };
         let mut next = start.clone();
-        let movement = movement_intent(&id, start, &snapshot, rules, tick);
+        let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
+        let movement = movement_intent_for(&id, start, &snapshot, rules, tick, waypoint.as_deref());
         advance_entity(
             &id,
             &mut next,
@@ -829,12 +849,24 @@ fn exit_allowed(
 /// Movement budget uses one-trillionth world-unit precision for the product
 /// of per-mille vision, squad, haste, and slow multipliers. Terrain is applied
 /// per edge below. Integer edge progress floors fractional world units.
+#[cfg(test)]
 fn movement_intent(
     entity_id: &EntityId,
     entity: &EntityState,
     world: &WorldState,
     rules: &NextRules,
     tick: u32,
+) -> MovementIntent {
+    movement_intent_for(entity_id, entity, world, rules, tick, None)
+}
+
+fn movement_intent_for(
+    entity_id: &EntityId,
+    entity: &EntityState,
+    world: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    waypoint: Option<&str>,
 ) -> MovementIntent {
     if entity.entity_type.as_str() != "hero" {
         let speed = i128::from(int(entity, "speed").max(0));
@@ -859,7 +891,7 @@ fn movement_intent(
             budget: 0,
         };
     };
-    let goal = string(leader, "goal");
+    let goal = waypoint.map(str::to_owned).unwrap_or_else(|| string(leader, "goal"));
     let size = members.len().clamp(1, 5);
     let track = preferred_track(leader);
     let placeholder = MovementIntent {
@@ -2824,5 +2856,162 @@ mod tests {
             "destroyed",
         );
         assert!(forced_transit_in(&hero, &config, &world));
+    }
+
+    fn route_fixture(waypoints: &[&str]) -> (senkei_model::NextRouteMatch, senkei_model::Intent) {
+        use senkei_model::{NextRouteCommand, NextRouteMatch, NextRouteNodeId, NextRoutePolicy, NextRoutePreference};
+        let package = senritsu::next_package();
+        let policy = NextRoutePolicy {
+            schema_version: 1, policy_id: "navigation-test".into(), version: Version::new(1, 0, 0),
+            ruleset_digest: package.ruleset.digest,
+            world_identity: package.next.unwrap().world_identity.unwrap(), test_only: true,
+            preferences: BTreeSet::from([NextRoutePreference::Fastest]),
+        };
+        let command = NextRouteCommand {
+            side: CombatantSide::Attacker, action_id: "march".into(), actor: id("h"),
+            destination: NextRouteNodeId("c".into()), preference: NextRoutePreference::Fastest,
+            waypoints: waypoints.iter().map(|node| NextRouteNodeId((*node).into())).collect(),
+        };
+        let intent = senkei_model::Intent {
+            action_id: "march".into(), capability: "move".into(), actor: Some(id("h")), target: None,
+            arguments: vec![DomainValue::Entity(id("h")), DomainValue::String("c".into())], priority: None,
+        };
+        (NextRouteMatch { policy, commands: vec![command] }, intent)
+    }
+
+    fn commit_route_order(world: &mut WorldState, rules: &NextRules, runtime: &mut crate::next_route::Runtime, intent: &senkei_model::Intent, tick: u32) {
+        let accepted = vec![(CombatantSide::Attacker, intent.clone())];
+        let orders = crate::next_tactics::apply(world, rules, &accepted, tick);
+        runtime.update_committed_orders(&orders, &accepted, world);
+    }
+
+    #[test]
+    fn route_waypoints_are_ordered_physical_arrivals_and_repeated_orders_do_not_restart() {
+        let config = rules(test_map(vec![
+            edge("a", "b", 10, "lane", false), edge("b", "c", 10, "lane", false),
+            edge("a", "d", 10, "lane", false), edge("d", "c", 30, "lane", false),
+        ]));
+        let mut world = WorldState::default();
+        world.entities.insert(id("h"), entity("hero", Some(CombatantSide::Attacker), 100, "a", ""));
+        let (binding, intent) = route_fixture(&["d", "b"]);
+        let mut runtime = crate::next_route::Runtime::new(&binding);
+        let mut visits = Vec::new();
+        for tick in 1..=5 {
+            commit_route_order(&mut world, &config, &mut runtime, &intent, tick);
+            advance_with_routes(&mut world, &config, tick, &mut runtime);
+            visits.push(string(&world.entities[&id("h")], "node"));
+        }
+        assert_eq!(visits, ["d", "a", "b", "c", "c"]);
+    }
+
+    #[test]
+    fn route_waypoint_cannot_skip_destroyed_bridge_transit() {
+        let mut crossing = edge("a", "b", 100, "bridge", false);
+        crossing.id = "bridge.top".into(); crossing.bridge_site = "TOP".into();
+        let config = rules(test_map(vec![crossing, edge("b", "c", 10, "lane", false)]));
+        let mut world = WorldState::default();
+        world.entities.insert(id("h"), entity("hero", Some(CombatantSide::Attacker), 100, "a", ""));
+        let mut bridge = EntityState { entity_type: "bridge".into(), owner: None, fields: BTreeMap::new() };
+        set_string(&mut bridge, "site", "TOP"); set_string(&mut bridge, "bridge_state", "destroyed");
+        world.entities.insert(id("bridge"), bridge);
+        let (binding, intent) = route_fixture(&["b"]);
+        let mut runtime = crate::next_route::Runtime::new(&binding);
+        commit_route_order(&mut world, &config, &mut runtime, &intent, 1);
+        advance_with_routes(&mut world, &config, 1, &mut runtime);
+        assert_eq!(string(&world.entities[&id("h")], "node"), "a");
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 23);
+        set_string(world.entities.get_mut(&id("bridge")).unwrap(), "bridge_state", "normal");
+        commit_route_order(&mut world, &config, &mut runtime, &intent, 2);
+        advance_with_routes(&mut world, &config, 2, &mut runtime);
+        assert_eq!(string(&world.entities[&id("h")], "node"), "a");
+        assert_eq!(int(&world.entities[&id("h")], "ford_remaining"), 22);
+    }
+
+    #[test]
+    fn a_new_committed_move_replaces_the_previous_waypoint_order() {
+        let config = rules(test_map(vec![
+            edge("a", "b", 10, "lane", false), edge("b", "c", 10, "lane", false),
+            edge("a", "d", 10, "lane", false), edge("d", "c", 10, "lane", false),
+        ]));
+        let mut world = WorldState::default();
+        world.entities.insert(id("h"), entity("hero", Some(CombatantSide::Attacker), 100, "a", ""));
+        let (binding, intent) = route_fixture(&["d", "b"]);
+        let mut runtime = crate::next_route::Runtime::new(&binding);
+        commit_route_order(&mut world, &config, &mut runtime, &intent, 1);
+        advance_with_routes(&mut world, &config, 1, &mut runtime);
+        assert_eq!(string(&world.entities[&id("h")], "node"), "d");
+        let mut replacement = intent.clone();
+        replacement.action_id = "replacement".into();
+        commit_route_order(&mut world, &config, &mut runtime, &replacement, 2);
+        advance_with_routes(&mut world, &config, 2, &mut runtime);
+        assert_eq!(string(&world.entities[&id("h")], "node"), "c");
+    }
+
+    #[test]
+    fn merging_heroes_inherit_the_target_squads_route_even_with_equal_goals() {
+        let config = rules(test_map(vec![
+            edge("a", "b", 10, "lane", false), edge("b", "c", 10, "lane", false),
+            edge("a", "d", 10, "lane", false), edge("d", "c", 10, "lane", false),
+        ]));
+        for target_has_route in [false, true] {
+            let mut world = WorldState::default();
+            let mut joining = entity("hero", Some(CombatantSide::Attacker), 100, "a", "c");
+            let mut target = entity("hero", Some(CombatantSide::Attacker), 100, "a", "c");
+            set_string(&mut joining, "squad", "joining");
+            set_string(&mut target, "squad", "target");
+            world.entities.insert(id("h"), joining);
+            world.entities.insert(id("t"), target);
+            let (mut binding, mut intent) = route_fixture(&["d"]);
+            if target_has_route {
+                binding.commands[0].actor = id("t");
+                intent.actor = Some(id("t"));
+                intent.arguments[0] = DomainValue::Entity(id("t"));
+            }
+            let mut runtime = crate::next_route::Runtime::new(&binding);
+            commit_route_order(&mut world, &config, &mut runtime, &intent, 1);
+            let merge = senkei_model::Intent {
+                action_id: "merge".into(), capability: "merge".into(), actor: Some(id("h")),
+                target: Some(id("t")), arguments: vec![DomainValue::Entity(id("h")), DomainValue::Entity(id("t"))], priority: None,
+            };
+            crate::next_squads::intents(&mut world, &config, &[(CombatantSide::Attacker, merge)], 2);
+            assert_eq!(string(&world.entities[&id("h")], "squad"), "target");
+            runtime.update_committed_orders(&[], &[], &world);
+            let expected = target_has_route.then(|| "d".to_owned());
+            assert_eq!(runtime.waypoint_for(&id("h"), &world.entities[&id("h")]), expected);
+            assert_eq!(runtime.waypoint_for(&id("t"), &world.entities[&id("t")]), expected);
+        }
+    }
+
+    #[test]
+    fn route_validation_rejects_a_disconnected_waypoint() {
+        let config = rules(test_map(vec![edge("a", "b", 10, "lane", false), edge("b", "c", 10, "lane", false)]));
+        let mut world = WorldState::default();
+        world.entities.insert(id("h"), entity("hero", Some(CombatantSide::Attacker), 100, "a", "c"));
+        let (binding, _) = route_fixture(&["d"]);
+        assert!(crate::next_route::validate_bindings(&binding, &world, &config).is_err());
+    }
+
+    #[test]
+    fn route_waypoint_respects_enemy_node_exit_block() {
+        let mut map = test_map(vec![
+            edge("a", "b", 10, "lane", false), edge("b", "c", 10, "lane", false),
+            edge("a", "d", 10, "lane", false), edge("d", "c", 10, "lane", false),
+        ]);
+        map.nodes.get_mut("b").unwrap().allegiance = "B".into();
+        let config = rules(map);
+        let mut world = WorldState::default();
+        let mut actor = entity("hero", Some(CombatantSide::Attacker), 100, "a", "");
+        set_string(&mut actor, "squad", "");
+        let mut enemy = entity("hero", Some(CombatantSide::Defender), 0, "a", "");
+        set_string(&mut enemy, "squad", "");
+        world.entities.insert(id("h"), actor);
+        world.entities.insert(id("enemy"), enemy);
+        let (binding, intent) = route_fixture(&["b"]);
+        let mut runtime = crate::next_route::Runtime::new(&binding);
+        commit_route_order(&mut world, &config, &mut runtime, &intent, 1);
+        advance_with_routes(&mut world, &config, 1, &mut runtime);
+        let hero = &world.entities[&id("h")];
+        assert_ne!(string(hero, "node"), "b");
+        assert_ne!(string(hero, "edge_to"), "b");
     }
 }
