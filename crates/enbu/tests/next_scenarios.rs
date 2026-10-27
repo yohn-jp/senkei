@@ -2568,3 +2568,47 @@ fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
     let result = enbu::simulate_next_behavior(&explicit,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
     assert_eq!(result.traces_for_owner(CombatantSide::Attacker).len(),1, "explicit member order suppresses whole current squad's default");
 }
+
+#[test]
+fn local_trial_projection_changes_real_match_and_is_reproduced() {
+    use sha2::{Digest, Sha256};
+    let package = senritsu::next_local_trial_package();
+    let next = package.next.as_ref().unwrap();
+    let policy = next.projection_policy.as_ref().unwrap().clone();
+    let blade = &policy.equipment["test.blade"];
+    let digest = |bytes: Vec<u8>| ContentDigest::new(format!("{:x}", Sha256::digest(bytes)));
+    let blade_digest = digest(serde_json::to_vec(blade).unwrap());
+    let formula = policy.relation.as_ref().unwrap();
+    let formula_version = formula.version;
+    let formula_digest = digest(serde_json::to_vec(formula).unwrap());
+    let rules = senritsu::validate(package, &senritsu::next_engine_compatibility()).unwrap();
+    let (attacker, defender, mut context) = build_match(&rules, &[5], "trial-projection", 2, None, None);
+    let mut sides = BTreeMap::new();
+    for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+        let owner = format!("{side:?}");
+        let heroes = (0..5).map(|i| ProjectedHero {
+            slot_id: format!("slot-{}", i + 1), owner_id: owner.clone(), instance_id: format!("{owner}-{i}"),
+            catalog_id: rules.plan().next.as_ref().unwrap().heroes[i].id.clone(),
+            definition_catalog_id: policy.hero_catalog_id.clone(), definition_version: policy.hero_catalog_version,
+            definition_digest: policy.hero_catalog_digest.clone(),
+            equipment: if side == CombatantSide::Attacker && i == 0 { vec![ProjectedEquipment { instance_id: "trial-item".into(), owner_id: owner.clone(), definition_id: "test.blade".into(), definition_version: blade.version, definition_digest: blade_digest.clone() }] } else { vec![] },
+        }).collect();
+        let relations = if side == CombatantSide::Attacker {
+            [("Attacker-0", "Attacker-1", 4), ("Attacker-1", "Attacker-0", 6)].into_iter().map(|(from, to, level)| ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level: Some(level), formula_version, formula_digest: formula_digest.clone() }).collect()
+        } else { vec![] };
+        sides.insert(side, ProjectedSide { owner_id: owner, authority: AssetAuthority::Local, heroes, relations });
+    }
+    context.match_projection = Some(MatchProjection { schema_version: 1, sides });
+    let snapshot_digest = enbu::reproduction_snapshot_digest(&attacker, &defender, &context).unwrap();
+    let result = simulate(&attacker, &defender, &rules, &context, &mut Vm::new(&rules)).unwrap();
+    let retained = &result.reproduction;
+    assert_eq!(retained.context.match_projection, context.match_projection);
+    assert_eq!(snapshot_digest, enbu::reproduction_snapshot_digest(&retained.attacker, &retained.defender, &retained.context).unwrap());
+    let replayed = simulate(&retained.attacker, &retained.defender, &rules, &retained.context, &mut Vm::new(&rules)).unwrap();
+    assert_eq!(result.result, replayed.result);
+    assert_eq!(result.replay, replayed.replay);
+    let frame = result.owner_replays[&CombatantSide::Attacker].frames[0].visible_state.as_ref().unwrap();
+    let projected = frame.entities.values().find(|e| e.owner == Some(CombatantSide::Attacker) && e.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String("slot-1".into()))).unwrap();
+    assert_eq!(projected.fields[&FieldId::from("attack")], DomainValue::Integer(rules.plan().next.as_ref().unwrap().heroes[0].stats.attack + 2));
+    assert_eq!(projected.fields[&FieldId::from("defense")], DomainValue::Integer(rules.plan().next.as_ref().unwrap().heroes[0].stats.defense + 5));
+}

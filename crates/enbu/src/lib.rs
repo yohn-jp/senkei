@@ -107,7 +107,7 @@ pub fn preflight(
             .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
         next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
     }
-    let (world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    let (world, projection_index, _) = initialize_match(attacker, defender, rules, context)?;
     evaluate_termination(rules.plan(), &world, 0, &projection_index).map(|_| ())
 }
 
@@ -116,7 +116,7 @@ fn initialize_match(
     defender: &senkei_model::SenkeiSnapshot,
     rules: &VerifiedRulePlan,
     context: &MatchContext,
-) -> Result<(WorldState, world::ProjectionIndex), ApiError> {
+) -> Result<(WorldState, world::ProjectionIndex, Option<projected_assets::RelationRuntime>), ApiError> {
     validation::validate_inputs(attacker, defender, rules, context)?;
     let plan = rules.plan();
     let (mut world, projection_index) = world::initialize(
@@ -130,6 +130,7 @@ fn initialize_match(
     if context.match_projection.is_some() && plan.next.is_none() {
         return Err(invalid_plan("asset projection requires Next rules"));
     }
+    let mut relation_runtime = None;
     if let Some(next) = &plan.next {
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
@@ -139,7 +140,7 @@ fn initialize_match(
                     return Err(invalid_plan("Hero catalog identity does not match the verified rules"));
                 }
             }
-            projected_assets::apply(&mut world, next.projection_policy.as_ref(), projection)?;
+            relation_runtime = Some(projected_assets::apply(&mut world, next.projection_policy.as_ref(), projection)?);
         }
         next_combat::initialize_objectives(&mut world, next);
         next_battlefield::initialize(&mut world, next);
@@ -151,7 +152,7 @@ fn initialize_match(
     validation::validate_configuration(&defender.configuration, plan, &world)?;
     validation::validate_memory(&attacker.initial_memory, plan, &world)?;
     validation::validate_memory(&defender.initial_memory, plan, &world)?;
-    Ok((world, projection_index))
+    Ok((world, projection_index, relation_runtime))
 }
 
 /// Run a complete deterministic match using the shared tactical execution
@@ -180,7 +181,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
     mut behavior: Option<&mut behavior::Hook<'_>>,
     mut next_behavior: Option<&mut next_behavior::Hook<'_>>,
 ) -> Result<SimulationArtifact, ApiError> {
-    let (mut world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    let (mut world, projection_index, mut relation_runtime) = initialize_match(attacker, defender, rules, context)?;
     let plan = rules.plan();
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),
@@ -426,6 +427,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
         let mut next_events = Vec::new();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
+            if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
             next_tactics::apply(&mut world, next, &accepted_by_side, tick);
             // Resolve legality and attacks from one committed position snapshot.
             // Preparation reserves an exclusive action without moving anyone.
@@ -439,6 +441,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             next_events.extend(next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick));
             next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
+            if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
             event_count = event_count.checked_add(next_events.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit,"event count overflow"))?;
             if event_count > context.host_limits.max_events.min(plan.limits.max_events) { return Err(api_error(ApiErrorCode::ResourceLimit,"event limit exceeded")); }

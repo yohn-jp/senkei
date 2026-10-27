@@ -19,7 +19,7 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             check(definition.effects.iter().all(|e| (-1_000_000..=1_000_000).contains(&e.add)), "next.projection_policy.equipment", "equipment effect outside supported range");
         }
         if let Some(formula) = &policy.relation {
-            check(formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (0..=1_000_000).contains(&formula.add_per_level) && (0..=1_000_000).contains(&formula.max_bonus), "next.projection_policy.relation", "invalid relation formula");
+            check(matches!(formula.stat, ProjectedStat::Attack | ProjectedStat::Defense) && formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (0..=1_000_000).contains(&formula.add_per_level) && (0..=1_000_000).contains(&formula.max_bonus), "next.projection_policy.relation", "invalid relation formula");
         }
     }
     let paired_world_matches = match (&r.world_identity, &r.map.world_identity) {

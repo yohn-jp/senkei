@@ -34,6 +34,7 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
                 (FieldId::from("catalog_id"), DomainValue::String("catalog".into())),
                 (FieldId::from("attack"), DomainValue::Integer(10)),
                 (FieldId::from("defense"), DomainValue::Integer(10)),
+                (FieldId::from("hp"), DomainValue::Integer(10)),
                 (FieldId::from("squad"), DomainValue::String("group".into())),
             ]) });
             heroes.push(ProjectedHero { slot_id: slot, owner_id: owner.clone(), instance_id: instance, catalog_id: "catalog".into(), definition_catalog_id: "catalogs".into(), definition_version: version, definition_digest: ContentDigest::new("catalog-digest"), equipment: if n == 0 && side == CombatantSide::Attacker { vec![ProjectedEquipment { instance_id: "item".into(), owner_id: owner.clone(), definition_id: "blade".into(), definition_version: version, definition_digest: digest.clone() }] } else { vec![] } });
@@ -57,10 +58,28 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
         player.relations.push(ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level, formula_version: version, formula_digest: formula_digest.clone() });
     }
     let mut first = original.clone();
-    apply(&mut first, Some(&policy), &projection).unwrap();
+    let mut runtime = apply(&mut first, Some(&policy), &projection).unwrap();
     for (id, expected) in [("Attacker-0", 14), ("Attacker-1", 16), ("Attacker-2", 12)] {
         assert_eq!(first.entities[&EntityId::from(id)].fields[&FieldId::from("defense")], DomainValue::Integer(expected));
     }
+    let mut lifecycle = first.clone();
+    let hero = EntityId::from("Attacker-1");
+    lifecycle.entities.get_mut(&hero).unwrap().fields.insert(FieldId::from("squad"), DomainValue::String("solo".into()));
+    runtime.refresh(&mut lifecycle).unwrap();
+    assert_eq!(lifecycle.entities[&hero].fields[&FieldId::from("defense")], DomainValue::Integer(10));
+    assert_eq!(lifecycle.entities[&EntityId::from("Attacker-0")].fields[&FieldId::from("defense")], DomainValue::Integer(12));
+    lifecycle.entities.get_mut(&hero).unwrap().fields.insert(FieldId::from("squad"), DomainValue::String("group".into()));
+    runtime.refresh(&mut lifecycle).unwrap();
+    assert_eq!(lifecycle, first);
+    lifecycle.entities.get_mut(&hero).unwrap().fields.insert(FieldId::from("hp"), DomainValue::Integer(0));
+    runtime.refresh(&mut lifecycle).unwrap();
+    assert_eq!(lifecycle.entities[&hero].fields[&FieldId::from("defense")], DomainValue::Integer(10));
+    lifecycle.entities.get_mut(&hero).unwrap().fields.insert(FieldId::from("defense"), DomainValue::Integer(13));
+    lifecycle.entities.get_mut(&hero).unwrap().fields.insert(FieldId::from("hp"), DomainValue::Integer(10));
+    runtime.refresh(&mut lifecycle).unwrap();
+    assert_eq!(lifecycle.entities[&hero].fields[&FieldId::from("defense")], DomainValue::Integer(19));
+    runtime.refresh(&mut lifecycle).unwrap();
+    assert_eq!(lifecycle.entities[&hero].fields[&FieldId::from("defense")], DomainValue::Integer(19));
     let player = projection.sides.get_mut(&CombatantSide::Attacker).unwrap();
     player.heroes.reverse(); player.relations.reverse();
     for r in &mut player.relations {
