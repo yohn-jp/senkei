@@ -1048,3 +1048,20 @@ fn field_decisions_reject_same_action_id_with_different_payloads() {
     ]);
     assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()), Err(BehaviorError::InvalidCandidateSet));
 }
+
+#[test]
+fn field_decisions_require_current_certified_fallback() {
+    let fixture = fixture();
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let side = CombatantSide::Attacker;
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 5, side, &empty_execution(), &BTreeMap::new()).unwrap();
+    let field = BehaviorFieldId::parse("navigation.destination").unwrap();
+    let fields = BTreeMap::from([(field.clone(), Vec::new())]);
+    let fallback = NoOpFallbackCandidate { kind: NoOpFallbackKind::Wait, tick: 5, side, legality: Legality::KnownLegal };
+    let accepted = fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::from([(field.clone(), fallback.clone())])).unwrap();
+    assert_eq!(accepted[&field].fallback_kind, Some(NoOpFallbackKind::Wait));
+    let stale = NoOpFallbackCandidate { tick: 4, ..fallback };
+    let rejected = fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::from([(field.clone(), stale)])).unwrap();
+    assert_eq!(rejected[&field].fallback_kind, None);
+    assert!(rejected[&field].trace.iter().any(|entry| matches!(entry, DecisionTrace::FallbackRejected { reason: RejectionReason::StaleCandidateContext, .. })));
+}
