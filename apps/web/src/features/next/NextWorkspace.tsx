@@ -3,6 +3,7 @@ import { OwnedAssetsPanel, readOwnedAssets, approvedEquipmentDefinitions, type O
 import { HeroRepository } from "../heroes/repository";
 import { buildMatchProjection } from "../progression/match-projection";
 import { localTrialBehavior } from "../../contracts/next-production";
+import { initialOwnedState } from "../progression/initial-preview";
 import { FrozenAssetsPreview } from "../progression/FrozenAssetsPreview";
 import { LocalAssets } from "../progression/LocalAssets";
 import { JourneyScreens } from "./JourneyScreens";
@@ -77,6 +78,8 @@ const DEFAULT_HERO_IDS = ["F01", "F03", "F06", "R02", "R04"] as const;
 const DEFAULT_RIVAL_IDS = ["R01", "R03", "R05", "F02", "F04"] as const;
 const NEXT_STORAGE_KEY = "senkei.next-workspace.v1";
 const NEXT_RECOVERY_KEY = "senkei.next-workspace-recovery.v1";
+const TRIAL_STORAGE_KEY = "senkei.next-owned-workspace.v1";
+const TRIAL_RECOVERY_KEY = "senkei.next-owned-workspace-recovery.v1";
 const VISIBLE_ENTITY_CLUSTER_RADIUS = 0.8;
 
 type WorkspaceTab = "formation" | "jinrei" | "battle" | "analysis";
@@ -746,6 +749,10 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [ownedAssets, setOwnedAssets] = useState<OwnedAssetsState | null>(null);
   const [trialTickLimit, setTrialTickLimit] = useState(20);
   const isTrial = packageValue?.next?.projection_policy?.test_only === true;
+  const setupStorageKey = isTrial ? TRIAL_STORAGE_KEY : NEXT_STORAGE_KEY;
+  const setupRecoveryKey = isTrial ? TRIAL_RECOVERY_KEY : NEXT_RECOVERY_KEY;
+  const setupIdentity = `${setupRecoveryKey}:${packageValue?.ruleset.digest ?? ''}`;
+  const [initializedSetupIdentity, setInitializedSetupIdentity] = useState<string | null>(null);
   const enableTrial = async () => {
     if (!core) return;
     try { const trial = await core.nextRuleset(true); localStorage.setItem('senkei.local-trial-enabled.v1', 'true'); setTrialPackage(trial); setTrialPending(false); }
@@ -788,7 +795,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{
-    key: string; snapshot: SimulationSnapshot; reproductionAssets: ReproductionAssets; snapshotDigest: string;
+    key: string; snapshot: SimulationSnapshot; reproductionAssets: ReproductionAssets; snapshotDigest: string; initialState?: import("../../contracts").WorldStateView;
   } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; problem: ClassifiedPreflightProblem; exactSource: string | null } | null>(null);
   const [heroRepairFocus, setHeroRepairFocus] = useState<HeroRepairFocusRequest | null>(null);
@@ -1114,8 +1121,10 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   ]);
 
   useEffect(() => {
+    if (trialPending || !packageValue) return;
+    setSavedSetupLoaded(false);
     try {
-      const serialized = window.localStorage.getItem(NEXT_STORAGE_KEY);
+      const serialized = window.localStorage.getItem(setupStorageKey);
       setSavedRaw(serialized);
       setSavedSetup(null);
       setSavedSetupError(null);
@@ -1131,7 +1140,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } finally {
       setSavedSetupLoaded(true);
     }
-  }, [storageAttempt]);
+  }, [storageAttempt, setupStorageKey, trialPending, packageValue?.ruleset.digest]);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 761px)");
@@ -1141,8 +1150,10 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   }, []);
 
   useEffect(() => {
+    if (trialPending || !packageValue) return;
+    setRecoverySetupLoaded(false);
     try {
-      const serialized = window.localStorage.getItem(NEXT_RECOVERY_KEY);
+      const serialized = window.localStorage.getItem(setupRecoveryKey);
       setRecoveryRaw(serialized);
       setRecoveryLoadError(null);
       if (serialized !== null) {
@@ -1162,10 +1173,10 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } finally {
       setRecoverySetupLoaded(true);
     }
-  }, [storageAttempt]);
+  }, [storageAttempt, setupRecoveryKey, trialPending, packageValue?.ruleset.digest]);
 
   useEffect(() => {
-    if (!packageValue || !nextRules || !recoverySetupLoaded) return;
+    if (!packageValue || !nextRules || !recoverySetupLoaded || trialPending) return;
     try {
       const recovered = recoverySetupRef.current;
       if (recovered && savedSetupMismatch(recovered, packageValue, nextRules) === null) {
@@ -1186,6 +1197,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         setRendererError(null);
         setSelectedEntityId(null);
         setRecoveryRestored(true);
+        setInitializedSetupIdentity(setupIdentity);
         setSaveMessage("Recovered this unsaved Next draft after reload. Your explicit saved setup remains separate.");
         return;
       }
@@ -1204,7 +1216,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       setError(null);
       setRendererError(null);
       setSelectedEntityId(null);
+      setInitializedSetupIdentity(setupIdentity);
     } catch (cause) {
+      setInitializedSetupIdentity(null);
       setSlots([]);
       setRivalSlots([]);
       draftRef.current = null;
@@ -1403,7 +1417,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
 
   const buildSavedSetup = useCallback((): SavedNextSetup | null => {
     const currentDraft = draftRef.current;
-    if (!packageValue || !nextRules || !currentDraft) return null;
+    if (!packageValue || !nextRules || !currentDraft || initializedSetupIdentity !== setupIdentity) return null;
     return {
       format_version: 1,
       saved_at: new Date().toISOString(),
@@ -1417,7 +1431,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       rival_source: createStarterJinrei(packageValue, "defender", rivalSlots),
       ...(entryMode === "campaign" && selectedScenario ? { campaign_scenario_id: selectedScenario.id } : {}),
     };
-  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots]);
+  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots, initializedSetupIdentity, setupIdentity]);
 
   const currentSetup = buildSavedSetup();
   const restoreDifferences = {
@@ -1432,7 +1446,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     if (!setup) return;
     try {
       const serialized = JSON.stringify(setup);
-      window.localStorage.setItem(NEXT_RECOVERY_KEY, serialized);
+      window.localStorage.setItem(setupRecoveryKey, serialized);
       recoverySetupRef.current = setup;
       setRecoverySetup(setup);
       setRecoveryRaw(serialized);
@@ -1456,7 +1470,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         return;
       }
       const serialized = JSON.stringify(setup);
-      window.localStorage.setItem(NEXT_STORAGE_KEY, serialized);
+      window.localStorage.setItem(setupStorageKey, serialized);
       setSavedRaw(serialized);
       setSavedSetup(setup);
       setSavedSetupError(null);
@@ -1464,7 +1478,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The Next setup could not be saved: ${cause.message}` : "The Next setup could not be saved in this browser.");
     }
-  }, [buildSavedSetup, savedSetupLoaded, savedRaw, savedSetup, savedSetupMismatchReason]);
+  }, [buildSavedSetup, savedSetupLoaded, savedRaw, savedSetup, savedSetupMismatchReason, setupStorageKey]);
 
   const restoreSetup = useCallback((): void => {
     if (!savedSetup || savedSetupMismatchReason) return;
@@ -1489,7 +1503,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
 
   const clearSavedSetup = useCallback((): void => {
     try {
-      window.localStorage.removeItem(NEXT_STORAGE_KEY);
+      window.localStorage.removeItem(setupStorageKey);
       setSavedRaw(null);
       setSavedSetup(null);
       setSavedSetupError(null);
@@ -1497,11 +1511,11 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The saved setup could not be cleared: ${cause.message}` : "The saved setup could not be cleared.");
     }
-  }, []);
+  }, [setupStorageKey]);
 
   const clearRecoveryCopy = useCallback((): void => {
     try {
-      window.localStorage.removeItem(NEXT_RECOVERY_KEY);
+      window.localStorage.removeItem(setupRecoveryKey);
       setRecoveryRaw(null);
       recoverySetupRef.current = null;
       setRecoverySetup(null);
@@ -1514,7 +1528,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         ? `The recovery copy could not be cleared: ${cause.message}`
         : "The recovery copy could not be cleared.");
     }
-  }, []);
+  }, [setupRecoveryKey]);
 
   const exportSetup = useCallback((setup: SavedNextSetup, filename: string): void => {
     const blob = new Blob([JSON.stringify(setup, null, 2)], { type: "application/json" });
@@ -1584,7 +1598,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       setSaveMessage("Imported a Next setup. Check its ruleset status, then restore it when compatible.");
       try {
         const serialized = JSON.stringify(parsed);
-        window.localStorage.setItem(NEXT_STORAGE_KEY, serialized);
+        window.localStorage.setItem(setupStorageKey, serialized);
         setSavedRaw(serialized);
       } catch (cause) {
         setSavedSetupError(cause instanceof Error
@@ -1594,7 +1608,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } catch (cause) {
       setSavedSetupError(cause instanceof Error ? `The setup file could not be imported: ${cause.message}` : "The setup file could not be imported.");
     }
-  }, [savedRaw]);
+  }, [savedRaw, setupStorageKey]);
 
   const refreshStarterTactics = useCallback((before: readonly FormationSlot[], after: readonly FormationSlot[]): void => {
     const currentDraft = draftRef.current;
@@ -1833,7 +1847,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         preflightStage.current = "stale_inputs";
         throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
       }
-      setPrepared({ key, snapshot: exactRun.snapshot, reproductionAssets: exactRun.reproductionAssets, snapshotDigest });
+      setPrepared({ key, snapshot: exactRun.snapshot, reproductionAssets: exactRun.reproductionAssets, snapshotDigest, initialState: exactRun.response.owner_replays?.attacker?.frames[0]?.visible_state ?? undefined });
       return exactRun.snapshot;
     }
     if (!packageValue || !nextRules || !draft || !editorCatalogMatchesRuleset(editorCatalog, packageValue)) {
@@ -1910,12 +1924,13 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     }
     const snapshotDigest = await reproductionSnapshotDigest(snapshot);
     await core.preflightReproduction(snapshot, reproductionAssets, snapshotDigest);
+    const initialState = isTrial ? await initialOwnedState(core, snapshot, reproductionAssets) : undefined;
     if (launchKeyRef.current !== key) {
       const message = "設定が変更されました。現在の設定を再検証してください。";
       preflightStage.current = "stale_inputs";
       throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
     }
-    setPrepared({ key, snapshot, reproductionAssets, snapshotDigest });
+    setPrepared({ key, snapshot, reproductionAssets, snapshotDigest, initialState });
     return snapshot;
   };
 
@@ -2452,7 +2467,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         <div className="next-heading-status"><span className="next-live-dot" />REAL LOCAL SIMULATION<span className="next-heading-mark" aria-hidden="true">兵</span></div>
       </header>
 
-      {isTrial && prepared?.key === launchKey && prepared.reproductionAssets && <FrozenAssetsPreview snapshot={prepared.snapshot} assets={prepared.reproductionAssets}/>}
+      {prepared?.key === launchKey && prepared.reproductionAssets && <FrozenAssetsPreview snapshot={prepared.snapshot} assets={prepared.reproductionAssets} initialState={prepared.initialState}/>}
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
       {campaignProgressError && <div className="next-error" role="alert" data-testid="campaign-storage-error"><div><p>{campaignProgressError}</p><p>Local PvE remains free to run. Existing completion history is not reset; the displayed session state is not a successful storage save.</p><button type="button" onClick={() => campaignProgressReadBlocked ? setCampaignProgressAttempt(attempt => attempt + 1) : setCampaignProgressError(null)}>{campaignProgressReadBlocked ? "Retry campaign storage" : "Retry progress save"}</button>{campaignProgressRaw.current !== null && <button type="button" onClick={() => exportCampaignProgress("current")}>Export preserved v2 progress</button>}{campaignProgressRaw.legacy !== null && <button type="button" onClick={() => exportCampaignProgress("legacy")}>Export preserved legacy progress</button>}</div></div>}
       {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => setCatalogAttempt(attempt => attempt + 1)}>Catalogを再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>}
@@ -2536,6 +2551,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
               <p>Test policies are unapproved for production. Enabling trial mode creates a separate ruleset digest and trial Draft. Official ownership is not configured.</p>
               {!isTrial ? <button type="button" onClick={() => void enableTrial()}>Enable test-only owned runtime</button> : <>
                 <p role="status">Test-only six-domain runtime enabled</p>
+                <button type="button" onClick={() => { try { localStorage.removeItem('senkei.local-trial-enabled.v1'); setTrialPackage(null); setTrialPending(false); setOwnedAssets(null); } catch (cause) { setError(String(cause)); } }}>Return to ordinary local draft</button>
                 <label>Trial tick limit <input type="number" min={1} max={packageValue.termination.max_ticks} value={trialTickLimit} onChange={event => setTrialTickLimit(Number(event.target.value))}/></label>
                 <OwnedAssetsPanel ruleset={packageValue} slots={slots} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
               </>}
