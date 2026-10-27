@@ -63,7 +63,7 @@ export class OwnedAssetsRecovery {
     const pending = await this.journal(false, current => ({ value: current })); if (!pending || pending.paused) return;
     // Reapplying each completed step is intentional: imports are idempotent and preserve originals.
     await this.apply(pending.archive, this.names);
-    await this.journal(true, current => { if (!current) return { value: undefined }; if (JSON.stringify(current.archive) === JSON.stringify(pending.archive)) return { value: undefined, next: null }; throw new Error('Recovery journal changed'); });
+    await this.journal(true, current => { if (!current) return { value: undefined }; if (current.paused) throw new Error('Recovery was paused during restore; original archive is preserved'); if (JSON.stringify(current.archive) === JSON.stringify(pending.archive)) return { value: undefined, next: null }; throw new Error('Recovery journal changed'); });
   }
   async export(): Promise<OwnedAssetsArchive> {
     await this.resume(); return this.readCurrent();
