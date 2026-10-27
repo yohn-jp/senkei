@@ -520,3 +520,60 @@ fn first_tower_lane() -> String {
         .unwrap()
         .to_owned()
 }
+
+#[test]
+fn simultaneous_deploys_from_one_barracks_cannot_double_spend_one_credit() {
+    const TWO_DEPLOYS: &str = r#"senkei single_producer_deploy {
+        action deploy_one {
+            when match.tick == 8,
+            do deploy(
+                argmin producer in allies.barracks by producer.resources then producer.id,
+                argmin reserve in filter reserve in allies.reserves { reserve.slot_id == "reserve-one", }
+                    by reserve.available_tick then reserve.slot_id,
+                top,
+            ),
+        },
+        action deploy_two {
+            when match.tick == 8,
+            do deploy(
+                argmin producer in allies.barracks by producer.resources then producer.id,
+                argmin reserve in filter reserve in allies.reserves { reserve.slot_id == "reserve-two", }
+                    by reserve.available_tick then reserve.slot_id,
+                top,
+            ),
+        },
+    }"#;
+    let mut fixture = input(TWO_DEPLOYS, 4, WAIT, 2);
+    fixture.attacker.configuration.insert(
+        FieldId::new("starting_credits"), DomainValue::Integer(1),
+    );
+    fixture.attacker.configuration.insert(
+        FieldId::new("reinforcements"),
+        DomainValue::List(["reserve-one", "reserve-two"].into_iter().map(|slot| {
+            DomainValue::Record(BTreeMap::from([
+                (FieldId::new("slot_id"), DomainValue::String(slot.into())),
+                (FieldId::new("unit_class"), DomainValue::Enum(SymbolId::new("infantry"))),
+                (FieldId::new("lane"), DomainValue::Enum(SymbolId::new("top"))),
+                (FieldId::new("available_tick"), DomainValue::Integer(8)),
+            ]))
+        }).collect()),
+    );
+    let result = run(fixture).expect("both initial-rule deploy actions compile and simulate");
+    let mut accepted = 0;
+    let mut rejected = 0;
+    for diagnostic in &result.diagnostics.events {
+        if diagnostic.tick != 8 || diagnostic.side != CombatantSide::Attacker { continue; }
+        match &diagnostic.record {
+            senkei_model::DiagnosticRecord::IntentAccepted { intent }
+                if intent.capability.as_str() == "deploy" => accepted += 1,
+            senkei_model::DiagnosticRecord::IntentRejected { intent, .. }
+                if intent.capability.as_str() == "deploy" => rejected += 1,
+            _ => {}
+        }
+    }
+    assert_eq!((accepted, rejected), (1, 1), "one producer may only deploy once in a tick");
+    let deployed = result.public.replay.frames.iter().filter(|frame| frame.tick == 8)
+        .flat_map(|frame| frame.events.iter())
+        .filter(|event| event.event.as_str() == "unit_deployed").count();
+    assert_eq!(deployed, 1, "only one reinforcement consumes the available credit");
+}
