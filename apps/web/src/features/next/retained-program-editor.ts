@@ -3,6 +3,7 @@ import type { CatalogStamp, DomainCatalogDocument } from "@senkei/jinrei-editor"
 import type { CompileOutcome, CoreClient, EditorCompilerEnvelope, ReproductionAssets, StructuredTacticsAst, TacticalSource } from "../../contracts";
 import { canonicalJson, reproductionSnapshotDigest, sha256Hex } from "../../worker/input-identity";
 import type { CoverageRun } from "./coverage-observed";
+import { verifyRunSourceMap } from "./tactical-context";
 import { validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
 
 export interface RetainedCompileRequest {
@@ -99,4 +100,12 @@ export async function loadRetainedOriginal(core: RetainedEditorCore, run: Covera
     throw new Error("The retained source does not reproduce the original owner Program.");
   }
   return { verified, catalog, stamp, source };
+}
+
+/** Source links only use the frozen Run and a proven, retained compiler mapping. */
+export async function verifyRetainedRunSourceProof(core: RetainedEditorCore, run: CoverageRun, input: TacticalSource): Promise<{ map: import("../../contracts").ActionSourceMap | null; reason: string }> {
+  if (input.kind !== "text") throw new Error("Original Run has no text source locations.");
+  const retained = await loadRetainedOriginal(core, run, input, 1);
+  const compiled = await compileRetainedSource(core, retained.verified, retained.stamp, retained.source, 2);
+  return verifyRunSourceMap(retained.source, run.snapshot.attacker.program.content_digest, compiled);
 }
