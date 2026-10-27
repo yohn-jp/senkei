@@ -13,6 +13,7 @@
 //! killed during this phase still completes its already-selected attack.
 
 use crate::next_support as support;
+use crate::actor_decisions::{ActorDecisionCollector, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
 use senkei_model::{
     CombatantSide, DomainValue, EntityId, EntityState, FieldId, Intent,
     MatchOutcome, NextRules, PresentationEvent, SkillDefinition, SkillEffect, UnitStats,
@@ -29,6 +30,7 @@ struct Hit {
     raw_power: i64,
     event: &'static str,
     uses_basic_attack: bool,
+    decision_index: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -127,7 +129,7 @@ pub fn resolve(
 ) -> Vec<PresentationEvent> {
     let events = objective_lifecycle(world, rules, tick);
     let start = world.clone();
-    resolve_snapshot_with_events(world, &start, rules, accepted, tick, events)
+    resolve_snapshot_with_events(world, &start, rules, accepted, tick, events, None)
 }
 
 /// Resolve attacks against a frozen pre-movement snapshot while committing
@@ -140,7 +142,21 @@ pub fn resolve_from_snapshot(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) -> Vec<PresentationEvent> {
-    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new())
+    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), None)
+}
+
+/// Opt-in diagnostics of the same selection and event-emission path.
+/// The caller must reject an overflowed collector and project its private
+/// records through the authorized owner's observation and replay.
+pub(crate) fn resolve_from_snapshot_with_actor_decisions(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    accepted: &[(CombatantSide, Intent)],
+    tick: u32,
+    collector: &mut ActorDecisionCollector,
+) -> Vec<PresentationEvent> {
+    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), Some(collector))
 }
 
 /// Reserve a legal active skill as this Hero's action before movement runs.
@@ -297,6 +313,7 @@ fn resolve_snapshot_with_events(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
     mut events: Vec<PresentationEvent>,
+    mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<PresentationEvent> {
     // Skills already on a selected path unlock automatically once level and
     // prerequisite conditions are met. Initial level-one heroes are handled
@@ -315,7 +332,7 @@ fn resolve_snapshot_with_events(
     apply_mature_squad_shields(world, rules);
 
     let (mut skill_damage, activations) = collect_skill_activations(world, &combat_start, rules, accepted, tick, &mut events);
-    let mut hits = collect_basic_attacks(world, &combat_start, rules, tick);
+    let mut hits = collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut());
     hits.append(&mut skill_damage);
 
     // Timed support effects are prepared together, independent of accepted
@@ -356,6 +373,9 @@ fn resolve_snapshot_with_events(
         payload.insert("source".into(), DomainValue::Entity(hit.source.clone()));
         payload.insert("target".into(), DomainValue::Entity(hit.target.clone()));
         payload.insert("amount".into(), DomainValue::Integer(damage));
+        if let Some(collector) = collector.as_deref_mut() {
+            collector.committed(hit.decision_index, events.len());
+        }
         events.push(event(hit.event, Some(hit.target.clone()), payload));
     }
 
@@ -442,33 +462,59 @@ fn collect_basic_attacks(
     start: &WorldState,
     rules: &NextRules,
     tick: u32,
+    mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
     for (source_id, source) in &start.entities {
         if !support::alive(source) || !is_combatant(source) {
             continue;
         }
+        let decision_index = AutonomousActorKind::from_type(source.entity_type.as_str())
+            .and_then(|kind| collector.as_deref_mut().and_then(|collector| collector.begin(tick, source_id, kind, source.owner)));
         // Persistent movement goals do not consume a tick. Only movement
         // selected by navigation for any cohort member excludes an attack.
         let moved_this_tick = cohort_moved_this_tick(world, start, source_id, tick);
         let current_action_lock = cohort_action_lock_until(world, start, source_id);
-        if moved_this_tick
-            || support::int(source, "action_lock_until").max(current_action_lock) > i64::from(tick)
-        {
+        if moved_this_tick {
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::Moved });
+            }
+            continue;
+        }
+        if support::int(source, "action_lock_until").max(current_action_lock) > i64::from(tick) {
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::ActionLocked });
+            }
             continue;
         }
         let interval = support::int(source, "attack_interval").max(1);
-        if support::int(source, "attack_ready") > i64::from(tick)
-            || support::int(source, "attack") <= 0
-            || support::int(source, "range") < 0
-        {
+        if support::int(source, "attack_ready") > i64::from(tick) {
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackNotReady });
+            }
+            continue;
+        }
+        if support::int(source, "attack") <= 0 || support::int(source, "range") < 0 {
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackUnavailable });
+            }
             continue;
         }
         let selected = requested_target(source, start)
             .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick));
+        let selection = if selected.is_some() { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId };
+        if let Some((target_id, _)) = &selected {
+            if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
+        }
         let selected = selected.or_else(|| {
             start.entities.iter()
-                .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick))
+                .filter(|(target_id, target)| {
+                    let eligible = can_basic_attack(source_id, source, target_id, target, start, rules, tick);
+                    if eligible {
+                        if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
+                    }
+                    eligible
+                })
                 .min_by(|(a_id, a), (b_id, b)| {
                     support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
                         .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
@@ -476,7 +522,15 @@ fn collect_basic_attacks(
                 })
                 .map(|(id, entity)| (id.clone(), entity))
         });
-        let Some((target_id, _)) = selected else { continue };
+        let Some((target_id, _)) = selected else {
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::NoEligibleTarget });
+            }
+            continue;
+        };
+        if let Some(collector) = collector.as_deref_mut() {
+            collector.action(decision_index, AutonomousCombatAction::Attack { target: target_id.clone(), selection });
+        }
         // Selection for every combatant reads the same pre-attack lock state.
         // Do not publish a squad member's new action lock until all attacks
         // have been selected; doing so suppresses later members in ID order.
@@ -489,6 +543,7 @@ fn collect_basic_attacks(
             raw_power: support::int(source, "attack"),
             event: "next.attack",
             uses_basic_attack: true,
+            decision_index,
         });
     }
     let preparation = support::param(rules, "attack_preparation_ticks", 0).max(0);
@@ -645,6 +700,7 @@ fn collect_skill_activations(
                 raw_power: power,
                 event: "next.skill_damage",
                 uses_basic_attack: false,
+                decision_index: None,
             });
         } else if skill.effect == SkillEffect::AreaDamage {
             let radius = support::param(rules, "skill_area_radius", 80).max(0);
@@ -665,6 +721,7 @@ fn collect_skill_activations(
                     raw_power: skill.power,
                     event: "next.skill_damage",
                     uses_basic_attack: false,
+                    decision_index: None,
                 });
             }
         } else {
@@ -1415,6 +1472,126 @@ mod tests {
 
     fn insert(world: &mut WorldState, id: &str, entity: EntityState) {
         world.entities.insert(EntityId::from(id), entity);
+    }
+
+    #[test]
+    fn autonomous_trace_is_taken_from_real_selection_and_attack_event() {
+        let rules = rules();
+        for (kind, owner) in [
+            ("minion", Some(CombatantSide::Attacker)),
+            ("monster", None),
+            ("tower", Some(CombatantSide::Attacker)),
+            ("base", Some(CombatantSide::Attacker)),
+        ] {
+            for (requested, target_b_x) in [(false, 20), (false, 10), (true, 20)] {
+                let mut start = WorldState::default();
+                let mut source = entity(kind, owner, 0, 100, 10, 100);
+                if requested {
+                    source.fields.insert("target".into(), DomainValue::Entity("target-b".into()));
+                }
+                insert(&mut start, "source", source);
+                insert(&mut start, "target-a", entity("hero", Some(CombatantSide::Defender), 10, 100, 0, 0));
+                insert(&mut start, "target-b", entity("hero", Some(CombatantSide::Defender), target_b_x, 100, 0, 0));
+                // Structures do not supply vision; an allied living Hero does.
+                if matches!(kind, "tower" | "base") {
+                    insert(&mut start, "viewer", entity("hero", owner, 0, 100, 0, 0));
+                }
+                let mut plain_world = start.clone();
+                let plain_events = resolve_from_snapshot(&mut plain_world, &start, &rules, &[], 1);
+                let mut traced_world = start.clone();
+                let mut collector = ActorDecisionCollector::new(32);
+                let traced_events = resolve_from_snapshot_with_actor_decisions(&mut traced_world, &start, &rules, &[], 1, &mut collector);
+                assert!(!collector.overflowed());
+                assert_eq!(traced_world, plain_world);
+                assert_eq!(traced_events, plain_events);
+                let record = collector.records.iter().find(|record| record.trace.actor.as_str() == "source").unwrap();
+                assert_eq!(record.owner, owner);
+                let expected_target = if requested { "target-b" } else { "target-a" };
+                let expected_candidates: Vec<EntityId> = if requested { vec!["target-b".into()] } else { vec!["target-a".into(), "target-b".into()] };
+                assert_eq!(record.trace.candidates, expected_candidates, "{kind}");
+                assert_eq!(record.trace.action, AutonomousCombatAction::Attack {
+                    target: expected_target.into(),
+                    selection: if requested { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId },
+                });
+                let event = &traced_events[record.combat_event_index.unwrap()];
+                assert_eq!(event.event.as_str(), "next.attack");
+                assert_eq!(event.payload.get(&"source".into()), Some(&DomainValue::Entity("source".into())));
+                assert_eq!(event.payload.get(&"target".into()), Some(&DomainValue::Entity(expected_target.into())));
+            }
+        }
+    }
+
+    #[test]
+    fn autonomous_trace_reports_combat_nonselection_without_inventing_wait() {
+        let rules = rules();
+        for reason in [
+            AutonomousNoAttackReason::Moved,
+            AutonomousNoAttackReason::ActionLocked,
+            AutonomousNoAttackReason::AttackNotReady,
+            AutonomousNoAttackReason::AttackUnavailable,
+            AutonomousNoAttackReason::NoEligibleTarget,
+        ] {
+            let mut start = WorldState::default();
+            let mut source = entity("minion", Some(CombatantSide::Attacker), 0, 100, 10, 100);
+            match reason {
+                AutonomousNoAttackReason::AttackNotReady => support::set_int(&mut source, "attack_ready", 2),
+                AutonomousNoAttackReason::AttackUnavailable => support::set_int(&mut source, "attack", 0),
+                _ => {}
+            }
+            insert(&mut start, "source", source);
+            let mut world = start.clone();
+            match reason {
+                AutonomousNoAttackReason::Moved => support::set_int(world.entities.get_mut(&"source".into()).unwrap(), "moved_tick", 2),
+                AutonomousNoAttackReason::ActionLocked => support::set_int(world.entities.get_mut(&"source".into()).unwrap(), "action_lock_until", 2),
+                _ => {}
+            }
+            let mut collector = ActorDecisionCollector::new(1);
+            let events = resolve_from_snapshot_with_actor_decisions(&mut world, &start, &rules, &[], 1, &mut collector);
+            let record = &collector.records[0];
+            assert_eq!(record.trace.action, AutonomousCombatAction::NoAttack { reason });
+            assert!(record.trace.candidates.is_empty());
+            assert!(record.combat_event_index.is_none());
+            assert!(events.iter().all(|event| event.event.as_str() != "next.attack"));
+        }
+    }
+
+    #[test]
+    fn autonomous_trace_never_collects_ineligible_hidden_targets() {
+        let rules = rules();
+        let mut start = WorldState::default();
+        let mut source = entity("minion", Some(CombatantSide::Attacker), 0, 100, 10, 100);
+        support::set_int(&mut source, "vision", 2);
+        source.fields.insert("target".into(), DomainValue::Entity("hidden".into()));
+        insert(&mut start, "source", source);
+        insert(&mut start, "visible", entity("hero", Some(CombatantSide::Defender), 1, 100, 0, 0));
+        insert(&mut start, "hidden", entity("hero", Some(CombatantSide::Defender), 30, 100, 0, 0));
+        assert!(!crate::next_vision::visible(&start, &rules, CombatantSide::Attacker, &start.entities[&"hidden".into()]));
+        let mut collector = ActorDecisionCollector::new(4);
+        let mut world = start.clone();
+        resolve_from_snapshot_with_actor_decisions(&mut world, &start, &rules, &[], 1, &mut collector);
+        assert_eq!(collector.records[0].trace.candidates, vec![EntityId::from("visible")]);
+        assert_eq!(collector.records[0].trace.action, AutonomousCombatAction::Attack {
+            target: "visible".into(), selection: AutonomousTargetSelection::NearestThenEntityId,
+        });
+    }
+
+    #[test]
+    fn autonomous_trace_bounds_candidates_and_does_not_change_resolution_on_overflow() {
+        let rules = rules();
+        let mut start = WorldState::default();
+        insert(&mut start, "source", entity("minion", Some(CombatantSide::Attacker), 0, 100, 10, 100));
+        insert(&mut start, "target-a", entity("hero", Some(CombatantSide::Defender), 10, 100, 0, 0));
+        insert(&mut start, "target-b", entity("hero", Some(CombatantSide::Defender), 20, 100, 0, 0));
+        let mut expected_world = start.clone();
+        let expected_events = resolve_from_snapshot(&mut expected_world, &start, &rules, &[], 1);
+        let mut world = start.clone();
+        let mut collector = ActorDecisionCollector::new(2);
+        let events = resolve_from_snapshot_with_actor_decisions(&mut world, &start, &rules, &[], 1, &mut collector);
+        assert!(collector.overflowed());
+        assert_eq!(collector.used(), 2);
+        assert_eq!(collector.records[0].trace.candidates.len(), 1);
+        assert_eq!(world, expected_world);
+        assert_eq!(events, expected_events);
     }
 
     #[test]
