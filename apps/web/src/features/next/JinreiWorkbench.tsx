@@ -11,7 +11,10 @@ import type { AnalysisSourceContext } from "./tactical-context";
 import { textareaSourceSelection } from "./tactical-context";
 import { repairSourceCursor } from "./repair-focus";
 import type { JinreiRepairFocusRequest } from "./repair-focus";
+import { coverageDiagnosticText, scopedCoverageEvents, verifyCoverageRun } from "./coverage-observed";
+import type { CoverageRun, VerifiedCoverageRun } from "./coverage-observed";
 export type { JinreiRepairFocusRequest } from "./repair-focus";
+export type { CoverageRun } from "./coverage-observed";
 
 export interface JinreiWorkbenchSlot {
   readonly slot_id: string;
@@ -38,6 +41,10 @@ export interface JinreiWorkbenchProps {
   readonly draft: SenkeiDraft | null;
   readonly draftKey: string | null;
   readonly compilation: CompileOutcome | null;
+  readonly coverageRun?: CoverageRun | null;
+  readonly coverageRunCurrent?: boolean;
+  readonly coverageTick?: number | null;
+  readonly onCoverageReplayTick?: (tick: number) => void;
   readonly slots: readonly JinreiWorkbenchSlot[];
   readonly activeSlot: number;
   readonly screen: JinreiWorkbenchScreen;
@@ -79,6 +86,10 @@ export function JinreiWorkbench({
   draft,
   draftKey,
   compilation,
+  coverageRun,
+  coverageRunCurrent = false,
+  coverageTick,
+  onCoverageReplayTick,
   slots,
   activeSlot,
   screen,
@@ -94,6 +105,12 @@ export function JinreiWorkbench({
   const [workbenchView, setWorkbenchView] = useState<WorkbenchView>("no-code");
   const [coverageScope, setCoverageScope] = useState<BehaviorScope>("hero");
   const [surface, setSurface] = useState<ComparisonSurface>("effective");
+  const [observedTick, setObservedTick] = useState<number | null>(null);
+  const [observedPage, setObservedPage] = useState(0);
+  const [verifiedRun, setVerifiedRun] = useState<{
+    run: CoverageRun | null | undefined; catalog: DomainCatalogDocument | null;
+    programDigest: string | undefined; current: boolean; result: VerifiedCoverageRun;
+  } | null>(null);
   const [filter, setFilter] = useState("");
   const [compileError, setCompileError] = useState<string | null>(null);
   const [modeError, setModeError] = useState<string | null>(null);
@@ -176,6 +193,33 @@ export function JinreiWorkbench({
   const visibleRows = useMemo(() => coverage?.rows.filter((row) =>
     `${row.fieldId} ${row.reason} ${row.senritsuDefault} ${row.heroCatalogDefault}`
       .toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [coverage, filter]);
+  const programDigest = compilation?.program.content_digest;
+  useEffect(() => {
+    setObservedTick(null);
+  }, [coverageRun]);
+  useEffect(() => {
+    if (!active || screen !== "coverage" || surface !== "observed") return;
+    let cancelled = false;
+    void verifyCoverageRun(coverageRun, catalog, coverageRunCurrent, programDigest).then(result => {
+      if (!cancelled) setVerifiedRun({ run: coverageRun, catalog, programDigest, current: coverageRunCurrent, result });
+    });
+    return () => { cancelled = true; };
+  }, [active, screen, surface, coverageRun, catalog, coverageRunCurrent, programDigest]);
+  // Never render a previous validation while an identity change is being checked.
+  const observed = verifiedRun && verifiedRun.run === coverageRun && verifiedRun.catalog === catalog
+    && verifiedRun.programDigest === programDigest && verifiedRun.current === coverageRunCurrent
+    ? verifiedRun.result : null;
+  const observedTicks = observed?.status === "available"
+    ? [...new Set(observed.events.map(event => event.tick))].sort((a, b) => a - b) : [];
+  const selectedTick = observedTick !== null && observedTicks.includes(observedTick) ? observedTick
+    : coverageTick != null && observedTicks.includes(coverageTick) ? coverageTick : observedTicks[0] ?? null;
+  const selectedSubjects = coverageScope === "hero" ? (activeHero ? [activeHero] : [])
+    : coverageScope === "squad" ? slots.filter(slot => slot.squad === activeHero?.squad) : [];
+  const observedEvents = observed?.status === "available" && selectedTick !== null
+    ? scopedCoverageEvents(observed, coverageScope, selectedSubjects, selectedTick) : null;
+  useEffect(() => setObservedPage(0), [coverageScope, activeSlot, selectedTick]);
+  const observedPageCount = observedEvents?.status === "available" ? Math.max(1, Math.ceil(observedEvents.events.length / 40)) : 1;
+  const currentObservedPage = Math.min(observedPage, observedPageCount - 1);
   const compileState = compilation
     ? "COMPILED"
     : "COMPILE REQUIRED";
@@ -414,7 +458,7 @@ export function JinreiWorkbench({
       </section>
 
       <section className="next-coverage-screen" hidden={screen !== "coverage"} aria-label="Hero Behavior Coverage">
-        <header className="next-coverage-heading"><div><span className="next-eyebrow">09 · BEHAVIOR PROFILE ANALYSIS</span><h4>Coverage by <em>Hero</em></h4><p>Inspect declared defaults and the current evidence boundary for each scope.</p></div><div className="next-coverage-proof-state"><strong>NOT PROVEN</strong><span>0 fields proven</span></div></header>
+        <header className="next-coverage-heading"><div><span className="next-eyebrow">09 · BEHAVIOR PROFILE ANALYSIS</span><h4>Coverage by <em>Hero</em></h4><p>Inspect declared defaults and the current evidence boundary for each scope.</p></div><div className="next-coverage-proof-state"><strong>{coverage?.status.replaceAll("_", " ").toUpperCase() ?? "NOT CHECKED"}</strong><span>{coverage?.provenFields ?? 0} fields proven</span></div></header>
 
         <div className="next-coverage-controls">
           <label><span>Coverage scope</span><select value={coverageScope} onChange={(event) => setCoverageScope(event.currentTarget.value as BehaviorScope)}><option value="hero">Hero</option><option value="squad">Squad</option><option value="army">Army</option></select></label>
@@ -433,14 +477,33 @@ export function JinreiWorkbench({
           <div className="next-coverage-provenance" role="note"><strong>{coverage.profileDeclared ? "Behavior Profile extension declared" : "Behavior Profile not declared"}</strong><span>RulePackage {catalog.identity.rulesetId} · Catalog {catalog.catalogDigest.slice(0, 12)}… · extension {catalog.metadataExtensionDigest?.slice(0, 12) ?? "none"}</span><p>{coverage.profileDeclared
             ? "Senritsu and Hero Catalog defaults below come from this Catalog. Squad/Army merge, Jinrei override resolution and decision coverage are not supplied by the connected compiler."
             : "This RulePackage declares no Behavior Profile metadata. A missing default remains Not Declared; no fallback value is inferred."}</p></div>
-          <div className="next-coverage-legend" aria-label="Coverage states"><span><b>Default</b> Catalog-authored baseline</span><span><b>Explicit</b> authored Behavior Profile override, if producer supplies one</span><span><b>Effective</b> resolved inheritance result</span><span><b>Unknown</b> value unavailable in an authorized observation</span><span><b>Not Proven</b> static coverage proof unavailable</span><span><b>Not Checked</b> no authorized Observation supplied to this screen</span></div>
+          <div className="next-coverage-legend" aria-label="Coverage states"><span><b>Default</b> Catalog-authored baseline</span><span><b>Explicit</b> authored Behavior Profile override, if producer supplies one</span><span><b>Effective</b> resolved inheritance result</span><span><b>Unknown</b> value unavailable in an authorized observation</span><span><b>Not Proven</b> static coverage proof unavailable</span><span><b>Not Checked</b> no field-level sample supplied</span></div>
+          {surface === "observed" && <section className="next-coverage-provenance" aria-label="Observed Run diagnostics">
+            <strong>Original Run · owner diagnostics</strong>
+            {observed === null ? <p role="status">Checking the owner authorization and Run identity…</p>
+              : observed.status === "unavailable" ? <p role="status">Restricted / Unavailable · {observed.reason}</p>
+              : <>
+                <span>Match {observed.run.response.outcome.result.match_id} · Program {observed.run.snapshot.attacker.program.content_digest} · World {observed.run.snapshot.context.world_identity?.logic_digest}</span>
+                <p>{observed.run.snapshot.context.next_behavior
+                  ? `Behavior ${observed.run.snapshot.context.next_behavior.policy.policy_id} · ${observed.run.snapshot.context.next_behavior.policy.test_only ? "test-only policy" : "Run policy"}.`
+                  : "No Behavior policy identity is recorded in this Run."} The Run does not record a Catalog stamp: its relationship to the current Catalog is NOT CHECKED. These events are not per-field Profile observations or a static coverage proof.</p>
+                {selectedTick === null ? <p role="status">The authorized diagnostics contain no trace events.</p> : <>
+                  <label><span>Recorded Tick </span><select aria-label="Observed diagnostic Tick" value={selectedTick} onChange={event => setObservedTick(Number(event.currentTarget.value))}>{observedTicks.map(tick => <option key={tick} value={tick}>{tick}</option>)}</select></label>
+                  {onCoverageReplayTick && <button type="button" onClick={() => onCoverageReplayTick(selectedTick)}>Open this Tick in Replay ↗</button>}
+                  {observedEvents?.status === "unavailable" ? <p role="status">{observedEvents.reason}</p>
+                    : observedEvents?.status === "available" && observedEvents.events.length > 0 ? <ol aria-label="Observed owner diagnostic events">{observedEvents.events.slice(currentObservedPage * 40, (currentObservedPage + 1) * 40).map(event => <li key={`${event.tick}-${event.sequence}`}><strong>{event.record.kind.replaceAll("_", " ")}</strong> · {coverageDiagnosticText(event)}{event.action_id && <> · action <code>{event.action_id}</code></>}</li>)}</ol>
+                      : <p role="status">No attributable events were supplied for this scope and Tick. Unattributed events remain available at Army scope.</p>}
+                  {observedPageCount > 1 && <nav aria-label="Observed diagnostic pages"><button type="button" disabled={currentObservedPage === 0} onClick={() => setObservedPage(currentObservedPage - 1)}>Previous events</button><span> Page {currentObservedPage + 1} / {observedPageCount} </span><button type="button" disabled={currentObservedPage + 1 >= observedPageCount} onClick={() => setObservedPage(currentObservedPage + 1)}>Next events</button></nav>}
+                </>}
+              </>}
+          </section>}
           <div className="next-coverage-table-wrap">
-            <table className="next-coverage-table"><thead><tr><th scope="col">Behavior field</th><th scope="col">Default · Senritsu</th><th scope="col">Default · Hero Catalog</th><th scope="col">Explicit · Jinrei</th><th scope="col">Effective</th><th scope="col">Observed</th><th scope="col">Evidence</th></tr></thead>
-              <tbody>{visibleRows.map((row) => <tr key={row.fieldId}><th scope="row"><code>{row.fieldId}</code></th><td data-label="Default · Senritsu"><span className={`next-coverage-value${row.defaultStatus === "not_declared" ? " is-unavailable" : ""}`}>{row.senritsuDefault}</span></td><td data-label="Default · Hero Catalog"><span className="next-coverage-value">{row.heroCatalogDefault}</span></td><td data-label="Explicit · Jinrei"><span className="next-coverage-state is-unproven">NOT PROVEN</span><small>Compiled tactics have no Behavior Profile field binding in this Compiler output.</small></td><td data-label="Effective"><span className="next-coverage-state is-unproven">{row.effectiveStatus.replaceAll("_", " ").toUpperCase()}</span><small>{row.reason}</small></td><td data-label="Observed"><span className="next-coverage-state is-unchecked">{row.observedStatus}</span><small>No authorized Enbu Observation envelope is connected here.</small></td><td data-label="Evidence"><details><summary>Why unavailable</summary><p>{row.reason}</p></details></td></tr>)}</tbody>
+            <table className="next-coverage-table"><thead><tr><th scope="col">Behavior field</th>{surface !== "observed" && <><th scope="col">Default · Senritsu</th><th scope="col">Default · Hero Catalog</th></>}{surface === "effective" && <><th scope="col">Explicit · Jinrei</th><th scope="col">Effective</th></>}{surface === "observed" && <th scope="col">Observed Profile field</th>}<th scope="col">Evidence</th></tr></thead>
+              <tbody>{visibleRows.map((row) => <tr key={row.fieldId}><th scope="row"><code>{row.fieldId}</code></th>{surface !== "observed" && <><td data-label="Default · Senritsu"><span className={`next-coverage-value${row.defaultStatus === "not_declared" ? " is-unavailable" : ""}`}>{row.senritsuDefault}</span></td><td data-label="Default · Hero Catalog"><span className="next-coverage-value">{row.heroCatalogDefault}</span></td></>}{surface === "effective" && <><td data-label="Explicit · Jinrei"><span className="next-coverage-state is-unproven">{row.explicitStatus.replaceAll("_", " ")}</span><small>Compiled tactics have no Behavior Profile field binding in this Compiler output.</small></td><td data-label="Effective"><span className="next-coverage-state is-unproven">{row.effectiveStatus.replaceAll("_", " ").toUpperCase()}</span><small>{row.reason}</small></td></>}{surface === "observed" && <td data-label="Observed Profile field"><span className="next-coverage-state is-unchecked">{row.observedStatus}</span><small>Run diagnostics do not provide a matching Profile-field observation.</small></td>}<td data-label="Evidence"><details><summary>Evidence and limits</summary><p>{row.reason}</p></details></td></tr>)}</tbody>
             </table>
             {visibleRows.length === 0 && <p className="next-jinrei-state">No declared Behavior Profile fields match this filter. Catalog observations and capabilities can be explored in the Domain Catalog view.</p>}
           </div>
-          <div className="next-coverage-limits" role="status"><strong>Coverage remains Not Proven.</strong><span>No producer currently supplies Behavior Profile composition, per-Hero Explicit binding, state-class static proof, or an identity-matched authorized Observed envelope to S09. No Unknown value is substituted with zero or false.</span></div>
+          <div className="next-coverage-limits" role="status"><strong>Coverage remains Not Proven.</strong><span>The current compiler does not supply Profile composition, per-Hero field bindings or state-class proof. Run diagnostics do not provide an identity-matched field-level Observation. Unknown values remain Unknown.</span></div>
         </> : <div className="next-jinrei-state" role={catalogError ? "alert" : "status"}><strong>{catalogError ? "Coverage cannot be verified" : "Loading current Catalog"}</strong><p>{catalogError ?? "Coverage requires the identity-matched RulePackage Catalog."}</p><small>Unavailable data remains unreported as a behavior result.</small></div>}
 
         <footer className="next-jinrei-context-actions"><p>Coverage is informational. It does not replace Jinrei compilation or Ready / Preflight validation.</p><button onClick={() => { onScreenChange("workbench"); }} type="button">Edit Jinrei →</button><button onClick={onReady} type="button">準備確認へ</button></footer>
