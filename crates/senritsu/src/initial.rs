@@ -766,7 +766,7 @@ fn arbitration() -> BTreeMap<CapabilityId, ArbitrationRule> {
         // The credit check observes the phase-start balance. Locking the
         // producer to one deployment per tick prevents simultaneous deploys
         // from spending the same starting credit more than once.
-        ("deploy", vec![IntentKey::Actor, IntentKey::Target]),
+        ("deploy", vec![IntentKey::Actor]),
         ("move_forward", vec![IntentKey::Actor]),
         ("move_backward", vec![IntentKey::Actor]),
         ("shift_lane", vec![IntentKey::Actor]),
