@@ -35,6 +35,15 @@ export class OwnedAssetsRecovery {
     const result = await relations.importArchive(JSON.stringify(archive.relationships));
     if (!result.ok) { if (result.reason !== 'store-not-empty') throw new Error(result.reason); const current = await relations.read(); if (!current.ok || JSON.stringify(current.value) !== JSON.stringify(archive.relationships)) throw new Error('Conflicting relationship archive'); }
   }
+  /** Return the exact pending archive even when applying it is blocked by other tab writes. */
+  async pendingArchive(): Promise<OwnedAssetsArchive | null> {
+    const pending = await this.journal(false, current => ({ value: current }));
+    return pending ? structuredClone(pending.archive) : null;
+  }
+  /** Explicit escape hatch: preserve any already-applied assets and stop automatic retries. */
+  async abandonPending(): Promise<boolean> {
+    return this.journal(true, current => ({ value: Boolean(current), next: current ? null : undefined }));
+  }
   async resume(): Promise<void> {
     const pending = await this.journal(false, current => ({ value: current })); if (!pending) return;
     // Reapplying each completed step is intentional: imports are idempotent and preserve originals.
