@@ -10,9 +10,9 @@ export type RelationshipEvent = {
   tags: string[];
   history: string;
 };
-export type RelationshipArchive = { schemaVersion: 1; events: RelationshipEvent[] };
+export type RelationshipArchive = { schemaVersion: 1; playerId: string; events: RelationshipEvent[] };
 export type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
-export type HeroOwnershipResolver = (heroId: string) => boolean;
+export type HeroOwnershipResolver = (playerId: string, heroId: string) => boolean;
 export type Result<T> = { ok: true; value: T } | { ok: false; reason: string };
 const fail = (reason: string): Result<never> => ({ ok: false, reason });
 const validString = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
@@ -29,23 +29,34 @@ function parse(raw: string): Result<RelationshipArchive> {
     const v: unknown = JSON.parse(raw);
     if (!v || typeof v !== "object" || Array.isArray(v)) return fail("invalid-schema");
     const a = v as Record<string, unknown>;
-    if (Object.keys(a).sort().join(",") !== "events,schemaVersion" || a.schemaVersion !== 1 || !Array.isArray(a.events) || !a.events.every(validEvent)) return fail("invalid-schema");
+    if (Object.keys(a).sort().join(",") !== "events,playerId,schemaVersion" || a.schemaVersion !== 1 || !validString(a.playerId) || !Array.isArray(a.events) || !a.events.every(validEvent)) return fail("invalid-schema");
     const events = a.events as RelationshipEvent[];
     if (new Set(events.map(e => e.eventId)).size !== events.length) return fail("invalid-schema");
-    return { ok: true, value: { schemaVersion: 1, events } };
+    return { ok: true, value: { schemaVersion: 1, playerId: a.playerId as string, events } };
   } catch { return fail("invalid-schema"); }
 }
-export function createRelationshipRepository(storage: Storage, owns: HeroOwnershipResolver = () => false) {
-  const exportRaw = (): string | null => storage.getItem(RELATIONSHIP_STORAGE_KEY);
+export function createRelationshipRepository(storage: Storage, playerId: string, owns: HeroOwnershipResolver = () => false) {
+  if (!validString(playerId)) throw new Error("invalid-player-id");
+  const key = `${RELATIONSHIP_STORAGE_KEY}:${encodeURIComponent(playerId)}`;
+  const getRaw = (): string | null => storage.getItem(key);
+  const exportRaw = (): string | null => {
+    const raw = getRaw();
+    if (raw === null) return null;
+    const parsed = parse(raw);
+    return parsed.ok && parsed.value.playerId !== playerId ? null : raw;
+  };
   const read = (): Result<RelationshipArchive> => {
-    try { const raw = exportRaw(); return raw === null ? { ok: true, value: { schemaVersion: 1, events: [] } } : parse(raw); }
+    try { const raw = getRaw();
+      if (raw === null) return { ok: true, value: { schemaVersion: 1, playerId, events: [] } };
+      const parsed = parse(raw);
+      return parsed.ok && parsed.value.playerId !== playerId ? fail("player-mismatch") : parsed; }
     catch { return fail("storage-unavailable"); }
   };
   const verified = (events: RelationshipEvent[]) => {
-    try { return events.every(e => owns(e.from) === true && owns(e.to) === true); } catch { return false; }
+    try { return events.every(e => owns(playerId, e.from) === true && owns(playerId, e.to) === true); } catch { return false; }
   };
   const save = (archive: RelationshipArchive): Result<RelationshipArchive> => {
-    try { storage.setItem(RELATIONSHIP_STORAGE_KEY, JSON.stringify(archive)); return { ok: true, value: archive }; }
+    try { storage.setItem(key, JSON.stringify(archive)); return { ok: true, value: archive }; }
     catch { return fail("storage-write-failed"); }
   };
   const applyEvent = (event: RelationshipEvent): Result<RelationshipArchive> => {
@@ -55,13 +66,14 @@ export function createRelationshipRepository(storage: Storage, owns: HeroOwnersh
     const existing = current.value.events.find(e => e.eventId === event.eventId);
     if (existing) return JSON.stringify(existing) === JSON.stringify(event) ? current : fail("event-id-conflict");
     if (!verified([event])) return fail("hero-ownership-unverified");
-    return save({ schemaVersion: 1, events: [...current.value.events, structuredClone(event)] });
+    return save({ schemaVersion: 1, playerId, events: [...current.value.events, structuredClone(event)] });
   };
   /** Recovery restores a complete archive only to an empty store; it never merges progress. */
   const importArchive = (raw: string): Result<RelationshipArchive> => {
     const incoming = parse(raw); if (!incoming.ok) return incoming;
+    if (incoming.value.playerId !== playerId) return fail("player-mismatch");
     const current = read(); if (!current.ok) return current;
-    if (exportRaw() !== null) return fail("store-not-empty");
+    if (getRaw() !== null) return fail("store-not-empty");
     if (!verified(incoming.value.events)) return fail("hero-ownership-unverified");
     return save(incoming.value);
   };
