@@ -121,6 +121,39 @@ fn real_jinrei_controls_declared_side_and_lane_with_tick_local_provenance() {
     let replayed = result.reproduce(&rules, &mut Vm::new(&rules)).unwrap();
     assert_eq!(result.run_digest(), replayed.run_digest());
     assert_eq!(result.traces_for_owner(CombatantSide::Attacker), replayed.traces_for_owner(CombatantSide::Attacker));
+    if let Some(path) = std::env::var_os("MINION_CONTROL_CONFORMANCE_FILE") {
+        let reproduction = result.reproduction().0;
+        let snapshot_digest = enbu::reproduction_snapshot_digest(
+            &reproduction.attacker, &reproduction.defender, &reproduction.context,
+        ).unwrap();
+        assert_eq!(&snapshot_digest, result.run_digest());
+        let rule_package = package();
+        assert_eq!(&rule_package.ruleset.digest, rules.package_digest());
+        let payload = ReproducePayload {
+            assets: ReproductionAssets {
+                format_version: REPRODUCTION_ASSETS_FORMAT_VERSION,
+                rule_package,
+                world_definition: serde_json::to_value(senritsu::next_world::builtin_world_definition()).unwrap(),
+                catalog_metadata_extension: None,
+            },
+            snapshot: ReproductionSnapshot {
+                attacker: reproduction.attacker.clone(),
+                defender: reproduction.defender.clone(),
+                context: reproduction.context.clone(),
+            },
+            snapshot_digest,
+            include_diagnostics: true,
+            diagnostics_side: Some(CombatantSide::Attacker),
+        };
+        let request = ApiRequestEnvelope {
+            api_version: WASM_API_VERSION,
+            request_id: "minion-control-conformance".into(),
+            operation: OP_REPRODUCE.into(),
+            payload,
+        };
+        std::fs::write(path, serde_json::to_vec(&request).unwrap())
+            .expect("write the explicitly requested Minion control conformance fixture");
+    }
 }
 
 #[test]
