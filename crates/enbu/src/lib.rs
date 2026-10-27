@@ -4,7 +4,7 @@
 //! bytecode is opaque and is executed only through `TacticalExecutionPort`.
 
 mod behavior;
-pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorTickTrace, BehaviorTraces};
+pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
 mod validation;
 mod world;
 mod next_support;

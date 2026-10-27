@@ -718,7 +718,6 @@ fn behavior_hook_rejects_catalog_without_authored_profiles() {
     let (attacker, defender, rules, context) = setup(1);
     let catalog = senritsu::DomainCatalog::from_verified_plan(&rules).unwrap();
     let mut executor = AutoStrike::default();
-    let bindings = std::collections::BTreeMap::new();
-    let mut producer = |_: &ObservationSnapshot, _: &senkei_behavior::ProfileComposition| Vec::new();
-    assert!(enbu::simulate_with_behavior(&attacker, &defender, &rules, &context, &mut executor, &catalog, &catalog.compatibility_key(), &bindings, &mut producer).is_err());
+    let inputs = enbu::BehaviorExecutionInputs { schema_version: 1, catalog_key: serde_json::to_value(catalog.compatibility_key()).unwrap(), bindings: BTreeMap::new(), candidates: BTreeMap::new() };
+    assert!(enbu::simulate_with_behavior(&attacker, &defender, &rules, &context, &mut executor, &catalog, &inputs).is_err());
 }

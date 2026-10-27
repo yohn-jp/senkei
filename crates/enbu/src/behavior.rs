@@ -2,16 +2,73 @@
 //! Decision traces are restricted match data; callers must protect them as such.
 use super::*;
 use senkei_behavior::{BehaviorResolver, CandidateSource, Decision, IntentCandidate, Legality, MovementAuthority, ProfileActor, ProfileComposition, ProfilePreferences};
-use senritsu::catalog::{BehaviorFieldId, BehaviorScope, CatalogCompatibilityKey, DomainCatalog, EntityControlScope, MetadataStatus};
+use senritsu::catalog::{BehaviorFieldId, BehaviorScope, DomainCatalog, EntityControlScope, MetadataStatus};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug)]
+/// Restricted, serializable input for one owned Army subject.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BehaviorBinding {
-    pub actor: ProfileActor,
-    pub preferences: ProfilePreferences,
-    pub field: BehaviorFieldId,
+    pub actor: EntityId,
+    pub army_id: String,
+    pub preferences: BTreeMap<String, DomainValue>,
+    pub field: String,
 }
 
-#[derive(Clone, Debug)]
+/// A candidate may substitute the composed profile field into one declared
+/// capability argument. No executable callback or external state is used.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BehaviorCandidateTemplate {
+    pub intent: Intent,
+    pub profile_argument: Option<u16>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BehaviorExecutionInputs {
+    pub schema_version: u32,
+    /// Exact serialized CatalogCompatibilityKey; checked against the catalog.
+    pub catalog_key: serde_json::Value,
+    pub bindings: BTreeMap<CombatantSide, BehaviorBinding>,
+    pub candidates: BTreeMap<u32, BTreeMap<CombatantSide, Vec<BehaviorCandidateTemplate>>>,
+}
+
+/// This private wrapper carries the complete reproducible Behavior inputs.
+/// Public projections contain no bindings, candidates, or restricted traces.
+#[derive(Clone)]
+pub struct BehaviorSimulationArtifact {
+    artifact: SimulationArtifact,
+    inputs: BehaviorExecutionInputs,
+    catalog: DomainCatalog,
+    run_digest: ContentDigest,
+    traces: BehaviorTraces,
+}
+impl BehaviorSimulationArtifact {
+    pub fn public_response(&self) -> senkei_model::PublicSimulationResponse { self.artifact.public_response() }
+    /// Behavior-specific diagnostics use schema 2 and cannot be mistaken for
+    /// legacy schema-1 snapshot identity. The caller authorizes `side`.
+    pub fn diagnostics_for_owner(&self, side: CombatantSide) -> BehaviorOwnerDiagnostics {
+        let mut diagnostics = self.artifact.diagnostic_response(side).diagnostics.expect("owner diagnostics exist");
+        diagnostics.identity.schema_version = 2;
+        BehaviorOwnerDiagnostics { behavior_run_digest: self.run_digest.clone(), diagnostics }
+    }
+    pub fn traces_for_owner(&self, side: CombatantSide) -> Vec<BehaviorTickTrace> { self.traces.for_owner(side) }
+    pub fn run_digest(&self) -> &ContentDigest { &self.run_digest }
+    /// Re-run the retained immutable inputs with the exact catalog. The caller
+    /// supplies a compatible verified plan and tactical execution port.
+    pub fn reproduce<P: TacticalExecutionPort>(&self, rules: &VerifiedRulePlan, executor: &mut P) -> Result<Self, ApiError> {
+        let source = &self.artifact.reproduction;
+        simulate_with_behavior(&source.attacker, &source.defender, rules, &source.context, executor, &self.catalog, &self.inputs)
+    }
+    /// Authorized reproduction consumers must retain both values together.
+    pub fn reproduction(&self) -> (&ReproductionContext, &BehaviorExecutionInputs) { (&self.artifact.reproduction, &self.inputs) }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BehaviorOwnerDiagnostics {
+    pub behavior_run_digest: ContentDigest,
+    pub diagnostics: RestrictedDiagnostics,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BehaviorTickTrace {
     pub tick: u32,
     pub side: CombatantSide,
@@ -33,31 +90,23 @@ impl BehaviorTraces {
     }
 }
 
-type Producer<'a> = dyn FnMut(&ObservationSnapshot, &ProfileComposition) -> Vec<Intent> + 'a;
 pub(crate) struct Hook<'a> {
     resolver: BehaviorResolver,
     catalog: &'a DomainCatalog,
-    bindings: &'a BTreeMap<CombatantSide, BehaviorBinding>,
-    producer: &'a mut Producer<'a>,
+    inputs: &'a BehaviorExecutionInputs,
     pub traces: Vec<BehaviorTickTrace>,
     limit: usize,
     pub trace_records: usize,
 }
 
-/// Run an opt-in bounded generic RulePlan Behavior integration. Bindings are
-/// limited to Army subjects and a single field; candidates may reference only
-/// their own actor and have no target or world-dependent preconditions. Next
-/// actions and all unsupported candidates fail closed. The producer sees only
-/// the side's observation and composed profile, and cannot certify legality.
-/// Returned traces are restricted diagnostics, not public replay data. The
-/// caller must bind and retain its candidate producer for reproduction; this
-/// experimental hook does not persist producer code or external preferences.
+/// Run the bounded generic RulePlan binding from immutable, versioned inputs.
+/// Only owned Army actors and single-field targetless, precondition-free
+/// capabilities are supported. Unsupported candidates fail closed.
 pub fn simulate_with_behavior<P: TacticalExecutionPort>(
     attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
     rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
-    catalog: &DomainCatalog, expected: &CatalogCompatibilityKey,
-    bindings: &BTreeMap<CombatantSide, BehaviorBinding>, producer: &mut Producer<'_>,
-) -> Result<(SimulationArtifact, BehaviorTraces), ApiError> {
+    catalog: &DomainCatalog, inputs: &BehaviorExecutionInputs,
+) -> Result<BehaviorSimulationArtifact, ApiError> {
     let identity = catalog.identity();
     let plan = rules.plan();
     if plan.next.is_some() || identity.ruleset_id != rules.ruleset().id
@@ -65,27 +114,45 @@ pub fn simulate_with_behavior<P: TacticalExecutionPort>(
         || identity.minimum_engine_version != plan.minimum_engine_version || identity.model_version != plan.model_version
         || identity.primitive_set_id != plan.primitive_set_id || identity.primitive_set_version != plan.primitive_set_version
         || identity.jinrei_language_version != plan.jinrei_language_version || identity.structured_ast_version != plan.structured_ast_version
-        || identity.typed_ir_version != plan.typed_ir_version || identity.bytecode_version != plan.bytecode_version {
-        return Err(api_error(ApiErrorCode::IncompatibleVersion, "Behavior catalog does not match generic RulePlan"));
+        || identity.typed_ir_version != plan.typed_ir_version || identity.bytecode_version != plan.bytecode_version
+        || inputs.schema_version != 1 || serde_json::to_value(catalog.compatibility_key()).ok().as_ref() != Some(&inputs.catalog_key) {
+        return Err(api_error(ApiErrorCode::IncompatibleVersion, "Behavior catalog or input version does not match generic RulePlan"));
     }
-    let resolver = BehaviorResolver::new(catalog, expected)
+    let input_bytes = serde_json::to_vec(inputs).map_err(|_| api_error(ApiErrorCode::InvalidRequest, "Behavior inputs cannot be serialized"))?;
+    if input_bytes.len() as u64 > context.host_limits.max_input_bytes.min(plan.limits.max_input_bytes)
+        || inputs.candidates.iter().any(|(tick, sides)| *tick == 0 || *tick > context.max_ticks.min(plan.termination.max_ticks)
+            || sides.iter().any(|(side, candidates)| !inputs.bindings.contains_key(side) || candidates.len() > plan.limits.max_intents_per_side_per_tick as usize)) {
+        return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior input limit or context exceeded"));
+    }
+    let resolver = BehaviorResolver::new(catalog, &catalog.compatibility_key())
         .map_err(|e| api_error(ApiErrorCode::ValidationFailed, &e.to_string()))?;
-    let mut hook = Hook { resolver, catalog, bindings, producer, traces: Vec::new(), limit: context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) as usize, trace_records: 0 };
-    let artifact = simulate_inner(attacker, defender, rules, context, executor, Some(&mut hook))?;
-    Ok((artifact, BehaviorTraces { records: hook.traces }))
+    let mut hook = Hook { resolver, catalog, inputs, traces: Vec::new(), limit: context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) as usize, trace_records: 0 };
+    let mut artifact = simulate_inner(attacker, defender, rules, context, executor, Some(&mut hook))?;
+    let run_digest = digest_json(&serde_json::json!({
+        "behavior_input_schema": 1,
+        "behavior_runtime_version": senkei_behavior::BEHAVIOR_RUNTIME_VERSION,
+        "simulation_snapshot_digest": artifact.diagnostic_snapshot_digest,
+        "inputs": inputs,
+    }))?;
+    artifact.diagnostic_snapshot_digest = run_digest.clone();
+    artifact.diagnostics.identity.snapshot_digest = run_digest.clone();
+    Ok(BehaviorSimulationArtifact { artifact, inputs: inputs.clone(), catalog: catalog.clone(), run_digest, traces: BehaviorTraces { records: hook.traces } })
 }
 
 impl Hook<'_> {
-    pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex) -> Result<(), ApiError> {
-        for (side, binding) in self.bindings {
-            let actor = &binding.actor;
+    pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], _observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex) -> Result<(), ApiError> {
+        for (side, binding) in &self.inputs.bindings {
+            let actor = ProfileActor { subject_id: binding.actor.clone(), scope: BehaviorScope::Army, movement_authority: MovementAuthority::Army, hero_catalog_id: None, squad_members: Vec::new() };
+            let actor = &actor;
+            let field_id = BehaviorFieldId::parse(&binding.field).map_err(|_| api_error(ApiErrorCode::ValidationFailed, "invalid Behavior field"))?;
+            let preferences = ProfilePreferences { army_id: binding.army_id.clone(), army: binding.preferences.clone(), ..ProfilePreferences::default() };
             let own = world.entities.get(&actor.subject_id).filter(|e| e.owner == Some(*side));
             let scopes = match self.catalog.entity_scopes() { MetadataStatus::AuthoredExtension { metadata, .. } => metadata, _ => return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior scopes missing")) };
             if actor.scope != BehaviorScope::Army || actor.movement_authority != MovementAuthority::Army || actor.hero_catalog_id.is_some() || !actor.squad_members.is_empty()
                 || !own.is_some_and(|e| scopes.get(&e.entity_type) == Some(&EntityControlScope::Army)) {
                 return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior actor does not match current owned Army subject"));
             }
-            let field = binding.field.as_key();
+            let field = field_id.as_key();
             let relevant = |intent: &Intent| intent.actor.as_ref() == Some(&actor.subject_id) && self.catalog.capabilities().get(&intent.capability).is_some_and(|c| c.behavior_override_arguments.contains_key(&field));
             let output = &outputs.iter().find(|(s, _)| s == side).unwrap().1;
             if output.status != senkei_model::TacticalExecutionStatus::Completed { continue; }
@@ -100,16 +167,29 @@ impl Hook<'_> {
                 legal.insert(intent.action_id.clone(), if accepted && safe_shape(intent, actor, &field, self.catalog, plan) { Legality::KnownLegal } else { Legality::KnownRejected { reason: "unsupported or invalid candidate".into() } });
             }
             validated.retain(|(s, i)| *s != *side || !relevant(i));
-            let composition = self.resolver.compose(actor, &binding.preferences, tick, *side, &execution, &legal).map_err(behavior_error)?;
-            let observation = observations.iter().find(|o| o.side == *side).unwrap();
-            let defaults = (self.producer)(observation, &composition);
+            let composition = self.resolver.compose(actor, &preferences, tick, *side, &execution, &legal).map_err(behavior_error)?;
+            let templates = self.inputs.candidates.get(&tick).and_then(|sides| sides.get(side));
+            let mut defaults = Vec::new();
+            for template in templates.into_iter().flatten() {
+                let mut intent = template.intent.clone();
+                if let Some(argument) = template.profile_argument {
+                    let declared = self.catalog.capabilities().get(&intent.capability)
+                        .and_then(|capability| capability.behavior_override_arguments.get(&field)).copied();
+                    if declared != Some(argument) || (argument as usize) >= intent.arguments.len() {
+                        return Err(api_error(ApiErrorCode::ValidationFailed, "invalid Behavior profile argument"));
+                    }
+                    intent.arguments[argument as usize] = composition.values.get(&field).cloned()
+                        .ok_or_else(|| api_error(ApiErrorCode::ValidationFailed, "missing composed Behavior field"))?;
+                }
+                defaults.push(intent);
+            }
             if defaults.len() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior candidate limit exceeded")); }
             let mut candidates: Vec<_> = execution.intents.into_iter().map(|intent| IntentCandidate { legality: legal.get(&intent.action_id).cloned().unwrap(), intent, source: CandidateSource::Explicit, tick, side: *side, profile_digest: None }).collect();
             for intent in defaults {
                 let legality = if validation::validate_intent(&intent, *side, world, plan, tick, index).is_ok() && safe_shape(&intent, actor, &field, self.catalog, plan) { Legality::KnownLegal } else { Legality::KnownRejected { reason: "unsupported or invalid candidate".into() } };
                 candidates.push(IntentCandidate { intent, source: CandidateSource::Default, tick, side: *side, profile_digest: Some(composition.digest.clone()), legality });
             }
-            let decisions = self.resolver.resolve_fields(&composition, actor, tick, *side, &BTreeMap::from([(binding.field.clone(), candidates)]), &BTreeMap::new()).map_err(behavior_error)?;
+            let decisions = self.resolver.resolve_fields(&composition, actor, tick, *side, &BTreeMap::from([(field_id.clone(), candidates)]), &BTreeMap::new()).map_err(behavior_error)?;
             let decision = decisions.into_values().next().unwrap();
             if let Some(intent) = &decision.selected { validated.push((*side, intent.clone())); }
             self.trace_records = self.trace_records.checked_add(1 + decision.trace.len() + composition.unknown_conditions.len() + composition.unknown_overrides.len() + composition.rejected_overrides.len()).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "Behavior trace count overflow"))?;
