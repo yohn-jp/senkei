@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { DomainCatalogDocument } from "@senkei/jinrei-editor";
 import type { BehaviorDomain, NextBehaviorInputs } from "../../contracts/next-production";
@@ -45,7 +45,12 @@ export function TrialProfileEditor({ inputs, onApply, slots, ownerRun, ownerRunC
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [checked, setChecked] = useState<Checked | null>(null);
-  useEffect(() => { setEdits({}); setPreview(null); setMessage(null); }, [inputKey, slotsKey]);
+  const appliedKey = useRef<string | null>(null);
+  useEffect(() => {
+    const applied = appliedKey.current === inputKey;
+    appliedKey.current = null;
+    setEdits({}); setPreview(null); setMessage(applied ? "Trial preferences applied." : null);
+  }, [inputKey, slotsKey]);
   useEffect(() => {
     let cancelled = false;
     void verifyCoverageRun(ownerRun, catalog ?? null, ownerRunCurrent, programDigest).then(result => {
@@ -114,6 +119,7 @@ export function TrialProfileEditor({ inputs, onApply, slots, ownerRun, ownerRunC
         squadBindings.some(item => change.label === `Squad ${item.label}`))));
   const apply = (): void => {
     if (!preview || !validPreview) return;
+    appliedKey.current = canonicalJson(preview.next);
     onApply(preview.next); setEdits({}); setPreview(null); setMessage("Trial preferences applied.");
   };
 

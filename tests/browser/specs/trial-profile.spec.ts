@@ -55,6 +55,7 @@ for (const width of [1440, 390]) {
     await checkReady(page);
     await editJinreiFromReady(page, width);
     let editor = await openProfile(page);
+    await editor.getByRole("combobox", { name: "Profile scope" }).selectOption("army");
 
     await editor.getByRole("textbox", { name: "Army navigation", exact: true }).fill("0");
     await editor.getByRole("combobox", { name: "Profile scope" }).selectOption("squad");
