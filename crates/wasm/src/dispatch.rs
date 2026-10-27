@@ -1,9 +1,9 @@
 use senkei_model::{
     ApiError, ApiErrorCode, ApiRequestEnvelope, ApiResponseEnvelope, CompileAstPayload,
     CompileResultEnvelope, CompileTextPayload, FormatAstPayload, LocalSimulationResponse,
-    CombatantSide, NewMatchContextPayload, ParseTextPayload, PreflightPayload,
+    CombatantSide, ContentDigest, NewMatchContextPayload, ParseTextPayload, PreflightPayload,
     PreflightReproductionPayload, ReproducePayload, ReproductionAssets, RulesetRef,
-    SimulatePayload, VerifiedRulePlan, Version, OP_NEXT_REPRODUCTION_ASSETS,
+    ReproductionSnapshot, SimulatePayload, VerifiedRulePlan, Version, OP_NEXT_REPRODUCTION_ASSETS,
     OP_PREFLIGHT_REPRODUCTION, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
     WASM_API_VERSION, OP_SIMULATE_BEHAVIOR, BEHAVIOR_SIMULATION_FORMAT_VERSION,
     SimulateBehaviorPayload, BehaviorSimulationResponse, BehaviorOwnerResponse,
@@ -168,6 +168,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         OP_NEXT_REPRODUCTION_ASSETS => next_reproduction_assets(payload),
         OP_REPRODUCE => reproduce(payload),
         OP_PREFLIGHT_REPRODUCTION => preflight_reproduction(payload),
+        "inspect_next_decision" => inspect_next_decision(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
         "editor_resolve_behavior" => editor_resolve_behavior(payload),
@@ -448,6 +449,51 @@ fn preflight_reproduction(payload: Value) -> Result<(Value, u64), ApiError> {
         &request.snapshot.context,
     )?;
     Ok((Value::Null, max_output_bytes))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InspectNextDecisionPayload {
+    format_version: u16,
+    assets: ReproductionAssets,
+    snapshot: ReproductionSnapshot,
+    snapshot_digest: ContentDigest,
+    authorized_side: CombatantSide,
+    selector: InspectNextDecisionSelector,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InspectNextDecisionSelector {
+    tick: u32,
+    slot_id: String,
+}
+
+/// Inspect one owner's decision from the exact retained match input.
+fn inspect_next_decision(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: InspectNextDecisionPayload = decode_strict(payload, "payload")?;
+    if request.format_version != enbu::NEXT_DECISION_INSPECTION_FORMAT_VERSION {
+        return Err(api_error(
+            ApiErrorCode::InvalidVersion,
+            Some("payload.format_version"),
+            "unsupported Next decision inspection format",
+        ));
+    }
+    let rules = validate_reproduction_assets(request.assets)?;
+    validate_reproduction_snapshot(&request.snapshot, &request.snapshot_digest)?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    let mut vm = jinrei::Vm::new(&rules);
+    let inspection = enbu::inspect_next_decision(
+        &request.snapshot.attacker,
+        &request.snapshot.defender,
+        &rules,
+        &request.snapshot.context,
+        request.authorized_side,
+        request.selector.tick,
+        &request.selector.slot_id,
+        &mut vm,
+    )?;
+    Ok((encode(&inspection, "result")?, max_output_bytes))
 }
 
 /// Rebuild the exact verified package used by both reproduction endpoints.
