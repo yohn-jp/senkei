@@ -10,6 +10,7 @@ import { PairEpisodes } from '../relationships/EpisodeReader';
 import type { EpisodeProvider } from '../relationships/episodes';
 import type { RelationshipArchive } from '../relationships/repository';
 import { HeroRepository, heroOwnershipAuthority, type HeroOwnershipSnapshot } from './repository';
+import { changeOwnedHeroSelection, selectedOwnedHero } from './draft';
 import { OwnedRelationshipRepository } from './relationships';
 import { OwnedAssetsRecovery, type OwnedAssetsArchive } from './recovery';
 
@@ -81,7 +82,7 @@ export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraf
     await new HeroRepository().obtainTrialRoster({ requestId: `trial:${id}:${catalogId}:${version}:${digest}`, playerId: id, catalog: { id: catalogId, version, digest, heroes: ruleset.next.heroes } }); await refresh(id); setError('');
   } catch (e) { setError(String(e)); } };
   const choose = async (slotId: string, id: string) => { if (!state) return; const hero = state.heroes.heroes.find(h => h.instanceId === id); if (id && !hero) return;
-    try { if (heroSelections === undefined) { const selections = { ...readSelections(state.playerId) }; if (id) selections[slotId] = id; else delete selections[slotId]; localStorage.setItem(selectionKey(state.playerId), JSON.stringify(selections)); }
+    try { if (heroSelections === undefined) { const selections = changeOwnedHeroSelection(readSelections(state.playerId), slotId, id); localStorage.setItem(selectionKey(state.playerId), JSON.stringify(selections)); }
       onSelectOwnedHero(slotId, id, hero?.definition.id ?? ''); if (heroSelections === undefined) await refresh(state.playerId); } catch (e) { setError(String(e)); }
   };
   const grant = async (definition: EquipmentDefinitionRef) => { if (!state || !policy) return; try { const repo = new EquipmentRepository(indexedDB, 'senkei-equipment', await equipmentDefinitions(policy), heroOwnershipAuthority(state.heroes)); const instanceId = crypto.randomUUID(); await repo.grant({requestId: crypto.randomUUID(), playerId: state.playerId, instanceId, definition}); await refresh(state.playerId); } catch (e) { setError(String(e)); } };
@@ -105,9 +106,9 @@ export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraf
     </section>}{restoreProfile && <div role="group" aria-label="Restore archived local profile"><p>Archive belongs to local player <code>{restoreProfile.playerId}</code>. Restore that profile on this device? The current profile remains stored. This does not transfer ownership.</p><button type="button" onClick={() => void confirmProfileRestore()}>Restore archived local profile</button><button type="button" onClick={() => setRestoreProfile(null)}>Cancel profile restore</button></div>}
     {state && <><button type="button" onClick={() => void exportArchive()}>Export owned assets</button><label>Recover owned assets <input type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importArchive(file); e.target.value = ''; }} /></label><p>Player: <code>{state.playerId}</code></p>
       {heroSelections && heroSelections.playerId !== state.playerId && <p role="alert">The Hero selections belong to another local Player. Select owned Heroes for this Draft.</p>}
-      {slots.map(slot => <label key={slot.slot_id}>Slot {slot.slot_id} <select value={selections[slot.slot_id] ?? ''} onChange={e => void choose(slot.slot_id, e.target.value)}><option value="">Select owned Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{ruleset.next?.heroes.find(d => d.id === h.definition.id)?.name ?? h.definition.id} · {h.instanceId}</option>)}</select></label>)}
+      {slots.map(slot => <label key={slot.slot_id}>Slot {slot.slot_id} <select value={selectedOwnedHero(selections, slot.slot_id)} onChange={e => void choose(slot.slot_id, e.target.value)}><option value="">Select owned Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{ruleset.next?.heroes.find(d => d.id === h.definition.id)?.name ?? h.definition.id} · {h.instanceId}</option>)}</select></label>)}
       {policy && <TrialEquipment policy={policy} grant={grant} />}
-      {policy && <LocalEquipment policy={policy} state={state} slots={slots.map(slot => ({slot_id: slot.slot_id, instanceId: selections[slot.slot_id] ?? ''}))} draft={equipmentDraft ?? null} onApply={onEquipmentDraftChange} baseline={equipmentBaseline} preview={previewEquipment} />}
+      {policy && <LocalEquipment policy={policy} state={state} slots={slots.map(slot => ({slot_id: slot.slot_id, instanceId: selectedOwnedHero(selections, slot.slot_id)}))} draft={equipmentDraft ?? null} onApply={onEquipmentDraftChange} baseline={equipmentBaseline} preview={previewEquipment} />}
       <h3>Hero relationships</h3><RelationshipGraph heroes={state.heroes.heroes.map(h => ({ instanceId: h.instanceId, label: `${h.definition.id} · ${h.instanceId}` }))} events={state.relationships.events} formationIds={Object.values(selections)} selectedPair={selected && pair ? { from: selected, to: pair } : null} onSelectPair={(from, to) => { setSelected(from); setPair(to); }} />
       <label>Hero <select value={selected} onChange={e => { setSelected(e.target.value); setPair(''); }}><option value="">Select Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{h.definition.id} · {h.instanceId}</option>)}</select></label>
       {hero && <><p>{hero.definition.id} · {hero.instanceId}</p><h4>Other owned Heroes</h4><ul>{state.heroes.heroes.filter(other => other.instanceId !== hero.instanceId).map(other => <li key={other.instanceId}><button type="button" onClick={() => setPair(other.instanceId)} aria-pressed={pair === other.instanceId}>Inspect {other.definition.id} · {other.instanceId}</button></li>)}</ul>
@@ -155,8 +156,8 @@ function RelationshipPair({ state, from, to, slots, selections }: {
   };
   const latest = (a: string, b: string) => [...state.relationships.events].reverse().find(event => event.from === a && event.to === b);
   const first = latest(from, to); const second = latest(to, from);
-  const fromSlot = slots.find(slot => selections[slot.slot_id] === from);
-  const toSlot = slots.find(slot => selections[slot.slot_id] === to);
+  const fromSlot = slots.find(slot => selectedOwnedHero(selections, slot.slot_id) === from);
+  const toSlot = slots.find(slot => selectedOwnedHero(selections, slot.slot_id) === to);
   const situation = !fromSlot || !toSlot ? 'At least one Hero is outside the selected formation.'
     : !fromSlot.squad_id || !toSlot.squad_id ? 'Planned Squad membership is unavailable.'
     : fromSlot.squad_id === toSlot.squad_id ? `Both are planned in Squad ${fromSlot.squad_id}.`
