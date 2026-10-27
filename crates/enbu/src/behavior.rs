@@ -58,7 +58,9 @@ impl BehaviorSimulationArtifact {
         let source = &self.artifact.reproduction;
         simulate_with_behavior(&source.attacker, &source.defender, rules, &source.context, executor, &self.catalog, &self.inputs)
     }
-    /// Authorized reproduction consumers must retain both values together.
+    /// Authorized reproduction consumers must retain both values together,
+    /// along with the exact Catalog artifact. `reproduce` retains the Catalog
+    /// in memory; serialized persistence must store and restore it separately.
     pub fn reproduction(&self) -> (&ReproductionContext, &BehaviorExecutionInputs) { (&self.artifact.reproduction, &self.inputs) }
 }
 
