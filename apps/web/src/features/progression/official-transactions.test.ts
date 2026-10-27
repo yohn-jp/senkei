@@ -69,11 +69,14 @@ it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromi
       await bounded("initial put", first.put(record));
       const second = new OfficialTransactionEvidenceStore(indexedDB, name);
       const loaded = await bounded("cross-instance get", second.get("req"));
-      const unknown = { ...record, status: "outcome_unknown" };
+      if (!loaded) throw new Error("Cross-instance record unexpectedly absent");
+      const unknown = { ...record, status: "outcome_unknown" as const };
       await bounded("compare-and-set put", second.put(unknown, loaded));
       let conflict = false;
       try { await bounded("stale writer conflict", first.put(record, loaded)); } catch (caught) { if (!(caught instanceof Error) || !caught.message.includes("Evidence record conflict")) throw caught; conflict = true; }
-      return { loaded, updated: await bounded("final get", first.get("req")), conflict };
+      const updated = await bounded("final get", first.get("req"));
+      if (!updated) throw new Error("Updated record unexpectedly absent");
+      return { loaded, updated, conflict };
     });
     expect(result.loaded.status).toBe("submitted");
     expect(result.updated.status).toBe("outcome_unknown");
