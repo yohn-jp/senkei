@@ -21,3 +21,14 @@ export function heroSelectionsForDraft(playerId: string, legacy: Readonly<Record
   if (draft && draft.playerId !== playerId) throw new Error('Owned Hero Draft belongs to another local Player. Restore that profile or explicitly select Heroes for this Draft.');
   return draft?.slots ?? legacy;
 }
+
+/** Opaque slot IDs are own properties, never inherited keys or prototype setters. */
+export function selectedOwnedHero(slots: Readonly<Record<string, string>>, slotId: string): string {
+  return Object.hasOwn(slots, slotId) ? slots[slotId] ?? '' : '';
+}
+export function changeOwnedHeroSelection(slots: Readonly<Record<string, string>>, slotId: string, instanceId: string): Record<string, string> {
+  const next = Object.fromEntries(Object.entries(slots)) as Record<string, string>;
+  if (instanceId) Object.defineProperty(next, slotId, { value: instanceId, enumerable: true, writable: true, configurable: true });
+  else delete next[slotId];
+  return next;
+}
