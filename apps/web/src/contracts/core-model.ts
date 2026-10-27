@@ -578,6 +578,8 @@ export interface HostLimits {
 }
 
 export interface MatchContext {
+  readonly next_minion_behavior?: import('./next-route-minion').NextMinionBehaviorMatch;
+  readonly next_route?: import('./next-route-minion').NextRouteMatch;
   readonly match_projection?: import("./next-production").MatchProjection;
   readonly next_behavior?: import("./next-production").NextBehaviorMatch;
   readonly world_identity?: WorldIdentityRef;

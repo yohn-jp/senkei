@@ -17,6 +17,7 @@ type RequestOperation =
   | "next_reproduction_assets"
   | "editor_catalog"
   | "editor_compile"
+  | "editor_resolve_behavior"
   | "new_match_context"
   | "compile"
   | "parse_text"
@@ -137,6 +138,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "next_reproduction_assets" &&
     operation !== "editor_catalog" &&
     operation !== "editor_compile" &&
+    operation !== "editor_resolve_behavior" &&
     operation !== "new_match_context" &&
     operation !== "compile" &&
     operation !== "parse_text" &&
@@ -189,6 +191,19 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
         throw new RequestFailure("invalid_request", `${operation} payload must be empty.`);
       }
       return;
+    case "editor_resolve_behavior": {
+      const stamp = requireRecord(payload.stamp, "editor_resolve_behavior.stamp");
+      requireRecord(stamp.identity, "editor_resolve_behavior.stamp.identity");
+      requireString(stamp.catalogDigest, "editor_resolve_behavior.stamp.catalogDigest");
+      if (!(stamp.metadataExtensionDigest === null || typeof stamp.metadataExtensionDigest === 'string')) throw new RequestFailure('invalid_request', 'Invalid metadata extension digest.');
+      requireRecord(payload.rulePackage, "editor_resolve_behavior.rulePackage");
+      requireRecord(payload.actor, "editor_resolve_behavior.actor");
+      requireRecord(payload.preferences, "editor_resolve_behavior.preferences");
+      const evaluation = requireRecord(payload.evaluation, "editor_resolve_behavior.evaluation");
+      if (evaluation.kind !== 'defaults_only' && evaluation.kind !== 'provided') throw new RequestFailure('invalid_request', 'Invalid Behavior evaluation kind.');
+      if (!Number.isSafeInteger(payload.revision) || (payload.revision as number) < 0 || !Number.isSafeInteger(payload.tick) || (payload.tick as number) < 0 || !isCombatantSide(payload.side)) throw new RequestFailure('invalid_request', 'Invalid Behavior revision, Tick or side.');
+      return;
+    }
     case "editor_compile": {
       requireString(payload.source, "editor_compile.source");
       requireRecord(payload.stamp, "editor_compile.stamp");
@@ -314,6 +329,8 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
       return callCore("next_reproduction_assets", request.payload, request.request_id);
     case "editor_catalog":
       return callCore("editor_catalog", request.payload, request.request_id);
+    case "editor_resolve_behavior":
+      return callCore("editor_resolve_behavior", request.payload, request.request_id);
     case "editor_compile":
       return callCore("editor_compile", request.payload, request.request_id);
     case "new_match_context":

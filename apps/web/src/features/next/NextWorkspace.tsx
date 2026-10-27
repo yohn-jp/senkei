@@ -2583,7 +2583,23 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
                 <p role="status">Test-only six-domain runtime enabled</p>
                 <button type="button" onClick={() => { try { localStorage.removeItem('senkei.local-trial-enabled.v1'); setTrialPackage(null); setTrialPending(false); setOwnedAssets(null); } catch (cause) { setError(String(cause)); } }}>Return to ordinary local draft</button>
                 <label>Trial tick limit <input type="number" min={1} max={packageValue.termination.max_ticks} value={trialTickLimit} onChange={event => setTrialTickLimit(Number(event.target.value))}/></label>
-                <OwnedAssetsPanel equipmentBaseline={prepared?.key === launchKey ? prepared.initialState : null} previewEquipment={async candidate => {
+                <OwnedAssetsPanel onSquadDraftChange={change => {
+                  const index = slots.findIndex(slot => slot.slot_id === change.slotId);
+                  if (index < 0) throw new Error('The selected Hero is no longer in this Draft.');
+                  changeSlot(index, {squad:change.squadId,node:change.nodeId}); setPrepared(null); setExactRun(null);
+                }} previewSquadChange={async change => {
+                  if (!core || !prepared || prepared.key !== launchKey || exactRun || !draft || !ownedAssets || !packageValue) throw new Error('Validate the current formation in Ready before comparing Squads.');
+                  const key = launchKey;
+                  const fresh = await readOwnedAssets(ownedAssets.playerId, await approvedEquipmentDefinitions(packageValue));
+                  if (stableKey(fresh) !== stableKey(ownedAssets)) throw new Error('Owned assets changed. Refresh and validate again.');
+                  if (!slots.some(slot => slot.slot_id === change.slotId)) throw new Error('Selected Hero is unavailable.');
+                  const hypothetical = slots.map(slot => slot.slot_id === change.slotId ? {...slot,squad:change.squadId,node:change.nodeId} : slot);
+                  const snapshot = {...prepared.snapshot,attacker:makeSideSnapshot(draft,prepared.snapshot.attacker.program,hypothetical)};
+                  await core.preflightReproduction(snapshot,prepared.reproductionAssets,await reproductionSnapshotDigest(snapshot));
+                  const state = await initialOwnedState(core,snapshot,prepared.reproductionAssets);
+                  if (launchKeyRef.current !== key) throw new Error('The Draft changed during comparison. Review the pair again.');
+                  return state;
+                }} equipmentBaseline={prepared?.key === launchKey ? prepared.initialState : null} previewEquipment={async candidate => {
                   if (!core || !prepared || prepared.key !== launchKey || exactRun || !ownedAssets || !packageValue) throw new Error('Validate the current formation in Ready, then return here to compare equipment.');
                   const key = launchKey;
                   const fresh = await readOwnedAssets(ownedAssets.playerId, await approvedEquipmentDefinitions(packageValue));
@@ -2591,7 +2607,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
                   const state = await previewOwnedEquipment(core, prepared.snapshot, prepared.reproductionAssets, fresh, heroSelection, candidate);
                   if (launchKeyRef.current !== key) throw new Error('The Draft changed during comparison. Review equipment again.');
                   return state;
-                }} heroSelections={heroSelection} equipmentDraft={equipmentDraft} onEquipmentDraftChange={next => { setEquipmentDraft(structuredClone(next)); setPrepared(null); setExactRun(null); }} ruleset={packageValue} slots={slots.map(slot => ({...slot,squad_id:slot.squad}))} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
+                }} heroSelections={heroSelection} equipmentDraft={equipmentDraft} onEquipmentDraftChange={next => { setEquipmentDraft(structuredClone(next)); setPrepared(null); setExactRun(null); }} ruleset={packageValue} slots={slots.map(slot => ({...slot,squad_id:slot.squad,node_id:slot.node}))} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
               </>}
             </details>
             {!isTrial && <LocalAssets />}
@@ -2613,7 +2629,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
-            <JinreiWorkbench coverageRun={run} coverageRunCurrent={runIsCurrent} coverageTick={displayState?.tick ?? null} onCoverageReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
+            <JinreiWorkbench coverageRulePackage={packageValue} coverageRun={run} coverageRunCurrent={runIsCurrent} coverageTick={displayState?.tick ?? null} onCoverageReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
               catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
               catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
               compilation={activeCompilation} slots={slots} activeSlot={activeSlot}

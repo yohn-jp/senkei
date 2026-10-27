@@ -18,6 +18,7 @@ import type { ContentDigest, MatchContext, RulePackage, StructuredTacticsAst } f
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
+import { sameCatalog } from "@senkei/jinrei-editor";
 import type { BehaviorSimulationRequest, BehaviorSimulationResponse } from "../contracts/behavior";
 
 const DEFAULT_MAX_PENDING = 64;
@@ -99,6 +100,19 @@ export class WorkerCoreClient implements CoreClient {
 
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope> {
     return this.request("editor_compile", request) as Promise<EditorCompilerEnvelope>;
+  }
+
+  editorResolveBehavior(request: import("../contracts/behavior-resolution").BehaviorResolveRequest): Promise<import("../contracts/behavior-resolution").BehaviorResolveReply> {
+    return (this.request("editor_resolve_behavior", request) as Promise<import("../contracts/behavior-resolution").BehaviorResolveReply>).then(reply => {
+      if (!reply || reply.revision !== request.revision || !reply.stamp || !sameCatalog(reply.stamp, request.stamp)
+        || reply.evaluationKind !== request.evaluation.kind || !['resolved', 'not_declared', 'rejected'].includes(reply.status)) {
+        throw new CoreClientError({code:'core_error',message:'Behavior composition reply does not match its Catalog, revision or evaluation.'});
+      }
+      if (reply.status === 'resolved' && (!reply.composition || !sameCatalog(reply.composition.catalog_identity, request.stamp)
+        || reply.composition.actor_id !== request.actor.subjectId || reply.composition.tick !== request.tick || reply.composition.side !== request.side
+        || reply.composition.actor_scope !== request.actor.scope)) throw new CoreClientError({code:'core_error',message:'Behavior composition identity does not match its request.'});
+      return reply;
+    });
   }
 
   initialRuleset(): Promise<RulePackage> {

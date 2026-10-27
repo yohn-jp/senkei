@@ -20,7 +20,7 @@ class RecordingWorker {
   postMessage(value: unknown): void {
     const request = value as WebWorkerRequest;
     this.requests.push(request);
-    const result = request.operation === "simulate_behavior" ? this.behaviorResponse : request.operation === "next_reproduction_assets"
+    const result = request.operation === "simulate_behavior" || request.operation === 'editor_resolve_behavior' ? this.behaviorResponse : request.operation === "next_reproduction_assets"
       ? assets
       : request.operation === "preflight_reproduction"
         ? null
@@ -58,6 +58,22 @@ const response = {
 };
 
 describe("reproduction Core client transport", () => {
+  it('binds Behavior composition replies to the exact Catalog, revision and evaluation', async () => {
+    const stamp = { identity: { rulesetId: 'rules' }, catalogDigest: 'catalog', metadataExtensionDigest: null } as unknown as import('@senkei/jinrei-editor').CatalogStamp;
+    const request = { revision: 3, stamp, evaluation: { kind: 'defaults_only' } } as import('../contracts/behavior-resolution').BehaviorResolveRequest;
+    const reply = { revision: 3, stamp, evaluationKind: 'defaults_only', status: 'not_declared' };
+    const worker = new RecordingWorker(reply);
+    const client = new WorkerCoreClient({ worker: worker as unknown as Worker });
+    await expect(client.editorResolveBehavior(request)).resolves.toEqual(reply);
+    expect(worker.requests[0]).toMatchObject({ operation: 'editor_resolve_behavior', payload: request });
+    client.dispose();
+    const stale = new WorkerCoreClient({ worker: new RecordingWorker({ ...reply, revision: 2 }) as unknown as Worker });
+    await expect(stale.editorResolveBehavior(request)).rejects.toThrow('Catalog, revision or evaluation');
+    stale.dispose();
+    const mismatched = new WorkerCoreClient({ worker: new RecordingWorker({ ...reply, stamp: { ...stamp, catalogDigest: 'other' } }) as unknown as Worker });
+    await expect(mismatched.editorResolveBehavior(request)).rejects.toThrow('Catalog, revision or evaluation');
+    mismatched.dispose();
+  });
   it("preserves versioned Behavior input and explicit owner selection", async () => {
     const result = { format_version: 1, result: { match_id: "behavior" } };
     const worker = new RecordingWorker(result);

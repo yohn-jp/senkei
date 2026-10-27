@@ -24,6 +24,7 @@ interface WorkerRequestBase {
 }
 
 export type WebWorkerRequest =
+  | (WorkerRequestBase & { readonly operation: "editor_resolve_behavior"; readonly payload: import("./behavior-resolution").BehaviorResolveRequest })
   | (WorkerRequestBase & { readonly operation: "simulate_behavior"; readonly payload: BehaviorSimulationRequest })
   | (WorkerRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
@@ -96,6 +97,7 @@ interface WorkerResponseBase {
 }
 
 export type WebWorkerResponse =
+  | (WorkerResponseBase & { readonly operation: "editor_resolve_behavior"; readonly ok: true; readonly result: import("./behavior-resolution").BehaviorResolveReply })
   | (WorkerResponseBase & { readonly operation: "simulate_behavior"; readonly ok: true; readonly result: BehaviorSimulationResponse })
   | (WorkerResponseBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";

@@ -186,6 +186,8 @@ export interface WorkerFailure {
 }
 
 export interface CoreClient {
+  /** Pure Catalog-bound composition; provided evaluation is caller evidence. */
+  editorResolveBehavior?(request: import("./behavior-resolution").BehaviorResolveRequest): Promise<import("./behavior-resolution").BehaviorResolveReply>;
   initialRuleset(): Promise<RulePackage>;
   nextRuleset(localTrial?: boolean): Promise<RulePackage>;
   /** Load the current builtin package with the exact World Definition it uses. */
