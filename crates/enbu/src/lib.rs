@@ -383,7 +383,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
             // from the same post-squad membership that goal application sees.
             let mut goal_world = world.clone();
             next_squads::intents(&mut goal_world, plan.next.as_ref().unwrap(), &accepted, tick);
-            let rejected = next_tactics::resolve_goal_conflicts(&goal_world, plan.next.as_ref().unwrap(), &mut accepted);
+            let scores = next_behavior.as_deref().unwrap().traces.iter().filter(|trace| trace.tick==tick).filter_map(|trace| Some(((trace.side,trace.selected.as_ref()?.action_id.clone()),trace.score?))).collect();
+            let rejected = next_tactics::resolve_goal_conflicts(&goal_world, plan.next.as_ref().unwrap(), &mut accepted, &scores);
             for (side, intent) in rejected {
                 let event = diagnostics.iter_mut().rev().find(|event| event.tick == tick && event.side == side && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent: accepted } if *accepted == intent))
                     .ok_or_else(|| api_error(ApiErrorCode::InternalError, "missing goal arbitration diagnostic"))?;

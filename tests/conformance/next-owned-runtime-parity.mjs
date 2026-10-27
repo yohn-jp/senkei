@@ -96,9 +96,9 @@ try {
   const term=(signal,weight)=>({signal,weight});
   const zero=()=>[term('constant',0)];
   const behavior={schema_version:1,policy_id:'conformance-test-only',version:api,ruleset_digest:packageValue.ruleset.digest,test_only:true,
-    composition:{hero_aggregation:'mean_floor',override_order:'army_then_squad',action_order:'score_desc_then_action_id_asc'}, hero_defaults:Object.fromEntries(packageValue.next.heroes.map(h=>[h.id,{navigation:null,engagement:null,targeting:null,pursuit:null,survival:null,objective:null}])),
+    composition:{hero_aggregation:'mean_floor',override_order:'army_then_squad',action_order:'score_desc_then_action_id_asc',targeting_profile:'target_health_weight'}, hero_defaults:Object.fromEntries(packageValue.next.heroes.map(h=>[h.id,{navigation:null,engagement:null,targeting:null,pursuit:null,survival:null,objective:null}])),
     domains:{navigation:zero(),engagement:zero(),targeting:zero(),pursuit:zero(),survival:zero(),objective:zero()},
-    candidates:[{kind:'move',capability:'move',arguments:['actor','objective_node']},{kind:'pursue',capability:'pursue',arguments:['actor','observed_target']},{kind:'retreat',capability:'retreat',arguments:['actor']}]};
+    candidates:[{kind:'move',capability:'move',arguments:['actor','objective_node']},{kind:'pursue',capability:'pursue',arguments:['actor','observed_target']},{kind:'retreat',capability:'retreat',arguments:['actor']},{kind:'target',capability:'select_target',arguments:['actor','observed_target']}]};
   const blank=()=>({navigation:null,engagement:null,targeting:null,pursuit:null,survival:null,objective:null});
   const h=heroId('attacker','slot-1');
   const inputs={schema_version:1,army:{attacker:{...blank(),navigation:1}},squads:{attacker:{'attacker:squad-0':{...blank(),objective:1}}},heroes:{attacker:{[h]:{...blank(),survival:1}}}};
@@ -126,7 +126,7 @@ try {
   const snapshot={attacker,defender,context};
   const reproduced=await both('reproduce',{assets,snapshot,snapshot_digest:first.diagnostics.identity.snapshot_digest,include_diagnostics:true,diagnostics_side:'attacker'},{label:'retained reproduction'});
   assert(eq(first,reproduced),'reproduction differs from original complete response');
-  for(const [domain,expected] of [['navigation','move'],['engagement','pursue'],['targeting','pursue'],['pursuit','pursue'],['survival','retreat'],['objective','move']]) {
+  for(const [domain,expected] of [['navigation','move'],['engagement','select_target'],['targeting','select_target'],['pursuit','pursue'],['survival','retreat'],['objective','move']]) {
     const x=clone(payload); x.context.next_behavior.inputs={schema_version:1,army:{},squads:{},heroes:{}};
     // Put both armies in observable range; only observed candidates may pursue.
     for(const snapshot of [x.attacker,x.defender]) for(const record of snapshot.configuration.heroes.value) record.value.node.value='N.MID.OBS';

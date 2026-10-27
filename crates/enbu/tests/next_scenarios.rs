@@ -2683,20 +2683,21 @@ fn next_behavior_pursues_only_currently_visible_targets() {
 
 #[test]
 fn next_behavior_all_six_domains_independently_change_accepted_orders() {
-    let rules = rules();
+    let rules = trial_target_rules();
     let term = || BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:0 };
     let policy = NextBehaviorPolicy { schema_version:1, policy_id:"domain-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
         domains:BehaviorDomains { navigation:vec![term()], engagement:vec![term()], targeting:vec![term()], pursuit:vec![term()], survival:vec![term()], objective:vec![term()] },
         candidates:vec![
             BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },
             BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Pursue, capability:"pursue".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] },
+            BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Target, capability:"select_target".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] },
             BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat, capability:"retreat".into(), arguments:vec![BehaviorArgument::Actor] },
         ] };
     let base = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
     let nodes = vec![base;5];
     let (a,b,context) = build_match(&rules,&[5],"all-domains",1,Some(&nodes),Some(&nodes));
     let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
-    for (index, expected) in [(0,"move"),(1,"pursue"),(2,"pursue"),(3,"pursue"),(4,"retreat"),(5,"move")] {
+    for (index, expected) in [(0,"move"),(1,"select_target"),(2,"select_target"),(3,"pursue"),(4,"retreat"),(5,"move")] {
         let mut current = policy.clone();
         let domains = [&mut current.domains.navigation,&mut current.domains.engagement,&mut current.domains.targeting,&mut current.domains.pursuit,&mut current.domains.survival,&mut current.domains.objective];
         domains.into_iter().nth(index).unwrap()[0].weight = 10;
@@ -2737,11 +2738,11 @@ fn next_behavior_rejects_missing_and_enemy_profile_references() {
 
 #[test]
 fn next_behavior_target_health_changes_accepted_target() {
-    let rules = rules();
+    let rules = trial_target_rules();
     let term = |signal,weight| BehaviorScoreTerm { signal,weight };
     let mut p = NextBehaviorPolicy { schema_version:1, policy_id:"health-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
         domains:BehaviorDomains { navigation:vec![term(BehaviorSignal::Constant,0)], engagement:vec![term(BehaviorSignal::Constant,0)], targeting:vec![term(BehaviorSignal::TargetHealthPercent,1)], pursuit:vec![term(BehaviorSignal::Constant,0)], survival:vec![term(BehaviorSignal::Constant,0)], objective:vec![term(BehaviorSignal::Constant,0)] },
-        candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Pursue, capability:"pursue".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
+        candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Target, capability:"select_target".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
     let base = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
     let nodes = vec![base;5];
     let (a,b,context) = build_match(&rules,&[5],"health-target",3,Some(&nodes),Some(&nodes));
@@ -2753,7 +2754,7 @@ fn next_behavior_target_health_changes_accepted_target() {
         let result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&verified,&inputs).unwrap();
         traces.push(result.traces_for_owner(CombatantSide::Attacker));
     }
-    assert!(traces[0].iter().zip(&traces[1]).any(|(a,b)| a.tick == b.tick && a.tick > 1 && a.arbitration_accepted && b.arbitration_accepted && a.selected.as_ref().and_then(|i| i.target.as_ref()) != b.selected.as_ref().and_then(|i| i.target.as_ref())));
+    assert!(traces[0].iter().any(|a| a.tick > 1 && a.arbitration_accepted && traces[1].iter().any(|b| b.tick==a.tick && b.actor==a.actor && b.arbitration_accepted && a.selected.as_ref().and_then(|i|i.target.as_ref()) != b.selected.as_ref().and_then(|i|i.target.as_ref()))));
     p.domains.targeting[0].weight = 0;
     let selected_hero = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Attacker), &DomainValue::String("slot-2".into())).unwrap();
     let mut individual = inputs.clone();
@@ -2792,7 +2793,7 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
     assert_eq!(results[0],results[1]);
 }
 
-fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc } }
+fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc, targeting_profile: BehaviorTargetingProfile::TargetHealthWeight } }
 fn test_behavior_defaults(rules: &VerifiedRulePlan) -> BTreeMap<String, NextBehaviorProfile> { rules.plan().next.as_ref().unwrap().heroes.iter().map(|h| (h.id.clone(), NextBehaviorProfile::default())).collect() }
 
 #[test]
@@ -2966,3 +2967,5 @@ fn trial_target_and_shared_move_conflict_atomically_and_hide_enemies() {
     let enemies:BTreeSet<_>=(1..=5).map(|n|derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Defender),&DomainValue::String(format!("slot-{n}"))).unwrap()).collect();
     assert!(result.traces_for_owner(CombatantSide::Attacker).iter().all(|t|t.selected.as_ref().and_then(|i|i.target.as_ref()).is_none_or(|id|!enemies.contains(id))));
 }
+
+fn trial_target_rules() -> VerifiedRulePlan { let mut package=senritsu::next_local_trial_package(); senritsu::add_trial_behavior_preferences(&mut package); package.ruleset.digest=senritsu::canonical_digest(&package).unwrap(); senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap() }

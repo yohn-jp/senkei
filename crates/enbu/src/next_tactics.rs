@@ -266,33 +266,35 @@ fn goal_candidates(world: &WorldState, rules: &NextRules, accepted: &[(Combatant
     candidates
 }
 
-/// Remove cross-capability losers using exactly the order used to commit goals.
-pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &mut Vec<(CombatantSide, Intent)>) -> Vec<(CombatantSide, Intent)> {
-    let mut groups = BTreeSet::new();
-    let mut losers = BTreeSet::new();
-    for candidate in goal_candidates(world, rules, accepted) {
-        if !groups.insert(candidate.group.clone()) {
-            let side = match candidate.group { GoalGroup::Squad(side, _) | GoalGroup::Solo(side, _) => side };
-            losers.insert((side, candidate.actor, candidate.action_id));
-        }
+/// Resolve final write-set conflicts using explicit Next goal order first,
+/// then Behavior score and stable action ID for generated candidates.
+pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &mut Vec<(CombatantSide, Intent)>, scores: &std::collections::BTreeMap<(CombatantSide, senkei_model::ActionId),i64>) -> Vec<(CombatantSide, Intent)> {
+    struct Item { side: CombatantSide, actor: EntityId, action: senkei_model::ActionId, group: GoalGroup, shared: bool, rank: u8, target_key: String, score: Option<i64> }
+    let mut items = Vec::new();
+    for candidate in goal_candidates(world,rules,accepted) {
+        let side=match &candidate.group { GoalGroup::Squad(side,_) | GoalGroup::Solo(side,_) => *side };
+        items.push(Item { side,actor:candidate.actor,action:candidate.action_id.clone(),group:candidate.group,shared:true,rank:candidate.rank,target_key:candidate.target_key,score:scores.get(&(side,candidate.action_id)).copied() });
     }
-    let moving_groups = groups;
-    let mut seen_targets = BTreeSet::new();
-    let mut targets = accepted.iter().filter(|(_,intent)| intent.capability.as_str()=="select_target").collect::<Vec<_>>();
-    targets.sort_by(|a,b| a.1.action_id.cmp(&b.1.action_id));
-    for (side,intent) in targets {
-        let Some(actor) = intent.actor.as_ref() else { continue };
-        let Some(entity) = world.entities.get(actor) else { continue };
-        let squad = support::string(entity,"squad");
-        let group = if squad.is_empty() { GoalGroup::Solo(*side,actor.clone()) } else { GoalGroup::Squad(*side,squad) };
-        if moving_groups.contains(&group) || !seen_targets.insert((*side,actor.clone())) { losers.insert((*side,actor.clone(),intent.action_id.clone())); }
+    for (side,intent) in accepted.iter().filter(|(_,i)|i.capability.as_str()=="select_target") {
+        let Some(actor)=intent.actor.as_ref() else {continue}; let Some(entity)=world.entities.get(actor) else {continue};
+        let squad=support::string(entity,"squad"); let group=if squad.is_empty(){GoalGroup::Solo(*side,actor.clone())}else{GoalGroup::Squad(*side,squad)};
+        items.push(Item { side:*side,actor:actor.clone(),action:intent.action_id.clone(),group,shared:false,rank:3,target_key:intent.target.as_ref().map_or(String::new(),ToString::to_string),score:scores.get(&(*side,intent.action_id.clone())).copied() });
     }
-    let mut rejected = Vec::new();
-    accepted.retain(|(side, intent)| {
-        if intent.actor.as_ref().is_some_and(|actor| losers.contains(&(*side, actor.clone(), intent.action_id.clone()))) {
-            rejected.push((*side, intent.clone())); false
-        } else { true }
+    items.sort_by(|a,b| match (a.score,b.score) {
+        (None,None)=>a.rank.cmp(&b.rank).then_with(||a.actor.cmp(&b.actor)).then_with(||a.target_key.cmp(&b.target_key)).then_with(||a.action.cmp(&b.action)),
+        (None,Some(_))=>std::cmp::Ordering::Less,
+        (Some(_),None)=>std::cmp::Ordering::Greater,
+        (Some(x),Some(y))=>y.cmp(&x).then_with(||a.action.cmp(&b.action)),
     });
+    let mut shared=BTreeSet::new(); let mut target_groups=BTreeSet::new(); let mut targeted=BTreeSet::new(); let mut losers=BTreeSet::new();
+    for item in items {
+        let conflict=if item.shared { shared.contains(&item.group) || target_groups.contains(&item.group) } else { shared.contains(&item.group) || targeted.contains(&(item.side,item.actor.clone())) };
+        if conflict { losers.insert((item.side,item.actor,item.action)); }
+        else if item.shared { shared.insert(item.group); }
+        else { target_groups.insert(item.group); targeted.insert((item.side,item.actor)); }
+    }
+    let mut rejected=Vec::new();
+    accepted.retain(|(side,intent)| { if intent.actor.as_ref().is_some_and(|actor|losers.contains(&(*side,actor.clone(),intent.action_id.clone()))) { rejected.push((*side,intent.clone())); false } else { true } });
     rejected
 }
 
