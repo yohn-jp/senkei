@@ -6,6 +6,36 @@ import {
   type Event,
 } from "@senkei/replay-contract";
 
+type ReplayEvent = Replay["timeline"][number];
+
+function isCue(event: ReplayEvent): boolean {
+  return ["attack", "skill", "damage", "vitals", "destroy", "spawn"].includes(event.type);
+}
+
+function applyEntityEvent(entities: Record<string, DisplayEntity>, event: ReplayEvent): void {
+  if (event.type === "spawn")
+    entities[event.entity.id] = { ...event.entity, destroyed: false };
+  else if (event.type === "disappear") delete entities[event.entityId];
+  else if (event.type !== "match-end") {
+    const current = entities[event.entityId];
+    if (event.type === "move")
+      entities[event.entityId] = {
+        ...current,
+        position: event.position,
+        ...(event.logicalPosition ? { battlefield: event.logicalPosition } : {}),
+      };
+    if (event.type === "facility-state")
+      entities[event.entityId] = { ...current, battlefield: event.battlefield,
+        ...(event.battlefield.facilityOwner ? { side: event.battlefield.facilityOwner } : {}) };
+    if (event.type === "vitals")
+      entities[event.entityId] = { ...current, hp: event.hp, maxHp: event.maxHp };
+    if (event.type === "damage")
+      entities[event.entityId] = { ...current, hp: event.hp };
+    if (event.type === "destroy")
+      entities[event.entityId] = { ...current, destroyed: true };
+  }
+}
+
 /** Projection only: no movement, combat, or victory calculation. */
 export function stateAt(replay: Replay, tick: number): DisplayState {
   if (!Number.isInteger(tick) || tick < 0 || tick > replay.result.tick)
@@ -19,31 +49,11 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
     if (event.tick > tick) break;
     if (
       event.tick >= tick - 1 &&
-      ["attack", "skill", "damage", "vitals", "destroy", "spawn"].includes(event.type)
+      isCue(event)
     )
       cues.push(event as Event);
-    if (event.type === "spawn")
-      entities[event.entity.id] = { ...event.entity, destroyed: false };
-    else if (event.type === "match-end") result = event.result;
-    else if (event.type === "disappear") delete entities[event.entityId];
-    else {
-      const current = entities[event.entityId];
-      if (event.type === "move")
-        entities[event.entityId] = {
-          ...current,
-          position: event.position,
-          ...(event.logicalPosition ? { battlefield: event.logicalPosition } : {}),
-        };
-      if (event.type === "facility-state")
-        entities[event.entityId] = { ...current, battlefield: event.battlefield,
-          ...(event.battlefield.facilityOwner ? { side: event.battlefield.facilityOwner } : {}) };
-      if (event.type === "vitals")
-        entities[event.entityId] = { ...current, hp: event.hp, maxHp: event.maxHp };
-      if (event.type === "damage")
-        entities[event.entityId] = { ...current, hp: event.hp };
-      if (event.type === "destroy")
-        entities[event.entityId] = { ...current, destroyed: true };
-    }
+    if (event.type === "match-end") result = event.result;
+    else applyEntityEvent(entities, event);
   }
   let fogFrame: NonNullable<Replay["fog"]>["frames"][number] | undefined;
   for (const frame of replay.fog?.frames ?? []) {
@@ -54,14 +64,54 @@ export function stateAt(replay: Replay, tick: number): DisplayState {
     fog: { state: fogFrame, worldUnitsPerRenderUnit: replay.fog!.worldUnitsPerRenderUnit },
   } : {}) });
 }
+
+/** Forward-only projection. Rewinding creates a new cursor from the Replay. */
+class ProjectionCursor {
+  private readonly entities: Record<string, DisplayEntity> = Object.create(null);
+  private eventIndex = 0;
+  private fogIndex = 0;
+  private recentCues: ReplayEvent[] = [];
+  private result: DisplayState["result"] = null;
+  private fogFrame: NonNullable<Replay["fog"]>["frames"][number] | undefined;
+  tick = -1;
+
+  constructor(private readonly replay: Replay) {
+    for (const entity of replay.initialView)
+      this.entities[entity.id] = { ...entity, destroyed: false };
+  }
+
+  at(tick: number): DisplayState {
+    this.recentCues = this.recentCues.filter(event => event.tick >= tick - 1);
+    while (this.eventIndex < this.replay.timeline.length && this.replay.timeline[this.eventIndex]!.tick <= tick) {
+      const event = this.replay.timeline[this.eventIndex++]!;
+      if (event.tick >= tick - 1 && isCue(event)) this.recentCues.push(event);
+      if (event.type === "match-end") this.result = event.result;
+      else applyEntityEvent(this.entities, event);
+    }
+    const frames = this.replay.fog?.frames ?? [];
+    while (this.fogIndex < frames.length && frames[this.fogIndex]!.tick <= tick)
+      this.fogFrame = frames[this.fogIndex++]!;
+    this.tick = tick;
+    return freeze({
+      tick,
+      entities: Object.assign(Object.create(null), this.entities) as Record<string, DisplayEntity>,
+      cues: [...this.recentCues],
+      result: this.result,
+      ...(this.fogFrame ? { fog: { state: this.fogFrame, worldUnitsPerRenderUnit: this.replay.fog!.worldUnitsPerRenderUnit } } : {}),
+    });
+  }
+}
+
 export class ReplayPlayer {
   private current: DisplayState;
+  private cursor: ProjectionCursor;
   private active = false;
   private rate = 1;
   private accumulated = 0;
   private listeners = new Set<() => void>();
   constructor(readonly replay: Replay) {
-    this.current = stateAt(replay, 0);
+    this.cursor = new ProjectionCursor(replay);
+    this.current = this.cursor.at(0);
   }
   get state() {
     return this.current;
@@ -82,8 +132,10 @@ export class ReplayPlayer {
     this.listeners.forEach((fn) => fn());
   }
   play() {
-    if (this.current.tick === this.replay.result.tick)
-      this.current = stateAt(this.replay, 0);
+    if (this.current.tick === this.replay.result.tick) {
+      this.cursor = new ProjectionCursor(this.replay);
+      this.current = this.cursor.at(0);
+    }
     this.active = this.current.tick < this.replay.result.tick;
     this.emit();
   }
@@ -97,7 +149,10 @@ export class ReplayPlayer {
     this.emit();
   }
   seek(tick: number) {
-    this.current = stateAt(this.replay, tick);
+    if (!Number.isInteger(tick) || tick < 0 || tick > this.replay.result.tick)
+      throw new RangeError("Tick out of range");
+    if (tick < this.cursor.tick) this.cursor = new ProjectionCursor(this.replay);
+    this.current = this.cursor.at(tick);
     this.accumulated = 0;
     if (this.current.result) this.active = false;
     this.emit();
@@ -117,10 +172,7 @@ export class ReplayPlayer {
     );
     if (!steps) return;
     this.accumulated %= this.replay.presentation.tickDurationMs;
-    this.current = stateAt(
-      this.replay,
-      Math.min(this.replay.result.tick, this.current.tick + steps),
-    );
+    this.current = this.cursor.at(Math.min(this.replay.result.tick, this.current.tick + steps));
     if (this.current.result) {
       this.active = false;
       this.accumulated = 0;

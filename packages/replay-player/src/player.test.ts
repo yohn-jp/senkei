@@ -119,6 +119,37 @@ describe("read-only replay projection and transport", () => {
       expect(p.playing).toBe(false);
     }
   });
+  it("keeps prior snapshots immutable through forward, repeated and backward seeks", () => {
+    const replay = decodeReplay(tower);
+    const player = new ReplayPlayer(replay);
+    player.seek(13);
+    const saved = player.state;
+    const original = structuredClone(saved);
+    for (const tick of [13, 18, 28, 4, 4, 23, 0, 15]) {
+      player.seek(tick);
+      expect(player.state).toEqual(stateAt(replay, tick));
+      expect(saved).toEqual(original);
+    }
+    expect(Object.isFrozen(saved.entities)).toBe(true);
+    expect(Object.isFrozen(saved.entities["vermilion-mid-infantry"])).toBe(true);
+  });
+  it("reads each timeline event only a bounded number of times during forward playback", () => {
+    const replay = decodeReplay(tower);
+    let reads = 0;
+    const timeline = new Proxy(replay.timeline, {
+      get(target, key, receiver) {
+        if (typeof key === "string" && /^(0|[1-9]\d*)$/.test(key)) reads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const player = new ReplayPlayer({ ...replay, timeline });
+    player.play();
+    for (let tick = 1; tick <= replay.result.tick; tick++) {
+      player.advance(replay.presentation.tickDurationMs);
+      expect(player.state).toEqual(stateAt(replay, tick));
+    }
+    expect(reads).toBeLessThanOrEqual(3 * timeline.length + 2 * replay.result.tick + 2);
+  });
   it("rejects invalid cursor/time/speed and freezes output", () => {
     const p = new ReplayPlayer(decodeReplay(tower));
     for (const t of [-1, 0.5, 29, NaN]) expect(() => p.seek(t)).toThrow();

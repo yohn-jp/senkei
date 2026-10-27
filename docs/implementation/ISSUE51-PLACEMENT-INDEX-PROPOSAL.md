@@ -30,8 +30,11 @@ is at least `O(N_i log N_i)` and existing node/edge slot geometry also has its
 own cost. Storage is `O(D)` plus the current fold state; worst-case `D` can
 still be large for dense, moving battles. Indexed lookup costs at most
 `O(V log D_entity)` for `V` currently visible actors, plus output allocation.
-No frame update replays all prior Ticks, avoiding an `O(T² × entities)` layout
-hot path. Startup time and peak memory on dense and long real Replays must be
+No placement query replays all prior Ticks. Replay Player also advances its
+existing projection incrementally during forward playback; a backward seek
+rebuilds that Player projection, without transferring placement ownership.
+This avoids an `O(T² × entities)` sequential-playback hot path. Startup time
+and peak memory on dense and long real Replays must be
 measured; the index is not a performance acceptance claim.
 
 ## Alternatives
