@@ -98,3 +98,16 @@ it("rolls back an equipment assignment and request if its write fails", async ()
   await owned.equip({ requestId: "e", playerId: "p", instanceId: "i", heroId: "h" });
   expect((await owned.list("p"))[0].heroId).toBe("h");
 });
+it("snapshots grant and recovery input before asynchronous database opening", async () => {
+  const grantDefinition = { ...definition };
+  const grant = repo.grant({ requestId: "g", playerId: "p", instanceId: "i", definition: grantDefinition });
+  grantDefinition.digest = "unapproved";
+  await grant;
+  expect((await repo.list("p"))[0].definition.digest).toBe(definition.digest);
+  const bundle = await repo.export("p");
+  const destination = new EquipmentRepository(indexedDB, `snapshot-${crypto.randomUUID()}`, [definition]);
+  const recovery = destination.import("p", bundle);
+  bundle.instances[0].definition.digest = "unapproved";
+  await recovery;
+  expect((await destination.list("p"))[0].definition.digest).toBe(definition.digest);
+});

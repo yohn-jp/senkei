@@ -29,9 +29,11 @@ export class EquipmentRepository {
   private open(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = this.factory.open(this.name, 1);
+      let blocked = false;
+      request.onblocked = () => { blocked = true; reject(new EquipmentError("unavailable", "Equipment storage upgrade is blocked")); };
       request.onupgradeneeded = () => { request.result.createObjectStore("state"); };
       request.onerror = () => reject(new EquipmentError("storage", "Could not open equipment storage"));
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => { if (blocked) request.result.close(); else resolve(request.result); };
     });
   }
   private validate(state: State): void {
@@ -67,6 +69,7 @@ export class EquipmentRepository {
     return this.transaction(false, s => s.instances.filter(i => i.playerId === playerId));
   }
   async grant(input: GrantRequest): Promise<void> {
+    input = clone(input);
     if (!nonempty(input.instanceId) || !defValid(input.definition) || !this.approved.some(d => sameDef(d, input.definition))) throw new EquipmentError("invalid_data", "Definition is not approved");
     await this.transaction(true, s => {
       const payload = JSON.stringify([input.instanceId, input.definition.id, input.definition.version, input.definition.digest, input.definition.effectRef]);
@@ -76,6 +79,7 @@ export class EquipmentRepository {
     });
   }
   async equip(input: EquipRequest): Promise<void> {
+    input = clone(input);
     if (!this.heroAuthority) throw new EquipmentError("unavailable", "Hero ownership authority is unavailable");
     await this.transaction(true, s => {
       if (!nonempty(input.instanceId) || !nonempty(input.heroId)) throw new EquipmentError("invalid_data", "Instance and Hero identity are required");
@@ -87,6 +91,7 @@ export class EquipmentRepository {
     });
   }
   async unequip(input: UnequipRequest): Promise<void> {
+    input = clone(input);
     await this.transaction(true, s => {
       if (!nonempty(input.instanceId)) throw new EquipmentError("invalid_data", "Instance identity is required");
       if (!this.request(s, input.requestId, input.playerId, "unequip", JSON.stringify([input.instanceId]))) return;
@@ -100,7 +105,7 @@ export class EquipmentRepository {
     return this.transaction(false, s => ({ schemaVersion: 1, playerId, instances: s.instances.filter(i => i.playerId === playerId), requests: s.requests.filter(r => r.playerId === playerId) }));
   }
   async import(playerId: string, input: unknown): Promise<void> {
-    const bundle = input as EquipmentBundle;
+    const bundle = clone(input) as EquipmentBundle;
     if (!nonempty(playerId) || !bundle || bundle.playerId !== playerId) throw new EquipmentError("invalid_data", "Player identity mismatch");
     this.validate(bundle);
     if (bundle.instances.some(i => i.playerId !== playerId || (i.heroId !== null && (!this.heroAuthority || !this.heroAuthority.ownsHero(playerId, i.heroId))) || !this.approved.some(d => sameDef(d, i.definition))) || bundle.requests.some(r => r.playerId !== playerId)) throw new EquipmentError("invalid_data", "Unapproved recovery data");
