@@ -1,5 +1,5 @@
 use jinrei::compile;
-use senkei_model::{CombatantSide, DomainType, DomainValue, FieldId, MatchOutcome, SymbolId, SenkeiSnapshot};
+use senkei_model::{CombatantSide, DomainType, DomainValue, FieldId, MatchOutcome, SymbolId};
 use senkei_runner::{run, CombatantInput, LocalMatchInput, INPUT_SCHEMA_VERSION};
 use std::collections::BTreeMap;
 
@@ -542,6 +542,10 @@ fn simultaneous_deploys_from_one_barracks_cannot_double_spend_one_credit() {
                 top,
             ),
         },
+        action verify_zero_balance {
+            when and { match.tick == 9, self.resources == 0, },
+            do move_forward(argmin unit in allies.units by unit.position then unit.slot_id),
+        },
     }"#;
     let mut fixture = input(TWO_DEPLOYS, 4, WAIT, 2);
     fixture.attacker.configuration.insert(
@@ -576,30 +580,10 @@ fn simultaneous_deploys_from_one_barracks_cannot_double_spend_one_credit() {
         .flat_map(|frame| frame.events.iter())
         .filter(|event| event.event.as_str() == "unit_deployed").count();
     assert_eq!(deployed, 1, "only one reinforcement consumes the available credit");
-    // The public replay correctly withholds owning-side credit. Verify conservation on the authorized owner replay instead.
-    let rules = senritsu::validate(senritsu::initial_package(), &senritsu::next_engine_compatibility())
-        .expect("canonical initial rule package is valid");
-    let snapshot = |input: &CombatantInput| {
-        let mut configuration = rules.plan().domain.senkei_configuration.iter()
-            .map(|(key, spec)| (key.clone(), spec.default.clone().expect("initial configuration default")))
-            .collect::<BTreeMap<_, _>>();
-        configuration.extend(input.configuration.clone());
-        SenkeiSnapshot {
-            schema_version: INPUT_SCHEMA_VERSION, id: input.id.clone(), revision: input.revision.clone(),
-            ruleset: rules.ruleset().clone(), configuration,
-            program: compile(&input.tactics, &rules).expect("real Jinrei compiler").program,
-            initial_memory: input.initial_memory.clone(),
-        }
-    };
-    let direct = enbu::simulate(&snapshot(&fixture.attacker), &snapshot(&fixture.defender),
-        &rules, &enbu::new_match_context(&rules, fixture.match_id), &mut jinrei::Vm::new(&rules))
-        .expect("real Enbu exposes the authorized owning-side balance");
-    let owner_barracks = direct.owner_replays[&CombatantSide::Attacker].frames.iter()
-        .find(|frame| frame.tick == 8)
-        .and_then(|frame| frame.visible_state.as_ref())
-        .and_then(|state| state.entities.values().find(|entity|
-            entity.entity_type.as_str() == "barracks" && entity.owner == Some(CombatantSide::Attacker)))
-        .expect("the producer remains visible to its owner at the contested tick");
-    assert_eq!(owner_barracks.fields.get(&FieldId::new("resources")),
-        Some(&DomainValue::Integer(0)), "one credit can never be double spent");
+    // A real owning-side Jinrei observation at the next tick proves the committed balance.
+    assert!(result.diagnostics.events.iter().any(|event| {
+        event.tick == 9 && event.side == CombatantSide::Attacker
+            && matches!(&event.record, senkei_model::DiagnosticRecord::IntentAccepted { intent }
+                if intent.action_id.as_str() == "verify_zero_balance")
+    }), "the producer has precisely zero credits after its one accepted deployment");
 }
