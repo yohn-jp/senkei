@@ -1,0 +1,30 @@
+use senkei_model::*;
+use senritsu::{next_package, next_engine_compatibility, validate, validate_next_behavior_policy};
+
+fn policy(rules: &VerifiedRulePlan) -> NextBehaviorPolicy {
+    let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    NextBehaviorPolicy {
+        schema_version: 1, policy_id: "test-policy".into(), version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(), test_only: true,
+        domains: BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] },
+        candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Retreat, capability: "retreat".into(), arguments: vec![BehaviorArgument::Actor] }],
+    }
+}
+#[test]
+fn validates_bound_test_policy_and_rejects_malformed_policies() {
+    let rules = validate(next_package(), &next_engine_compatibility()).unwrap();
+    let p = policy(&rules);
+    let verified = validate_next_behavior_policy(p.clone(), &rules).unwrap();
+    assert_eq!(verified.policy(), &p);
+    assert!(verified.policy().test_only);
+    let mut invalid = p.clone(); invalid.ruleset_digest = ContentDigest::new("wrong");
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut invalid = p.clone(); invalid.domains.navigation.clear();
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut invalid = p.clone(); invalid.candidates.push(invalid.candidates[0].clone());
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut invalid = p.clone(); invalid.candidates[0].capability = "move".into();
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut invalid = p; invalid.domains.survival[0].weight = i64::MAX;
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+}

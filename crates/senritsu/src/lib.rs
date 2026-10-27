@@ -4,6 +4,8 @@
 mod initial;
 mod validate;
 mod next_validate;
+mod production_behavior;
+pub use production_behavior::{validate_next_behavior_policy, VerifiedNextBehaviorPolicy};
 pub mod catalog;
 
 pub use initial::{initial_engine_compatibility, initial_package};
