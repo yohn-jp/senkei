@@ -10,7 +10,7 @@ import { localTrialMinionBehavior } from "../../contracts/next-route-minion";
 import { AutonomousDecisions } from "./AutonomousDecisions";
 import { PostMatchProgression } from "../progression/PostMatchProgression";
 import { previewOwnedEquipment } from "./owned-equipment-preview";
-import { heroSelectionsForDraft, parseOwnedHeroSelection, type OwnedHeroSelection } from "../heroes/draft";
+import { changeOwnedHeroSelection, heroSelectionsForDraft, parseOwnedHeroSelection, selectedOwnedHero, type OwnedHeroSelection } from "../heroes/draft";
 import { equipmentForDraft, parseOwnedEquipmentDraft, type OwnedEquipmentDraft } from "../equipment/draft";
 import { CoreClientError } from "../../worker";
 import { OwnedAssetsPanel, readOwnedAssets, approvedEquipmentDefinitions, type OwnedAssetsState } from "../heroes/OwnedAssetsPanel";
@@ -1832,8 +1832,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
 
   const selectOwnedHero = useCallback((slotId: string, instanceId: string, definitionId: string) => {
     if (!ownedAssets) return;
-    const selections = {...(heroSelection?.playerId === ownedAssets.playerId ? heroSelection.slots : ownedAssets.slotSelections)};
-    if (instanceId) selections[slotId] = instanceId; else delete selections[slotId];
+    const selections = changeOwnedHeroSelection(heroSelection?.playerId === ownedAssets.playerId ? heroSelection.slots : ownedAssets.slotSelections, slotId, instanceId);
     setHeroSelection({schemaVersion:1,playerId:ownedAssets.playerId,slots:selections});
     setPrepared(null); setExactRun(null);
     const index = slots.findIndex(slot => slot.slot_id === slotId);
@@ -1989,7 +1988,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       const npcHeroes = await repository.obtainTrialRoster({requestId:`npc:${npcPlayer}:${policy.hero_catalog_digest}`,playerId:npcPlayer,catalog:{id:policy.hero_catalog_id,version:`${policy.hero_catalog_version.major}.${policy.hero_catalog_version.minor}.${policy.hero_catalog_version.patch}`,digest:policy.hero_catalog_digest,heroes:nextRules.heroes}});
       const npcSnapshot = await repository.snapshot(npcPlayer);
       const projection = await buildMatchProjection({policy,rulesetDigest:packageValue.ruleset.digest,approvedRulesetDigest:packageValue.ruleset.digest,
-        attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:equipmentForDraft(owned.equipment, owned.playerId, equipmentDraft),relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:heroSelectionsForDraft(owned.playerId, owned.slotSelections, heroSelection)[slot.slot_id] ?? ''}))},
+        attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:equipmentForDraft(owned.equipment, owned.playerId, equipmentDraft),relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:selectedOwnedHero(heroSelectionsForDraft(owned.playerId, owned.slotSelections, heroSelection), slot.slot_id)}))},
         defender:{playerId:npcPlayer,heroSnapshot:npcSnapshot,equipment:[],relations:[],slots:opponentSlots.map(slot => ({slotId:slot.slot_id,heroInstanceId:npcHeroes.find(hero => hero.definition.id === slot.catalog_id)?.instanceId ?? ''}))}});
       for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new PreflightProblem('Owned Hero does not match the current formation definition. Reselect the owned Hero for this slot.', 'invalid');
       if (stableKey(await readOwnedAssets(owned.playerId, approved)) !== stableKey(owned)) throw new Error('Assets changed during projection; validate again.');
