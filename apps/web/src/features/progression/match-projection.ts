@@ -30,7 +30,11 @@ export async function buildMatchProjection(input: TrialProjectionInput) {
   const { policy } = input;
   if (policy.schema_version !== 1 || policy.test_only !== true || !digestShape(input.rulesetDigest) || input.rulesetDigest !== input.approvedRulesetDigest || !digestShape(policy.hero_catalog_digest)) throw new Error('Unapproved trial policy');
   async function side(source: TrialSideInput) {
-    if (!source.playerId || source.heroSnapshot.playerId !== source.playerId || source.slots.length !== 5 || new Set(source.slots.map(s => s.slotId)).size !== 5 || new Set(source.slots.map(s => s.heroInstanceId)).size !== 5) throw new Error('Invalid formation ownership');
+    if (!source.playerId.trim() || source.heroSnapshot.playerId !== source.playerId || source.slots.length !== 5 || source.slots.some(s => !s.slotId.trim() || !s.heroInstanceId.trim()) || new Set(source.slots.map(s => s.slotId)).size !== 5 || new Set(source.slots.map(s => s.heroInstanceId)).size !== 5) throw new Error('Invalid formation ownership');
+    const ownedIds = new Set(source.heroSnapshot.heroes.map(h => h.instanceId));
+    if (ownedIds.size !== source.heroSnapshot.heroes.length || source.heroSnapshot.heroes.some(h => !h.instanceId.trim() || h.playerId !== source.playerId || h.authority !== 'local')) throw new Error('Invalid Hero ownership snapshot');
+    if (source.equipment.some(e => !e.instanceId.trim() || e.playerId !== source.playerId || e.authority !== 'local' || (e.heroId !== null && !ownedIds.has(e.heroId)))) throw new Error('Invalid equipment ownership snapshot');
+    if (source.relations.some(r => !ownedIds.has(r.from) || !ownedIds.has(r.to) || r.from === r.to)) throw new Error('Invalid relationship ownership snapshot');
     const heroes = [];
     for (const slot of [...source.slots].sort((a, b) => compare(a.slotId, b.slotId))) {
       const owned = source.heroSnapshot.heroes.filter(h => h.instanceId === slot.heroInstanceId);
