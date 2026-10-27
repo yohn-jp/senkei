@@ -20,6 +20,16 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
     // No production policy is authored by the current package. A caller cannot
     // promote arbitrary weights into approved production semantics.
     if !policy.test_only { return Err("production policy is not authored by this RulePackage".into()); }
+    let next = rules.plan().next.as_ref().expect("checked above");
+    let ids: BTreeSet<_> = next.heroes.iter().map(|h| h.id.as_str()).collect();
+    if policy.hero_defaults.len() != ids.len() || policy.hero_defaults.keys().any(|id| !ids.contains(id.as_str())) {
+        return Err("hero defaults must cover exactly the Next Hero Catalog".into());
+    }
+    for profile in policy.hero_defaults.values() {
+        for value in [profile.navigation, profile.engagement, profile.targeting, profile.pursuit, profile.survival, profile.objective].into_iter().flatten() {
+            if !(-1_000_000..=1_000_000).contains(&value) { return Err("hero default out of range".into()); }
+        }
+    }
     let d = &policy.domains;
     let domains = [&d.navigation, &d.engagement, &d.targeting, &d.pursuit, &d.survival, &d.objective];
     let mut bound = 0i64;

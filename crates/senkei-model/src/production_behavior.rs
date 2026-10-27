@@ -38,21 +38,32 @@ pub struct BehaviorCandidateDefinition {
     pub kind: BehaviorCandidateKind, pub capability: CapabilityId,
     pub arguments: Vec<BehaviorArgument>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BehaviorHeroAggregation { MeanFloor }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BehaviorOverrideOrder { ArmyThenSquad }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BehaviorComposition { pub hero_aggregation: BehaviorHeroAggregation, pub override_order: BehaviorOverrideOrder }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NextBehaviorPolicy {
     pub schema_version: u32, pub policy_id: String, pub version: Version,
     pub ruleset_digest: ContentDigest, pub test_only: bool,
+    pub composition: BehaviorComposition,
+    pub hero_defaults: std::collections::BTreeMap<String, NextBehaviorProfile>,
     pub domains: BehaviorDomains, pub candidates: Vec<BehaviorCandidateDefinition>,
 }
 
-/// Additive offsets scoped to candidate domains. Move uses Navigation and
+/// Optional offsets scoped to candidate domains. None inherits its previous value. Move uses Navigation and
 /// Objective; Pursue uses Engagement, Targeting and Pursuit; Retreat uses
-/// Survival. Runtime combines Army, current Squad and Hero offsets.
+/// Survival. Runtime composes current Hero defaults, Army, then Squad overrides.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NextBehaviorProfile {
-    pub navigation: i64, pub engagement: i64, pub targeting: i64,
-    pub pursuit: i64, pub survival: i64, pub objective: i64,
+    pub navigation: Option<i64>, pub engagement: Option<i64>, pub targeting: Option<i64>,
+    pub pursuit: Option<i64>, pub survival: Option<i64>, pub objective: Option<i64>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NextBehaviorExecutionInputs {
