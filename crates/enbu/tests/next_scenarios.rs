@@ -3267,4 +3267,20 @@ fn eligible_explicit_skill_is_not_overridden_by_behavior_default_move() {
         .any(|event| event.event.as_str() == "next.skill"
             && event.payload.get(&FieldId::from("skill")) == Some(&DomainValue::String("f01_a_active".into()))),
         "the legal explicit skill executes, rather than being silently displaced by default movement");
+    assert!(entity_integer(owner_hero_at(&artifact, 1, "slot-1"), "energy")
+        < entity_integer(owner_hero_at(&artifact, 0, "slot-1"), "energy"),
+        "executing the explicitly requested F01 skill charges its defined energy cost");
+    // A syntactically valid but runtime-ineligible explicit skill must not suppress a legal default.
+    let mut ineligible = attacker.clone();
+    let invalid_source = format!(
+        "senkei invalid_skill {{ action not_learned {{ when match.tick == 1, do activate({actor}, \"unlearned_skill\", {actor}), }} }}"
+    );
+    ineligible.program = compile(&invalid_source, &rules).expect("Jinrei validates the capability shape").program;
+    let invalid = simulate(&ineligible, &defender, &rules, &context, &mut Vm::new(&rules))
+        .expect("invalid skill falls back to legal Behavior default");
+    assert!(invalid.diagnostics.events.iter().any(|event| {
+        event.tick == 1 && event.side == CombatantSide::Attacker
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent }
+                if intent.capability.as_str() == "move" && intent.action_id.as_str().starts_with("behavior:"))
+    }), "invalid explicit activation may not suppress valid default movement");
 }
