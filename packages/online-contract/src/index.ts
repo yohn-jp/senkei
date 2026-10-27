@@ -7,6 +7,7 @@ import type { ReproductionAssets, SimulationSnapshot } from "../../../apps/web/s
 import type { MatchResult, PresentationReplay, WorldIdentityRef } from "../../../apps/web/src/contracts/core-model";
 export { ReproducingCoreClientAdapter } from "./core-client";
 export * from "./economy";
+export * from "./progression-read";
 
 export interface Principal {
   readonly playerId: string;

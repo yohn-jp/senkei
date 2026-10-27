@@ -22,6 +22,14 @@ An integrator must supply trusted implementations for every port. Their responsi
 
 An accepted player listing is not a sale. `readEconomicOrder` separately authenticates the viewer and verifies an order-status record (`awaiting_buyer`, `filled`, or `cancelled`), requiring settlement references for a filled order. It does not resubmit or rewrite the original committed listing. A provider must enforce access and supply verifiable evidence; the contract supplies neither.
 
+## Authenticated progression reads
+
+`readOfficialProgression` covers post-match references, draw entitlements and pools, inventory, balances, market search, quotations, orders and Libra issuance statistics. A configured host supplies the principal, versioned policy, exact query, provider and verifier. The returned evidence is bound to a domain-separated digest of the complete query and authenticated player; only a matching verified payload is projected. An unconfigured host supplies no fabricated request or credentials and receives `unavailable`.
+
+Inventory and balance totals, available amounts, prices, fees and probabilities are supplied as exact text with a provider-approved versioned format. This package does not parse them, choose precision or infer a zero. The verifier must establish that quantities, availability and filter evidence accurately reflect the authority's data. Empty and filtered-empty lists depend on the provider's authenticated unfiltered-result claim. Search prices are not commitments, a listing awaiting a buyer is not a filled sale, and cumulative issuance is distinct from trading volume.
+
+`OfficialReadPanel` is a generic consumer of this contract. It never promotes a local Player into an official account; without a configured host it shows only the unavailable state. The fixture under `fixtures/` is a test-only synthetic provider, not a service or real official data.
+
 The adapters reuse existing TypeScript core DTOs, identity hashing and response validation in `apps/web/src`. These are not a configured browser or service authority; moving the DTOs and pure validators to a shared contract package would remove this cross-layer dependency. `SimulationSnapshot` binds both Senkei snapshots and MatchContext; `ReproductionAssets` retains the actual RulePackage and World needed to revalidate and reproduce. A real adapter must also retain and resolve any match-affecting extension referenced by those artifacts.
 
 ## Verification
@@ -29,3 +37,5 @@ The adapters reuse existing TypeScript core DTOs, identity hashing and response 
 The unit tests use test doubles to exercise sequencing, identity checks, failure paths, publication boundaries and requirements placed on settlement adapters. They do **not** prove an actual authentication provider, durable atomic settlement, privacy policy, ranking fairness or end-to-end official service.
 
 For a real core boundary smoke test, build `cargo build --locked -p senkei-wasm --bin senkei-wasm-dispatch`, then run `node packages/online-contract/native-smoke.mjs`. It creates a real one-tick Match through the Rust native dispatcher, exercises the CoreClient adapter, and rejects modified bytecode and a changed public replay. The settlement in this test is a test double, so it is not evidence of a deployed authority or economic system.
+
+`node packages/online-contract/read-ui-smoke.mjs` exercises unavailable, configured read, filtered-empty, denial, retry and stale-response handling in Chromium with a synthetic test provider. Set `SENKEI_CHROMIUM_EXECUTABLE` to a suitable Chromium binary when the bundled Playwright browser is not runnable on the host.
