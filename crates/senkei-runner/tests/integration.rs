@@ -576,4 +576,11 @@ fn simultaneous_deploys_from_one_barracks_cannot_double_spend_one_credit() {
         .flat_map(|frame| frame.events.iter())
         .filter(|event| event.event.as_str() == "unit_deployed").count();
     assert_eq!(deployed, 1, "only one reinforcement consumes the available credit");
+    let owner_barracks = result.public.replay.frames.iter().find(|frame| frame.tick == 8)
+        .and_then(|frame| frame.visible_state.as_ref())
+        .and_then(|state| state.entities.values().find(|entity|
+            entity.entity_type.as_str() == "barracks" && entity.owner == Some(CombatantSide::Attacker)))
+        .expect("the producer remains visible at the contested tick");
+    assert_eq!(owner_barracks.fields.get(&FieldId::new("resources")),
+        Some(&DomainValue::Integer(0)), "one credit can never be double spent");
 }
