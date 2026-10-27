@@ -2639,6 +2639,13 @@ fn local_trial_projection_changes_real_match_and_is_reproduced() {
         sides.insert(side, ProjectedSide { owner_id: owner, authority: AssetAuthority::Local, heroes, relations });
     }
     context.match_projection = Some(MatchProjection { schema_version: 1, sides });
+    let terms = vec![BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:0 }];
+    context.next_behavior = Some(NextBehaviorMatch { policy:NextBehaviorPolicy {
+        schema_version:1,policy_id:"test.projection".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,
+        composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),
+        domains:BehaviorDomains {navigation:terms.clone(),engagement:terms.clone(),targeting:terms.clone(),pursuit:terms.clone(),survival:terms.clone(),objective:terms},
+        candidates:vec![BehaviorCandidateDefinition {kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode]}]
+    },inputs:NextBehaviorExecutionInputs {schema_version:1,..Default::default()} });
     let snapshot_digest = enbu::reproduction_snapshot_digest(&attacker, &defender, &context).unwrap();
     let result = simulate(&attacker, &defender, &rules, &context, &mut Vm::new(&rules)).unwrap();
     let retained = &result.reproduction;

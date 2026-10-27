@@ -1995,7 +1995,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         }) : previous);
       }
       setBaselineRun(run);
-      setRun({ ownedAssetKey: isTrial ? stableKey(ownedAssets) : undefined, campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
+      setRun({ ownedAssetKey: exactRun?.ownedAssetKey ?? (isTrial && !exactRun ? stableKey(ownedAssets) : undefined), campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
         reproductionAssets, snapshotDigest, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);

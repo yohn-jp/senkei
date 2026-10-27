@@ -61,11 +61,13 @@ pub struct NextBehaviorPolicy {
 /// Objective; Pursue uses Engagement, Targeting and Pursuit; Retreat uses
 /// Survival. Runtime composes current Hero defaults, Army, then Squad overrides.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NextBehaviorProfile {
     pub navigation: Option<i64>, pub engagement: Option<i64>, pub targeting: Option<i64>,
     pub pursuit: Option<i64>, pub survival: Option<i64>, pub objective: Option<i64>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NextBehaviorExecutionInputs {
     pub schema_version: u32,
     pub army: std::collections::BTreeMap<crate::CombatantSide, NextBehaviorProfile>,
@@ -74,4 +76,5 @@ pub struct NextBehaviorExecutionInputs {
 }
 /// Frozen reproduction inputs; policy must be revalidated against the RulePlan.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NextBehaviorMatch { pub policy: NextBehaviorPolicy, pub inputs: NextBehaviorExecutionInputs }
