@@ -3,6 +3,8 @@
 //! Enbu interprets only the finite structures in `VerifiedRulePlan`; tactical
 //! bytecode is opaque and is executed only through `TacticalExecutionPort`.
 
+mod behavior;
+pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorTickTrace, BehaviorTraces};
 mod validation;
 mod world;
 mod next_support;
@@ -138,6 +140,14 @@ pub fn simulate<P: TacticalExecutionPort>(
     rules: &VerifiedRulePlan,
     context: &MatchContext,
     executor: &mut P,
+) -> Result<SimulationArtifact, ApiError> {
+    simulate_inner(attacker, defender, rules, context, executor, None)
+}
+
+fn simulate_inner<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
+    mut behavior: Option<&mut behavior::Hook<'_>>,
 ) -> Result<SimulationArtifact, ApiError> {
     let (mut world, projection_index) = initialize_match(attacker, defender, rules, context)?;
     let plan = rules.plan();
@@ -324,7 +334,11 @@ pub fn simulate<P: TacticalExecutionPort>(
                 )?,
             }
         }
+        if let Some(hook) = behavior.as_deref_mut() {
+            hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index)?;
+        }
         let accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
 
         let accepted_sides = accepted.iter().map(|(side, _)| *side).collect::<BTreeSet<_>>();
         // Overrun output is discarded only for that side under the
@@ -395,7 +409,8 @@ pub fn simulate<P: TacticalExecutionPort>(
             if event_count > context.host_limits.max_events.min(plan.limits.max_events) { return Err(api_error(ApiErrorCode::ResourceLimit,"event limit exceeded")); }
         }
         validation::validate_world(&world, plan, context.host_limits.max_entities)?;
-        if diagnostics.len() as u64 > context.host_limits.max_diagnostic_events {
+        if let Some(hook) = behavior.as_deref_mut() { hook.record_transition(tick); }
+        if (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
         }
 

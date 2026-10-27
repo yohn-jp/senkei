@@ -51,6 +51,7 @@ name = "enbu"
 version = "0.1.0"
 dependencies = [
  "jinrei",
+ "senkei-behavior",
  "senkei-model",
  "senkei-world",
  "senritsu",

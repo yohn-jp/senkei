@@ -712,3 +712,13 @@ fn budget_overrun_rejects_tick_or_aborts_according_to_the_plan() {
     assert_eq!(aborted.result.cu_spent[&CombatantSide::Defender], LogicalCu(100));
     assert_eq!(aborted.replay.frames.len(), 2);
 }
+
+#[test]
+fn behavior_hook_rejects_catalog_without_authored_profiles() {
+    let (attacker, defender, rules, context) = setup(1);
+    let catalog = senritsu::DomainCatalog::from_verified_plan(&rules).unwrap();
+    let mut executor = AutoStrike::default();
+    let bindings = std::collections::BTreeMap::new();
+    let mut producer = |_: &ObservationSnapshot, _: &senkei_behavior::ProfileComposition| Vec::new();
+    assert!(enbu::simulate_with_behavior(&attacker, &defender, &rules, &context, &mut executor, &catalog, &catalog.compatibility_key(), &bindings, &mut producer).is_err());
+}
