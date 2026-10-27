@@ -18,7 +18,7 @@ import { buildBattlefieldTransitionEffects } from "./battlefield-effect-meshes";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 import { battlefieldModelGeometrySignature } from "./battlefield-model-signature";
 import { presentationCameraOffset, transitionCameraOffset } from "./battlefield-presentation-camera";
-import { overlapsProtectedSilhouette, screenRectsOverlap } from "./battlefield-label-collision.js";
+import { overlapsProtectedSilhouette, screenRectsOverlap, setVisibleLabelBounds } from "./battlefield-label-collision.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type {
   Replay,
@@ -2573,7 +2573,7 @@ export class Battlefield {
         for (const [id, group] of this.units) {
           const entity = this.state?.entities[id];
           if (!entity || !(entity.kind === "unit" || entity.kind === "tower" || entity.kind === "base" || entity.kind === "bridge" || entity.kind === "observation")) continue;
-          bounds.setFromObject(group);
+          setVisibleLabelBounds(bounds, group);
           if (bounds.isEmpty()) continue;
           let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
           for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
