@@ -44,7 +44,7 @@ export function EquipmentInventory({ playerId, items, heroes, slots, draft, appr
   const previewSequence = useRef(0);
   let current: EquipmentInstance[];
   try { current = equipmentForDraft(items, playerId, draft); }
-  catch (cause) { return <section aria-label="Equipment inventory"><h3>Equipment inventory</h3><p role="alert">{cause instanceof Error ? cause.message : String(cause)}</p></section>; }
+  catch (cause) { return <InvalidEquipmentDraft playerId={playerId} items={items} onApply={onApply} reason={cause instanceof Error ? cause.message : String(cause)} />; }
   const base = { schemaVersion: 1 as const, playerId, assignments: Object.fromEntries(current.map(item => [item.instanceId, item.heroId])) };
   const sourceKey = JSON.stringify([equipmentDraftKey(base), current.map(item => [item.instanceId, item.definition]), heroes.map(hero => hero.instanceId), approved]);
   const isCurrent = review?.sourceKey === sourceKey;
@@ -95,5 +95,21 @@ export function EquipmentInventory({ playerId, items, heroes, slots, draft, appr
       <button type="button" onClick={cancel}>Cancel</button>
     </div>}
     {error && <p role="alert">{error}</p>}
+  </section>;
+}
+
+function InvalidEquipmentDraft({ playerId, items, onApply, reason }: {
+  playerId: string; items: readonly EquipmentInstance[]; onApply?: (next: OwnedEquipmentDraft) => void; reason: string;
+}): ReactElement {
+  const [reviewedKey, setReviewedKey] = useState<string | null>(null);
+  const inventoryKey = JSON.stringify([playerId, items]);
+  const validInventory = items.every(item => item.playerId === playerId && item.authority === 'local') && new Set(items.map(item => item.instanceId)).size === items.length;
+  return <section aria-label="Equipment inventory"><h3>Equipment inventory</h3><p role="alert">{reason}</p>
+    {onApply && validInventory && <><button type="button" onClick={() => setReviewedKey(inventoryKey)}>Review current inventory choices</button>
+      {reviewedKey !== null && <div role="group" aria-label="Review equipment recovery"><p>The proposed Draft starts with all {items.length} current items unassigned. Existing Draft choices are replaced only on Apply; ownership is unchanged.</p>
+        {reviewedKey !== inventoryKey && <p role="alert">Inventory changed. Review the current inventory again.</p>}
+        <button type="button" disabled={reviewedKey !== inventoryKey} onClick={() => { onApply({ schemaVersion: 1, playerId, assignments: Object.fromEntries(items.map(item => [item.instanceId, null])) }); setReviewedKey(null); }}>Apply current inventory to Draft</button>
+        <button type="button" onClick={() => setReviewedKey(null)}>Cancel</button>
+      </div>}</>}
   </section>;
 }

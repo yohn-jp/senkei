@@ -3,6 +3,10 @@ import type { RulePackage, WorldStateView } from '../../contracts';
 import type { OwnedEquipmentDraft } from '../equipment/draft';
 import { EquipmentRepository, type EquipmentDefinitionRef, type EquipmentInstance } from '../equipment/repository';
 import { EquipmentInventory } from '../progression/EquipmentInventory';
+import { RelationshipGraph } from '../progression/RelationshipGraph';
+import { PairFormationPreview, type PairSquadChange } from '../progression/PairFormationPreview';
+import { PairEpisodes } from '../relationships/EpisodeReader';
+import type { EpisodeProvider } from '../relationships/episodes';
 import type { RelationshipArchive } from '../relationships/repository';
 import { HeroRepository, heroOwnershipAuthority, type HeroOwnershipSnapshot } from './repository';
 import { OwnedRelationshipRepository } from './relationships';
@@ -17,12 +21,15 @@ export interface OwnedAssetsState {
 }
 export interface OwnedAssetsPanelProps {
   ruleset: RulePackage;
-  slots: readonly { slot_id: string; catalog_id: string; squad_id?: string }[];
+  slots: readonly { slot_id: string; catalog_id: string; squad_id?: string; node_id?: string }[];
   heroSelections?: { schemaVersion: 1; playerId: string; slots: Readonly<Record<string, string>> } | null;
   equipmentDraft?: OwnedEquipmentDraft | null;
   onEquipmentDraftChange?(next: OwnedEquipmentDraft): void;
   equipmentBaseline?: WorldStateView | null;
   previewEquipment?(next: OwnedEquipmentDraft): Promise<WorldStateView>;
+  onSquadDraftChange?(change: PairSquadChange): void;
+  previewSquadChange?(change: PairSquadChange): Promise<WorldStateView>;
+  episodeProvider?: EpisodeProvider;
   onSelectOwnedHero(slotId: string, instanceId: string, definitionId: string): void;
   onAssetsChanged(state: OwnedAssetsState | null): void;
 }
@@ -50,7 +57,7 @@ export async function readOwnedAssets(player: string, approved: readonly Equipme
   if (!result.ok) throw new Error(result.reason);
   return { playerId: player, heroes, equipment, relationships: result.value, slotSelections: readSelections(player) };
 }
-export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraft, onEquipmentDraftChange, equipmentBaseline, previewEquipment, onSelectOwnedHero, onAssetsChanged }: OwnedAssetsPanelProps): ReactElement {
+export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraft, onEquipmentDraftChange, equipmentBaseline, previewEquipment, onSquadDraftChange, previewSquadChange, episodeProvider, onSelectOwnedHero, onAssetsChanged }: OwnedAssetsPanelProps): ReactElement {
   const [state, setState] = useState<OwnedAssetsState | null>(null); const [error, setError] = useState(''); const [selected, setSelected] = useState(''); const [pair, setPair] = useState(''); const [level, setLevel] = useState('0'); const policy = trialPolicy(ruleset); const [restoreProfile, setRestoreProfile] = useState<OwnedAssetsArchive | null>(null); const [notice, setNotice] = useState(''); const refreshSequence = useRef(0);
   const refresh = useCallback(async (player: string) => { const sequence = ++refreshSequence.current; const next = await readOwnedAssets(player, policy ? await equipmentDefinitions(policy) : []); if (sequence === refreshSequence.current) { setState(next); onAssetsChanged(next); } }, [onAssetsChanged, policy]);
   useEffect(() => { let active = true; onAssetsChanged(null); (async () => {
@@ -81,9 +88,10 @@ export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraf
       {slots.map(slot => <label key={slot.slot_id}>Slot {slot.slot_id} <select value={selections[slot.slot_id] ?? ''} onChange={e => void choose(slot.slot_id, e.target.value)}><option value="">Select owned Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{ruleset.next?.heroes.find(d => d.id === h.definition.id)?.name ?? h.definition.id} · {h.instanceId}</option>)}</select></label>)}
       {policy && <TrialEquipment policy={policy} grant={grant} />}
       {policy && <LocalEquipment policy={policy} state={state} slots={slots.map(slot => ({slot_id: slot.slot_id, instanceId: selections[slot.slot_id] ?? ''}))} draft={equipmentDraft ?? null} onApply={onEquipmentDraftChange} baseline={equipmentBaseline} preview={previewEquipment} />}
-      <h3>Hero relationships</h3><label>Hero <select value={selected} onChange={e => { setSelected(e.target.value); setPair(''); }}><option value="">Select Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{h.definition.id} · {h.instanceId}</option>)}</select></label>
+      <h3>Hero relationships</h3><RelationshipGraph heroes={state.heroes.heroes.map(h => ({ instanceId: h.instanceId, label: `${h.definition.id} · ${h.instanceId}` }))} events={state.relationships.events} formationIds={Object.values(selections)} selectedPair={selected && pair ? { from: selected, to: pair } : null} onSelectPair={(from, to) => { setSelected(from); setPair(to); }} />
+      <label>Hero <select value={selected} onChange={e => { setSelected(e.target.value); setPair(''); }}><option value="">Select Hero</option>{state.heroes.heroes.map(h => <option key={h.instanceId} value={h.instanceId}>{h.definition.id} · {h.instanceId}</option>)}</select></label>
       {hero && <><p>{hero.definition.id} · {hero.instanceId}</p><h4>Other owned Heroes</h4><ul>{state.heroes.heroes.filter(other => other.instanceId !== hero.instanceId).map(other => <li key={other.instanceId}><button type="button" onClick={() => setPair(other.instanceId)} aria-pressed={pair === other.instanceId}>Inspect {other.definition.id} · {other.instanceId}</button></li>)}</ul>
-        {pair && state.heroes.heroes.some(other => other.instanceId === pair) && <RelationshipPair state={state} from={hero.instanceId} to={pair} slots={slots} selections={selections} />}
+        {pair && state.heroes.heroes.some(other => other.instanceId === pair) && <><RelationshipPair state={state} from={hero.instanceId} to={pair} slots={slots} selections={selections} /><PairEpisodes playerId={state.playerId} pair={{ from: hero.instanceId, to: pair }} provider={episodeProvider} /><PairFormationPreview slots={slots} selections={selections} from={hero.instanceId} to={pair} baseline={equipmentBaseline} preview={previewSquadChange} onApply={onSquadDraftChange} /></>}
         {policy && <fieldset><legend>Test-only relationship edit</legend><label>Target <select value={pair} onChange={e => setPair(e.target.value)}><option value="">Select target</option>{state.heroes.heroes.filter(h => h.instanceId !== hero.instanceId).map(h => <option key={h.instanceId} value={h.instanceId}>{h.definition.id} · {h.instanceId}</option>)}</select></label><label>Level <input type="number" min={0} max={policy.relation.max_level} value={level} onChange={e => setLevel(e.target.value)} /></label><button type="button" onClick={() => void edit()}>Record trial edit</button></fieldset>}</>}
     </>}
   </section>;
@@ -140,6 +148,6 @@ function RelationshipPair({ state, from, to, slots, selections }: {
       {event && <p>Definition: {event.definitionVersion} · Tags: {event.tags.length ? event.tags.join(', ') : 'none'} · History: {event.history}</p>}
     </div>)}
     <p>Persistent directed values are distinct from the symmetric combat effect and in-match Squad maturity. The trial rules require both directions and living Heroes together; Enbu determines the actual effect. Missing values are undefined.</p>
-    <p>Unique cooperation and authored episodes are not configured. Viewing this pair does not change the formation or grant progress.</p>
+    <p>Unique cooperation is not configured. Viewing this pair does not change the formation or grant progress.</p>
   </section>;
 }
