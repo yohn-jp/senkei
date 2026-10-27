@@ -28,6 +28,8 @@ fn validates_bound_test_policy_and_rejects_malformed_policies() {
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
     let mut invalid = p.clone(); invalid.candidates[0].capability = "move".into();
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
+    let mut invalid = p.clone(); invalid.domains.navigation[0].signal = BehaviorSignal::TargetHealthPercent;
+    assert!(validate_next_behavior_policy(invalid, &rules).is_err());
     let mut invalid = p; invalid.domains.survival[0].weight = i64::MAX;
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
 }

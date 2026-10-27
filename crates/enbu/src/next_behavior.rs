@@ -40,6 +40,23 @@ pub(crate) fn validate_inputs(rules: &VerifiedRulePlan, context: &MatchContext, 
     if profiles.flat_map(profile_values).any(|x| !(-1_000_000..=1_000_000).contains(&x)) { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior profile offset out of range")); }
     Ok(())
 }
+pub(crate) fn validate_bindings(inputs: &NextBehaviorExecutionInputs, world: &WorldState) -> Result<(), ApiError> {
+    for (side, heroes) in &inputs.heroes {
+        for id in heroes.keys() {
+            if !world.entities.get(id).is_some_and(|entity| entity.owner == Some(*side) && entity.entity_type.as_str() == "hero") {
+                return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior Hero profile references a missing or unowned Hero"));
+            }
+        }
+    }
+    for (side, squads) in &inputs.squads {
+        for squad in squads.keys() {
+            if !world.entities.values().any(|entity| entity.owner == Some(*side) && entity.entity_type.as_str() == "hero" && next_support::string(entity, "squad") == *squad) {
+                return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior Squad profile references a missing or unowned Squad"));
+            }
+        }
+    }
+    Ok(())
+}
 fn profile_values(p: &NextBehaviorProfile) -> [i64; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
 pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace> }
 impl Hook<'_> {
@@ -56,6 +73,7 @@ impl Hook<'_> {
                 // Explicit Jinrei goal orders take precedence for the entire current squad.
                 if validated.iter().any(|(s,i)| *s == side && i.actor.as_ref().is_some_and(|id| members.contains(id)) && matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
                 let mut choices = Vec::new();
+                let mut unknown_candidates = 0usize;
                 for actor in &members {
                 let squad = next_support::string(&world.entities[actor], "squad");
                 let mut offsets = [0i64;6];
@@ -72,13 +90,16 @@ impl Hook<'_> {
                         let intent = Intent { action_id: action_id.into(), capability: definition.capability.clone(), actor: Some(actor.clone()), target: target.clone(), arguments: args, priority: None };
                         if validation::validate_intent(&intent, side, world, plan, tick, index).is_err() { continue; }
                         let target_view = target.as_ref().and_then(|id| view.entities.get(id));
-                        if let Some(score) = score(self.policy, definition.kind, own, target_view, &view, &members, offsets, matches!(observation.collections.get(&"enemies.visible_heroes".into()), Some(senkei_model::Observed::Known(_)))) { choices.push((score, intent)); }
+                        if let Some(score) = score(self.policy, definition.kind, own, target_view, &view, &members, offsets, matches!(observation.collections.get(&"enemies.visible_heroes".into()), Some(senkei_model::Observed::Known(_)))) { choices.push((score, intent)); } else { unknown_candidates += 1; }
                     }
                 }
                 }
                 choices.sort_by(|a,b| b.0.cmp(&a.0).then_with(|| a.1.action_id.cmp(&b.1.action_id)));
                 let selected = choices.into_iter().next();
-                let (value, intent) = match selected { Some((v,i)) => { push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentProposed { intent:i.clone() })?; validated.push((side,i.clone())); (Some(v),Some(i)) }, None => (None,None) };
+                if selected.is_none() && unknown_candidates > 0 {
+                    push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_unknown_observation".into(), details: BTreeMap::from([("actor".into(), members[0].to_string()), ("candidates".into(), unknown_candidates.to_string())]) })?;
+                }
+                let (value, intent) = match selected { Some((v,i)) => { if outputs.iter().flat_map(|(_,o)| &o.intents).any(|existing| existing.action_id == i.action_id) || validated.iter().any(|(_,existing)| existing.action_id == i.action_id) { return Err(api_error(ApiErrorCode::ValidationFailed, "duplicate Behavior action ID")); } push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentProposed { intent:i.clone() })?; validated.push((side,i.clone())); (Some(v),Some(i)) }, None => (None,None) };
                 let trace_actor = intent.as_ref().and_then(|i| i.actor.clone()).unwrap_or_else(|| members[0].clone());
                 self.traces.push(NextBehaviorTrace { tick, side, actor: trace_actor, selected:intent, score:value, arbitration_accepted:false, transition_completed:false });
                 if validated.iter().filter(|(s,_)| *s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit,"Behavior intent limit exceeded")); }

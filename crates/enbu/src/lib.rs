@@ -108,6 +108,7 @@ pub fn preflight(
         next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
     }
     let (world, projection_index, _) = initialize_match(attacker, defender, rules, context)?;
+    if let Some(binding) = &context.next_behavior { next_behavior::validate_bindings(&binding.inputs, &world)?; }
     evaluate_termination(rules.plan(), &world, 0, &projection_index).map(|_| ())
 }
 
@@ -182,6 +183,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
     mut next_behavior: Option<&mut next_behavior::Hook<'_>>,
 ) -> Result<SimulationArtifact, ApiError> {
     let (mut world, projection_index, mut relation_runtime) = initialize_match(attacker, defender, rules, context)?;
+    if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     let plan = rules.plan();
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),

@@ -608,6 +608,10 @@ mod tests {
                 support::string(&world.entities[&EntityId::from(hero_id)], "goal"),
                 "attacker_base"
             );
+            let hero = &world.entities[&EntityId::from(hero_id)];
+            assert_eq!(support::int(hero, "retreating"), 1);
+            assert_eq!(support::int(hero, "move_intent_tick"), 2);
+            assert_eq!(hero.fields[&senkei_model::FieldId::from("target")], DomainValue::Null);
         }
 
         let mut reversed = WorldState::default();

@@ -23,10 +23,13 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
     let d = &policy.domains;
     let domains = [&d.navigation, &d.engagement, &d.targeting, &d.pursuit, &d.survival, &d.objective];
     let mut bound = 0i64;
-    for terms in domains {
+    for (index, terms) in domains.into_iter().enumerate() {
         if terms.is_empty() || terms.len() > 8 { return Err("each domain needs 1..=8 terms".into()); }
         let mut seen = BTreeSet::new();
         for term in terms {
+            if matches!(index, 0 | 4 | 5) && matches!(term.signal, BehaviorSignal::TargetHealthPercent | BehaviorSignal::TargetProximity) {
+                return Err("target-dependent signal is not available in this domain".into());
+            }
             if !seen.insert(term.signal) { return Err("duplicate signal in domain".into()); }
             let contribution = term.weight.checked_abs().and_then(|v| v.checked_mul(100))
                 .ok_or("score overflow")?;
