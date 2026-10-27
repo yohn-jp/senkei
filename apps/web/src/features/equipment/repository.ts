@@ -92,6 +92,13 @@ export class EquipmentRepository {
     if (!nonempty(playerId) || !bundle || bundle.playerId !== playerId) throw new EquipmentError("invalid_data", "Player identity mismatch");
     this.validate(bundle);
     if (bundle.instances.some(i => i.playerId !== playerId || i.heroId !== null || !this.approved.some(d => sameDef(d, i.definition))) || bundle.requests.some(r => r.playerId !== playerId)) throw new EquipmentError("invalid_data", "Unapproved recovery data");
+    for (const request of bundle.requests) {
+      const valid = bundle.instances.some(i => i.playerId === request.playerId && (
+        (request.operation === "grant" && request.payload === JSON.stringify([i.instanceId, i.definition.id, i.definition.version, i.definition.digest, i.definition.effectRef])) ||
+        (request.operation === "unequip" && request.payload === JSON.stringify([i.instanceId]))
+      ));
+      if (!valid) throw new EquipmentError("invalid_data", "Recovery request has no corresponding instance");
+    }
     await this.transaction(true, s => {
       for (const incoming of bundle.instances) {
         const current = s.instances.find(i => i.instanceId === incoming.instanceId);

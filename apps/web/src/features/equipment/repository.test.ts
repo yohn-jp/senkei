@@ -32,3 +32,31 @@ it("merges recovery without removing newer assets and rejects conflicting instan
   await expect(repo.import("p", conflicting)).rejects.toThrow();
   expect((await repo.list("p")).length).toBe(2);
 });
+it("aborts a failed write without persisting the request or asset", async () => {
+  await repo.grant({ requestId: "r1", playerId: "p", instanceId: "i1", definition });
+  const before = await repo.export("p");
+  const { IDBObjectStore } = await import("fake-indexeddb");
+  const original = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function () { throw new Error("quota failure"); };
+  try { await expect(repo.grant({ requestId: "r2", playerId: "p", instanceId: "i2", definition })).rejects.toThrow("quota failure"); }
+  finally { IDBObjectStore.prototype.put = original; }
+  expect(await repo.export("p")).toEqual(before);
+  await repo.grant({ requestId: "r2", playerId: "p", instanceId: "i2", definition });
+});
+it("leaves a newer stored schema intact and refuses to overwrite it", async () => {
+  const name = `bad-${crypto.randomUUID()}`;
+  const bad = new EquipmentRepository(indexedDB, name, [definition]);
+  await bad.list("p");
+  const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(name); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+  const stored = { schemaVersion: 99, instances: [], requests: [], future: "keep" };
+  await new Promise<void>((resolve, reject) => { const tx = db.transaction("state", "readwrite"); tx.objectStore("state").put(stored, "all"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
+  await expect(bad.grant({ requestId: "r", playerId: "p", instanceId: "i", definition })).rejects.toThrow("schema");
+  const after = await new Promise<unknown>((resolve, reject) => { const tx = db.transaction("state"); const req = tx.objectStore("state").get("all"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+  expect(after).toEqual(stored); db.close();
+});
+it("rejects forged request history that would make a grant appear successful without an instance", async () => {
+  const forged = { schemaVersion: 1, playerId: "p", instances: [], requests: [{ requestId: "r", playerId: "p", operation: "grant", payload: JSON.stringify(["i", definition.id, definition.version, definition.digest, definition.effectRef]) }] };
+  await expect(repo.import("p", forged)).rejects.toThrow();
+  await repo.grant({ requestId: "r", playerId: "p", instanceId: "i", definition });
+  expect(await repo.list("p")).toHaveLength(1);
+});
