@@ -1,13 +1,13 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-intercept-visible",
-  "request_sha256": "782942903f8a5abbe3d4862513a1d4812b04e7d5d0bff83cbca8c984fbbbbbfc",
-  "response_sha256": "fd4926b40780930a06482d7f5554d613e81f6db314d3b071a053a6b8949f2f20",
+  "request_sha256": "984c9a5a8f5910816ddc7047d267b3ec26b4697b33a3c3ef3be1144a88fe874e",
+  "response_sha256": "2e47d4355672eab6168fbe5dc21925f8ebf9306536991b5a9995f3f017513df2",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 70,
-    "final_state_digest": "45331fa3b82801dce9a909d2e883a21119e37872934b3b2f0bacb09370bdb069",
+    "final_state_digest": "5314717b9dd6b0f9dd529bc2ef389f45dffc126723ba038293cf91ca6f1be34b",
     "cu_by_side": {
       "attacker": 1190
     },

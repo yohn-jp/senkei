@@ -1,13 +1,13 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-core-pressure",
-  "request_sha256": "6fdcb9835dff766659cd2cbe30197d4e66b96c65d449b46602d42e6614edc7ba",
-  "response_sha256": "dcf355b6ff6bb56f15d197e64f47a921b9e10df56835916d65123239796d2f36",
+  "request_sha256": "c64f7a33307cbad0f8615227bb4bd4ef8e96820c035985b1f237783df6620190",
+  "response_sha256": "a42b10dc54d01ef9eac1b68e46e653cf60af4baa1c23738654b2ccfc6a0907e6",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 70,
-    "final_state_digest": "a92cfbf5ad7f6b36792638c7bd01644210faa70b24bdca180d656d96cba1d32a",
+    "final_state_digest": "d30e5074731df3c6356a4a7b2d1e3cddc001c0b118fa985968089f4c6d440000",
     "cu_by_side": {
       "attacker": 1190
     },

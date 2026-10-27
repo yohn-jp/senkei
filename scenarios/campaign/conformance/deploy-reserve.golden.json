@@ -1,13 +1,13 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-deploy-reserve",
-  "request_sha256": "c7e21642307bbc498e83b87ea4b42a83ee82acc43728f9b5dd23907eac921ae8",
-  "response_sha256": "ed0530f9f62b8545b750764d7b93be4bd36228426759870973875df1eb8643b4",
+  "request_sha256": "f0f245a7874d05d5a8824a4768beef3c7a6ba444299d0f546e86075287232aec",
+  "response_sha256": "74cafda669b2c456c69ceaf1b78542c8ef21ca06f022bb67a6c7b418b1428375",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 106,
-    "final_state_digest": "e5921f05f3d0849baf3b4f6c2f437813be6251c61b07960accd44161bf017032",
+    "final_state_digest": "ace2d0ef527954b45fcc999a3cbd1b7d8d349b61fd78d649880a7f15e95c6bbb",
     "cu_by_side": {
       "attacker": 1802
     },

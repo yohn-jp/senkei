@@ -1,13 +1,13 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-hold-under-pressure",
-  "request_sha256": "612b1649f87c036514183ad9024ca71523880fe7ee97531c94dca13b079e07e2",
-  "response_sha256": "c7f7b49a921ac003f00720d1eb5f7c0f0e94059589b60e1cbecbec6053c71537",
+  "request_sha256": "dc147bdc7e56515b69948f258d2c4239a39301eaccdc80b46eb1a57f7419ae59",
+  "response_sha256": "0db464baeed8d6eb9f8f5140c4af1540d0dcdfa1cb60b9b163ac6b49d971469d",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 69,
-    "final_state_digest": "693dd0d90d42ad4cc3cf69401fcf14e60eeb4b9321873a466fe804136167adbf",
+    "final_state_digest": "e95d07e27ae9bbe166df632e5b1fb987b138f1a0f038a8429a198b51bbd1ce5f",
     "cu_by_side": {
       "attacker": 1173
     },
