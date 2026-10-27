@@ -20,23 +20,23 @@ for (const width of [1440, 390]) {
     await panel.getByRole('button', { name: 'Obtain trial roster' }).click();
     const selected: string[] = [];
     for (let n = 1; n <= 5; n++) {
-      const slot = panel.getByLabel(`Slot slot-0${n}`, { exact: true });
+      const slot = panel.getByRole('combobox', { name: `Slot slot-0${n}`, exact: true });
       await expect.poll(() => slot.locator('option').count()).toBeGreaterThan(5);
       const id = await slot.locator('option').nth(n).getAttribute('value');
       expect(id).toBeTruthy(); selected.push(id!); await slot.selectOption(id!);
     }
     expect(new Set(selected).size).toBe(5);
-    const detail = panel.getByLabel('Hero', { exact: true }); await detail.selectOption(selected[0]);
+    const detail = panel.getByRole('combobox', { name: 'Hero', exact: true }); await detail.selectOption(selected[0]);
     await panel.getByRole('button', { name: 'Obtain test.blade', exact: true }).click();
     const equipment = panel.locator('li').filter({ hasText: 'test.blade' });
     await equipment.getByRole('button', { name: 'Equip to selected Hero' }).click();
     await expect(equipment).toContainText(selected[0]);
-    await panel.getByLabel('Target', { exact: true }).selectOption(selected[1]);
-    await panel.getByLabel('Level', { exact: true }).fill('2');
+    await panel.getByRole('combobox', { name: 'Target', exact: true }).selectOption(selected[1]);
+    await panel.getByRole('spinbutton', { name: 'Level', exact: true }).fill('2');
     await panel.getByRole('button', { name: 'Record trial edit' }).click();
     await expect(panel.getByText(/Explicit local trial edit/).first()).toBeVisible();
-    await detail.selectOption(selected[1]); await panel.getByLabel('Target', { exact: true }).selectOption(selected[0]);
-    await panel.getByLabel('Level', { exact: true }).fill('3'); await panel.getByRole('button', { name: 'Record trial edit' }).click();
+    await detail.selectOption(selected[1]); await panel.getByRole('combobox', { name: 'Target', exact: true }).selectOption(selected[0]);
+    await panel.getByRole('spinbutton', { name: 'Level', exact: true }).fill('3'); await panel.getByRole('button', { name: 'Record trial edit' }).click();
     const download = page.waitForEvent('download'); await panel.getByRole('button', { name: 'Export owned assets' }).click();
     const archivePath = info.outputPath('owned-assets.json'); await (await download).saveAs(archivePath);
     const archive = JSON.parse(readFileSync(archivePath, 'utf8'));
@@ -48,8 +48,8 @@ for (const width of [1440, 390]) {
     await expect(equipment).toContainText(selected[0]);
     await page.reload();
     const restored = await openOwned(page);
-    for (let n = 1; n <= 5; n++) await expect(restored.getByLabel(`Slot slot-0${n}`, { exact: true })).toHaveValue(selected[n-1]);
-    await restored.getByLabel('Hero', { exact: true }).selectOption(selected[0]);
+    for (let n = 1; n <= 5; n++) await expect(restored.getByRole('combobox', { name: `Slot slot-0${n}`, exact: true })).toHaveValue(selected[n-1]);
+    await restored.getByRole('combobox', { name: 'Hero', exact: true }).selectOption(selected[0]);
     await expect(restored.locator('li').filter({ hasText: 'test.blade' })).toContainText(selected[0]);
     await page.getByLabel('Trial tick limit').fill('3');
     await page.getByRole('button', { name: '準備確認へ', exact: true }).click();
