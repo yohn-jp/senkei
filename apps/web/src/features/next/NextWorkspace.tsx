@@ -1,4 +1,5 @@
 import { CoreClientError } from "../../worker";
+import { LocalAssets } from "../progression/LocalAssets";
 import { JourneyScreens } from "./JourneyScreens";
 import { CampaignRunActions } from "./CampaignProgressViews";
 import { campaignConditionMismatch, type CampaignAssociation } from "./campaign-run-eligibility";
@@ -2466,6 +2467,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
+            <LocalAssets />
             <HeroAtelier active={active && screen === "workspace" && tab === "formation"} repairFocus={heroRepairFocus} nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
               skillRunContext={run && sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset) ? {
                 experimentId: run.experimentId,

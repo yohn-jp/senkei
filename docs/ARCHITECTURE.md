@@ -128,3 +128,7 @@ Enbu PresentationReplay → public-authorized Renderer
 [WORLD-DEFINITION.md](WORLD-DEFINITION.md)、[BEHAVIOR.md](BEHAVIOR.md)、[DOMAIN-CATALOG.md](DOMAIN-CATALOG.md)、[JINREI-EDITOR.md](JINREI-EDITOR.md) が詳細正本。定義ファイルと実行コードを分離するが、**新しいゲームルール用スクリプト言語は導入しない**。Jinrei v0.1を変えず、RulePackageのCatalogから型とCapabilityを共有する。
 
 Worldの表示だけが変更された場合はLogic Digest・Enbu結果・CUを維持し、Presentation Digestだけ変化させる。非公開の状態／戦術TraceをRenderer・他陣営のEditorへ送ることは禁止する。
+
+## ローカル試行資産と公式資産
+
+ローカルPvEはオフラインで自由実行できる。ローカル試行資産はExperimentと独立した版付きRepositoryに保存し、公式資産の所有・取得・決済とは権威を分離する。公式資産は将来の権威サービスが検証したレコードだけを取り込む。サービス未接続を成功と表示せず、署名形式・認証基盤・Cloudflare実装の新規採用を前提にしない。
