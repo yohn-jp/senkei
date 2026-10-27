@@ -3,7 +3,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function openOwned(page: Page) {
   await page.getByTestId('nav-next').click();
-  await page.getByRole('button', { name: 'Enable test-only owned runtime', exact: true }).click();
+  await page.getByText('Local ownership and runtime', { exact: true }).click();
+  const enable = page.getByRole('button', { name: 'Enable test-only owned runtime', exact: true });
+  if (await enable.isVisible()) await enable.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Test-only six-domain runtime enabled' })).toBeVisible({ timeout: 60_000 });
   const panel = page.getByRole('region', { name: 'Owned Heroes and local assets' });
   await expect(panel).toBeVisible();
   return panel;
@@ -52,7 +55,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: '準備確認へ', exact: true }).click();
     await page.getByRole('button', { name: '検証・コンパイル', exact: true }).click();
     await expect(page.getByTestId('preflight-status')).toHaveText('開始可能', { timeout: 60_000 });
-    const frozen = page.getByRole('region', { name: 'Frozen asset preview' }); await expect(frozen).toBeVisible();
+    const frozen = page.getByRole('region', { name: 'Frozen asset preview' }); await expect(frozen).toBeVisible(); await frozen.getByText('Frozen asset preview', { exact: true }).click();
     const frozenText = await frozen.innerText(); for (const id of selected) expect(frozenText).toContain(id);
     expect(frozenText).toContain('test.blade');
     if (width === 1440) {
@@ -63,7 +66,7 @@ for (const width of [1440, 390]) {
       await page.getByTestId('battle-analysis').getByRole('button', { name: '同条件で再戦 · Run Snapshot', exact: true }).click();
       await page.getByRole('button', { name: '検証・コンパイル', exact: true }).click();
       await expect(page.getByTestId('preflight-status')).toHaveText('開始可能', { timeout: 60_000 });
-      await expect(page.getByRole('region', { name: 'Frozen asset preview' })).toHaveText(frozenText);
+      const rerunPreview = page.getByRole('region', { name: 'Frozen asset preview' }); await expect(rerunPreview).toBeVisible(); await rerunPreview.getByText('Frozen asset preview', { exact: true }).click(); await expect(rerunPreview).toHaveText(frozenText);
     }
   });
 }
