@@ -32,6 +32,10 @@ pub(crate) fn validate_inputs(rules: &VerifiedRulePlan, context: &MatchContext, 
     if rules.plan().next.is_none() || policy.policy().ruleset_digest != *rules.package_digest() || inputs.schema_version != 1 { return Err(api_error(ApiErrorCode::IncompatibleVersion, "Next Behavior policy or input incompatible")); }
     let size = serde_json::to_vec(inputs).map_err(|_| api_error(ApiErrorCode::InvalidRequest, "invalid Behavior inputs"))?.len() as u64;
     if size > context.host_limits.max_input_bytes.min(rules.plan().limits.max_input_bytes) { return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior input limit exceeded")); }
+    let d = &policy.policy().domains;
+    let terms = [&d.navigation, &d.engagement, &d.targeting, &d.pursuit, &d.survival, &d.objective];
+    let bound = terms.into_iter().flatten().try_fold(18_000_000i64, |sum, term| term.weight.checked_abs()?.checked_mul(100).and_then(|v| sum.checked_add(v)));
+    if bound.is_none() { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior score and profile bounds overflow")); }
     let profiles = inputs.army.values().chain(inputs.squads.values().flat_map(|m| m.values())).chain(inputs.heroes.values().flat_map(|m| m.values()));
     if profiles.flat_map(profile_values).any(|x| !(-1_000_000..=1_000_000).contains(&x)) { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior profile offset out of range")); }
     Ok(())

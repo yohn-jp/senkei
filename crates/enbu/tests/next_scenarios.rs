@@ -2562,6 +2562,12 @@ fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
     assert_eq!(traces.len(),2);
     assert_eq!(traces.iter().filter(|t| t.selected.as_ref().unwrap().capability.as_str()=="move").count(),1);
     assert_eq!(traces.iter().filter(|t| t.selected.as_ref().unwrap().capability.as_str()=="retreat").count(),1);
+    let hero_id = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Attacker), &DomainValue::String("slot-2".into())).unwrap();
+    let mut hero_inputs = inputs.clone();
+    hero_inputs.heroes.insert(CombatantSide::Attacker, BTreeMap::from([(hero_id.clone(), enbu::NextBehaviorProfile { survival: 1000, ..Default::default() })]));
+    let mut vm = Vm::new(&rules);
+    let hero_result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&hero_inputs).unwrap();
+    assert!(hero_result.traces_for_owner(CombatantSide::Attacker).iter().any(|t| t.actor == hero_id && t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "retreat")));
     let mut explicit = a.clone();
     explicit.program = compile(&movement_tactics(&[("slot-1".into(), rules.plan().next.as_ref().unwrap().map.defender_base.clone())]), &rules).unwrap().program;
     let mut vm = Vm::new(&rules);
@@ -2611,4 +2617,25 @@ fn local_trial_projection_changes_real_match_and_is_reproduced() {
     let projected = frame.entities.values().find(|e| e.owner == Some(CombatantSide::Attacker) && e.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String("slot-1".into()))).unwrap();
     assert_eq!(projected.fields[&FieldId::from("attack")], DomainValue::Integer(rules.plan().next.as_ref().unwrap().heroes[0].stats.attack + 2));
     assert_eq!(projected.fields[&FieldId::from("defense")], DomainValue::Integer(rules.plan().next.as_ref().unwrap().heroes[0].stats.defense + 5));
+}
+
+#[test]
+fn next_behavior_pursues_only_currently_visible_targets() {
+    let rules = rules();
+    let term = |signal| BehaviorScoreTerm { signal, weight: 1 };
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"fog-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true,
+        domains:BehaviorDomains { navigation:vec![term(BehaviorSignal::Constant)], engagement:vec![term(BehaviorSignal::ObservedDanger)], targeting:vec![term(BehaviorSignal::TargetHealthPercent)], pursuit:vec![term(BehaviorSignal::TargetProximity)], survival:vec![term(BehaviorSignal::ActorHealthPercent)], objective:vec![term(BehaviorSignal::SquadHealthPercent)] },
+        candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Pursue, capability:"pursue".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
+    let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
+    let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
+    let (a,b,context) = build_match(&rules,&[5],"fog-hidden",1,None,None);
+    let mut vm = Vm::new(&rules);
+    let hidden = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
+    assert!(hidden.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.is_none()));
+    let base = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
+    let nodes = vec![base;5];
+    let (a,b,context) = build_match(&rules,&[5],"fog-visible",1,Some(&nodes),Some(&nodes));
+    let mut vm = Vm::new(&rules);
+    let visible = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
+    assert!(visible.traces_for_owner(CombatantSide::Attacker).iter().any(|t| t.selected.as_ref().is_some_and(|i| i.target.is_some()) && t.arbitration_accepted));
 }
