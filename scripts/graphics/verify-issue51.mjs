@@ -57,6 +57,10 @@ try {
     await page.getByRole("checkbox", { name: "Lanes", exact: true }).uncheck();
     await page.getByRole("checkbox", { name: "Engagements", exact: true }).uncheck();
   }
+  for (const name of ["Lanes", "Engagements"]) {
+    const enabled = await page.getByRole("checkbox", { name, exact: true }).isChecked();
+    check(enabled === (annotations === "on"), `${name} annotation does not match --annotations ${annotations}`);
+  }
   const slider = page.getByRole("slider", { name: "Seek replay tick" });
   const maximum = Number(await slider.getAttribute("max"));
   check(Number.isInteger(maximum) && maximum > tick, `Battle ended at ${maximum}, before rewind test Tick ${tick + 1}`);
@@ -81,7 +85,24 @@ try {
       const image = await canvas.screenshot({ animations: "disabled" });
       const filename = `${viewport.width}-${kind}-tick${tick}.png`;
       await writeFile(join(output, filename), image);
-      captures.push({ kind, filename, sha256: hash(image), camera: await canvas.getAttribute("data-camera"), target: await canvas.getAttribute("data-camera-target") });
+      const overlay = await page.locator(".next-renderer-host .world-label, .next-renderer-host .base-site-label, .next-minimap-legend i").evaluateAll(elements => {
+        const canvasRect = document.querySelector(".next-renderer-host canvas").getBoundingClientRect();
+        const round = value => Math.round(value * 1000) / 1000;
+        return elements.map(element => {
+          const style = getComputedStyle(element);
+          if (element.hidden || style.display === "none" || style.visibility === "hidden") return null;
+          const rect = element.getBoundingClientRect();
+          return {
+            className: element.className,
+            text: element.textContent,
+            ariaLabel: element.getAttribute("aria-label"),
+            bounds: [rect.left - canvasRect.left, rect.top - canvasRect.top, rect.width, rect.height].map(round),
+            color: style.color,
+            background: style.backgroundColor,
+          };
+        }).filter(Boolean);
+      });
+      captures.push({ kind, filename, sha256: hash(image), camera: await canvas.getAttribute("data-camera"), target: await canvas.getAttribute("data-camera-target"), overlay });
     };
     await seek(0);
     await seek(tick);
@@ -93,8 +114,12 @@ try {
     await seek(tick);
     await capture("rewind");
     for (const candidate of captures.slice(1)) {
-      if (candidate.sha256 !== captures[0].sha256 || candidate.camera !== captures[0].camera || candidate.target !== captures[0].target)
-        mismatches.push(`${viewport.width}: ${candidate.kind} differs from direct`);
+      if (candidate.sha256 !== captures[0].sha256)
+        mismatches.push(`${viewport.width}: ${candidate.kind} pixels differ from direct`);
+      if (candidate.camera !== captures[0].camera || candidate.target !== captures[0].target)
+        mismatches.push(`${viewport.width}: ${candidate.kind} camera differs from direct`);
+      if (JSON.stringify(candidate.overlay) !== JSON.stringify(captures[0].overlay))
+        mismatches.push(`${viewport.width}: ${candidate.kind} visible overlays differ from direct`);
     }
     results.push({ viewport, captures });
   }

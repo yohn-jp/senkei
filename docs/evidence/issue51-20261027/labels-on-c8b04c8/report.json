@@ -1,0 +1,628 @@
+{
+  "sourceRevision": "c8b04c82961e53ef8a80645b6f65ebbc3b90923b",
+  "wasmSha256": "859a67bb03c7f76473d9cd7f544765bcbbca42234690acc6226b72ba314bc1fa",
+  "browser": "156.0.8078.47",
+  "renderer": "Chromium SwiftShader",
+  "reducedMotion": true,
+  "camera": "overview",
+  "annotations": "on",
+  "tick": 13,
+  "resultTick": 577,
+  "results": [
+    {
+      "viewport": {
+        "width": 320,
+        "height": 740
+      },
+      "captures": [
+        {
+          "kind": "direct",
+          "filename": "320-direct-tick13.png",
+          "sha256": "65b6ca9ce5151f9d77ccf62aaa589328d536661fd1f18ca5526bbfef4ff2c49f",
+          "camera": "48.480,54.813,18.000:1.000:-70.280,70.280,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                183.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "stepped",
+          "filename": "320-stepped-tick13.png",
+          "sha256": "65b6ca9ce5151f9d77ccf62aaa589328d536661fd1f18ca5526bbfef4ff2c49f",
+          "camera": "48.480,54.813,18.000:1.000:-70.280,70.280,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                183.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "rewind",
+          "filename": "320-rewind-tick13.png",
+          "sha256": "65b6ca9ce5151f9d77ccf62aaa589328d536661fd1f18ca5526bbfef4ff2c49f",
+          "camera": "48.480,54.813,18.000:1.000:-70.280,70.280,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                183.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captures": [
+        {
+          "kind": "direct",
+          "filename": "390-direct-tick13.png",
+          "sha256": "eff3653af26e87dae8744d937e4302ac0495f44442f93217d41a15550e35a54d",
+          "camera": "48.480,54.813,18.000:1.000:-85.751,85.751,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                218.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "stepped",
+          "filename": "390-stepped-tick13.png",
+          "sha256": "ab40082aad0f5054c2bb5b8278f6bc96ef8e8fd2ddf4d2accd6fb32524bb0fcf",
+          "camera": "48.480,54.813,18.000:1.000:-85.751,85.751,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                218.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "rewind",
+          "filename": "390-rewind-tick13.png",
+          "sha256": "ab40082aad0f5054c2bb5b8278f6bc96ef8e8fd2ddf4d2accd6fb32524bb0fcf",
+          "camera": "48.480,54.813,18.000:1.000:-85.751,85.751,41.549,-41.549",
+          "target": "16.480,4.813,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                218.922,
+                102.375,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "captures": [
+        {
+          "kind": "direct",
+          "filename": "430-direct-tick13.png",
+          "sha256": "79c79245b166a1fda0eca0b1a8f314a6a2360fa8292d1c573ae81c7b5ab5c275",
+          "camera": "48.468,54.820,18.000:1.000:-91.123,91.123,41.303,-41.303",
+          "target": "16.468,4.820,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                239.484,
+                106.5,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "stepped",
+          "filename": "430-stepped-tick13.png",
+          "sha256": "79c79245b166a1fda0eca0b1a8f314a6a2360fa8292d1c573ae81c7b5ab5c275",
+          "camera": "48.468,54.820,18.000:1.000:-91.123,91.123,41.303,-41.303",
+          "target": "16.468,4.820,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                239.484,
+                106.5,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        },
+        {
+          "kind": "rewind",
+          "filename": "430-rewind-tick13.png",
+          "sha256": "79c79245b166a1fda0eca0b1a8f314a6a2360fa8292d1c573ae81c7b5ab5c275",
+          "camera": "48.468,54.820,18.000:1.000:-91.123,91.123,41.303,-41.303",
+          "target": "16.468,4.820,18.000",
+          "overlay": [
+            {
+              "className": "world-label",
+              "text": "CAMP · B UPPER",
+              "ariaLabel": null,
+              "bounds": [
+                239.484,
+                106.5,
+                95.5,
+                15
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "captures": [
+        {
+          "kind": "direct",
+          "filename": "1440-direct-tick13.png",
+          "sha256": "27ec2962216ed88d42499c61bf47737d4ab09c53c819c1504aad28d1bbc3d599",
+          "camera": "35.470,69.591,63.878:1.000:-108.658,108.658,30.068,-30.068",
+          "target": "23.470,1.591,15.878",
+          "overlay": [
+            {
+              "className": "base-site-label",
+              "text": "AZURE FORTRESSVisible fortress",
+              "ariaLabel": null,
+              "bounds": [
+                440.703,
+                292.156,
+                176,
+                35.688
+              ],
+              "color": "rgb(176, 226, 223)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "base-site-label",
+              "text": "VERMILION FORTRESS SITEState unknown",
+              "ariaLabel": null,
+              "bounds": [
+                845.281,
+                198.813,
+                176,
+                35.688
+              ],
+              "color": "rgb(243, 193, 170)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "world-label",
+              "text": "MID",
+              "ariaLabel": null,
+              "bounds": [
+                675.313,
+                203.516,
+                26.375,
+                17
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · BRIDGE · bridge.top · NORMAL",
+              "bounds": [
+                691.109,
+                100.763,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                730.094,
+                150.966,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                750.219,
+                117.872,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "side-azure",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1224.406,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(157, 216, 242)"
+            },
+            {
+              "className": "side-vermilion",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1251.469,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(241, 154, 125)"
+            },
+            {
+              "className": "side-neutral",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1279.328,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(245, 209, 127)"
+            }
+          ]
+        },
+        {
+          "kind": "stepped",
+          "filename": "1440-stepped-tick13.png",
+          "sha256": "a1f489645a19f2559cd9dfcb672a2dddfb791035998c3b50968239ff7924d7d7",
+          "camera": "35.470,69.591,63.878:1.000:-108.658,108.658,30.068,-30.068",
+          "target": "23.470,1.591,15.878",
+          "overlay": [
+            {
+              "className": "base-site-label",
+              "text": "AZURE FORTRESSVisible fortress",
+              "ariaLabel": null,
+              "bounds": [
+                440.703,
+                292.156,
+                176,
+                35.688
+              ],
+              "color": "rgb(176, 226, 223)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "base-site-label",
+              "text": "VERMILION FORTRESS SITEState unknown",
+              "ariaLabel": null,
+              "bounds": [
+                845.281,
+                198.813,
+                176,
+                35.688
+              ],
+              "color": "rgb(243, 193, 170)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "world-label",
+              "text": "MID",
+              "ariaLabel": null,
+              "bounds": [
+                675.313,
+                203.516,
+                26.375,
+                17
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · BRIDGE · bridge.top · NORMAL",
+              "bounds": [
+                691.109,
+                100.763,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                730.094,
+                150.966,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                750.219,
+                117.872,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "side-azure",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1224.406,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(157, 216, 242)"
+            },
+            {
+              "className": "side-vermilion",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1251.469,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(241, 154, 125)"
+            },
+            {
+              "className": "side-neutral",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1279.328,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(245, 209, 127)"
+            }
+          ]
+        },
+        {
+          "kind": "rewind",
+          "filename": "1440-rewind-tick13.png",
+          "sha256": "a1f489645a19f2559cd9dfcb672a2dddfb791035998c3b50968239ff7924d7d7",
+          "camera": "35.470,69.591,63.878:1.000:-108.658,108.658,30.068,-30.068",
+          "target": "23.470,1.591,15.878",
+          "overlay": [
+            {
+              "className": "base-site-label",
+              "text": "AZURE FORTRESSVisible fortress",
+              "ariaLabel": null,
+              "bounds": [
+                440.703,
+                292.156,
+                176,
+                35.688
+              ],
+              "color": "rgb(176, 226, 223)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "base-site-label",
+              "text": "VERMILION FORTRESS SITEState unknown",
+              "ariaLabel": null,
+              "bounds": [
+                845.281,
+                198.813,
+                176,
+                35.688
+              ],
+              "color": "rgb(243, 193, 170)",
+              "background": "rgba(16, 29, 32, 0.93)"
+            },
+            {
+              "className": "world-label",
+              "text": "MID",
+              "ariaLabel": null,
+              "bounds": [
+                675.313,
+                203.516,
+                26.375,
+                17
+              ],
+              "color": "rgb(220, 232, 211)",
+              "background": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · BRIDGE · bridge.top · NORMAL",
+              "bounds": [
+                691.109,
+                100.763,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                730.094,
+                150.966,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "world-label cue-world-label",
+              "text": "✚",
+              "ariaLabel": "APPEARED · MINION · RANGED",
+              "bounds": [
+                750.219,
+                117.872,
+                24,
+                24
+              ],
+              "color": "rgb(255, 248, 223)",
+              "background": "rgba(15, 26, 28, 0.78)"
+            },
+            {
+              "className": "side-azure",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1224.406,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(157, 216, 242)"
+            },
+            {
+              "className": "side-vermilion",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1251.469,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(241, 154, 125)"
+            },
+            {
+              "className": "side-neutral",
+              "text": "",
+              "ariaLabel": null,
+              "bounds": [
+                1279.328,
+                208.328,
+                4,
+                4
+              ],
+              "color": "rgb(170, 184, 172)",
+              "background": "rgb(245, 209, 127)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "mismatches": [
+    "390: stepped pixels differ from direct",
+    "390: rewind pixels differ from direct",
+    "1440: stepped pixels differ from direct",
+    "1440: rewind pixels differ from direct"
+  ]
+}
