@@ -1,0 +1,12 @@
+.next-decision-inspector { margin-block: 1rem; overflow-wrap: anywhere; }
+.next-decision-inspector > section { padding: .5rem; }
+.next-decision-inspector details { margin-block: .5rem; }
+.next-decision-inspector summary { cursor: pointer; }
+.next-decision-inspector label { display: inline-flex; flex-direction: column; gap: .25rem; }
+.next-decision-inspector button, .next-decision-inspector select, .next-decision-inspector input { min-height: 44px; max-width: 100%; }
+.decision-controls, .decision-pager { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
+.decision-entry { border-inline-start: 2px solid currentColor; padding-inline-start: .5rem; }
+.next-decision-inspector table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.next-decision-inspector th, .next-decision-inspector td { padding: .25rem .5rem; text-align: start; vertical-align: top; }
+.next-decision-inspector dl > div { display: grid; grid-template-columns: minmax(7rem, auto) 1fr; gap: .5rem; }
+.next-decision-inspector dd { margin: 0; }
