@@ -7,7 +7,7 @@ import type { CompileOutcome, EditorCompilerEnvelope, MatchResult, SimulationSna
 import { reproductionSnapshotDigest } from "../../worker/input-identity";
 import type { CoverageRun } from "./coverage-observed";
 import { RetainedProgramEditor } from "./RetainedProgramEditor";
-import { compileRetainedSource, loadRetainedOriginal, verifyRetainedProgramRun } from "./retained-program-editor";
+import { compileRetainedSource, loadRetainedOriginal, verifyRetainedProgramRun, verifyRetainedRunSourceProof } from "./retained-program-editor";
 import type { RetainedEditorCore } from "./retained-program-editor";
 
 const catalogJson = readFileSync(new URL("../../../../../packages/jinrei-editor/fixtures/next-domain-catalog.json", import.meta.url), "utf8");
@@ -43,6 +43,14 @@ async function setup() {
 }
 
 describe("retained Run Jinrei editor", () => {
+  it("uses positive distinct revisions for original Run source proof, never revision zero", async () => {
+    const { run, core, editorCompileRetained } = await setup();
+    const proof = await verifyRetainedRunSourceProof(core, run, { kind: "text", source: "original source" });
+    expect(proof).toEqual({ map: null, reason: "Compiler supplied no Action source locations for this Run." });
+    expect(editorCompileRetained.mock.calls.map(([request]) => request.revision)).toEqual([1, 2]);
+    await expect(verifyRetainedRunSourceProof(core, { ...run, includeDiagnostics: false },
+      { kind: "text", source: "original source" })).rejects.toThrow("owner-authorized");
+  });
   it("validates owner, retained assets and Catalog then proves the original source's entire Program", async () => {
     const { run, core, editorCompileRetained } = await setup();
     const source = { kind: "text", source: "original source" } as const;
