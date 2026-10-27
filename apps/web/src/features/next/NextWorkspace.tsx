@@ -1,4 +1,4 @@
-import { loadRetainedOriginal, compileRetainedSource } from "./retained-program-editor";
+import { verifyRetainedRunSourceProof } from "./retained-program-editor";
 import { RetainedProgramEditor } from "./RetainedProgramEditor";
 import { NextDecisionInspector } from "./NextDecisionInspector";
 import { TrialProfileEditor, parseTrialPreferences } from "./TrialProfileEditor";
@@ -891,10 +891,11 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     if (original.program_input.kind !== "text") { unavailable("Original Run has no text source locations. Structured AST was not converted into guessed spans."); return; }
     const source = original.program_input.source;
     unavailable("Checking original Run source and Program identity…");
-    const compiled = retainedEditor
-      ? loadRetainedOriginal(core,run,original.program_input,0).then(retained => compileRetainedSource(core,retained.verified,retained.stamp,source,1))
-      : core.compile({ kind: "text", source, ruleset_ref: original.ruleset });
-    void compiled.then(result => verifyRunSourceMap(source, run.snapshot.attacker.program.content_digest, result))
+    const proof = retainedEditor
+      ? verifyRetainedRunSourceProof(core, run, original.program_input)
+      : core.compile({ kind: "text", source, ruleset_ref: original.ruleset })
+          .then(result => verifyRunSourceMap(source, run.snapshot.attacker.program.content_digest, result));
+    void proof
       .then(proof => { if (!obsolete) setRunSourceProof({ experimentId: run.experimentId, ...proof }); })
       .catch(cause => { if (!obsolete) unavailable(`Original source verification failed: ${cause instanceof Error ? cause.message : String(cause)}`); });
     return () => { obsolete = true; };
