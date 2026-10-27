@@ -127,7 +127,7 @@ fn real_match_scope_trace_and_reproduction_preserve_automatic_march() {
             assert_eq!(details.get("lane").map(String::as_str), Some(trace.lane.as_str()));
             assert_eq!(details.get("candidate").map(String::as_str), Some("lane_waypoint"));
             assert_eq!(details.get("source").map(String::as_str), Some(match trace.source {
-                NextMinionPreferenceSource::Army => "army", NextMinionPreferenceSource::Lane => "lane",
+                NextMinionPreferenceSource::Army => "army", NextMinionPreferenceSource::Lane => "lane", NextMinionPreferenceSource::Jinrei => "jinrei",
             }));
             let (status, waypoint) = match &trace.waypoint {
                 NextMinionWaypoint::Ready { node } => ("ready", Some(node.as_str())),
@@ -208,6 +208,8 @@ fn hero_and_minion_policies_coexist_and_old_context_shape_is_unchanged() {
     context.max_ticks = 1;
     let legacy = serde_json::to_value(&context).unwrap();
     assert!(legacy.get("next_minion_behavior").is_none());
+    assert!(legacy.get("next_minion_control").is_none());
+    assert!(serde_json::to_value(rules.plan().next.as_ref().unwrap()).unwrap().get("minion_control").is_none());
     assert_eq!(serde_json::from_value::<MatchContext>(legacy).unwrap(), context);
 
     let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };

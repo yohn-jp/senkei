@@ -12,7 +12,7 @@ pub use senkei_model::NextMinionBehaviorExecutionInputs;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum NextMinionPreferenceSource { Army, Lane }
+pub enum NextMinionPreferenceSource { Army, Lane, Jinrei }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
@@ -34,6 +34,9 @@ pub struct NextMinionBehaviorTrace {
     pub lane: MinionLane,
     pub source: NextMinionPreferenceSource,
     pub candidate: MinionBehaviorCandidate,
+    /// All accepted same-scope Jinrei actions that supplied this preference.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub action_ids: Vec<senkei_model::ActionId>,
     pub actor: EntityId,
     pub waypoint: NextMinionWaypoint,
 }
@@ -91,7 +94,7 @@ pub fn simulate_next_minion_behavior<P: TacticalExecutionPort>(
     }).transpose()?;
     let mut hero_hook = if let (Some(binding), Some(hero_policy)) = (&frozen.next_behavior, &hero_policy) {
         next_behavior::validate_inputs(rules, &frozen, hero_policy, &binding.inputs)?;
-        Some(next_behavior::Hook { policy: hero_policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() })
+        Some(next_behavior::Hook { policy: hero_policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new(), inspection: None })
     } else { None };
     let artifact = simulate_inner(attacker, defender, rules, &frozen, executor, None, hero_hook.as_mut(), Some(&mut hook), None)?;
     Ok(NextMinionBehaviorSimulationArtifact { artifact, policy: policy.clone(), inputs: inputs.clone(), traces: hook.traces })
@@ -140,6 +143,7 @@ impl Hook<'_> {
         rules: &senkei_model::NextRules,
         tick: u32,
         max_traces: u64,
+        selections: Option<&crate::next_minion_control::MinionControlSelections>,
     ) -> Result<(), ApiError> {
         for observation in observations {
             let side = observation.side;
@@ -154,7 +158,10 @@ impl Hook<'_> {
                     "top" => MinionLane::Top, "mid" => MinionLane::Mid, "bot" => MinionLane::Bot,
                     _ => continue,
                 };
-                let (source, candidate) = if let Some(candidate) = self.inputs.lanes.get(&side).and_then(|lanes| lanes.get(&lane)) {
+                let actions = selections.map(|selections| selections.actions_for(side, lane)).unwrap_or(&[]);
+                let (source, candidate) = if !actions.is_empty() {
+                    (NextMinionPreferenceSource::Jinrei, self.policy.policy().candidate)
+                } else if let Some(candidate) = self.inputs.lanes.get(&side).and_then(|lanes| lanes.get(&lane)) {
                     (NextMinionPreferenceSource::Lane, *candidate)
                 } else if let Some(candidate) = self.inputs.army.get(&side) {
                     (NextMinionPreferenceSource::Army, *candidate)
@@ -177,7 +184,9 @@ impl Hook<'_> {
                 if (self.traces.len() as u64) >= max_traces {
                     return Err(api_error(ApiErrorCode::ResourceLimit, "Minion Behavior trace limit exceeded"));
                 }
-                self.traces.push(NextMinionBehaviorTrace { tick, side, lane, source, candidate, actor: minion.id.clone(), waypoint });
+                self.traces.push(NextMinionBehaviorTrace { tick, side, lane, source, candidate,
+                    action_ids: actions.iter().map(|intent| intent.action_id.clone()).collect(),
+                    actor: minion.id.clone(), waypoint });
             }
         }
         Ok(())
@@ -228,7 +237,7 @@ mod tests {
             collections: BTreeMap::from([("allies.minions".into(), Observed::Unknown)]),
         };
         let mut hook = Hook { policy: &policy, inputs: &inputs, traces: Vec::new() };
-        hook.evaluate(&[observation, unknown_enemy_collection], rules.plan().next.as_ref().unwrap(), 1, 10).unwrap();
+        hook.evaluate(&[observation, unknown_enemy_collection], rules.plan().next.as_ref().unwrap(), 1, 10, None).unwrap();
         assert_eq!(hook.traces.len(), 3);
         assert_eq!(hook.traces.iter().map(|trace| trace.actor.as_str()).collect::<Vec<_>>(), vec!["outside", "ready", "unknown"]);
         assert_eq!(hook.traces[0].waypoint, NextMinionWaypoint::Unknown);
