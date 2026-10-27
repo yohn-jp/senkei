@@ -10,6 +10,7 @@ import {
   trialProfileAt, trialProfileDomains, trialProfileFields, trialProfileOffsetLimit, trialSquadBindings,
 } from "./trial-profile";
 import type { TrialProfileFields, TrialProfileScope, TrialProfileSlot } from "./trial-profile";
+import "./trial-profile-editor.css";
 export { parseTrialPreferences } from "./trial-profile";
 
 export interface TrialProfileEditorProps {
@@ -116,7 +117,7 @@ export function TrialProfileEditor({ inputs, onApply, slots, ownerRun, ownerRunC
     onApply(preview.next); setEdits({}); setPreview(null); setMessage("Trial preferences applied.");
   };
 
-  return <details className="next-battle-options">
+  return <details className="trial-profile-editor">
     <summary>Trial Behavior Profile · {inputs ? "configured" : "inherit defaults"}</summary>
     <section aria-label="Trial Behavior Profile editor">
       <p>These offsets use the local test-only Behavior policy. Blank inherits; zero is an explicit value. The core accepts whole numbers from −{trialProfileOffsetLimit.toLocaleString()} to {trialProfileOffsetLimit.toLocaleString()}.</p>
@@ -133,7 +134,7 @@ export function TrialProfileEditor({ inputs, onApply, slots, ownerRun, ownerRunC
         {slots.map(slot => <option key={slot.slot_id} value={slot.slot_id}>{slot.slot_id} · {slot.catalog_id}</option>)}
       </select></label>{!binding && <p role="status">Hero preferences require a current owner-authorized Run with a unique Hero identity. Run the current formation with owner diagnostics.</p>}</>}
       <fieldset disabled={!available}><legend>{label} preferences</legend>
-        {trialProfileDomains.map(domain => <label key={domain}>{domain} <input aria-label={`${label} ${domain}`} type="text" inputMode="numeric" placeholder="Inherit" value={fields[domain]} onChange={event => changeField(domain, event.currentTarget.value)} /></label>)}
+        {trialProfileDomains.map(domain => <label key={domain}>{domain} <input aria-label={`${label} ${domain}`} type="text" placeholder="Inherit" value={fields[domain]} onChange={event => changeField(domain, event.currentTarget.value)} /></label>)}
       </fieldset>
       {message && <p role="status">{message}</p>}
       <button type="button" disabled={!parsed || !Object.keys(edits).length} onClick={review}>Review preferences</button>

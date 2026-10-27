@@ -1,0 +1,67 @@
+.trial-profile-editor {
+  min-width: 0;
+  margin: .75rem 0;
+  border: 1px solid var(--next-border, #414957);
+  border-radius: .7rem;
+  background: #111a22;
+}
+
+.trial-profile-editor > summary {
+  min-height: 44px;
+  padding: .75rem;
+  color: #f0d18c;
+  cursor: pointer;
+}
+
+.trial-profile-editor > section {
+  display: grid;
+  gap: .75rem;
+  padding: 0 .75rem .75rem;
+}
+
+.trial-profile-editor p { margin: 0; color: #c5ccd5; line-height: 1.5; }
+.trial-profile-editor label { display: grid; gap: .3rem; min-width: 0; }
+.trial-profile-editor fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: .65rem;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #414957;
+  border-radius: .5rem;
+  padding: .75rem;
+}
+.trial-profile-editor input,
+.trial-profile-editor select {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  width: 100%;
+  padding: .45rem .6rem;
+  border: 1px solid #687385;
+  border-radius: .4rem;
+  background: #17212b;
+  color: #f4f1e9;
+  font: inherit;
+}
+.trial-profile-editor button {
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: .5rem .8rem;
+  border: 1px solid #ac9364;
+  border-radius: .4rem;
+  background: #242a2b;
+  color: #f4dfaf;
+  cursor: pointer;
+}
+.trial-profile-editor button:disabled { opacity: .55; cursor: not-allowed; }
+.trial-profile-editor :is(input, select, button, summary):focus-visible { outline: 2px solid #f0d18c; outline-offset: 2px; }
+.trial-profile-editor [aria-label="Review trial preferences"] {
+  min-width: 0;
+  padding: .75rem;
+  border: 1px solid #806946;
+  border-radius: .5rem;
+}
+.trial-profile-editor [aria-label="Review trial preferences"] li { overflow-wrap: anywhere; }
+.trial-profile-editor [aria-label="Review trial preferences"] button { margin: .25rem .4rem .25rem 0; }
