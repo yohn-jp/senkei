@@ -112,7 +112,8 @@ fn maturity(artifact: &SimulationArtifact, side: CombatantSide, tick: u32, slot:
 fn verified_policy_changes_real_enbu_maturity_and_reproduces_from_frozen_input() {
     assert!(senritsu::next_package().next.unwrap().projection_policy.is_none());
     assert!(senritsu::next_local_trial_package().next.unwrap().projection_policy.unwrap().maturity.is_none());
-    let rules = senritsu::validate(test_package(), &senritsu::next_engine_compatibility()).unwrap();
+    let package = test_package();
+    let rules = senritsu::validate(package.clone(), &senritsu::next_engine_compatibility()).unwrap();
     let program = compile("senkei relation_fixture { state inert { false, }, }", &rules).unwrap().program;
     let attacker = snapshot(&rules, CombatantSide::Attacker, program.clone());
     let defender = snapshot(&rules, CombatantSide::Defender, program);
@@ -129,6 +130,29 @@ fn verified_policy_changes_real_enbu_maturity_and_reproduces_from_frozen_input()
     assert_eq!(maturity(&actual, CombatantSide::Attacker, 2, "slot-2"), 6);
     assert_eq!(maturity(&actual, CombatantSide::Attacker, 2, "slot-3"), 0);
     assert_eq!(maturity(&actual, CombatantSide::Defender, 2, "slot-1"), 2);
+
+    // Opt-in retained input for the Native/WASM conformance harness. Normal
+    // test runs do not write files or introduce a new production rule preset.
+    if let Some(path) = std::env::var_os("RELATION_MATURITY_CONFORMANCE_FILE") {
+        let request = ApiRequestEnvelope {
+            api_version: WASM_API_VERSION,
+            request_id: "relation-maturity-conformance".to_owned(),
+            operation: OP_REPRODUCE.to_owned(),
+            payload: ReproducePayload {
+                assets: ReproductionAssets {
+                    format_version: REPRODUCTION_ASSETS_FORMAT_VERSION,
+                    rule_package: package,
+                    world_definition: serde_json::to_value(senritsu::next_world::builtin_world_definition()).unwrap(),
+                    catalog_metadata_extension: None,
+                },
+                snapshot: ReproductionSnapshot { attacker: attacker.clone(), defender: defender.clone(), context: context.clone() },
+                snapshot_digest: reproduction_snapshot_digest(&attacker, &defender, &context).unwrap(),
+                include_diagnostics: true,
+                diagnostics_side: Some(CombatantSide::Attacker),
+            },
+        };
+        std::fs::write(path, serde_json::to_vec(&request).unwrap()).unwrap();
+    }
 
     let retained = &actual.reproduction;
     assert_eq!(retained.context.match_projection, context.match_projection);
