@@ -102,6 +102,11 @@ pub fn preflight(
     rules: &VerifiedRulePlan,
     context: &MatchContext,
 ) -> Result<(), ApiError> {
+    if let Some(binding) = &context.next_behavior {
+        let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
+        next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
+    }
     let (world, projection_index) = initialize_match(attacker, defender, rules, context)?;
     evaluate_termination(rules.plan(), &world, 0, &projection_index).map(|_| ())
 }
@@ -158,7 +163,15 @@ pub fn simulate<P: TacticalExecutionPort>(
     context: &MatchContext,
     executor: &mut P,
 ) -> Result<SimulationArtifact, ApiError> {
-    simulate_inner(attacker, defender, rules, context, executor, None, None)
+    if let Some(binding) = &context.next_behavior {
+        let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
+        next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
+        let mut hook = next_behavior::Hook { policy: &policy, inputs: &binding.inputs, traces: Vec::new() };
+        simulate_inner(attacker, defender, rules, context, executor, None, Some(&mut hook))
+    } else {
+        simulate_inner(attacker, defender, rules, context, executor, None, None)
+    }
 }
 
 fn simulate_inner<P: TacticalExecutionPort>(

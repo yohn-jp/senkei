@@ -2525,6 +2525,13 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
     let mut vm = Vm::new(&rules);
     let artifact = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
+    let mut frozen = context.clone();
+    frozen.next_behavior = Some(NextBehaviorMatch { policy: policy.clone(), inputs: inputs.clone() });
+    let mut vm = Vm::new(&rules);
+    let standard = simulate(&a, &b, &rules, &frozen, &mut vm).unwrap();
+    assert_eq!(standard.public_response(), artifact.public_response());
+    assert_eq!(&standard.diagnostic_snapshot_digest, artifact.run_digest());
+    assert_eq!(standard.reproduction.context.next_behavior, frozen.next_behavior);
     let traces = artifact.traces_for_owner(CombatantSide::Attacker);
     assert_eq!(traces.len(),2);
     assert!(traces.iter().all(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "move") && t.arbitration_accepted && t.transition_completed));

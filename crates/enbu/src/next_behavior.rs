@@ -2,45 +2,42 @@
 use super::*;
 use senkei_model::{BehaviorCandidateKind, BehaviorSignal};
 use senritsu::VerifiedNextBehaviorPolicy;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-/// Domain offsets inherit Army, current Squad, then Hero; each layer adds to
-/// the candidate's six domain scores. Values are bounded to prevent overflow.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NextBehaviorProfile { pub navigation: i64, pub engagement: i64, pub targeting: i64, pub pursuit: i64, pub survival: i64, pub objective: i64 }
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NextBehaviorExecutionInputs {
-    pub schema_version: u32,
-    pub army: BTreeMap<CombatantSide, NextBehaviorProfile>,
-    pub squads: BTreeMap<CombatantSide, BTreeMap<String, NextBehaviorProfile>>,
-    pub heroes: BTreeMap<CombatantSide, BTreeMap<EntityId, NextBehaviorProfile>>,
-}
+pub use senkei_model::{NextBehaviorExecutionInputs, NextBehaviorProfile};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct NextBehaviorTrace { pub tick: u32, pub side: CombatantSide, pub actor: EntityId, pub selected: Option<Intent>, pub score: Option<i64>, pub arbitration_accepted: bool, pub transition_completed: bool }
 #[derive(Clone)]
 pub struct NextBehaviorSimulationArtifact { artifact: SimulationArtifact, policy: VerifiedNextBehaviorPolicy, inputs: NextBehaviorExecutionInputs, digest: ContentDigest, traces: Vec<NextBehaviorTrace> }
 impl NextBehaviorSimulationArtifact {
     pub fn public_response(&self) -> senkei_model::PublicSimulationResponse { self.artifact.public_response() }
-    pub fn diagnostics_for_owner(&self, side: CombatantSide) -> BehaviorOwnerDiagnostics { let mut diagnostics = self.artifact.diagnostic_response(side).diagnostics.expect("owner diagnostics"); diagnostics.identity.schema_version = 2; BehaviorOwnerDiagnostics { behavior_run_digest: self.digest.clone(), diagnostics } }
+    pub fn diagnostics_for_owner(&self, side: CombatantSide) -> BehaviorOwnerDiagnostics { let diagnostics = self.artifact.diagnostic_response(side).diagnostics.expect("owner diagnostics"); BehaviorOwnerDiagnostics { behavior_run_digest: self.digest.clone(), diagnostics } }
     pub fn traces_for_owner(&self, side: CombatantSide) -> Vec<NextBehaviorTrace> { self.traces.iter().filter(|t| t.side == side).cloned().collect() }
     pub fn run_digest(&self) -> &ContentDigest { &self.digest }
     pub fn reproduction(&self) -> (&ReproductionContext, &NextBehaviorExecutionInputs, &VerifiedNextBehaviorPolicy) { (&self.artifact.reproduction, &self.inputs, &self.policy) }
     pub fn reproduce<P: TacticalExecutionPort>(&self, rules: &VerifiedRulePlan, executor: &mut P) -> Result<Self, ApiError> { let r = &self.artifact.reproduction; simulate_next_behavior(&r.attacker, &r.defender, rules, &r.context, executor, &self.policy, &self.inputs) }
 }
 pub fn simulate_next_behavior<P: TacticalExecutionPort>(attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot, rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P, policy: &VerifiedNextBehaviorPolicy, inputs: &NextBehaviorExecutionInputs) -> Result<NextBehaviorSimulationArtifact, ApiError> {
+    validate_inputs(rules, context, policy, inputs)?;
+    let mut frozen = context.clone();
+    let binding = senkei_model::NextBehaviorMatch { policy: policy.policy().clone(), inputs: inputs.clone() };
+    if frozen.next_behavior.as_ref().is_some_and(|existing| existing != &binding) { return Err(api_error(ApiErrorCode::ValidationFailed, "Next Behavior context mismatch")); }
+    frozen.next_behavior = Some(binding);
+    let mut hook = Hook { policy, inputs, traces: Vec::new() };
+    let artifact = simulate_inner(attacker, defender, rules, &frozen, executor, None, Some(&mut hook))?;
+    let digest = artifact.diagnostic_snapshot_digest.clone();
+    Ok(NextBehaviorSimulationArtifact { artifact, policy: policy.clone(), inputs: inputs.clone(), digest, traces: hook.traces })
+}
+pub(crate) fn validate_inputs(rules: &VerifiedRulePlan, context: &MatchContext, policy: &VerifiedNextBehaviorPolicy, inputs: &NextBehaviorExecutionInputs) -> Result<(), ApiError> {
     if rules.plan().next.is_none() || policy.policy().ruleset_digest != *rules.package_digest() || inputs.schema_version != 1 { return Err(api_error(ApiErrorCode::IncompatibleVersion, "Next Behavior policy or input incompatible")); }
     let size = serde_json::to_vec(inputs).map_err(|_| api_error(ApiErrorCode::InvalidRequest, "invalid Behavior inputs"))?.len() as u64;
     if size > context.host_limits.max_input_bytes.min(rules.plan().limits.max_input_bytes) { return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior input limit exceeded")); }
     let profiles = inputs.army.values().chain(inputs.squads.values().flat_map(|m| m.values())).chain(inputs.heroes.values().flat_map(|m| m.values()));
     if profiles.flat_map(profile_values).any(|x| !(-1_000_000..=1_000_000).contains(&x)) { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior profile offset out of range")); }
-    let mut hook = Hook { policy, inputs, traces: Vec::new() };
-    let mut artifact = simulate_inner(attacker, defender, rules, context, executor, None, Some(&mut hook))?;
-    let digest = digest_json(&serde_json::json!({"schema":1,"snapshot":artifact.diagnostic_snapshot_digest,"policy_digest":policy.digest(),"policy":policy.policy(),"inputs":inputs}))?;
-    artifact.diagnostic_snapshot_digest = digest.clone(); artifact.diagnostics.identity.snapshot_digest = digest.clone();
-    Ok(NextBehaviorSimulationArtifact { artifact, policy: policy.clone(), inputs: inputs.clone(), digest, traces: hook.traces })
+    Ok(())
 }
 fn profile_values(p: &NextBehaviorProfile) -> [i64; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
-pub(crate) struct Hook<'a> { policy: &'a VerifiedNextBehaviorPolicy, inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace> }
+pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace> }
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         let next = plan.next.as_ref().unwrap();
