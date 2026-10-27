@@ -15,7 +15,7 @@ describe("relationship repository", () => {
     expect(repo.applyEvent(event({ source: "import" }))).toEqual({ ok: false, reason: "non-authoritative-event" });
     expect(raw()).toBeNull();
   });
-  it("retains directed events, deduplicates and freezes a detached symmetric projection", () => {
+  it("retains directed events, deduplicates while leaving projection undecided", () => {
     const { repo } = setup(() => true);
     expect(repo.applyEvent(event()).ok).toBe(true);
     expect(repo.applyEvent(event()).ok).toBe(true);
@@ -23,18 +23,13 @@ describe("relationship repository", () => {
     expect(repo.applyEvent(event({ eventId: "two", from: "b", to: "a", value: 7 })).ok).toBe(true);
     expect(repo.read().ok && repo.read()).toMatchObject({ value: { events: [event(), event({ eventId: "two", from: "b", to: "a", value: 7 })] } });
     expect(repo.freezePair("a", "b")).toEqual({ ok: false, reason: "decision-required" });
-    const formula = { version: "approved-v1", derive: (a: number, b: number) => (a + b) / 2 };
-    const frozen = repo.freezePair("a", "b", formula);
-    expect(frozen).toEqual(repo.freezePair("b", "a", formula));
-    repo.applyEvent(event({ eventId: "three", value: 9 }));
-    expect(frozen).toMatchObject({ ok: true, value: { value: 5 } });
-    expect(repo.freezePair("a", "b", { version: "v", derive: (a) => a })).toEqual({ ok: false, reason: "invalid-formula" });
+    expect(repo.freezePair("b", "a")).toEqual({ ok: false, reason: "decision-required" });
   });
   it("preserves missing values, invalid archives and existing data", () => {
     const { repo, storage, raw } = setup(() => true);
     repo.applyEvent(event({ value: null }));
     repo.applyEvent(event({ eventId: "two", from: "b", to: "a" }));
-    expect(repo.freezePair("a", "b", { version: "v", derive: (a, b) => a + b })).toEqual({ ok: false, reason: "decision-required" });
+    expect(repo.freezePair("a", "b")).toEqual({ ok: false, reason: "decision-required" });
     const before = raw();
     expect(repo.importArchive(JSON.stringify({ schemaVersion: 1, events: [] })).ok).toBe(false);
     expect(raw()).toBe(before);

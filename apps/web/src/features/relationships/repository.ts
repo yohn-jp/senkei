@@ -13,7 +13,6 @@ export type RelationshipEvent = {
 export type RelationshipArchive = { schemaVersion: 1; events: RelationshipEvent[] };
 export type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 export type HeroOwnershipResolver = (heroId: string) => boolean;
-export type SymmetricFormula = { version: string; derive: (ab: number, ba: number) => number };
 export type Result<T> = { ok: true; value: T } | { ok: false; reason: string };
 const fail = (reason: string): Result<never> => ({ ok: false, reason });
 const validString = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
@@ -66,19 +65,12 @@ export function createRelationshipRepository(storage: Storage, owns: HeroOwnersh
     if (!verified(incoming.value.events)) return fail("hero-ownership-unverified");
     return save(incoming.value);
   };
-  const freezePair = (a: string, b: string, formula?: SymmetricFormula): Result<{ formulaVersion: string; value: number; events: RelationshipEvent[] }> => {
+  // The approved, versioned formula schema is undecided; no executable callback can
+  // establish approval, determinism, or symmetry for the full input domain.
+  const freezePair = (a: string, b: string): Result<never> => {
     if (!validString(a) || !validString(b) || a === b) return fail("invalid-pair");
     const current = read(); if (!current.ok) return current;
-    if (!formula || !validString(formula.version)) return fail("decision-required");
-    const ab = current.value.events.filter(e => e.from === a && e.to === b).at(-1);
-    const ba = current.value.events.filter(e => e.from === b && e.to === a).at(-1);
-    if (!ab || !ba || ab.value === null || ba.value === null) return fail("decision-required");
-    try {
-      const value = formula.derive(ab.value, ba.value);
-      const reverse = formula.derive(ba.value, ab.value);
-      if (!Number.isFinite(value) || !Object.is(value, reverse)) return fail("invalid-formula");
-      return { ok: true, value: { formulaVersion: formula.version, value, events: structuredClone([ab, ba].sort((x, y) => x.from.localeCompare(y.from))) } };
-    } catch { return fail("invalid-formula"); }
+    return fail("decision-required");
   };
   return { read, exportRaw, applyEvent, importArchive, freezePair };
 }
