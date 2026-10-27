@@ -188,6 +188,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         plan,
     );
     let context = MatchContext {
+        match_projection: None,
         schema_version: v(),
         match_id: id("simultaneous-test"),
         ruleset: ruleset_ref.clone(),

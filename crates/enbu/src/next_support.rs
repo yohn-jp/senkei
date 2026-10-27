@@ -282,6 +282,7 @@ mod tests {
             region: "lane".into(), blocked: false, ..Default::default()
         };
         let rules = NextRules {
+            projection_policy: None,
             mechanics_version: crate::Version::new(1, 0, 0),
             world_identity: None,
             map: BattleMap {
@@ -388,6 +389,7 @@ mod tests {
             terrain_profile_id: "terrain.jungle".into(), terrain_kind: "jungle".into(), observation_semantics: "open".into(),
         };
         let mut rules = NextRules {
+            projection_policy: None,
             mechanics_version: Version::new(1, 0, 0), world_identity: Some(identity.clone()),
             map: BattleMap {
                 id: "interval-test".into(), world_identity: Some(identity.clone()),

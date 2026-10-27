@@ -9,6 +9,18 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             issues.push(ValidationIssue::new("invalid_next_rules", path, message));
         }
     };
+    if let Some(policy) = &r.projection_policy {
+        check(policy.schema_version == 1, "next.projection_policy.schema_version", "unsupported projection policy version");
+        check(policy.equipment.len() <= 1024, "next.projection_policy.equipment", "too many equipment definitions");
+        for (id, definition) in &policy.equipment {
+            check(!id.trim().is_empty() && id.len() <= 64, "next.projection_policy.equipment", "invalid equipment definition ID");
+            check(definition.version.major > 0 && definition.effects.len() <= 32, "next.projection_policy.equipment", "invalid equipment version or effect count");
+            check(definition.effects.iter().all(|e| (-1_000_000..=1_000_000).contains(&e.add)), "next.projection_policy.equipment", "equipment effect outside supported range");
+        }
+        if let Some(formula) = &policy.relation {
+            check(formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (-1_000_000..=1_000_000).contains(&formula.add_per_level), "next.projection_policy.relation", "invalid relation formula");
+        }
+    }
     let paired_world_matches = match (&r.world_identity, &r.map.world_identity) {
         (Some(package_world), Some(map_world)) => {
             let profile_complete = package_world.validation_profile_id.is_some()

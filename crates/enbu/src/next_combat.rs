@@ -1325,6 +1325,7 @@ mod tests {
     fn rules() -> NextRules {
         let zero = stats(0, 0, 0, 0);
         NextRules {
+            projection_policy: None,
             mechanics_version: senkei_model::Version::new(1, 0, 0),
             world_identity: None,
             map: senkei_model::BattleMap {

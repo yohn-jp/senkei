@@ -445,6 +445,7 @@ mod tests {
                 region: "jungle".into(), blocked: false, bridge_site: String::new(), ford: false },
         ];
         NextRules {
+            projection_policy: None,
             mechanics_version: Version::new(2, 0, 0),
             world_identity: None,
             map: BattleMap { id: "test".into(), nodes, edges, lanes: BTreeMap::new(), world_projection: None,

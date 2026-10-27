@@ -6,6 +6,7 @@
 mod behavior;
 mod next_behavior;
 pub use next_behavior::{simulate_next_behavior, NextBehaviorExecutionInputs, NextBehaviorProfile, NextBehaviorSimulationArtifact, NextBehaviorTrace};
+pub mod projected_assets;
 pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
 mod validation;
@@ -42,6 +43,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
             cost_schedule: plan.cost_schedule.version,
             replay_schema: validation::REPLAY_SCHEMA_VERSION,
         },
+        match_projection: None,
         initial_world: WorldState::default(),
         max_ticks: plan.termination.max_ticks,
         host_limits: HostLimits::from(&plan.limits),
@@ -120,9 +122,15 @@ fn initialize_match(
         rules.package_digest(),
         context.host_limits.max_entities.min(plan.world.max_entities),
     )?;
+    if context.match_projection.is_some() && plan.next.is_none() {
+        return Err(invalid_plan("asset projection requires Next rules"));
+    }
     if let Some(next) = &plan.next {
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
+        if let Some(projection) = &context.match_projection {
+            projected_assets::apply(&mut world, next.projection_policy.as_ref(), projection)?;
+        }
         next_combat::initialize_objectives(&mut world, next);
         next_battlefield::initialize(&mut world, next);
         next_vision::lifecycle(&mut world, next, 0);
