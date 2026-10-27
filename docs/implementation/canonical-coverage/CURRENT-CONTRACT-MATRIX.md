@@ -1,5 +1,7 @@
 # Current contract and asset state
 
+Latest scoped observation: [2026-10-27 fixed A/B/C wave](IMPLEMENTATION-WAVE-2026-10-27.md), implementation `1468724`. Native, real WASM and Web checks passed; local browser checks were 5 PASS / 3 FAIL. Bounded Behavior execution and pure progression states are integrated, while general Next binding and actual persistent-domain producers remain incomplete. Non-graphics completion is NO. The dated rows below remain historical evidence rather than a fresh completion claim.
+
 Coordinator session resumed 2026-10-26 from main `30ef5eacc94f226fbf42966ca69976d0a0277ea6`. The parent owns this table and all main integration/push operations. Product and Art are children of this same session; each writing Leaf uses an isolated branch/worktree and exclusive files. Historical source registers and evidence remain reusable observations, not current completion claims. Authority: [LOCAL-CODEX-GOAL](../LOCAL-CODEX-GOAL.md).
 
 `Implemented` describes source on a named branch; `Integrated` requires main ancestry; `Verified` is bounded by the exact source and executed checks. None implies either Goal is complete. No source-unit count is used as a completion percentage.

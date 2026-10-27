@@ -1,6 +1,10 @@
 # Canonical coverage — clause register and implementation evidence
 
-Latest integration and bounded browser evidence: [INTEGRATION-CHECKPOINT.md](INTEGRATION-CHECKPOINT.md), at committed main `54011ea`. Historical PR-state statements below are superseded by that checkpoint.
+Latest scoped status: [2026-10-27 fixed A/B/C implementation and verification](IMPLEMENTATION-WAVE-2026-10-27.md), implementation `1468724`. Native/real-WASM/Web checks passed; local browser checks were 5 PASS / 3 FAIL. Non-graphics Architecture/Product completion is **NO**. This fixed wave stops after saving its results; historical continuation statements below do not authorize another wave.
+
+## Historical registers
+
+The following dated inventories and gaps are preservation evidence, not current missing-work claims. In particular, BH03 static completeness has since been implemented and was reused, not rebuilt, in the current wave. Earlier integration evidence: [INTEGRATION-CHECKPOINT.md](INTEGRATION-CHECKPOINT.md), main `54011ea`.
 
 Current source-clause inventory: [CLAUSE-INDEX.md](CLAUSE-INDEX.md), pinned to main `9f52dbfa44d8f08ff854116fef7850fbc91e13af`. It covers all 47 root documents with exact line citations, including the runtime integration authority omitted from the root README index. [GAPS-AND-BOUNDARIES.md](GAPS-AND-BOUNDARIES.md) separates concrete source gaps, acceptance still awaiting proof, and undefined producer decisions. The machine-readable [source inventory](source-inventory.json) records source fingerprints; it is not a final requirement count.
 

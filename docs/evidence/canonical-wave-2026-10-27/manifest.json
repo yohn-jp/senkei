@@ -1,0 +1,36 @@
+{
+  "implementation_sha": "146872469e6c93a1e6da4ff31a72e3b795b9073a",
+  "logs": {
+    "web-tests.log.gz": {
+      "uncompressed_bytes": 251,
+      "sha256": "780d0c24b1d76da67cc8fab5681e55c61057db12094cf747766f0fd207790d08"
+    },
+    "web-build.log.gz": {
+      "uncompressed_bytes": 1308,
+      "sha256": "76aadbfb1b25973289bcc4e61f41c3e77dd55fde321c21f44605624ef669dcc1"
+    },
+    "browser-eight-cases.log.gz": {
+      "uncompressed_bytes": 9734,
+      "sha256": "0cd1cfb992721ca0b5fac48f4049abdab23c5bf0623bdf360b0bdcb1ac017b97"
+    },
+    "native-wasm-seven.log.gz": {
+      "uncompressed_bytes": 206,
+      "sha256": "a1c958472614868d925efaaa47b79f293d7450109bfe9c367c00af95651343be"
+    },
+    "behavior-native-wasm-eleven.log.gz": {
+      "uncompressed_bytes": 64,
+      "sha256": "30bd2c4c310c03e3b901a3a760afc203eed3f91c8dfa8d9adcbc18d7913e5271"
+    },
+    "ci-1468724.json.gz": {
+      "uncompressed_bytes": 51668,
+      "sha256": "59bad582aeb31153a5cdd444754f08a66590f107ecf1c285261560ee11ead089"
+    }
+  },
+  "real_export": {
+    "bytes": 45439592,
+    "sha256": "4e0f5150a54c0453f2954fb4482cf463a6c71e8800151821df8599463bf1841d",
+    "max_ticks": 600,
+    "final_tick": 577,
+    "note": "Synthetic local-player data; large export and traces retained in workspace, not copied into git."
+  }
+}
