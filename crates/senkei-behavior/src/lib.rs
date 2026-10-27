@@ -264,6 +264,14 @@ impl BehaviorResolver {
             return Err(BehaviorError::TraceLimitExceeded);
         }
         self.validate_composition(composition, actor, tick, side)?;
+        // A multi-field writer is represented once per field, but every copy
+        // must describe the same candidate and legality evidence.
+        let mut by_action = BTreeMap::new();
+        for candidate in fields.values().flatten() {
+            if let Some(previous) = by_action.insert(&candidate.intent.action_id, candidate) {
+                if previous != candidate { return Err(BehaviorError::InvalidCandidateSet); }
+            }
+        }
         let mut decisions = BTreeMap::new();
         for (field, candidates) in fields {
             let field_key = field.as_key();

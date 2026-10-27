@@ -1032,3 +1032,19 @@ fn empty_field_decisions_still_reject_stale_composition() {
     let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 5, side, &empty_execution(), &BTreeMap::new()).unwrap();
     assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 6, side, &BTreeMap::new(), &BTreeMap::new()), Err(BehaviorError::StaleComposition));
 }
+
+#[test]
+fn field_decisions_reject_same_action_id_with_different_payloads() {
+    let fixture = authored_order_fixture();
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let side = CombatantSide::Attacker;
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 5, side, &empty_execution(), &BTreeMap::new()).unwrap();
+    let first = candidate(Intent { action_id: ActionId::new("same"), capability: CapabilityId::new("activate"), actor: Some(EntityId::new("hero-one")), target: Some(EntityId::new("hero-one")), arguments: vec![DomainValue::Entity(EntityId::new("hero-one")), DomainValue::String("f01_a_active".into()), DomainValue::Entity(EntityId::new("hero-one"))], priority: None }, CandidateSource::Explicit, 5, side, None, Legality::KnownLegal);
+    let mut second = first.clone();
+    second.intent.arguments[1] = DomainValue::String("different".into());
+    let fields = BTreeMap::from([
+        (BehaviorFieldId::parse("navigation.destination").unwrap(), vec![first]),
+        (BehaviorFieldId::parse("targeting.mode").unwrap(), vec![second]),
+    ]);
+    assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()), Err(BehaviorError::InvalidCandidateSet));
+}
