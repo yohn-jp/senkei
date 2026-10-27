@@ -578,6 +578,8 @@ export interface HostLimits {
 }
 
 export interface MatchContext {
+  readonly match_projection?: import("./next-production").MatchProjection;
+  readonly next_behavior?: import("./next-production").NextBehaviorMatch;
   readonly world_identity?: WorldIdentityRef;
   readonly schema_version: import("./core").CoreVersion;
   readonly match_id: MatchId;
@@ -735,6 +737,7 @@ export interface WorldIdentityRef {
 
 /** Senritsu-owned versioned content, matching senkei-model::NextRules. */
 export interface NextRules {
+  readonly projection_policy?: import("./next-production").ProjectionPolicy;
   readonly world_identity?: WorldIdentityRef;
   readonly mechanics_version: import("./core").CoreVersion;
   readonly map: BattleMap;

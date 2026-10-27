@@ -14,6 +14,22 @@ pub fn next_package() -> RulePackage {
     package.ruleset.digest = crate::canonical_digest(&package).expect("canonical next package");
     package
 }
+/// Explicit, non-production fixture. Callers must opt in to its exact digest.
+pub fn next_local_trial_package() -> RulePackage {
+    use sha2::{Digest, Sha256};
+    let mut package = next_package();
+    let next = package.next.as_mut().expect("next package");
+    let digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&next.heroes).expect("Hero catalog"))));
+    next.projection_policy = Some(ProjectionPolicy {
+        schema_version: 1, test_only: true, hero_catalog_id: "senkei.next.heroes".into(),
+        hero_catalog_version: next.mechanics_version, hero_catalog_digest: digest,
+        equipment: std::collections::BTreeMap::from([("test.blade".into(), EquipmentEffectDefinition { version: Version::new(1, 0, 0), effects: vec![StatEffect { stat: ProjectedStat::Attack, add: 2 }] })]),
+        relation: Some(RelationFormula { version: Version::new(1, 0, 0), stat: ProjectedStat::Defense, add_per_level: 1, max_level: 10, max_bonus: 5, rounding: RelationRounding::Floor }),
+    });
+    crate::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest = crate::canonical_digest(&package).expect("trial package");
+    package
+}
 pub fn next_engine_compatibility() -> EngineCompatibility {
     let mut engine = crate::initial_engine_compatibility();
     engine.engine = ENBU_ENGINE_VERSION;
@@ -28,6 +44,15 @@ pub fn next_engine_compatibility() -> EngineCompatibility {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn trial_policy_is_explicit_and_changes_the_verified_digest() {
+        let normal = next_package();
+        let trial = next_local_trial_package();
+        assert!(normal.next.as_ref().unwrap().projection_policy.is_none());
+        assert!(trial.next.as_ref().unwrap().projection_policy.as_ref().unwrap().test_only);
+        assert_ne!(normal.ruleset.digest, trial.ruleset.digest);
+        crate::validate(trial, &next_engine_compatibility()).unwrap();
+    }
     #[test]
     fn bundled_next_package_validates() {
         let p = next_package();

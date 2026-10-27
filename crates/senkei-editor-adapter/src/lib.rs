@@ -110,7 +110,10 @@ pub fn compile_next_source(
     source: &str,
     expected: &CatalogStamp,
 ) -> Result<CompileReply, AdapterError> {
-    let plan = verified_next_plan()?;
+    let plan = if expected.identity.get("rulesetDigest").and_then(|v| v.as_str()) == Some(senritsu::next_local_trial_package().ruleset.digest.as_str()) {
+        validate(senritsu::next_local_trial_package(), &next_engine_compatibility())
+            .map_err(|issues| AdapterError::PackageInvalid(format!("{} validation issue(s)", issues.len())))?
+    } else { verified_next_plan()? };
     let catalog = DomainCatalog::from_verified_plan(&plan)
         .map_err(|error| AdapterError::CatalogInvalid(error.to_string()))?;
     let stamp = CatalogStamp::from_catalog(&catalog);

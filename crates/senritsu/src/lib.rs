@@ -4,6 +4,10 @@
 mod initial;
 mod validate;
 mod next_validate;
+mod production_behavior;
+mod production_preferences;
+pub use production_preferences::add_trial_behavior_preferences;
+pub use production_behavior::{validate_next_behavior_policy, VerifiedNextBehaviorPolicy};
 pub mod catalog;
 
 pub use initial::{initial_engine_compatibility, initial_package};
@@ -30,4 +34,4 @@ mod next_content;
 pub mod next_world;
 mod next_domain;
 mod next_package;
-pub use next_package::{next_package,next_engine_compatibility};
+pub use next_package::{next_package,next_local_trial_package,next_engine_compatibility};

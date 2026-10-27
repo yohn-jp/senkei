@@ -179,10 +179,12 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       if (error) throw new RequestFailure("invalid_request", error);
       return;
     }
-    case "initial_ruleset":
     case "next_ruleset":
     case "next_reproduction_assets":
     case "editor_catalog":
+      if (Object.keys(payload).some(key => key !== 'local_trial') || (payload.local_trial !== undefined && typeof payload.local_trial !== 'boolean')) throw new RequestFailure("invalid_request", "Invalid local trial selection.");
+      return;
+    case "initial_ruleset":
       if (Object.keys(payload).length !== 0) {
         throw new RequestFailure("invalid_request", `${operation} payload must be empty.`);
       }
@@ -307,11 +309,11 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
   switch (request.operation) {
     case "initial_ruleset":
     case "next_ruleset":
-      return callCore(request.operation, {}, request.request_id);
+      return callCore(request.operation, request.payload, request.request_id);
     case "next_reproduction_assets":
-      return callCore("next_reproduction_assets", {}, request.request_id);
+      return callCore("next_reproduction_assets", request.payload, request.request_id);
     case "editor_catalog":
-      return callCore("editor_catalog", {}, request.request_id);
+      return callCore("editor_catalog", request.payload, request.request_id);
     case "editor_compile":
       return callCore("editor_compile", request.payload, request.request_id);
     case "new_match_context":

@@ -4,6 +4,9 @@
 //! bytecode is opaque and is executed only through `TacticalExecutionPort`.
 
 mod behavior;
+mod next_behavior;
+pub use next_behavior::{simulate_next_behavior, NextBehaviorExecutionInputs, NextBehaviorProfile, NextBehaviorSimulationArtifact, NextBehaviorTrace};
+pub mod projected_assets;
 pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
 mod validation;
@@ -28,6 +31,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
         match_id,
         ruleset: rules.ruleset().clone(),
         world_identity: rules.world_identity().cloned(),
+        next_behavior: None,
         versions: ComponentVersions {
             model: plan.model_version,
             engine: validation::ENGINE_VERSION,
@@ -39,6 +43,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
             cost_schedule: plan.cost_schedule.version,
             replay_schema: validation::REPLAY_SCHEMA_VERSION,
         },
+        match_projection: None,
         initial_world: WorldState::default(),
         max_ticks: plan.termination.max_ticks,
         host_limits: HostLimits::from(&plan.limits),
@@ -97,7 +102,13 @@ pub fn preflight(
     rules: &VerifiedRulePlan,
     context: &MatchContext,
 ) -> Result<(), ApiError> {
-    let (world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    if let Some(binding) = &context.next_behavior {
+        let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
+        next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
+    }
+    let (world, projection_index, _) = initialize_match(attacker, defender, rules, context)?;
+    if let Some(binding) = &context.next_behavior { next_behavior::validate_bindings(&binding.inputs, &world)?; }
     evaluate_termination(rules.plan(), &world, 0, &projection_index).map(|_| ())
 }
 
@@ -106,9 +117,12 @@ fn initialize_match(
     defender: &senkei_model::SenkeiSnapshot,
     rules: &VerifiedRulePlan,
     context: &MatchContext,
-) -> Result<(WorldState, world::ProjectionIndex), ApiError> {
+) -> Result<(WorldState, world::ProjectionIndex, Option<projected_assets::RelationRuntime>), ApiError> {
     validation::validate_inputs(attacker, defender, rules, context)?;
     let plan = rules.plan();
+    if plan.domain.capabilities.contains_key(&"behavior_preference".into()) && context.next_behavior.is_none() {
+        return Err(api_error(ApiErrorCode::ValidationFailed, "behavior_preference requires frozen Next Behavior inputs"));
+    }
     let (mut world, projection_index) = world::initialize(
         &context.initial_world,
         attacker,
@@ -117,9 +131,21 @@ fn initialize_match(
         rules.package_digest(),
         context.host_limits.max_entities.min(plan.world.max_entities),
     )?;
+    if context.match_projection.is_some() && plan.next.is_none() {
+        return Err(invalid_plan("asset projection requires Next rules"));
+    }
+    let mut relation_runtime = None;
     if let Some(next) = &plan.next {
         next_squads::initialize(&mut world, attacker, CombatantSide::Attacker, next)?;
         next_squads::initialize(&mut world, defender, CombatantSide::Defender, next)?;
+        if let Some(projection) = &context.match_projection {
+            if let Some(policy) = &next.projection_policy {
+                if policy.hero_catalog_version != next.mechanics_version || policy.hero_catalog_digest != digest_json(&next.heroes)? {
+                    return Err(invalid_plan("Hero catalog identity does not match the verified rules"));
+                }
+            }
+            relation_runtime = Some(projected_assets::apply(&mut world, next.projection_policy.as_ref(), projection)?);
+        }
         next_combat::initialize_objectives(&mut world, next);
         next_battlefield::initialize(&mut world, next);
         next_vision::lifecycle(&mut world, next, 0);
@@ -130,7 +156,7 @@ fn initialize_match(
     validation::validate_configuration(&defender.configuration, plan, &world)?;
     validation::validate_memory(&attacker.initial_memory, plan, &world)?;
     validation::validate_memory(&defender.initial_memory, plan, &world)?;
-    Ok((world, projection_index))
+    Ok((world, projection_index, relation_runtime))
 }
 
 /// Run a complete deterministic match using the shared tactical execution
@@ -142,15 +168,25 @@ pub fn simulate<P: TacticalExecutionPort>(
     context: &MatchContext,
     executor: &mut P,
 ) -> Result<SimulationArtifact, ApiError> {
-    simulate_inner(attacker, defender, rules, context, executor, None)
+    if let Some(binding) = &context.next_behavior {
+        let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
+        next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
+        let mut hook = next_behavior::Hook { policy: &policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
+        simulate_inner(attacker, defender, rules, context, executor, None, Some(&mut hook))
+    } else {
+        simulate_inner(attacker, defender, rules, context, executor, None, None)
+    }
 }
 
 fn simulate_inner<P: TacticalExecutionPort>(
     attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
     rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
     mut behavior: Option<&mut behavior::Hook<'_>>,
+    mut next_behavior: Option<&mut next_behavior::Hook<'_>>,
 ) -> Result<SimulationArtifact, ApiError> {
-    let (mut world, projection_index) = initialize_match(attacker, defender, rules, context)?;
+    let (mut world, projection_index, mut relation_runtime) = initialize_match(attacker, defender, rules, context)?;
+    if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     let plan = rules.plan();
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),
@@ -338,8 +374,26 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some(hook) = behavior.as_deref_mut() {
             hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index, &mut diagnostics, &mut diagnostic_sequence)?;
         }
-        let accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        if let Some(hook) = next_behavior.as_deref_mut() {
+            hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index, &mut diagnostics, &mut diagnostic_sequence)?;
+        }
+        let mut accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        if next_behavior.is_some() {
+            // Squad operations execute before goal orders; determine conflicts
+            // from the same post-squad membership that goal application sees.
+            let mut goal_world = world.clone();
+            next_squads::intents(&mut goal_world, plan.next.as_ref().unwrap(), &accepted, tick);
+            let scores = next_behavior.as_deref().unwrap().traces.iter().filter(|trace| trace.tick==tick).filter_map(|trace| Some(((trace.side,trace.selected.as_ref()?.action_id.clone()),trace.score?))).collect();
+            let rejected = next_tactics::resolve_goal_conflicts(&goal_world, plan.next.as_ref().unwrap(), &mut accepted, &scores);
+            for (side, intent) in rejected {
+                let event = diagnostics.iter_mut().rev().find(|event| event.tick == tick && event.side == side && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent: accepted } if *accepted == intent))
+                    .ok_or_else(|| api_error(ApiErrorCode::InternalError, "missing goal arbitration diagnostic"))?;
+                event.record = DiagnosticRecord::IntentRejected { intent, reason: "enbu.next_goal_conflict".into() };
+            }
+        }
+        if let Some(hook) = next_behavior.as_deref_mut() { accepted.append(&mut hook.accepted_preferences); }
         if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
+        if let Some(hook) = next_behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
 
         let accepted_sides = accepted.iter().map(|(side, _)| *side).collect::<BTreeSet<_>>();
         // Overrun output is discarded only for that side under the
@@ -390,9 +444,22 @@ fn simulate_inner<P: TacticalExecutionPort>(
             sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
         }).unwrap_or_default();
         let mut next_events = Vec::new();
+        let mut committed_orders = Vec::new();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
-            next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
+            let orders = next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            if next_behavior.is_some() {
+                for (side, event) in &orders {
+                    let action_id = match event.payload.get(&"action_id".into()) { Some(DomainValue::String(id)) => id.clone(), _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks action ID")) };
+                    push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, *side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_order_committed".into(), details: BTreeMap::new() })?;
+                    let notice = diagnostics.last_mut().unwrap();
+                    notice.action_id = Some(action_id.into());
+                    notice.entity_id = event.entity.clone();
+                }
+                event_count = event_count.checked_add(orders.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "event count overflow"))?;
+                committed_orders = orders;
+            }
             // Resolve legality and attacks from one committed position snapshot.
             // Preparation reserves an exclusive action without moving anyone.
             let action_start = world.clone();
@@ -405,13 +472,15 @@ fn simulate_inner<P: TacticalExecutionPort>(
             next_events.extend(next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick));
             next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
+            if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
             event_count = event_count.checked_add(next_events.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit,"event count overflow"))?;
             if event_count > context.host_limits.max_events.min(plan.limits.max_events) { return Err(api_error(ApiErrorCode::ResourceLimit,"event limit exceeded")); }
         }
         validation::validate_world(&world, plan, context.host_limits.max_entities)?;
         if let Some(hook) = behavior.as_deref_mut() { hook.record_transition(tick); }
-        if (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+        if let Some(hook) = next_behavior.as_deref_mut() { hook.record_transition(tick); }
+        if (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)).saturating_add(next_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
         }
 
@@ -434,7 +503,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     tick,
                     events: next_events.iter()
                         .filter(|event| event_references_known(event, owner_before, &owner_after))
-                        .cloned().collect(),
+                        .cloned().chain(committed_orders.iter().filter(|(owner,_)| *owner == side).map(|(_, event)| event.clone())).collect(),
                     visible_state: Some(owner_after),
                 };
                 owner_frames.get_mut(&side).unwrap().push(frame);
@@ -1554,7 +1623,15 @@ fn project_replay_identities(mut frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
         }
         for event in &mut frame.events {
             event.entity=event.entity.as_ref().and_then(|raw|active.get(raw).map(|(id,_)|id.clone()));
-            for value in event.payload.values_mut() { if let DomainValue::Entity(raw)=value { *value=active.get(raw).map(|(id,_)|DomainValue::Entity(id.clone())).unwrap_or(DomainValue::Null); } }
+            fn project_value(value: &mut DomainValue, active: &BTreeMap<EntityId,(EntityId,i64)>) {
+                match value {
+                    DomainValue::Entity(raw) => *value = active.get(raw).map(|(id,_)| DomainValue::Entity(id.clone())).unwrap_or(DomainValue::Null),
+                    DomainValue::List(values) => for value in values { project_value(value, active); },
+                    DomainValue::Record(values) => for value in values.values_mut() { project_value(value, active); },
+                    _ => {},
+                }
+            }
+            for value in event.payload.values_mut() { project_value(value, &active); }
         }
         let entities=std::mem::take(&mut view.entities);
         view.entities=entities.into_iter().filter_map(|(raw,entity)|active.get(&raw).map(|(id,_)|(id.clone(),EntityStateView { ..entity }))).collect();

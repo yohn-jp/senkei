@@ -27,15 +27,15 @@ export type WebWorkerRequest =
   | (WorkerRequestBase & { readonly operation: "simulate_behavior"; readonly payload: BehaviorSimulationRequest })
   | (WorkerRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WorkerRequestBase & {
       readonly operation: "next_reproduction_assets";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WorkerRequestBase & {
       readonly operation: "editor_catalog";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WorkerRequestBase & {
       readonly operation: "editor_compile";
@@ -175,15 +175,15 @@ interface WebCoreApiRequestBase {
 export type WebCoreApiEnvelope =
   | (WebCoreApiRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "next_reproduction_assets";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "editor_catalog";
-      readonly payload: Record<string, never>;
+      readonly payload: { readonly local_trial?: boolean };
     })
   | (WebCoreApiRequestBase & {
       readonly operation: "editor_compile";

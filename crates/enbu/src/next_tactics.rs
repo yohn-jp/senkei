@@ -46,7 +46,7 @@ pub fn apply(
     rules: &NextRules,
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
-) {
+) -> Vec<(CombatantSide, senkei_model::PresentationEvent)> {
     // Track selection is a typed, deterministic tactical order. A Squad shares
     // its selected lane; one stable actor/action wins contradictory orders.
     let mut track_orders = accepted
@@ -110,6 +110,82 @@ pub fn apply(
         }
     }
 
+    let candidates = goal_candidates(world, rules, accepted);
+    let mut committed: Vec<(CombatantSide, senkei_model::PresentationEvent)> = Vec::new();
+    let mut handled_groups = BTreeSet::new();
+    for candidate in candidates {
+        if !handled_groups.insert(candidate.group.clone()) {
+            continue;
+        }
+        let (side, squad) = match candidate.group {
+            GoalGroup::Squad(side, squad) => (side, Some(squad)),
+            GoalGroup::Solo(side, _) => (side, None),
+        };
+        let mut affected = Vec::new();
+        for (entity_id, entity) in world.entities.iter_mut() {
+            if entity.entity_type.as_str() != HERO
+                || entity.owner != Some(side)
+                || !support::alive(entity)
+            {
+                continue;
+            }
+            if let Some(squad) = squad.as_deref() {
+                if support::string(entity, "squad") != squad {
+                    continue;
+                }
+            } else if entity_id != &candidate.actor {
+                // A Solo order is scoped by its stable actor ID.
+                continue;
+            }
+            apply_order(entity, &candidate.order, tick);
+            affected.push(DomainValue::Record(std::collections::BTreeMap::from([
+                ("entity".into(), DomainValue::Entity(entity_id.clone())),
+                ("goal".into(), entity.fields[&"goal".into()].clone()),
+                ("target".into(), entity.fields[&"target".into()].clone()),
+                ("retreating".into(), entity.fields[&"retreating".into()].clone()),
+            ])));
+        }
+        if !affected.is_empty() {
+            let sequence = committed.iter().filter(|(owner,_)| *owner == side).count() as i64;
+            committed.push((side, senkei_model::PresentationEvent {
+                event: "next.behavior_order_committed".into(), entity: Some(candidate.actor.clone()),
+                payload: std::collections::BTreeMap::from([
+                    ("tick".into(), DomainValue::Integer(i64::from(tick))),
+                    ("sequence".into(), DomainValue::Integer(sequence)),
+                    ("action_id".into(), DomainValue::String(candidate.action_id.to_string())),
+                    ("members".into(), DomainValue::List(affected)),
+                ]),
+            }));
+        }
+    }
+    // Individual target selection writes only this Hero. Normal combat later
+    // consumes the same `target` field and retains its own range checks.
+    let mut targets = accepted.iter().filter(|(_,intent)| intent.capability.as_str()=="select_target").collect::<Vec<_>>();
+    targets.sort_by(|a,b| a.1.action_id.cmp(&b.1.action_id));
+    for (side,intent) in targets {
+        let (Some(actor),Some(target)) = (actor_id(intent),target_id(intent)) else { continue };
+        if !world.entities.get(&target).is_some_and(|e| e.owner.is_some() && e.owner != Some(*side) && support::alive(e)) { continue; }
+        let Some(entity) = world.entities.get_mut(&actor) else { continue };
+        if entity.entity_type.as_str()!=HERO || entity.owner != Some(*side) || !support::alive(entity) { continue; }
+        entity.fields.insert("target".into(),DomainValue::Entity(target));
+        let member=DomainValue::Record(std::collections::BTreeMap::from([
+            ("entity".into(),DomainValue::Entity(actor.clone())),
+            ("goal".into(),entity.fields.get(&"goal".into()).cloned().unwrap_or(DomainValue::Null)),
+            ("target".into(),entity.fields[&"target".into()].clone()),
+            ("retreating".into(),entity.fields.get(&"retreating".into()).cloned().unwrap_or(DomainValue::Null)),
+        ]));
+        let sequence=committed.iter().filter(|(owner,_)| owner==side).count() as i64;
+        committed.push((*side,senkei_model::PresentationEvent { event:"next.behavior_order_committed".into(),entity:Some(actor),payload:std::collections::BTreeMap::from([
+            ("tick".into(),DomainValue::Integer(i64::from(tick))),
+            ("sequence".into(),DomainValue::Integer(sequence)),
+            ("action_id".into(),DomainValue::String(intent.action_id.to_string())),
+            ("members".into(),DomainValue::List(vec![member])),
+        ]) }));
+    }
+    committed
+}
+
+fn goal_candidates(world: &WorldState, rules: &NextRules, accepted: &[(CombatantSide, Intent)]) -> Vec<Candidate> {
     let mut candidates = Vec::new();
     for (side, intent) in accepted {
         let Some(actor_id) = actor_id(intent) else {
@@ -187,33 +263,48 @@ pub fn apply(
             .then_with(|| left.action_id.cmp(&right.action_id))
     });
 
-    let mut handled_groups = BTreeSet::new();
-    for candidate in candidates {
-        if !handled_groups.insert(candidate.group.clone()) {
-            continue;
-        }
-        let (side, squad) = match candidate.group {
-            GoalGroup::Squad(side, squad) => (side, Some(squad)),
-            GoalGroup::Solo(side, _) => (side, None),
-        };
-        for (entity_id, entity) in world.entities.iter_mut() {
-            if entity.entity_type.as_str() != HERO
-                || entity.owner != Some(side)
-                || !support::alive(entity)
-            {
-                continue;
-            }
-            if let Some(squad) = squad.as_deref() {
-                if support::string(entity, "squad") != squad {
-                    continue;
-                }
-            } else if entity_id != &candidate.actor {
-                // A Solo order is scoped by its stable actor ID.
-                continue;
-            }
-            apply_order(entity, &candidate.order, tick);
-        }
+    candidates
+}
+
+/// Check against the same finite target and goal rules used during commitment.
+pub(crate) fn behavior_order_legal(world: &WorldState, rules: &NextRules, side: CombatantSide, intent: &Intent) -> bool {
+    match intent.capability.as_str() {
+        "move" | "pursue" | "retreat" => !goal_candidates(world, rules, &[(side,intent.clone())]).is_empty(),
+        "select_target" => target_id(intent).and_then(|id| world.entities.get(&id)).is_some_and(crate::next_combat::is_targetable),
+        _ => true,
     }
+}
+
+/// Resolve final write-set conflicts using explicit Next goal order first,
+/// then Behavior score and stable action ID for generated candidates.
+pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &mut Vec<(CombatantSide, Intent)>, scores: &std::collections::BTreeMap<(CombatantSide, senkei_model::ActionId),i64>) -> Vec<(CombatantSide, Intent)> {
+    struct Item { side: CombatantSide, actor: EntityId, action: senkei_model::ActionId, group: GoalGroup, shared: bool, rank: u8, target_key: String, score: Option<i64> }
+    let mut items = Vec::new();
+    for candidate in goal_candidates(world,rules,accepted) {
+        let side=match &candidate.group { GoalGroup::Squad(side,_) | GoalGroup::Solo(side,_) => *side };
+        items.push(Item { side,actor:candidate.actor,action:candidate.action_id.clone(),group:candidate.group,shared:true,rank:candidate.rank,target_key:candidate.target_key,score:scores.get(&(side,candidate.action_id)).copied() });
+    }
+    for (side,intent) in accepted.iter().filter(|(_,i)|i.capability.as_str()=="select_target") {
+        let Some(actor)=intent.actor.as_ref() else {continue}; let Some(entity)=world.entities.get(actor) else {continue};
+        let squad=support::string(entity,"squad"); let group=if squad.is_empty(){GoalGroup::Solo(*side,actor.clone())}else{GoalGroup::Squad(*side,squad)};
+        items.push(Item { side:*side,actor:actor.clone(),action:intent.action_id.clone(),group,shared:false,rank:3,target_key:intent.target.as_ref().map_or(String::new(),ToString::to_string),score:scores.get(&(*side,intent.action_id.clone())).copied() });
+    }
+    items.sort_by(|a,b| match (a.score,b.score) {
+        (None,None)=>a.rank.cmp(&b.rank).then_with(||a.actor.cmp(&b.actor)).then_with(||a.target_key.cmp(&b.target_key)).then_with(||a.action.cmp(&b.action)),
+        (None,Some(_))=>std::cmp::Ordering::Less,
+        (Some(_),None)=>std::cmp::Ordering::Greater,
+        (Some(x),Some(y))=>y.cmp(&x).then_with(||a.action.cmp(&b.action)),
+    });
+    let mut shared=BTreeSet::new(); let mut target_groups=BTreeSet::new(); let mut targeted=BTreeSet::new(); let mut losers=BTreeSet::new();
+    for item in items {
+        let conflict=if item.shared { shared.contains(&item.group) || target_groups.contains(&item.group) } else { shared.contains(&item.group) || targeted.contains(&(item.side,item.actor.clone())) };
+        if conflict { losers.insert((item.side,item.actor,item.action)); }
+        else if item.shared { shared.insert(item.group); }
+        else { target_groups.insert(item.group); targeted.insert((item.side,item.actor)); }
+    }
+    let mut rejected=Vec::new();
+    accepted.retain(|(side,intent)| { if intent.actor.as_ref().is_some_and(|actor|losers.contains(&(*side,actor.clone(),intent.action_id.clone()))) { rejected.push((*side,intent.clone())); false } else { true } });
+    rejected
 }
 
 fn apply_order(entity: &mut EntityState, order: &GoalOrder, tick: u32) {
@@ -326,6 +417,7 @@ mod tests {
             })
             .collect();
         NextRules {
+            projection_policy: None,
             mechanics_version: Version::new(1, 0, 0),
             world_identity: None,
             map: BattleMap {
@@ -607,6 +699,10 @@ mod tests {
                 support::string(&world.entities[&EntityId::from(hero_id)], "goal"),
                 "attacker_base"
             );
+            let hero = &world.entities[&EntityId::from(hero_id)];
+            assert_eq!(support::int(hero, "retreating"), 1);
+            assert_eq!(support::int(hero, "move_intent_tick"), 2);
+            assert_eq!(hero.fields[&senkei_model::FieldId::from("target")], DomainValue::Null);
         }
 
         let mut reversed = WorldState::default();

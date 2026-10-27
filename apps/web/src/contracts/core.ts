@@ -187,10 +187,10 @@ export interface WorkerFailure {
 
 export interface CoreClient {
   initialRuleset(): Promise<RulePackage>;
-  nextRuleset(): Promise<RulePackage>;
+  nextRuleset(localTrial?: boolean): Promise<RulePackage>;
   /** Load the current builtin package with the exact World Definition it uses. */
-  reproductionAssets(): Promise<ReproductionAssets>;
-  editorCatalogJson(): Promise<string>;
+  reproductionAssets(localTrial?: boolean): Promise<ReproductionAssets>;
+  editorCatalogJson(localTrial?: boolean): Promise<string>;
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope>;
   newMatchContext(ruleset_ref: RulesetRef, match_id: string): Promise<MatchContext>;
   parseText(source: string, ruleset_ref: RulesetRef): Promise<StructuredTacticsAst>;
