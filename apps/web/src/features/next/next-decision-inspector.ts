@@ -1,6 +1,7 @@
 import type { DomainValue, PresentationReplay } from "../../contracts";
 import type { NextDecisionInspection, NextDecisionInspectionRequest, NextDecisionInspectionSelection } from "../../contracts/next-decision-inspection";
 import { canonicalJson, reproductionSnapshotDigest, sha256Hex } from "../../worker/input-identity";
+import { decisionInspectionResponseError } from "../../worker/decision-inspection-response";
 import type { CoverageRun } from "./coverage-observed";
 import { validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay } from "./experiment-restoration";
 
@@ -65,91 +66,12 @@ export function decisionInspectionRequest(run: AvailableRun, tick: number, slotI
     authorized_side: "attacker", selector: { tick, slot_id: slotId } };
 }
 
-const alias = (value: unknown): value is string => typeof value === "string" && /^observed-[1-9][0-9]*$/.test(value);
-const optionalAlias = (value: unknown): boolean => value === null || alias(value);
-const integer = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value);
-const optionalInteger = (value: unknown): boolean => value === null || integer(value);
-const digest = (value: unknown): boolean => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
-const domains = new Set(["navigation", "engagement", "targeting", "pursuit", "survival", "objective"]);
-const signals = new Set(["constant", "actor_health_percent", "target_health_percent", "target_proximity", "observed_danger", "objective_value", "route_cost", "squad_health_percent", "candidate_move", "candidate_pursue", "candidate_retreat", "candidate_target"]);
-
-function projectedValue(value: DomainValue): boolean {
-  if (!value || typeof value !== "object") return false;
-  switch (value.kind) {
-    case "null": return true;
-    case "bool": return typeof value.value === "boolean";
-    case "integer": return integer(value.value);
-    case "fixed": return !!value.value && integer(value.value.coefficient) && integer(value.value.scale);
-    case "string": case "enum": return typeof value.value === "string";
-    case "entity": return alias(value.value);
-    case "list": return Array.isArray(value.value) && value.value.every(projectedValue);
-    case "record": return !!value.value && typeof value.value === "object" && Object.values(value.value).every(projectedValue);
-    default: return false;
-  }
-}
-function projectedFields(fields: Record<string, { readonly status: string; readonly value?: DomainValue }>): boolean {
-  return !!fields && typeof fields === "object" && Object.values(fields).every(field => field?.status === "unknown"
-    || (field?.status === "known" && projectedValue(field.value!)));
-}
-
-/** Verify lineage and projection before any response data is rendered. */
+/** The Worker validates projection and request identity; this adds the retained Run result identity. */
 export async function verifyDecisionInspection(run: AvailableRun, request: NextDecisionInspectionRequest, response: NextDecisionInspection): Promise<boolean> {
-  try {
-    const identity = response.identity;
-    const expectedDigest = await sha256Hex(canonicalJson({ format_version: 1, snapshot_digest: run.snapshotDigest,
-      authorized_side: "attacker", selector: request.selector }));
-    if (response.format_version !== 1 || request.snapshot_digest !== run.snapshotDigest
-      || await reproductionSnapshotDigest(request.snapshot) !== run.snapshotDigest || request.authorized_side !== "attacker"
-      || !decisionInspectionRequest(run, request.selector.tick, request.selector.slot_id)
-      || identity.snapshot_digest !== run.snapshotDigest || identity.result_digest !== run.resultDigest
-      || identity.authorized_side !== "attacker" || identity.selector.tick !== request.selector.tick
-      || identity.selector.slot_id !== request.selector.slot_id || identity.inspection_digest !== expectedDigest
-      || response.policy.id !== run.policyId || response.policy.digest !== run.policyDigest) return false;
-    const observation = response.observation;
-    if (observation.identity_space !== "inspection_observed" || (observation.source_digest !== null && !digest(observation.source_digest))) return false;
-    if (observation.snapshot) {
-      const snapshot = observation.snapshot;
-      if (!observation.source_digest || snapshot.side !== "attacker" || snapshot.tick !== request.selector.tick || !projectedFields(snapshot.fields)) return false;
-      if (!snapshot.collections || Object.values(snapshot.collections).some(collection => {
-        if (collection.status === "unknown") return false;
-        return collection.status !== "known" || !Array.isArray(collection.value) || collection.value.some(entity =>
-          !alias(entity.id) || typeof entity.entity_type !== "string" || !projectedFields(entity.fields));
-      })) return false;
-    } else if (observation.source_digest !== null) return false;
-    const decision = response.decision;
-    if (!new Set(["evaluated", "subject_unavailable", "execution_incomplete", "tick_not_reached"]).has(decision.status)
-      || !optionalAlias(decision.subject) || !Array.isArray(decision.candidates) || !Array.isArray(decision.selections)) return false;
-    const composition = decision.composition;
-    if (composition && (typeof composition.squad_id !== "string" || !Array.isArray(composition.members)
-      || composition.members.some(member => !alias(member.actor) || typeof member.catalog_id !== "string"
-        || !Array.isArray(member.values) || member.values.length !== 6 || !member.values.every(integer)
-        || !Array.isArray(member.sources) || member.sources.length !== 6 || !member.sources.every((source: unknown) => typeof source === "string"))
-      || [composition.shared, composition.baseline_effective, composition.effective].some(values => !Array.isArray(values) || values.length !== 6 || !values.every(integer)))) return false;
-    const indices = new Set<number>();
-    for (const candidate of decision.candidates) {
-      if (!integer(candidate.index) || candidate.index < 0 || indices.has(candidate.index) || !alias(candidate.actor)
-        || !optionalAlias(candidate.target) || typeof candidate.capability !== "string"
-        || !Array.isArray(candidate.arguments) || !candidate.arguments.every(projectedValue)
-        || !["move", "pursue", "retreat", "target"].includes(candidate.kind)
-        || !["ineligible", "unknown", "selected", "conflict"].includes(candidate.outcome)
-        || !optionalInteger(candidate.score) || !optionalInteger(candidate.rank) || !Array.isArray(candidate.terms)) return false;
-      indices.add(candidate.index);
-      for (const term of candidate.terms) if (!domains.has(term.domain) || !["offset", "target_health_offset", "signal"].includes(term.kind)
-        || !(term.signal === null || signals.has(term.signal)) || !optionalInteger(term.weight)
-        || !optionalInteger(term.value) || !optionalInteger(term.contribution)) return false;
-    }
-    for (const selection of decision.selections) {
-      const event = selection.committed_event;
-      if (!["explicit", "default", "wait"].includes(selection.source) || !alias(selection.actor) || !optionalAlias(selection.target)
-        || !(selection.capability === null || typeof selection.capability === "string")
-        || !(selection.arguments === null || (Array.isArray(selection.arguments) && selection.arguments.every(projectedValue)))
-        || !optionalInteger(selection.score)
-        || !(selection.candidate_index === null || (integer(selection.candidate_index) && indices.has(selection.candidate_index)))
-        || typeof selection.arbitration_accepted !== "boolean" || typeof selection.transition_completed !== "boolean"
-        || (event !== null && (!integer(event.tick) || event.tick !== request.selector.tick || !integer(event.sequence) || event.sequence < 0))) return false;
-    }
-    return true;
-  } catch { return false; }
+  return request.authorized_side === "attacker" && request.snapshot_digest === run.snapshotDigest
+    && !!decisionInspectionRequest(run, request.selector.tick, request.selector.slot_id)
+    && await decisionInspectionResponseError(response, request) === null
+    && response.identity.result_digest === run.resultDigest;
 }
 
 /** The anonymous inspection IDs are never compared with Replay IDs. */
