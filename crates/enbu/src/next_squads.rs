@@ -541,7 +541,7 @@ fn placement_rank(placement: &str) -> u8 {
     }
 }
 
-fn hero_entity_id(side: CombatantSide, slot_id: &str) -> EntityId {
+pub(crate) fn hero_entity_id(side: CombatantSide, slot_id: &str) -> EntityId {
     senkei_model::derive_projected_entity_id(
         &senkei_model::ContentDigest::new("0".repeat(64)),
         &senkei_model::ProjectionId::from("next.hero"),

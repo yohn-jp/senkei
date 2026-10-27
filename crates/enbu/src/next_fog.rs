@@ -659,6 +659,32 @@ mod tests {
     }
 
     #[test]
+    fn contest_is_not_remembered_and_facility_reveal_does_not_reveal_node_occupancy() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        world.entities.insert("viewer".into(), unit(CombatantSide::Attacker, "a", 0, 0, 20));
+        let mut observation = bridge("b", "MID", "normal", 100);
+        observation.entity_type = TypeId::from("observation");
+        observation.fields.insert("capture_contested".into(), DomainValue::Bool(true));
+        observation.fields.insert("reveal_attacker_until".into(), DomainValue::Integer(1));
+        world.entities.insert("objective".into(), observation);
+        assert!(next_vision::visible(&world, &rules, CombatantSide::Attacker, &world.entities[&EntityId::from("objective")]));
+        assert!(!next_vision::visible_node(&world, &rules, CombatantSide::Attacker, "b"), "a facility-only reveal does not authorize its hidden occupants");
+
+        let viewer = world.entities.get_mut(&EntityId::from("viewer")).unwrap();
+        move_to(viewer, "b", 80, 0);
+        assert!(next_vision::visible_node(&world, &rules, CombatantSide::Attacker, "b"));
+        let mut history = FogHistory::default();
+        history.observe(&world, &rules, CombatantSide::Attacker, 1);
+        move_to(world.entities.get_mut(&EntityId::from("viewer")).unwrap(), "a", 0, 0);
+        world.entities.get_mut(&EntityId::from("objective")).unwrap().fields.remove(&FieldId::from("reveal_attacker_until"));
+        let fog = history.observe(&world, &rules, CombatantSide::Attacker, 2);
+        assert_eq!(fog.facilities.len(), 1);
+        assert!(!fog.facilities[0].facility_state.contains_key("capture_contested"));
+        assert!(!serde_json::to_string(&fog.as_domain_value()).unwrap().contains("capture_contested"));
+    }
+
+    #[test]
     fn each_side_gets_its_own_logical_visibility_mask() {
         let rules = rules();
         let mut world = WorldState::default();

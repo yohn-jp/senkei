@@ -323,7 +323,12 @@ fn bridge_entity_schema() -> EntityTypeSchema {
 }
 
 fn observation_entity_schema() -> EntityTypeSchema {
-    entity_schema(common_fields(), None)
+    let mut fields = common_fields();
+    // This field is produced only in authorized Replay frames from the
+    // capture resolution snapshot. It is not stored in simulation WorldState
+    // or exposed through Jinrei's observation collection.
+    fields.insert(id("capture_contested"), field(DomainType::Bool, Visibility::Public, false));
+    entity_schema(fields, None)
 }
 
 fn entity_type_schema(entity: &str, skill_ids: &BTreeSet<FieldId>) -> EntityTypeSchema {
@@ -462,7 +467,7 @@ fn presentation_policy() -> PresentationPolicy {
     monster.insert(id("camp"));
     let bridge = ["site", "bridge_state", "hp", "max_hp", "build_remaining", "build_kind", "node", "edge_to", "edge_progress", "x", "y"]
         .into_iter().map(id).collect::<BTreeSet<_>>();
-    let observation = ["node", "capture_progress", "capture_owner", "capture_progress_side", "x", "y"]
+    let observation = ["node", "capture_progress", "capture_owner", "capture_progress_side", "capture_contested", "x", "y"]
         .into_iter().map(id).collect::<BTreeSet<_>>();
     PresentationPolicy {
         visible_events: event_schemas(),

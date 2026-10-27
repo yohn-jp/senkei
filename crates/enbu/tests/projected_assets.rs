@@ -49,6 +49,29 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
     projection.sides.get_mut(&CombatantSide::Attacker).unwrap().heroes[0].equipment[0].definition_digest = digest;
     apply(&mut world, Some(&policy), &projection).unwrap();
     assert_eq!(world.entities[&EntityId::from("Attacker-0")].fields[&FieldId::from("attack")], DomainValue::Integer(17));
+    // Equipped item order cannot affect a sum of additive effects. In the
+    // first order, applying the negative item on its own would cross zero.
+    let mut additive_policy = policy.clone();
+    let mut equipped = Vec::new();
+    for (id, add) in [("negative", -15), ("positive", 15)] {
+        let definition = EquipmentEffectDefinition { version, effects: vec![StatEffect { stat: ProjectedStat::Attack, add }] };
+        let digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&definition).unwrap())));
+        additive_policy.equipment.insert(id.into(), definition);
+        equipped.push(ProjectedEquipment { instance_id: id.into(), owner_id: "Attacker".into(), definition_id: id.into(), definition_version: version, definition_digest: digest });
+    }
+    let mut additive_projection = projection.clone();
+    additive_projection.sides.get_mut(&CombatantSide::Attacker).unwrap().heroes[0].equipment = equipped;
+    let mut negative_first = original.clone();
+    apply(&mut negative_first, Some(&additive_policy), &additive_projection).unwrap();
+    additive_projection.sides.get_mut(&CombatantSide::Attacker).unwrap().heroes[0].equipment.reverse();
+    let mut positive_first = original.clone();
+    apply(&mut positive_first, Some(&additive_policy), &additive_projection).unwrap();
+    assert_eq!(negative_first, positive_first);
+    assert_eq!(negative_first.entities[&EntityId::from("Attacker-0")].fields[&FieldId::from("attack")], DomainValue::Integer(10));
+    additive_projection.sides.get_mut(&CombatantSide::Attacker).unwrap().heroes[0].equipment.retain(|item| item.definition_id == "negative");
+    let mut invalid_final = original.clone();
+    assert!(apply(&mut invalid_final, Some(&additive_policy), &additive_projection).is_err());
+    assert_eq!(invalid_final, original, "an out-of-range final value does not change the world");
     use senkei_model::{ProjectedRelation, RelationFormula, RelationRounding};
     let formula = RelationFormula { version, stat: ProjectedStat::Defense, add_per_level: 1, max_level: 10, max_bonus: 10, rounding: RelationRounding::Floor };
     let formula_digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&formula).unwrap())));

@@ -21,17 +21,25 @@ pub fn apply(world: &mut WorldState, policy: Option<&ProjectionPolicy>, projecti
             let matches: Vec<_> = updated.entities.iter_mut().filter(|(_, e)| e.entity_type.as_str() == "hero" && e.owner == Some(*side) && e.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String(hero.slot_id.clone())) && e.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String(hero.catalog_id.clone()))).collect();
             if matches.len() != 1 { return Err(invalid("Hero slot or catalog does not match the formation")); }
             let (_, entity) = matches.into_iter().next().unwrap();
+            // Effects are additive, so validate the final stat after combining
+            // all equipped items. Validity must not depend on item order or an
+            // intermediate value from applying a negative effect first.
+            let mut additions: BTreeMap<&str, i128> = BTreeMap::new();
             for item in &hero.equipment {
                 if item.owner_id != player.owner_id || item.instance_id.is_empty() || !equipment_instances.insert(&item.instance_id) { return Err(invalid("invalid equipment ownership or duplicate instance")); }
                 let def = policy.equipment.get(&item.definition_id).ok_or_else(|| invalid("unknown equipment definition"))?;
                 if item.definition_version != def.version || crate::digest_json(def)? != item.definition_digest { return Err(invalid("equipment definition version mismatch")); }
                 for effect in &def.effects {
                     let key = match effect.stat { ProjectedStat::Attack => "attack", ProjectedStat::Defense => "defense", ProjectedStat::Speed => "speed", ProjectedStat::Range => "range", ProjectedStat::Vision => "vision", ProjectedStat::MaxHp => "max_hp" };
-                    let value = match entity.fields.get(&FieldId::from(key)) { Some(DomainValue::Integer(v)) => *v, _ => return Err(invalid("missing projected stat")) };
-                    let value = value.checked_add(effect.add).filter(|v| (1..=1_000_000_000).contains(v)).ok_or_else(|| invalid("projected stat out of range"))?;
-                    entity.fields.insert(FieldId::from(key), DomainValue::Integer(value));
-                    if key == "max_hp" { entity.fields.insert(FieldId::from("hp"), DomainValue::Integer(value)); }
+                    let total = additions.entry(key).or_default();
+                    *total = total.checked_add(i128::from(effect.add)).ok_or_else(|| invalid("projected stat overflow"))?;
                 }
+            }
+            for (key, addition) in additions {
+                let base = match entity.fields.get(&FieldId::from(key)) { Some(DomainValue::Integer(v)) => *v, _ => return Err(invalid("missing projected stat")) };
+                let value = i128::from(base).checked_add(addition).filter(|v| (1..=1_000_000_000).contains(v)).ok_or_else(|| invalid("projected stat out of range"))? as i64;
+                entity.fields.insert(FieldId::from(key), DomainValue::Integer(value));
+                if key == "max_hp" { entity.fields.insert(FieldId::from("hp"), DomainValue::Integer(value)); }
             }
         }
     }

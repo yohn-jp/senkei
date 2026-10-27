@@ -149,6 +149,20 @@ pub fn visible(
         .any(|source| is_vision_source(source, side) && within_vision(source, entity, rules))
 }
 
+/// Whether a side can observe the whole logical node, without relying on a
+/// facility-only reveal. Capture occupancy is defined at node granularity.
+pub(crate) fn visible_node(world: &WorldState, rules: &NextRules, side: CombatantSide, node: &str) -> bool {
+    let probe = EntityState {
+        entity_type: "observation".into(),
+        owner: None,
+        fields: BTreeMap::from([
+            ("node".into(), DomainValue::String(node.to_owned())),
+            ("edge_to".into(), DomainValue::String(String::new())),
+        ]),
+    };
+    visible(world, rules, side, &probe)
+}
+
 /// Builds exactly the allied vision-source set used by `visible`. Batch
 /// presentation queries can reuse it without rescanning every world entity.
 pub(crate) fn vision_sources<'a>(

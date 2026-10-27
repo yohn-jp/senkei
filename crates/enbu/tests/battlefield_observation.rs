@@ -382,3 +382,87 @@ fn next_match_rejects_missing_or_mismatched_paired_world_identity() {
     let error = simulate(&attacker, &defender, &rules, &mismatched, &mut Vm::new(&rules)).unwrap_err();
     assert!(error.message.contains("World identity"));
 }
+
+#[test]
+fn resolved_contest_is_visible_only_in_authorized_replay_and_preserves_simulation() {
+    fn run(rules: &VerifiedRulePlan, both_at_mid: bool) -> SimulationArtifact {
+        let program = compile(IDLE_TACTICS, rules).unwrap().program;
+        let mut attacker = snapshot(rules, CombatantSide::Attacker, program.clone());
+        let mut defender = snapshot(rules, CombatantSide::Defender, program);
+        let put_at_mid = |snapshot: &mut SenkeiSnapshot| {
+            let DomainValue::List(heroes) = snapshot.configuration.get_mut(&FieldId::from("heroes")).unwrap() else { panic!("Hero configuration") };
+            for hero in heroes {
+                let DomainValue::Record(fields) = hero else { panic!("Hero record") };
+                fields.insert("node".into(), DomainValue::String("N.MID.OBS".into()));
+            }
+        };
+        if both_at_mid { put_at_mid(&mut attacker); }
+        put_at_mid(&mut defender);
+        let mut context = new_match_context(rules, MatchId::new("contest-fact"));
+        context.max_ticks = 1;
+        simulate(&attacker, &defender, rules, &context, &mut Vm::new(rules)).unwrap()
+    }
+    fn objective(frame: &ReplayFrame) -> Option<&EntityStateView> {
+        frame.visible_state.as_ref()?.entities.values().find(|entity| entity.entity_type.as_str() == "observation")
+    }
+
+    let current = rules();
+    let contested = run(&current, true);
+    for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+        let frames = &contested.owner_replays[&side].frames;
+        assert!(!objective(&frames[0]).unwrap().fields.contains_key(&FieldId::from("capture_contested")), "there is no capture decision at tick zero");
+        assert_eq!(objective(&frames[1]).unwrap().fields.get(&FieldId::from("capture_contested")), Some(&DomainValue::Bool(true)));
+    }
+    assert_eq!(objective(&contested.replay.frames[1]).unwrap().fields.get(&FieldId::from("capture_contested")), Some(&DomainValue::Bool(true)));
+    let hidden = run(&current, false);
+    assert!(hidden.owner_replays[&CombatantSide::Attacker].frames.iter().all(|frame| objective(frame).is_none()), "an unseen facility does not reveal the fact");
+    assert!(!serde_json::to_string(&hidden.owner_replays[&CombatantSide::Attacker]).unwrap().contains("capture_contested"));
+    assert_eq!(objective(&hidden.owner_replays[&CombatantSide::Defender].frames[1]).unwrap().fields.get(&FieldId::from("capture_contested")), Some(&DomainValue::Bool(false)));
+
+    let mut legacy = senritsu::next_package();
+    legacy.world.entity_types.get_mut(&TypeId::from("observation")).unwrap().fields.remove(&FieldId::from("capture_contested"));
+    legacy.presentation.visible_entity_fields.get_mut(&TypeId::from("observation")).unwrap().remove(&FieldId::from("capture_contested"));
+    legacy.ruleset.digest = senritsu::canonical_digest(&legacy).unwrap();
+    let legacy = senritsu::validate(legacy, &senritsu::next_engine_compatibility()).unwrap();
+    let old = run(&legacy, true);
+    assert!(!objective(&old.owner_replays[&CombatantSide::Attacker].frames[1]).unwrap().fields.contains_key(&FieldId::from("capture_contested")));
+    assert_eq!(old.result.final_state_digest, contested.result.final_state_digest);
+    assert_eq!(old.result.cu_spent, contested.result.cu_spent);
+    assert_eq!(old.result.outcome, contested.result.outcome);
+}
+
+#[test]
+fn owner_hero_identity_notices_bind_actual_roster_without_cross_side_leaks() {
+    let rules = rules();
+    let program = compile(IDLE_TACTICS, &rules).unwrap().program;
+    let attacker = snapshot(&rules, CombatantSide::Attacker, program.clone());
+    let defender = snapshot(&rules, CombatantSide::Defender, program);
+    let mut context = new_match_context(&rules, MatchId::new("hero-diagnostic-identities"));
+    context.max_ticks = 1;
+    let result = simulate(&attacker, &defender, &rules, &context, &mut Vm::new(&rules)).unwrap();
+    for (side, snapshot) in [(CombatantSide::Attacker, &attacker), (CombatantSide::Defender, &defender)] {
+        let restricted = result.diagnostic_response(side).diagnostics.unwrap();
+        let identities: Vec<_> = restricted.events.iter().filter_map(|event| match &event.record {
+            DiagnosticRecord::RuntimeNotice { code, details } if code.as_str() == "enbu.next_hero_identity" => Some((event, details)),
+            _ => None,
+        }).collect();
+        assert_eq!(identities.len(), 5);
+        let DomainValue::List(roster) = &snapshot.configuration[&FieldId::from("heroes")] else { panic!("roster") };
+        let mut raw_ids = std::collections::BTreeSet::new();
+        let mut slots = std::collections::BTreeSet::new();
+        let view = result.owner_replays[&side].frames[0].visible_state.as_ref().unwrap();
+        for (event, details) in identities {
+            assert_eq!(event.tick, 0);
+            assert_eq!(event.side, side);
+            assert!(event.action_id.is_none());
+            let id = event.entity_id.as_ref().unwrap();
+            let slot = &details["slot_id"];
+            let catalog = &details["catalog_id"];
+            assert!(raw_ids.insert(id.clone()) && slots.insert(slot.clone()));
+            assert!(roster.iter().any(|hero| matches!(hero, DomainValue::Record(fields) if fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String(slot.clone())) && fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String(catalog.clone())))));
+            assert!(view.entities.values().any(|hero| hero.owner == Some(side) && hero.fields.get(&FieldId::from("slot_id")) == Some(&DomainValue::String(slot.clone())) && hero.fields.get(&FieldId::from("catalog_id")) == Some(&DomainValue::String(catalog.clone()))));
+            assert!(!serde_json::to_string(&result.public_response()).unwrap().contains(id.as_str()), "raw roster IDs stay out of the public response");
+        }
+        assert!(restricted.events.iter().all(|event| event.side == side));
+    }
+}

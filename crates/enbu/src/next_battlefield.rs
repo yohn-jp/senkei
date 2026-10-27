@@ -209,10 +209,11 @@ pub fn resolve(
     rules: &NextRules,
     _accepted: &[(CombatantSide, Intent)],
     tick: u32,
-) -> Vec<PresentationEvent> {
+) -> (Vec<PresentationEvent>, Option<(EntityId, bool)>) {
     let mut events = advance_bridge_work(world, snapshot, rules, tick);
-    events.extend(resolve_observation(world, snapshot, rules));
-    events
+    let (capture_events, contest) = resolve_observation(world, snapshot, rules);
+    events.extend(capture_events);
+    (events, contest)
 }
 
 fn advance_bridge_work(
@@ -325,9 +326,9 @@ fn resolve_observation(
     world: &mut WorldState,
     snapshot: &WorldState,
     rules: &NextRules,
-) -> Vec<PresentationEvent> {
+) -> (Vec<PresentationEvent>, Option<(EntityId, bool)>) {
     let Some((id, objective)) = snapshot.entities.iter()
-        .find(|(_, entity)| entity.entity_type.as_str() == OBSERVATION) else { return Vec::new() };
+        .find(|(_, entity)| entity.entity_type.as_str() == OBSERVATION) else { return (Vec::new(), None) };
     let mut present = BTreeSet::new();
     for entity in snapshot.entities.values() {
         if !support::alive(entity)
@@ -357,7 +358,8 @@ fn resolve_observation(
         _ => (old_progress_side, old_progress),
     };
 
-    let Some(current) = world.entities.get_mut(id) else { return Vec::new() };
+    let Some(current) = world.entities.get_mut(id) else { return (Vec::new(), None) };
+    let contest = Some((id.clone(), present.len() > 1));
     support::set_int(current, "capture_progress", progress);
     support::set_string(current, "capture_progress_side", progress_side.clone());
     if let Ok(side) = progress_side.parse::<SideName>() {
@@ -368,12 +370,12 @@ fn resolve_observation(
             support::set_string(current, "capture_progress_side", "");
         }
     }
-    if current.owner == old_owner { return Vec::new(); }
+    if current.owner == old_owner { return (Vec::new(), contest); }
 
     let mut payload = BTreeMap::new();
     let owner = current.owner.map(support::side_name).unwrap_or("neutral");
     payload.insert("owner".into(), DomainValue::String(owner.into()));
-    vec![support::event("next.observation_capture", Some(id.clone()), payload)]
+    (vec![support::event("next.observation_capture", Some(id.clone()), payload)], contest)
 }
 
 #[derive(Clone, Copy)]
@@ -489,7 +491,7 @@ mod tests {
         assert_eq!(support::string(&world.entities[&EntityId::from("bridge.TOP")], "bridge_state"), "normal");
         assert_eq!(support::int(&world.entities[&actor_id], "action_lock_until"), 3);
         let snapshot = world.clone();
-        let events = resolve(&mut world, &snapshot, &rules, &[], 2);
+        let (events, _) = resolve(&mut world, &snapshot, &rules, &[], 2);
         assert_eq!(support::string(&world.entities[&EntityId::from("bridge.TOP")], "bridge_state"), "expanded");
         assert_eq!(support::int(&world.entities[&actor_id], "action_lock_until"), 3);
         assert_eq!(events.len(), 1);
@@ -517,11 +519,34 @@ mod tests {
         assert_eq!(world.entities[&obs_id].owner, None);
         world.entities.remove(&b);
         let snapshot = world.clone();
-        let events = resolve(&mut world, &snapshot, &rules, &[], 2);
+        let (events, _) = resolve(&mut world, &snapshot, &rules, &[], 2);
         assert_eq!(world.entities[&obs_id].owner, Some(CombatantSide::Attacker));
         assert_eq!(support::string(&world.entities[&obs_id], "capture_owner"), "attacker");
         assert_eq!(support::int(&world.entities[&obs_id], "capture_progress"), 0);
         assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn contest_fact_uses_the_capture_snapshot_not_later_arrivals_or_deaths() {
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, &rules);
+        let objective = EntityId::from("observation.mid");
+        let node = support::string(&world.entities[&objective], "node");
+        world.entities.insert("a.hero".into(), hero(&rules, CombatantSide::Attacker, &node));
+        let before_arrival = world.clone();
+        world.entities.insert("b.hero".into(), hero(&rules, CombatantSide::Defender, &node));
+        let (_, fact) = resolve(&mut world, &before_arrival, &rules, &[], 1);
+        assert_eq!(fact, Some((objective.clone(), false)), "an arrival after the snapshot takes effect next tick");
+
+        let before_death = world.clone();
+        support::set_int(world.entities.get_mut(&EntityId::from("b.hero")).unwrap(), "hp", 0);
+        let (_, fact) = resolve(&mut world, &before_death, &rules, &[], 2);
+        assert_eq!(fact, Some((objective.clone(), true)), "death after the snapshot does not rewrite the resolved contest");
+        let after_death = world.clone();
+        let (_, fact) = resolve(&mut world, &after_death, &rules, &[], 3);
+        assert_eq!(fact, Some((objective.clone(), false)));
+        assert!(!world.entities[&objective].fields.contains_key(&"capture_contested".into()), "the presentation fact is not a WorldState mutation");
     }
 
     #[test]

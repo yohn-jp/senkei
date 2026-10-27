@@ -6,7 +6,25 @@ use serde::Serialize;
 
 pub use senkei_model::{NextBehaviorExecutionInputs, NextBehaviorProfile};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct NextBehaviorTrace { pub tick: u32, pub side: CombatantSide, pub actor: EntityId, pub selected: Option<Intent>, pub score: Option<i64>, pub arbitration_accepted: bool, pub transition_completed: bool }
+pub struct NextBehaviorCommittedEventRef {
+    /// Tick in the owner's replay. The side comes from the containing trace.
+    pub tick: u32,
+    /// Sequence of `next.behavior_order_committed` within that side and tick.
+    pub sequence: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct NextBehaviorTrace {
+    pub tick: u32,
+    pub side: CombatantSide,
+    pub actor: EntityId,
+    pub selected: Option<Intent>,
+    /// A policy score for generated candidates; explicit Jinrei actions have no score.
+    pub score: Option<i64>,
+    pub arbitration_accepted: bool,
+    pub transition_completed: bool,
+    /// Present only when the selected action actually produced an owner event.
+    pub committed_event: Option<NextBehaviorCommittedEventRef>,
+}
 #[derive(Clone)]
 pub struct NextBehaviorSimulationArtifact { artifact: SimulationArtifact, policy: VerifiedNextBehaviorPolicy, inputs: NextBehaviorExecutionInputs, digest: ContentDigest, traces: Vec<NextBehaviorTrace> }
 impl NextBehaviorSimulationArtifact {
@@ -80,9 +98,20 @@ impl Hook<'_> {
             let mut groups = BTreeMap::<String, Vec<EntityId>>::new();
             for (id, entity) in &view.entities { if entity.owner == Some(side) && entity.entity_type.as_str() == "hero" && world.entities.get(id).is_some_and(next_support::alive) { let squad = next_support::string(&world.entities[id], "squad"); let group = if squad.is_empty() { format!("solo:{id}") } else { format!("squad:{squad}") }; groups.entry(group).or_default().push(id.clone()); } }
             for (_, members) in groups {
+                // Keep explicit, validated orders in the same restricted trace
+                // as defaults, including orders later rejected by arbitration.
+                // Sort by stable action ID instead of program declaration order.
+                let mut explicit: Vec<_> = validated.iter().filter(|(s, intent)| {
+                    *s == side && intent.actor.as_ref().is_some_and(|id| members.contains(id))
+                        && matches!(intent.capability.as_str(), "move" | "pursue" | "retreat" | "select_target")
+                }).map(|(_, intent)| intent.clone()).collect();
+                explicit.sort_by(|a, b| a.action_id.cmp(&b.action_id));
+                for intent in &explicit {
+                    self.traces.push(NextBehaviorTrace { tick, side, actor: intent.actor.clone().unwrap(), selected: Some(intent.clone()), score: None, arbitration_accepted: false, transition_completed: false, committed_event: None });
+                }
                 // Explicit Jinrei goal orders take precedence for the entire current squad.
-                if validated.iter().any(|(s,i)| *s == side && i.actor.as_ref().is_some_and(|id| members.contains(id)) && matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
-                let explicit_targets: BTreeSet<_> = validated.iter().filter_map(|(s,i)| (*s == side && i.capability.as_str() == "select_target").then(|| i.actor.clone()).flatten()).filter(|id| members.contains(id)).collect();
+                if explicit.iter().any(|i| matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
+                let explicit_targets: BTreeSet<_> = explicit.iter().filter_map(|i| (i.capability.as_str() == "select_target").then(|| i.actor.clone()).flatten()).collect();
                 let mut choices = Vec::new();
                 let mut unknown_candidates = 0usize;
                 let squad = next_support::string(&world.entities[&members[0]], "squad");
@@ -134,7 +163,7 @@ impl Hook<'_> {
                 }
                 }
                 choices.sort_by(|a,b| b.0.cmp(&a.0).then_with(|| a.2.action_id.cmp(&b.2.action_id)));
-                let mut occupied = explicit_targets;
+                let mut occupied = explicit_targets.clone();
                 let mut selected_shared = false;
                 let mut selected = Vec::new();
                 for (score,kind,intent) in choices {
@@ -150,14 +179,14 @@ impl Hook<'_> {
                 if selected.is_empty() && unknown_candidates > 0 {
                     push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_unknown_observation".into(), details: BTreeMap::from([("actor".into(), members[0].to_string()), ("candidates".into(), unknown_candidates.to_string())]) })?;
                 }
-                if selected.is_empty() {
-                    self.traces.push(NextBehaviorTrace { tick, side, actor:members[0].clone(), selected:None, score:None, arbitration_accepted:false, transition_completed:false });
+                if selected.is_empty() && explicit_targets.is_empty() {
+                    self.traces.push(NextBehaviorTrace { tick, side, actor:members[0].clone(), selected:None, score:None, arbitration_accepted:false, transition_completed:false, committed_event:None });
                 }
                 for (value,intent) in selected {
                     if outputs.iter().flat_map(|(_,o)| &o.intents).any(|existing| existing.action_id == intent.action_id) || validated.iter().any(|(_,existing)| existing.action_id == intent.action_id) { return Err(api_error(ApiErrorCode::ValidationFailed, "duplicate Behavior action ID")); }
                     push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentProposed { intent:intent.clone() })?;
                     validated.push((side,intent.clone()));
-                    self.traces.push(NextBehaviorTrace { tick, side, actor:intent.actor.clone().unwrap(), selected:Some(intent), score:Some(value), arbitration_accepted:false, transition_completed:false });
+                    self.traces.push(NextBehaviorTrace { tick, side, actor:intent.actor.clone().unwrap(), selected:Some(intent), score:Some(value), arbitration_accepted:false, transition_completed:false, committed_event:None });
                 }
                 if validated.iter().filter(|(s,_)| *s == side).count() + self.accepted_preferences.iter().filter(|(s,_)| *s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit,"Behavior intent limit exceeded")); }
             }
@@ -165,6 +194,14 @@ impl Hook<'_> {
         Ok(())
     }
     pub fn record_arbitration(&mut self,tick:u32,accepted:&[(CombatantSide,Intent)]) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.arbitration_accepted = t.selected.as_ref().is_some_and(|i| accepted.iter().any(|(s,a)| *s == t.side && a == i)); } }
+    pub fn record_committed(&mut self, tick: u32, side: CombatantSide, action_id: &str, sequence: u32) {
+        for trace in self.traces.iter_mut().filter(|trace| {
+            trace.tick == tick && trace.side == side && trace.arbitration_accepted
+                && trace.selected.as_ref().is_some_and(|intent| intent.action_id.as_str() == action_id)
+        }) {
+            trace.committed_event = Some(NextBehaviorCommittedEventRef { tick, sequence });
+        }
+    }
     pub fn record_transition(&mut self,tick:u32) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.transition_completed = true; } }
 }
 /// Consume validated preference intents once. Different values for the same

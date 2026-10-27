@@ -2537,9 +2537,12 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     for trace in &traces {
         let action = trace.selected.as_ref().unwrap().action_id.as_str();
         let event = owner_events.iter().find(|e| e.event.as_str() == "next.behavior_order_committed" && e.payload.get(&"action_id".into()) == Some(&DomainValue::String(action.into()))).expect("committed order event");
+        let reference = trace.committed_event.as_ref().expect("committed action has an event reference");
+        assert_eq!(reference.tick, trace.tick);
+        assert_eq!(event.payload.get(&"sequence".into()), Some(&DomainValue::Integer(i64::from(reference.sequence))));
         assert!(event.entity.as_ref().is_some_and(|id| id.as_str().starts_with("visible-")));
         assert!(matches!(event.payload.get(&"members".into()), Some(DomainValue::List(members)) if !members.is_empty()));
-        assert!(standard.diagnostics.events.iter().any(|d| d.action_id.as_ref() == Some(&trace.selected.as_ref().unwrap().action_id) && d.entity_id.as_ref() == Some(&trace.actor) && matches!(&d.record, DiagnosticRecord::RuntimeNotice { code,.. } if code.as_str() == "enbu.behavior_order_committed")));
+        assert!(standard.diagnostics.events.iter().any(|d| d.action_id.as_ref() == Some(&trace.selected.as_ref().unwrap().action_id) && d.entity_id.as_ref() == Some(&trace.actor) && matches!(&d.record, DiagnosticRecord::RuntimeNotice { code,details } if code.as_str() == "enbu.behavior_order_committed" && details.get("owner_replay_tick") == Some(&reference.tick.to_string()) && details.get("owner_replay_sequence") == Some(&reference.sequence.to_string()))));
     }
     assert!(standard.replay.frames.iter().flat_map(|f| &f.events).all(|e| e.event.as_str() != "next.behavior_order_committed"));
     assert!(standard.owner_replays[&CombatantSide::Defender].frames.iter().flat_map(|f| &f.events).all(|e| e.event.as_str() != "next.behavior_order_committed" || !traces.iter().any(|t| e.payload.get(&"action_id".into()) == t.selected.as_ref().map(|i| &i.action_id).map(|id| DomainValue::String(id.to_string())).as_ref())));
@@ -2557,6 +2560,7 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     let mut vm = Vm::new(&rules);
     let waiting = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
     assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.is_none()));
+    assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.committed_event.is_none()));
     assert!(waiting.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events.iter().any(|event| matches!(&event.record, DiagnosticRecord::RuntimeNotice { code, .. } if code.as_str() == "enbu.behavior_unknown_observation")));
     assert_ne!(artifact.run_digest(),waiting.run_digest());
 }
@@ -2606,7 +2610,10 @@ fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
     explicit.program = compile(&movement_tactics(&[("slot-1".into(), rules.plan().next.as_ref().unwrap().map.defender_base.clone())]), &rules).unwrap().program;
     let mut vm = Vm::new(&rules);
     let result = enbu::simulate_next_behavior(&explicit,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
-    assert_eq!(result.traces_for_owner(CombatantSide::Attacker).len(),1, "explicit member order suppresses whole current squad's default");
+    let traces = result.traces_for_owner(CombatantSide::Attacker);
+    assert_eq!(traces.len(), 2, "one explicit order and one other squad default are traced");
+    assert_eq!(traces.iter().filter(|trace| trace.score.is_none() && trace.selected.is_some()).count(), 1);
+    assert_eq!(traces.iter().filter(|trace| trace.score.is_some()).count(), 1, "explicit member order suppresses the current squad's default");
 }
 
 #[test]
@@ -2779,11 +2786,17 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
     let actions = [format!("action move_order {{ when match.tick == 1, do move({actor}, \"{destination}\"), }}"), format!("action pursue_order {{ when match.tick == 1, do pursue({actor}, {target}), }}"), format!("action retreat_order {{ when match.tick == 1, do retreat({actor}), }}")];
     let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
     let mut results = Vec::new();
+    let mut recorded_traces = Vec::new();
     for ordered in [vec![0,1,2],vec![2,1,0]] {
         let source = format!("senkei conflict {{ {} }}", ordered.into_iter().map(|index| actions[index].clone()).collect::<Vec<_>>().join(", "));
         a.program = compile(&source,&rules).unwrap().program;
         let artifact = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
-        assert!(artifact.traces_for_owner(CombatantSide::Attacker).is_empty());
+        let traces = artifact.traces_for_owner(CombatantSide::Attacker);
+        assert_eq!(traces.len(), 3, "all valid explicit candidates are traced");
+        assert!(traces.iter().all(|trace| trace.score.is_none() && trace.transition_completed));
+        assert_eq!(traces.iter().filter(|trace| trace.arbitration_accepted).count(), 1);
+        assert!(traces.iter().all(|trace| trace.committed_event.is_some() == trace.arbitration_accepted));
+        recorded_traces.push(traces);
         let events = artifact.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events;
         let movement: Vec<_> = events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } | DiagnosticRecord::IntentRejected { intent,.. } if matches!(intent.capability.as_str(), "move" | "pursue" | "retreat"))).collect();
         assert_eq!(movement.iter().filter(|event| matches!(event.record, DiagnosticRecord::IntentAccepted { .. })).count(),1);
@@ -2791,6 +2804,7 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
         results.push(artifact.public_response());
     }
     assert_eq!(results[0],results[1]);
+    assert_eq!(recorded_traces[0], recorded_traces[1], "trace ordering is independent of declaration order");
 }
 
 fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc, targeting_profile: BehaviorTargetingProfile::TargetHealthWeight } }
@@ -2816,6 +2830,40 @@ fn next_behavior_resolves_goal_conflicts_after_same_tick_merge() {
     assert_eq!(events.len(),1);
     assert_eq!(events[0].payload[&FieldId::from("action_id")],DomainValue::String("retreat_two".into()));
     assert!(matches!(&events[0].payload[&FieldId::from("members")],DomainValue::List(members) if members.len()==5));
+}
+
+#[test]
+fn next_behavior_committed_references_exclude_post_merge_losers() {
+    let rules = rules();
+    let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1, policy_id: "merge-reference-test".into(), version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(), test_only: true,
+        composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
+        domains: BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] },
+        candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Move, capability: "move".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode] }],
+    };
+    let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
+    let (mut a, b, context) = build_match(&rules, &[2, 3], "merge-reference", 1, None, None);
+    let first = hero_selector("slot-1");
+    let second = hero_selector("slot-3");
+    a.program = compile(&format!("senkei merge {{ action combine {{ when true, do merge({first}, {second}), }}, }}"), &rules).unwrap().program;
+    let inputs = NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() };
+    let result = enbu::simulate_next_behavior(&a, &b, &rules, &context, &mut Vm::new(&rules), &policy, &inputs).unwrap();
+    let traces = result.traces_for_owner(CombatantSide::Attacker);
+    assert_eq!(traces.len(), 2, "each original squad proposed a shared movement");
+    assert_eq!(traces.iter().filter(|trace| trace.arbitration_accepted).count(), 1);
+    assert!(traces.iter().all(|trace| trace.transition_completed));
+    assert!(traces.iter().all(|trace| trace.committed_event.is_some() == trace.arbitration_accepted));
+    let (retained, _, _) = result.reproduction();
+    let replay = simulate(&retained.attacker, &retained.defender, &rules, &retained.context, &mut Vm::new(&rules)).unwrap();
+    let events = &replay.owner_replays[&CombatantSide::Attacker].frames[1].events;
+    let committed: Vec<_> = events.iter().filter(|event| event.event.as_str() == "next.behavior_order_committed").collect();
+    assert_eq!(committed.len(), 1);
+    let winner = traces.iter().find(|trace| trace.arbitration_accepted).unwrap();
+    let reference = winner.committed_event.as_ref().unwrap();
+    assert_eq!(committed[0].payload[&FieldId::from("sequence")], DomainValue::Integer(i64::from(reference.sequence)));
+    assert_eq!(committed[0].payload[&FieldId::from("action_id")], DomainValue::String(winner.selected.as_ref().unwrap().action_id.to_string()));
 }
 
 #[test]
@@ -2969,6 +3017,31 @@ fn trial_target_and_shared_move_conflict_atomically_and_hide_enemies() {
 }
 
 fn trial_target_rules() -> VerifiedRulePlan { let mut package=senritsu::next_local_trial_package(); senritsu::add_trial_behavior_preferences(&mut package); package.ruleset.digest=senritsu::canonical_digest(&package).unwrap(); senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap() }
+
+#[test]
+fn next_behavior_traces_explicit_target_without_claiming_wait() {
+    let rules = trial_target_rules();
+    let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1, policy_id: "explicit-target-trace".into(), version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(), test_only: true,
+        composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
+        domains: BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] },
+        candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Move, capability: "move".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode] }],
+    };
+    let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
+    let nodes = vec!["N.MID.OBS".to_owned(); 5];
+    let (mut a, b, context) = build_match(&rules, &[5], "explicit-target-trace", 1, Some(&nodes), Some(&nodes));
+    let actor = hero_selector("slot-1");
+    let target = "argmin hero in enemies.visible_heroes by hero.hp then hero.id";
+    a.program = compile(&format!("senkei targeting {{ action target {{ when true, do select_target({actor}, {target}), }}, }}"), &rules).unwrap().program;
+    let inputs = NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() };
+    let result = enbu::simulate_next_behavior(&a, &b, &rules, &context, &mut Vm::new(&rules), &policy, &inputs).unwrap();
+    let traces = result.traces_for_owner(CombatantSide::Attacker);
+    assert_eq!(traces.len(), 1);
+    assert!(traces[0].selected.as_ref().is_some_and(|intent| intent.capability.as_str() == "select_target"));
+    assert!(traces[0].score.is_none() && traces[0].arbitration_accepted && traces[0].committed_event.is_some());
+}
 
 #[test]
 fn next_behavior_rejects_invalid_explicit_goals_before_defaults() {

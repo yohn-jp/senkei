@@ -5,7 +5,7 @@
 
 mod behavior;
 mod next_behavior;
-pub use next_behavior::{simulate_next_behavior, NextBehaviorExecutionInputs, NextBehaviorProfile, NextBehaviorSimulationArtifact, NextBehaviorTrace};
+pub use next_behavior::{simulate_next_behavior, NextBehaviorCommittedEventRef, NextBehaviorExecutionInputs, NextBehaviorProfile, NextBehaviorSimulationArtifact, NextBehaviorTrace};
 pub mod projected_assets;
 pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
@@ -198,6 +198,23 @@ fn simulate_inner<P: TacticalExecutionPort>(
     ]);
     let mut diagnostics = Vec::new();
     let mut diagnostic_sequence = 0_u64;
+    if plan.next.is_some() {
+        for (entity_id, entity) in &world.entities {
+            let Some(side) = entity.owner else { continue };
+            if entity.entity_type.as_str() != "hero" { continue; }
+            let slot = next_support::string(entity, "slot_id");
+            let catalog = next_support::string(entity, "catalog_id");
+            if slot.is_empty() || catalog.is_empty() || *entity_id != next_squads::hero_entity_id(side, &slot) { continue; }
+            if diagnostics.len() as u64 >= context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+                return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
+            }
+            push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, 0, side, DiagnosticRecord::RuntimeNotice {
+                code: "enbu.next_hero_identity".into(),
+                details: BTreeMap::from([("slot_id".into(), slot), ("catalog_id".into(), catalog)]),
+            })?;
+            diagnostics.last_mut().unwrap().entity_id = Some(entity_id.clone());
+        }
+    }
     let mut replay_frames = Vec::new();
     let sides = [CombatantSide::Attacker, CombatantSide::Defender];
     let mut owner_frames: BTreeMap<CombatantSide, Vec<ReplayFrame>> =
@@ -445,6 +462,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
         }).unwrap_or_default();
         let mut next_events = Vec::new();
         let mut committed_orders = Vec::new();
+        let mut capture_contest = None;
+        let mut contest_observers = BTreeSet::new();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
             if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
@@ -452,7 +471,18 @@ fn simulate_inner<P: TacticalExecutionPort>(
             if next_behavior.is_some() {
                 for (side, event) in &orders {
                     let action_id = match event.payload.get(&"action_id".into()) { Some(DomainValue::String(id)) => id.clone(), _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks action ID")) };
-                    push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, *side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_order_committed".into(), details: BTreeMap::new() })?;
+                    let order_sequence = match event.payload.get(&"sequence".into()) {
+                        Some(DomainValue::Integer(value)) => u32::try_from(*value).map_err(|_| api_error(ApiErrorCode::InternalError, "committed order has invalid sequence"))?,
+                        _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks sequence")),
+                    };
+                    if let Some(hook) = next_behavior.as_deref_mut() { hook.record_committed(tick, *side, &action_id, order_sequence); }
+                    push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, *side, DiagnosticRecord::RuntimeNotice {
+                        code: "enbu.behavior_order_committed".into(),
+                        details: BTreeMap::from([
+                            ("owner_replay_tick".into(), tick.to_string()),
+                            ("owner_replay_sequence".into(), order_sequence.to_string()),
+                        ]),
+                    })?;
                     let notice = diagnostics.last_mut().unwrap();
                     notice.action_id = Some(action_id.into());
                     notice.entity_id = event.entity.clone();
@@ -469,7 +499,15 @@ fn simulate_inner<P: TacticalExecutionPort>(
             let adjudication_start = world.clone();
             next_navigation::advance(&mut world, next, tick);
             next_events = next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick);
-            next_events.extend(next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick));
+            let (battlefield_events, contest) = next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick);
+            next_events.extend(battlefield_events);
+            if let Some((id, _)) = &contest {
+                if let Some(objective) = action_start.entities.get(id) {
+                    let node = next_support::string(objective, "node");
+                    contest_observers.extend(sides.into_iter().filter(|side| next_vision::visible_node(&action_start, next, *side, &node)));
+                }
+            }
+            capture_contest = contest;
             next_events.splice(0..0, objective_events);
             next_squads::lifecycle(&mut world, next, tick);
             if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
@@ -488,16 +526,20 @@ fn simulate_inner<P: TacticalExecutionPort>(
             .iter()
             .filter_map(|event| world::public_event(event, plan, &world))
             .collect();
+        let mut replay_view = presentation_view(&world, plan);
         if plan.next.is_some() {
-            let after = presentation_view(&world, plan);
+            if sides.into_iter().all(|side| contest_observers.contains(&side)) {
+                add_contest_fact(&mut replay_view, plan, capture_contest.as_ref());
+            }
             for side in sides {
-                let owner_after = next_vision::team_view_with_fog(
+                let mut owner_after = next_vision::team_view_with_fog(
                     &world,
                     plan.next.as_ref().unwrap(),
                     side,
                     tick,
                     fog_histories.get_mut(&side).unwrap(),
                 );
+                if contest_observers.contains(&side) { add_contest_fact(&mut owner_after, plan, capture_contest.as_ref()); }
                 let owner_before = &before_owner[&side];
                 let frame = ReplayFrame {
                     tick,
@@ -509,13 +551,13 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 owner_frames.get_mut(&side).unwrap().push(frame);
             }
             public_events.extend(next_events.into_iter().filter_map(|event| {
-                project_next_public_event(event, &plan.presentation, &before_next, &after)
+                project_next_public_event(event, &plan.presentation, &before_next, &replay_view)
             }));
         }
         replay_frames.push(ReplayFrame {
             tick,
             events: public_events,
-            visible_state: Some(presentation_view(&world, plan)),
+            visible_state: Some(replay_view),
         });
 
         let termination = if transition_outcome.is_some() {
@@ -1571,6 +1613,18 @@ fn api_error(code: ApiErrorCode, message: impl Into<String>) -> ApiError { ApiEr
 
 fn presentation_view(world: &WorldState, plan: &RulePlan) -> senkei_model::WorldStateView {
     match &plan.next { Some(next) => next_vision::public_view_with_policy(world,next,&plan.presentation), None => world::public_view(world,plan) }
+}
+
+/// Project the resolved capture decision only into a frame where the objective
+/// is already visible. Older packages do not declare this field and retain
+/// their exact previous replay behavior. Fog history and WorldState never see
+/// the ephemeral fact.
+fn add_contest_fact(view: &mut senkei_model::WorldStateView, plan: &RulePlan, contest: Option<&(EntityId, bool)>) {
+    let Some((id, contested)) = contest else { return };
+    if !plan.presentation.visible_entity_fields.get(&"observation".into()).is_some_and(|fields| fields.contains(&"capture_contested".into())) { return; }
+    if let Some(objective) = view.entities.get_mut(id).filter(|entity| entity.entity_type.as_str() == "observation") {
+        objective.fields.insert("capture_contested".into(), DomainValue::Bool(*contested));
+    }
 }
 fn observation(world: &WorldState, plan: &RulePlan, side: CombatantSide, tick:u32, index: &world::ProjectionIndex) -> Result<ObservationSnapshot,ApiError> {
     if plan.next.is_some() { Ok(next_vision::observation(world,plan,side,tick)) } else { world::observation(world,plan,side,tick,index) }

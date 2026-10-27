@@ -76,8 +76,15 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     let trial_preferences = package.domain.capabilities.contains_key(&CapabilityId::new("behavior_preference"))
         && r.projection_policy.as_ref().is_some_and(|p| p.test_only);
     if trial_preferences { crate::production_preferences::add_trial_behavior_preferences(&mut supported); }
+    // The Replay-only contest field was added to this schema without changing
+    // simulation semantics. Accept the exact earlier World schema as well so
+    // retained, content-addressed RulePackages remain reproducible.
+    let mut previous_world = supported.world.clone();
+    if let Some(observation) = previous_world.entity_types.get_mut(&TypeId::new("observation")) {
+        observation.fields.remove(&FieldId::new("capture_contested"));
+    }
     check(
-        package.domain == supported.domain && package.world == supported.world,
+        package.domain == supported.domain && (package.world == supported.world || package.world == previous_world),
         "domain",
         "next finite primitives require their registered typed visibility and capability schema",
     );
