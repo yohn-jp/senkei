@@ -97,17 +97,32 @@ function scalar(value: DomainValue | undefined): string | null {
  * Associate only explicitly identified owner Heroes in the same-tick owner
  * frame. A missing or duplicate identity cannot be used to guess attribution.
  */
-function subjectIds(replay: PresentationReplay, tick: number, subjects: readonly CoverageSubject[]): Set<string> | null {
+function subjectIds(replay: PresentationReplay, tick: number, subjects: readonly CoverageSubject[], scope: "squad" | "hero"): Set<string> | null {
   const frames = replay.frames.filter(frame => frame.tick === tick);
   if (frames.length !== 1 || !frames[0].visible_state) return null;
   const entities = Object.entries(frames[0].visible_state.entities);
   const ids = new Set<string>();
+  const squads = new Set<string>();
   for (const subject of subjects) {
     const matches = entities.filter(([, entity]) => entity.owner === "attacker" && entity.entity_type === "hero"
-      && scalar(entity.fields.slot_id) === subject.slot_id && scalar(entity.fields.catalog_id) === subject.catalog_id
-      && scalar(entity.fields.squad) === subject.squad);
+      && scalar(entity.fields.slot_id) === subject.slot_id && scalar(entity.fields.catalog_id) === subject.catalog_id);
     if (matches.length !== 1) return null;
     ids.add(matches[0][0]);
+    const squad = scalar(matches[0][1].fields.squad);
+    if (squad === null) return null;
+    squads.add(squad);
+  }
+  if (ids.size !== subjects.length) return null;
+  if (scope === "squad") {
+    if (squads.size !== 1) return null;
+    const squad = [...squads][0];
+    // Empty means individual authority, not one shared group of all solo Heroes.
+    if (squad === "" && subjects.length !== 1) return null;
+    if (squad !== "") {
+      const liveMembers = entities.filter(([, entity]) => entity.owner === "attacker" && entity.entity_type === "hero"
+        && scalar(entity.fields.squad) === squad);
+      if (liveMembers.length !== ids.size || liveMembers.some(([id]) => !ids.has(id))) return null;
+    }
   }
   return ids;
 }
@@ -139,6 +154,16 @@ export function committedCoverageOrder(
 
 function orderMembers(order: PresentationEvent): readonly DomainValue[] {
   return order.payload.members?.kind === "list" ? order.payload.members.value : [];
+}
+
+function frozenSubjectsMatch(verified: Extract<VerifiedCoverageRun, { status: "available" }>, subjects: readonly CoverageSubject[]): boolean {
+  const roster = verified.run.snapshot.attacker.configuration?.heroes;
+  if (roster?.kind !== "list") return false;
+  return subjects.every(subject => {
+    const matches = roster.value.filter(entry => entry.kind === "record" && scalar(entry.value.slot_id) === subject.slot_id);
+    return matches.length === 1 && matches[0].kind === "record"
+      && scalar(matches[0].value.catalog_id) === subject.catalog_id && scalar(matches[0].value.squad) === subject.squad;
+  });
 }
 
 /** Bind raw diagnostic IDs only through the owner's immutable roster notices. */
@@ -173,8 +198,9 @@ export function scopedCoverageEvents(
     && !(event.record.kind === "runtime_notice" && event.record.value.code === "enbu.next_hero_identity"));
   if (scope === "army") return { status: "available", events, rawIdentityAvailable: true };
   if (!subjects.length) return { status: "unavailable", reason: "No Hero is selected for this scope." };
-  const ids = subjectIds(verified.ownerReplay, tick, subjects);
-  if (!ids) return { status: "unavailable", reason: "A unique owner Hero identity is unavailable at this Tick." };
+  if (!frozenSubjectsMatch(verified, subjects)) return { status: "unavailable", reason: "The selected Hero roster does not match the frozen Run." };
+  const ids = subjectIds(verified.ownerReplay, tick, subjects, scope);
+  if (!ids) return { status: "unavailable", reason: "A unique owner Hero or matching Squad is unavailable at this Tick." };
   const rawIds = rawSubjectIds(verified, subjects);
   return { status: "available", events: events.filter(event => {
     const { record } = event;

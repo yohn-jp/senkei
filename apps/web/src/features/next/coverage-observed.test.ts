@@ -17,7 +17,7 @@ const resultDigest = "5bd522f68e9cc8ff06a012155945442ec94eb42042661765ab0cf3255e
 const subject = { slot_id: "slot-1", catalog_id: "hero-a", squad: "front" };
 const field = (value: string) => ({ kind: "string" as const, value });
 const hero = { owner: "attacker" as const, entity_type: "hero", fields: {
-  slot_id: field(subject.slot_id), catalog_id: field(subject.catalog_id), squad: field(subject.squad),
+  slot_id: field(subject.slot_id), catalog_id: field(subject.catalog_id), squad: field("attacker:front"),
 } };
 const events: DiagnosticEvent[] = [
   { tick: 0, side: "attacker", sequence: 0, action_id: null, entity_id: "hero-entity",
@@ -108,6 +108,11 @@ describe("Coverage owner Run evidence", () => {
       visible_state: { ...frame.visible_state!, entities: { ...frame.visible_state!.entities, duplicate: hero } } }] } };
     expect(scopedCoverageEvents(duplicated, "hero", [subject], 3).status).toBe("unavailable");
     expect(scopedCoverageEvents(verified, "squad", [{ ...subject, squad: "other" }], 3).status).toBe("unavailable");
+    expect(scopedCoverageEvents(verified, "squad", [subject], 3).status).toBe("available");
+    const joined = { ...verified, ownerReplay: { ...verified.ownerReplay, frames: [{ ...frame,
+      visible_state: { ...frame.visible_state!, entities: { ...frame.visible_state!.entities, other: { ...hero,
+        fields: { ...hero.fields, slot_id: field("slot-2"), catalog_id: field("hero-b") } } } } }] } };
+    expect(scopedCoverageEvents(joined, "squad", [subject], 3).status).toBe("unavailable");
   });
 
   it("rejects wrong, ambiguous, or malformed committed-order references", async () => {
