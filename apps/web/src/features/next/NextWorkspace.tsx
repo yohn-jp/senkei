@@ -1,3 +1,10 @@
+import { TrialProfileEditor, parseTrialPreferences } from "./TrialProfileEditor";
+import type { NextBehaviorInputs } from "../../contracts/next-production";
+import { RoutePlanEditor } from "./RoutePlanEditor";
+import { parseRouteDraft } from "./route-plan";
+import type { NextRouteMatch } from "../../contracts/next-route-minion";
+import { localTrialMinionBehavior } from "../../contracts/next-route-minion";
+import { AutonomousDecisions } from "./AutonomousDecisions";
 import { PostMatchProgression } from "../progression/PostMatchProgression";
 import { previewOwnedEquipment } from "./owned-equipment-preview";
 import { heroSelectionsForDraft, parseOwnedHeroSelection, type OwnedHeroSelection } from "../heroes/draft";
@@ -7,7 +14,7 @@ import { OwnedAssetsPanel, readOwnedAssets, approvedEquipmentDefinitions, type O
 import { HeroRepository } from "../heroes/repository";
 import { buildMatchProjection } from "../progression/match-projection";
 import { localTrialBehavior } from "../../contracts/next-production";
-import { initialOwnedState } from "../progression/initial-preview";
+import { initialOwnedState, initialOwnedInspection } from "../progression/initial-preview";
 import { FrozenAssetsPreview } from "../progression/FrozenAssetsPreview";
 import { LocalAssets } from "../progression/LocalAssets";
 import { JourneyScreens } from "./JourneyScreens";
@@ -164,6 +171,9 @@ interface SavedNextSetup {
   readonly campaign_scenario_id?: string | null;
   readonly owned_equipment_draft?: OwnedEquipmentDraft;
   readonly owned_hero_selection?: OwnedHeroSelection;
+  readonly trial_behavior_inputs?: NextBehaviorInputs;
+  readonly route_draft?: NextRouteMatch;
+  readonly trial_options?: { readonly schemaVersion: 1; readonly maxTicks: number; readonly minionMidObservations: boolean };
 }
 
 
@@ -245,6 +255,9 @@ export function setupRestoreDifferences(current: SavedNextSetup | null, restored
     if (differences.length === previousCount) differences.push(`${label} slot content changes.`);
   }
   if (changed(current.draft, restored.draft)) differences.push("Jinrei / Draft content, identity or revision changes.");
+  if (changed(current.trial_behavior_inputs ?? null, restored.trial_behavior_inputs ?? null)) differences.push("Trial Behavior preferences change.");
+  if (changed(current.route_draft ?? null, restored.route_draft ?? null)) differences.push("Route policy and waypoints change.");
+  if (changed(current.trial_options ?? null, restored.trial_options ?? null)) differences.push("Local trial execution options change.");
   if (changed(current.owned_hero_selection ?? null, restored.owned_hero_selection ?? null)) differences.push("Owned Hero instance selections change.");
   if (changed(current.owned_equipment_draft ?? null, restored.owned_equipment_draft ?? null)) differences.push("Draft equipment assignments change.");
   if (current.rival_source !== restored.rival_source) differences.push("Opponent Jinrei changes.");
@@ -377,6 +390,12 @@ export function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
   const equipmentDraft = value.owned_equipment_draft === undefined ? undefined : parseOwnedEquipmentDraft(value.owned_equipment_draft);
   const heroSelection = value.owned_hero_selection === undefined ? undefined : parseOwnedHeroSelection(value.owned_hero_selection);
   if (equipmentDraft === null || heroSelection === null) return null;
+  const behaviorInputs = value.trial_behavior_inputs === undefined ? undefined : parseTrialPreferences(value.trial_behavior_inputs);
+  if (behaviorInputs === null) return null;
+  const routeDraft = value.route_draft === undefined ? undefined : parseRouteDraft(value.route_draft);
+  if (routeDraft === null) return null;
+  const trialOptions = value.trial_options;
+  if (trialOptions !== undefined && (!isRecord(trialOptions) || trialOptions.schemaVersion !== 1 || typeof trialOptions.maxTicks !== 'number' || !Number.isFinite(trialOptions.maxTicks) || typeof trialOptions.minionMidObservations !== 'boolean')) return null;
   const shape = value.formation_shape;
   if (!ruleset || !schemaVersion || !mechanicsVersion || !slots || !rivalSlots || !draft || typeof value.rival_source !== "string" ||
       (value.campaign_scenario_id !== undefined && value.campaign_scenario_id !== null && typeof value.campaign_scenario_id !== "string")) return null;
@@ -394,6 +413,9 @@ export function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
     rival_source: value.rival_source,
     ...(equipmentDraft ? { owned_equipment_draft: equipmentDraft } : {}),
     ...(heroSelection ? { owned_hero_selection: heroSelection } : {}),
+    ...(behaviorInputs ? {trial_behavior_inputs:behaviorInputs} : {}),
+    ...(routeDraft ? {route_draft:routeDraft} : {}),
+    ...(trialOptions ? { trial_options: trialOptions as SavedNextSetup["trial_options"] } : {}),
     ...(typeof value.campaign_scenario_id === "string" ? { campaign_scenario_id: value.campaign_scenario_id } : {}),
   };
 }
@@ -762,6 +784,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [ownedAssets, setOwnedAssets] = useState<OwnedAssetsState | null>(null);
   const [heroSelection, setHeroSelection] = useState<OwnedHeroSelection | null>(null);
   const [equipmentDraft, setEquipmentDraft] = useState<OwnedEquipmentDraft | null>(null);
+  const [behaviorInputs, setBehaviorInputs] = useState<NextBehaviorInputs | null>(null);
+  const [routeDraft, setRouteDraft] = useState<NextRouteMatch | null>(null);
+  const [trialMinionObservations, setTrialMinionObservations] = useState(false);
   const [trialTickLimit, setTrialTickLimit] = useState(20);
   const isTrial = packageValue?.next?.projection_policy?.test_only === true;
   const setupStorageKey = isTrial ? TRIAL_STORAGE_KEY : NEXT_STORAGE_KEY;
@@ -810,6 +835,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [entryMode, setEntryMode] = useState<"quick" | "custom" | "campaign">("quick");
   const [checking, setChecking] = useState(false);
   const [prepared, setPrepared] = useState<{
+    initialEvidence?: import("./coverage-observed").CoverageRun;
     key: string; snapshot: SimulationSnapshot; reproductionAssets: ReproductionAssets; snapshotDigest: string; initialState?: import("../../contracts").WorldStateView;
   } | null>(null);
   const [preflightFailure, setPreflightFailure] = useState<{ key: string; problem: ClassifiedPreflightProblem; exactSource: string | null } | null>(null);
@@ -839,7 +865,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [editorCatalogError, setEditorCatalogError] = useState<string | null>(null);
   const [, setEditorCatalogLoading] = useState(false);
   const editorCompileRevision = useRef(0);
-  const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome } | null>(null);
+  const [compilation, setCompilation] = useState<{ readonly key: string; readonly result: import("../../contracts").CompileOutcome; readonly stamp?: import("@senkei/jinrei-editor").CatalogStamp } | null>(null);
   const [run, setRun] = useState<BattleRun | null>(null);
   const runRef = useRef(run);
   runRef.current = run;
@@ -1207,6 +1233,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         setDraft(recovered.draft);
         setEquipmentDraft(recovered.owned_equipment_draft ?? null);
         setHeroSelection(recovered.owned_hero_selection ?? null);
+        setRouteDraft(recovered.route_draft ?? null);
+        setBehaviorInputs(recovered.trial_behavior_inputs ?? null);
+        setTrialTickLimit(recovered.trial_options?.maxTicks ?? 20); setTrialMinionObservations(recovered.trial_options?.minionMidObservations ?? false);
         setCompilation(null);
         setRun(null);
         setBaselineRun(null);
@@ -1229,6 +1258,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       setDraft(initialDraft);
       setEquipmentDraft(null);
       setHeroSelection(null);
+      setRouteDraft(null);
+      setBehaviorInputs(null);
+      setTrialTickLimit(20); setTrialMinionObservations(false);
       setCompilation(null);
       setRun(null);
       setBaselineRun(null);
@@ -1276,13 +1308,13 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
-  const runIsCurrent = Boolean(run && draft && (!isTrial || (run.ownedAssetKey === stableKey({ownedAssets,equipmentDraft,heroSelection}) && run.snapshot.context.max_ticks === trialTickLimit && run.snapshot.attacker.ruleset.digest === packageValue?.ruleset.digest)) &&
-    stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
+  const runIsCurrent = Boolean(run && draft && (!isTrial || (run.ownedAssetKey === stableKey({ownedAssets,equipmentDraft,heroSelection,trialMinionObservations,behaviorInputs}) && run.snapshot.context.max_ticks === trialTickLimit && run.snapshot.attacker.ruleset.digest === packageValue?.ruleset.digest)) &&
+    stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics, routeDraft }) === stableKey({
       draft: run.setup.draft, slots: run.setup.slots, rivalSlots: run.setup.rival_slots,
-      formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics,
+      formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics, routeDraft:run.setup.route_draft ?? null,
     }) && (entryMode === "campaign" ? selectedScenarioId : null) === (run.setup.campaign_scenario_id ?? null));
   const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot,
-    entryMode, heroSelection: isTrial && !exactRun ? heroSelection : null, equipmentDraft: isTrial && !exactRun ? equipmentDraft : null, ownedAssets: isTrial && !exactRun ? ownedAssets : null, trialTickLimit: isTrial && !exactRun ? trialTickLimit : null, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
+    entryMode, behaviorInputs: isTrial && !exactRun ? behaviorInputs : null, routeDraft: !exactRun ? routeDraft : null, trialMinionObservations: isTrial && !exactRun ? trialMinionObservations : null, heroSelection: isTrial && !exactRun ? heroSelection : null, equipmentDraft: isTrial && !exactRun ? equipmentDraft : null, ownedAssets: isTrial && !exactRun ? ownedAssets : null, trialTickLimit: isTrial && !exactRun ? trialTickLimit : null, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
   const launchKeyRef = useRef(launchKey);
   launchKeyRef.current = launchKey;
   const readySnapshot = prepared?.key === launchKey && (exactRun || activeCompilation) ? prepared.snapshot : null;
@@ -1447,12 +1479,15 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       slots,
       rival_slots: rivalSlots,
       draft: currentDraft,
+      ...(isTrial && behaviorInputs ? {trial_behavior_inputs:behaviorInputs} : {}),
+      ...(routeDraft ? {route_draft:routeDraft} : {}),
       ...(isTrial && equipmentDraft ? { owned_equipment_draft: equipmentDraft } : {}),
       ...(isTrial && heroSelection ? { owned_hero_selection: heroSelection } : {}),
+      ...(isTrial ? {trial_options:{schemaVersion:1 as const,maxTicks:trialTickLimit,minionMidObservations:trialMinionObservations}} : {}),
       rival_source: createStarterJinrei(packageValue, "defender", rivalSlots),
       ...(entryMode === "campaign" && selectedScenario ? { campaign_scenario_id: selectedScenario.id } : {}),
     };
-  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots, initializedSetupIdentity, setupIdentity, equipmentDraft, heroSelection, isTrial]);
+  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots, initializedSetupIdentity, setupIdentity, equipmentDraft, heroSelection, isTrial, trialTickLimit, trialMinionObservations, routeDraft, behaviorInputs]);
 
   const currentSetup = buildSavedSetup();
   const restoreDifferences = {
@@ -1507,6 +1542,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     setDraft(savedSetup.draft);
     setEquipmentDraft(savedSetup.owned_equipment_draft ?? null);
     setHeroSelection(savedSetup.owned_hero_selection ?? null);
+    setRouteDraft(savedSetup.route_draft ?? null);
+    setBehaviorInputs(savedSetup.trial_behavior_inputs ?? null);
+    setTrialTickLimit(savedSetup.trial_options?.maxTicks ?? 20); setTrialMinionObservations(savedSetup.trial_options?.minionMidObservations ?? false);
     setSlots([...savedSetup.slots]);
     setRivalSlots([...savedSetup.rival_slots]);
     setFormationShape(savedSetup.formation_shape);
@@ -1597,6 +1635,9 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     setDraft(recoverySetup.draft);
     setEquipmentDraft(recoverySetup.owned_equipment_draft ?? null);
     setHeroSelection(recoverySetup.owned_hero_selection ?? null);
+    setRouteDraft(recoverySetup.route_draft ?? null);
+    setBehaviorInputs(recoverySetup.trial_behavior_inputs ?? null);
+    setTrialTickLimit(recoverySetup.trial_options?.maxTicks ?? 20); setTrialMinionObservations(recoverySetup.trial_options?.minionMidObservations ?? false);
     setSlots([...recoverySetup.slots]);
     setRivalSlots([...recoverySetup.rival_slots]);
     setFormationShape(recoverySetup.formation_shape);
@@ -1823,6 +1864,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     }
     const key = stableKey({ draft: current, slots, catalog: catalogStamp(editorCatalog) });
     let result: CompileOutcome;
+    let verifiedStamp: import("@senkei/jinrei-editor").CatalogStamp | undefined;
     if (input.kind === "text") {
       if (editorCompileRevision.current >= Number.MAX_SAFE_INTEGER) {
         throw new Error("The editor compile revision space is exhausted. Reload the workspace before compiling again.");
@@ -1840,21 +1882,23 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         });
       }
       result = envelope.reply.result;
+      verifiedStamp = envelope.reply.stamp;
     } else {
       result = await core.compile(input);
     }
     if (!draftRef.current || stableKey(draftRef.current) !== stableKey(current)) {
       throw new Error("Jinrei changed while the local compiler was running. Compile the current version again.");
     }
-    setCompilation({ key, result });
+    setCompilation({ key, result, ...(verifiedStamp ? {stamp:verifiedStamp} : {}) });
     setError(null);
     return result;
   }, [core, editorCatalog, editorCatalogError, packageValue, slots]);
 
-  const onCatalogCompile = useCallback((result: CompileOutcome, key: string): void => {
+  const onCatalogCompile = useCallback((result: CompileOutcome, key: string, stamp?: import("@senkei/jinrei-editor").CatalogStamp): void => {
     if (draftRef.current && editorCatalogMatchesRuleset(editorCatalog, packageValue)
       && stableKey({ draft: draftRef.current, slots, catalog: catalogStamp(editorCatalog) }) === key) {
-      setCompilation({ key, result });
+      if (stamp && !sameCatalog(stamp,catalogStamp(editorCatalog))) return;
+      setCompilation(previous => ({key,result,...(stamp ? {stamp} : {}),...(previous?.key === key && previous.result.program.content_digest === result.program.content_digest && previous.stamp ? {stamp:previous.stamp} : {})}));
       setError(null);
     }
   }, [editorCatalog, packageValue, slots]);
@@ -1942,9 +1986,12 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         defender:{playerId:npcPlayer,heroSnapshot:npcSnapshot,equipment:[],relations:[],slots:opponentSlots.map(slot => ({slotId:slot.slot_id,heroInstanceId:npcHeroes.find(hero => hero.definition.id === slot.catalog_id)?.instanceId ?? ''}))}});
       for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new PreflightProblem('Owned Hero does not match the current formation definition. Reselect the owned Hero for this slot.', 'invalid');
       if (stableKey(await readOwnedAssets(owned.playerId, approved)) !== stableKey(owned)) throw new Error('Assets changed during projection; validate again.');
-      const behavior = localTrialBehavior(packageValue.ruleset.digest, nextRules.heroes.map(hero => hero.id));
-      context = {...context,match_id:stableMatchId({ruleset:packageValue.ruleset,attacker,defender,projection,behavior,trialTickLimit}),max_ticks:trialTickLimit,match_projection:projection,next_behavior:behavior};
+      const baseBehavior = localTrialBehavior(packageValue.ruleset.digest, nextRules.heroes.map(hero => hero.id));
+      const behavior = {...baseBehavior,inputs:behaviorInputs ?? baseBehavior.inputs};
+      const minionBehavior = trialMinionObservations ? localTrialMinionBehavior(packageValue.ruleset.digest) : null;
+      context = {...context,match_id:stableMatchId({ruleset:packageValue.ruleset,attacker,defender,projection,behavior,minionBehavior,trialTickLimit}),max_ticks:trialTickLimit,match_projection:projection,next_behavior:behavior,...(minionBehavior ? {next_minion_behavior:minionBehavior} : {})};
     }
+    if (routeDraft) context = {...context,next_route:structuredClone(routeDraft),match_id:stableMatchId({match_id:context.match_id,routeDraft})};
     const snapshot = { attacker, defender, context };
     preflightStage.current = "snapshot_preflight";
     const reproductionAssets = await core.reproductionAssets(isTrial);
@@ -1954,13 +2001,15 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     }
     const snapshotDigest = await reproductionSnapshotDigest(snapshot);
     await core.preflightReproduction(snapshot, reproductionAssets, snapshotDigest);
-    const initialState = isTrial ? await initialOwnedState(core, snapshot, reproductionAssets) : undefined;
+    const inspection = isTrial ? await initialOwnedInspection(core, snapshot, reproductionAssets) : undefined;
+    const initialState = inspection?.state;
+    const initialEvidence = inspection ? {snapshot:inspection.snapshot,response:inspection.response,sourceReplay:inspection.replay,reproductionAssets,includeDiagnostics:true} : undefined;
     if (launchKeyRef.current !== key) {
       const message = "設定が変更されました。現在の設定を再検証してください。";
       preflightStage.current = "stale_inputs";
       throw new PreflightProblem(message, "unverified", new PreflightLocalFailure(message, "unverified"));
     }
-    setPrepared({ key, snapshot, reproductionAssets, snapshotDigest, initialState });
+    setPrepared({ key, snapshot, reproductionAssets, snapshotDigest, initialState,initialEvidence });
     return snapshot;
   };
 
@@ -2041,7 +2090,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         }) : previous);
       }
       setBaselineRun(run);
-      setRun({ ownedAssetKey: exactRun?.ownedAssetKey ?? (isTrial && !exactRun ? stableKey({ownedAssets,equipmentDraft,heroSelection}) : undefined), campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
+      setRun({ ownedAssetKey: exactRun?.ownedAssetKey ?? (isTrial && !exactRun ? stableKey({ownedAssets,equipmentDraft,heroSelection,trialMinionObservations,behaviorInputs}) : undefined), campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
         reproductionAssets, snapshotDigest, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
@@ -2582,6 +2631,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
               {!isTrial ? <button type="button" onClick={() => void enableTrial()}>Enable test-only owned runtime</button> : <>
                 <p role="status">Test-only six-domain runtime enabled</p>
                 <button type="button" onClick={() => { try { localStorage.removeItem('senkei.local-trial-enabled.v1'); setTrialPackage(null); setTrialPending(false); setOwnedAssets(null); } catch (cause) { setError(String(cause)); } }}>Return to ordinary local draft</button>
+                <label><input type="checkbox" checked={trialMinionObservations} onChange={event => { setTrialMinionObservations(event.target.checked); if (event.target.checked) setIncludeDiagnostics(true); setPrepared(null); setExactRun(null); }} /> Collect local trial MID Minion observations</label><p>Optional owner diagnostics for the existing automatic march; this does not issue Minion orders. Long runs can exceed the diagnostic budget.</p>
                 <label>Trial tick limit <input type="number" min={1} max={packageValue.termination.max_ticks} value={trialTickLimit} onChange={event => setTrialTickLimit(Number(event.target.value))}/></label>
                 <OwnedAssetsPanel onSquadDraftChange={change => {
                   const index = slots.findIndex(slot => slot.slot_id === change.slotId);
@@ -2629,10 +2679,12 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
+            {isTrial && <TrialProfileEditor inputs={behaviorInputs} onApply={next => {setBehaviorInputs(structuredClone(next));setPrepared(null);setExactRun(null);}} slots={slots} ownerRun={runIsCurrent ? run : prepared?.key === launchKey ? prepared.initialEvidence : null} ownerRunCurrent={runIsCurrent || Boolean(prepared?.key === launchKey && prepared.initialEvidence)} catalog={editorCatalogMatchesRuleset(editorCatalog,packageValue) ? editorCatalog : null} programDigest={activeCompilation?.program.content_digest} />}
+            <RoutePlanEditor rulePackage={packageValue} run={run} runCurrent={Boolean(run && draft && activeCompilation && sameRulesetRef(run.snapshot.attacker.ruleset,packageValue.ruleset) && canonicalKey(makeSideSnapshot(draft,activeCompilation.program,slots)) === canonicalKey(run.snapshot.attacker))} routeDraft={routeDraft} onApply={next => {setRouteDraft(next ? structuredClone(next) : null);setPrepared(null);setExactRun(null);}} />
             <JinreiWorkbench coverageRulePackage={packageValue} coverageRun={run} coverageRunCurrent={runIsCurrent} coverageTick={displayState?.tick ?? null} onCoverageReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
               catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
               catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
-              compilation={activeCompilation} slots={slots} activeSlot={activeSlot}
+              compilation={activeCompilation} compilationStamp={activeCompilation && compilation?.stamp ? compilation.stamp : null} slots={slots} activeSlot={activeSlot}
               screen={jinreiScreen} onScreenChange={setJinreiScreen} onActiveSlotChange={setActiveSlot}
               onDraftChange={updateDraft} onSourceChange={updateFoundationSource}
               onCompile={async input => {
@@ -2762,6 +2814,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
+            <AutonomousDecisions core={core} run={run} onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} />
             <BattleAnalysis context={analysisContext} traceSourceStatus={traceSourceStatus} onTraceSource={inspectTraceSource} run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy || checking}
               onReplayEvent={inspectReplayEvent}
               onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }}

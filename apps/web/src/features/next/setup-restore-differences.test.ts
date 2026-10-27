@@ -59,4 +59,10 @@ describe("persisted setup restore differences", () => {
       owned_equipment_draft: { schemaVersion: 1, playerId: 'player', assignments: { item: 'hero' } },
     })).toEqual(['Owned Hero instance selections change.', 'Draft equipment assignments change.']);
   });
+
+  it('reviews saved trial limits and optional lane observations separately from the Program', () => {
+    expect(setupRestoreDifferences(setup, { ...setup,
+      trial_options: {schemaVersion:1,maxTicks:3,minionMidObservations:true},
+    })).toEqual(['Local trial execution options change.']);
+  });
 });

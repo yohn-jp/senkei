@@ -27,7 +27,7 @@ interface JinreiDomainPanelProps {
   readonly draftKey: string;
   readonly slot: { readonly slotId: string; readonly squadId: string; readonly heroCatalogId: string } | null;
   readonly onSourceChange: (source: string) => void;
-  readonly onCompiled: (result: CompileOutcome, draftKey: string) => void;
+  readonly onCompiled: (result: CompileOutcome, draftKey: string, stamp?: import("@senkei/jinrei-editor").CatalogStamp) => void;
   readonly decisionScope?: DecisionScope;
   readonly onDecisionScopeChange?: (scope: DecisionScope) => void;
 }
@@ -123,7 +123,7 @@ export function JinreiDomainPanel({
         if (envelope.reply.status === "compiled"
         && sourceRef.current === request.source
           && draftKeyRef.current === requestDraftKey) {
-          onCompiledRef.current(envelope.reply.result, requestDraftKey);
+          onCompiledRef.current(envelope.reply.result, requestDraftKey, envelope.reply.stamp);
         }
         return envelope.reply as CompilerReply;
       }

@@ -10,6 +10,12 @@ export interface NextMinionBehaviorMatch {
     readonly lanes: Partial<Record<CombatantSide, Partial<Record<'top' | 'mid' | 'bot', 'lane_waypoint'>>>> };
 }
 
+/** Explicit opt-in inspection of the existing MID march; this issues no orders. */
+export function localTrialMinionBehavior(rulesetDigest: string): NextMinionBehaviorMatch {
+  return { policy: {schema_version:1,policy_id:'senkei.local-trial.mid-minion-observation',version:{major:1,minor:0,patch:0},ruleset_digest:rulesetDigest,test_only:true,candidate:'lane_waypoint'},
+    inputs: {schema_version:1,army:{},lanes:{attacker:{mid:'lane_waypoint'}}} };
+}
+
 /** Additional preferences require separately authored risk and Unknown-handling policy. */
 export interface NextRouteMatch {
   readonly policy: { readonly schema_version: 1; readonly policy_id: string; readonly version: CoreVersion;

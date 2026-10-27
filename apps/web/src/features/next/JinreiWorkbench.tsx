@@ -1,3 +1,4 @@
+import { DecisionCoverage } from "./DecisionCoverage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { behaviorCoveragePresentation, completeCatalog } from "@senkei/jinrei-editor";
@@ -45,6 +46,7 @@ export interface JinreiWorkbenchProps {
   readonly draft: SenkeiDraft | null;
   readonly draftKey: string | null;
   readonly compilation: CompileOutcome | null;
+  readonly compilationStamp?: import("@senkei/jinrei-editor").CatalogStamp | null;
   readonly coverageRun?: CoverageRun | null;
   readonly coverageRulePackage?: RulePackage | null;
   readonly coverageMetadataExtension?: CoreJsonValue | null;
@@ -58,7 +60,7 @@ export interface JinreiWorkbenchProps {
   onDraftChange(draft: SenkeiDraft | null): void;
   onSourceChange(source: string): void;
   onCompile(input: TacticalInput): Promise<CompileOutcome>;
-  onCompiled(result: CompileOutcome, draftKey: string): void;
+  onCompiled(result: CompileOutcome, draftKey: string, stamp?: import("@senkei/jinrei-editor").CatalogStamp): void;
   onReady(): void;
   onFormation(): void;
   onScreenChange(screen: JinreiWorkbenchScreen): void;
@@ -92,6 +94,7 @@ export function JinreiWorkbench({
   draft,
   draftKey,
   compilation,
+  compilationStamp,
   coverageRun,
   coverageRulePackage,
   coverageMetadataExtension,
@@ -344,6 +347,12 @@ export function JinreiWorkbench({
       setWorkbenchView("no-code");
       return;
     }
+    // Inspecting a compiled or completed Run must not rewrite its Draft and
+    // invalidate the very Program/diagnostics the player came to inspect.
+    if (compilation || coverageRun) {
+      setWorkbenchView("text");
+      return;
+    }
     void selectEditorMode("no-code");
   }, [active, ruleset, core, draft]);
 
@@ -493,8 +502,8 @@ export function JinreiWorkbench({
             core={core}
             decisionScope={coverageScope} onDecisionScopeChange={setCoverageScope}
             draftKey={draftKey ?? "unkeyed-draft"}
-            onCompiled={(result, key) => {
-              onCompiled(result, key);
+            onCompiled={(result, key, stamp) => {
+              onCompiled(result, key, stamp);
               if (key === draftKey) setLastCompiledDraftKey(key);
             }}
             onSourceChange={onSourceChange}
@@ -546,6 +555,7 @@ export function JinreiWorkbench({
                   {trialPageCount > 1 && <nav aria-label="Trial Behavior pages"><button type="button" disabled={currentTrialPage === 0} onClick={() => setObservedPage(currentTrialPage - 1)}>Previous decisions</button><span> Page {currentTrialPage + 1} / {trialPageCount} </span><button type="button" disabled={currentTrialPage + 1 >= trialPageCount} onClick={() => setObservedPage(currentTrialPage + 1)}>Next decisions</button></nav>}
                 </>}
           </section>}
+          <DecisionCoverage ast={compilation?.ast ?? null} program={compilation?.program ?? null} compilationStamp={compilationStamp ?? null} catalog={catalog} rulePackage={coverageRulePackage ?? null} actor={coverageActor} profile={baseline?.composition ?? null} />
           <div className="next-coverage-legend" aria-label="Coverage states"><span><b>Default</b> Catalog-authored baseline</span><span><b>Explicit</b> authored Behavior Profile override, if producer supplies one</span><span><b>Effective</b> resolved inheritance result</span><span><b>Unknown</b> value unavailable in an authorized observation</span><span><b>Not Proven</b> static coverage proof unavailable</span><span><b>Not Checked</b> no field-level sample supplied</span></div>
           {surface === "observed" && <section className="next-coverage-provenance" aria-label="Observed Run diagnostics">
             <strong>Original Run · owner diagnostics</strong>

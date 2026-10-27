@@ -1,7 +1,9 @@
-import { compareUnicodeScalars, reproductionSnapshotDigest } from "../../worker/input-identity";
+import { matchResultDigestJson } from "../../worker/result-identity";
+export { matchResultDigestJson } from "../../worker/result-identity";
+import { reproductionSnapshotDigest } from "../../worker/input-identity";
 import { sameJsonResponse } from "../../worker/json-response-equality";
 export { reproductionSnapshotDigest } from "../../worker/input-identity";
-import type { DomainValue, MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
+import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
 import { simulationAuthorizationError } from "../../worker/simulation-authorization";
 
 /** Stored/imported responses must obey the same permissions as live Worker replies. */
@@ -14,37 +16,6 @@ export function validateNextExperimentAuthorization(response: SimulationResponse
     diagnostics: response.restricted_diagnostics ?? null,
   }, includeDiagnostics ? "attacker" : null);
   if (error !== null) throw new Error(error);
-}
-
-function jsonFields(fields: readonly (readonly [string, string])[]): string {
-  return `{${fields.map(([key, value]) => `${JSON.stringify(key)}:${value}`).join(',')}}`;
-}
-
-function domainMapJson(values: Readonly<Record<string, DomainValue>>): string {
-  return jsonFields(Object.keys(values).sort(compareUnicodeScalars).map(key => [key, domainValueJson(values[key])]));
-}
-
-function domainValueJson(value: DomainValue): string {
-  const kind = JSON.stringify(value.kind);
-  const tagged = (encoded: string) => jsonFields([['kind', kind], ['value', encoded]]);
-  switch (value.kind) {
-    case "null": return jsonFields([['kind', kind]]);
-    case "fixed": return tagged(jsonFields([['coefficient', JSON.stringify(value.value.coefficient)], ['scale', JSON.stringify(value.value.scale)]]));
-    case "list": return tagged(`[${value.value.map(domainValueJson).join(',')}]`);
-    case "record": return tagged(domainMapJson(value.value));
-    default: return tagged(JSON.stringify(value.value));
-  }
-}
-
-/** Rust struct order plus BTreeMap scalar ordering, without JS numeric-key reordering. */
-export function matchResultDigestJson(result: MatchResult): string {
-  return jsonFields([
-    ['match_id', JSON.stringify(result.match_id)], ['outcome', JSON.stringify(result.outcome)],
-    ['termination_reason', JSON.stringify(result.termination_reason)], ['final_tick', JSON.stringify(result.final_tick)],
-    ['statistics', domainMapJson(result.statistics)],
-    ['cu_spent', jsonFields([['attacker', JSON.stringify(result.cu_spent.attacker)], ['defender', JSON.stringify(result.cu_spent.defender)]])],
-    ['final_state_digest', JSON.stringify(result.final_state_digest)],
-  ]);
 }
 
 /** Binds imported owner diagnostics to the exact Run, public result and authorized Program. */

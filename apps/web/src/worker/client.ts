@@ -102,6 +102,10 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("editor_compile", request) as Promise<EditorCompilerEnvelope>;
   }
 
+  inspectActorDecisions(request: import("../contracts/actor-decisions").ActorDecisionRequest): Promise<import("../contracts/actor-decisions").ActorDecisionResponse> {
+    return this.request("simulate_actor_decisions", request) as Promise<import("../contracts/actor-decisions").ActorDecisionResponse>;
+  }
+
   editorResolveBehavior(request: import("../contracts/behavior-resolution").BehaviorResolveRequest): Promise<import("../contracts/behavior-resolution").BehaviorResolveReply> {
     return (this.request("editor_resolve_behavior", request) as Promise<import("../contracts/behavior-resolution").BehaviorResolveReply>).then(reply => {
       if (!reply || reply.revision !== request.revision || !reply.stamp || !sameCatalog(reply.stamp, request.stamp)

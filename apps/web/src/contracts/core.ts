@@ -186,6 +186,7 @@ export interface WorkerFailure {
 }
 
 export interface CoreClient {
+  inspectActorDecisions?(request: import("./actor-decisions").ActorDecisionRequest): Promise<import("./actor-decisions").ActorDecisionResponse>;
   /** Pure Catalog-bound composition; provided evaluation is caller evidence. */
   editorResolveBehavior?(request: import("./behavior-resolution").BehaviorResolveRequest): Promise<import("./behavior-resolution").BehaviorResolveReply>;
   initialRuleset(): Promise<RulePackage>;

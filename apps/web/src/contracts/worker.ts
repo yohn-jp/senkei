@@ -24,6 +24,7 @@ interface WorkerRequestBase {
 }
 
 export type WebWorkerRequest =
+  | (WorkerRequestBase & { readonly operation: "simulate_actor_decisions"; readonly payload: import("./actor-decisions").ActorDecisionRequest })
   | (WorkerRequestBase & { readonly operation: "editor_resolve_behavior"; readonly payload: import("./behavior-resolution").BehaviorResolveRequest })
   | (WorkerRequestBase & { readonly operation: "simulate_behavior"; readonly payload: BehaviorSimulationRequest })
   | (WorkerRequestBase & {
@@ -97,6 +98,7 @@ interface WorkerResponseBase {
 }
 
 export type WebWorkerResponse =
+  | (WorkerResponseBase & { readonly operation: "simulate_actor_decisions"; readonly ok: true; readonly result: import("./actor-decisions").ActorDecisionResponse })
   | (WorkerResponseBase & { readonly operation: "editor_resolve_behavior"; readonly ok: true; readonly result: import("./behavior-resolution").BehaviorResolveReply })
   | (WorkerResponseBase & { readonly operation: "simulate_behavior"; readonly ok: true; readonly result: BehaviorSimulationResponse })
   | (WorkerResponseBase & {

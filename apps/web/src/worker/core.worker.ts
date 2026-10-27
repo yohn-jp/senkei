@@ -1,3 +1,4 @@
+import { actorResponseError } from "./actor-response";
 import { simulationAuthorizationError } from "./simulation-authorization";
 import { behaviorResponseError } from "./behavior-response";
 import type { BehaviorSimulationRequest } from "../contracts/behavior";
@@ -25,6 +26,7 @@ type RequestOperation =
   | "preflight"
   | "simulate"
   | "simulate_behavior"
+  | "simulate_actor_decisions"
   | "reproduce"
   | "preflight_reproduction"
   | "benchmark";
@@ -146,6 +148,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "preflight" &&
     operation !== "simulate" &&
     operation !== "simulate_behavior" &&
+    operation !== "simulate_actor_decisions" &&
     operation !== "reproduce" &&
     operation !== "preflight_reproduction" &&
     operation !== "benchmark"
@@ -241,6 +244,10 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
     case "format_ast":
       requireRecord(payload.ruleset_ref, "format_ast.ruleset_ref");
       requireRecord(payload.ast, "format_ast.ast");
+      return;
+    case "simulate_actor_decisions":
+      if (payload.include_diagnostics !== true || !isCombatantSide(payload.diagnostics_side)) throw new RequestFailure('invalid_request', 'Autonomous decisions require an explicit owner diagnostics request.');
+      validateSnapshot(payload.snapshot, 'simulate_actor_decisions.snapshot');
       return;
     case "simulate": {
       requireRecord(payload.snapshot, "simulate.snapshot");
@@ -362,6 +369,15 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     }
     case "simulate":
       return runSimulation(request.payload, request.request_id);
+    case "simulate_actor_decisions": {
+      const snapshot = requireRecord(request.payload.snapshot, 'simulate_actor_decisions.snapshot');
+      const result = requireRecord(await callCore('simulate_actor_decisions', {...snapshot,include_diagnostics:true,diagnostics_side:request.payload.diagnostics_side}, request.request_id), 'autonomous.result');
+      const simulation = adaptSimulationResponse(result.simulation, snapshot, true, request.payload.diagnostics_side as 'attacker' | 'defender');
+      const response = {...result,simulation};
+      const error = await actorResponseError(response, request.payload as unknown as import('../contracts/actor-decisions').ActorDecisionRequest);
+      if (error) throw new RequestFailure('core_error', error);
+      return response;
+    }
     case "simulate_behavior": {
       const result = await callCore("simulate_behavior", request.payload, request.request_id);
       const error = await behaviorResponseError(result, request.payload as unknown as BehaviorSimulationRequest);
