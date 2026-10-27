@@ -7,6 +7,116 @@ use std::path::{Path, PathBuf};
 
 const IDLE_TACTICS: &str = "senkei internal_secret_marker { state inert { false, }, }";
 
+#[test]
+fn next_decision_inspection_reports_actual_scoring_without_exposing_enemy_ids() {
+    let rules = rules();
+    let term = |signal, weight| BehaviorScoreTerm { signal, weight };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1, policy_id: "inspection-test".into(), version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(), test_only: true,
+        composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
+        domains: BehaviorDomains { navigation: vec![term(BehaviorSignal::Constant, 2)],
+            engagement: vec![term(BehaviorSignal::Constant, 1)], targeting: vec![term(BehaviorSignal::TargetHealthPercent, 1)],
+            pursuit: vec![term(BehaviorSignal::TargetProximity, 1)], survival: vec![term(BehaviorSignal::RouteCost, 1)],
+            objective: vec![term(BehaviorSignal::Constant, 3)] },
+        candidates: vec![
+            BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Pursue, capability: "pursue".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObservedTarget] },
+            BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Retreat, capability: "retreat".into(), arguments: vec![BehaviorArgument::Actor] },
+        ],
+    };
+    let base = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
+    let nodes = vec![base; 5];
+    let (attacker, defender, mut context) = build_match(&rules, &[5], "inspection", 1, Some(&nodes), Some(&nodes));
+    let inputs = enbu::NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() };
+    context.next_behavior = Some(NextBehaviorMatch { policy: policy.clone(), inputs: inputs.clone() });
+    let verified = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
+    let plain = simulate(&attacker, &defender, &rules, &context, &mut Vm::new(&rules)).unwrap();
+    let traces = enbu::simulate_next_behavior(&attacker, &defender, &rules, &context, &mut Vm::new(&rules), &verified, &inputs).unwrap();
+    let inspection = enbu::inspect_next_decision(&attacker, &defender, &rules, &context, CombatantSide::Attacker, 1, "slot-1", &mut Vm::new(&rules)).unwrap();
+    let value = serde_json::to_value(&inspection).unwrap();
+    assert_eq!(value["identity"]["snapshot_digest"], plain.diagnostic_snapshot_digest.as_str());
+    assert_eq!(value["identity"]["result_digest"], plain.replay.result_digest.as_str());
+    assert_eq!(value["decision"]["status"], "evaluated");
+    let trace = traces.traces_for_owner(CombatantSide::Attacker).into_iter().find(|trace| trace.selected.is_some()).unwrap();
+    assert_eq!(value["observation"]["source_digest"], trace.observation_digest.as_str());
+    assert_eq!(value["decision"]["composition"]["effective"], serde_json::json!(trace.composition.effective));
+    assert_eq!(value["decision"]["composition"]["baseline_effective"], serde_json::json!(trace.composition.baseline_effective));
+    let candidates = value["decision"]["candidates"].as_array().unwrap();
+    assert!(candidates.iter().any(|candidate| candidate["outcome"] == "unknown" && candidate["terms"].as_array().unwrap().iter().any(|term| term["signal"] == "route_cost" && term["value"].is_null())));
+    assert!(candidates.iter().any(|candidate| candidate["outcome"] == "conflict"));
+    let selected = candidates.iter().find(|candidate| candidate["outcome"] == "selected").unwrap();
+    assert_eq!(selected["score"], trace.score.unwrap());
+    assert_eq!(selected["terms"].as_array().unwrap().iter().map(|term| term["contribution"].as_i64().unwrap()).sum::<i64>(), trace.score.unwrap());
+    assert!(selected["actor"].as_str().unwrap().starts_with("observed-"));
+    assert!(selected["target"].as_str().unwrap().starts_with("observed-"));
+    assert_eq!(selected["arguments"][0]["value"], selected["actor"]);
+    assert_eq!(selected["arguments"][1]["value"], selected["target"]);
+    let selected_index = selected["index"].as_u64().unwrap();
+    let selection = value["decision"]["selections"].as_array().unwrap().iter().find(|selection| selection["candidate_index"] == selected_index).unwrap();
+    assert_eq!(selection["committed_event"], serde_json::to_value(trace.committed_event).unwrap());
+    assert_eq!(selection["arguments"], selected["arguments"]);
+    let encoded = serde_json::to_string(&inspection).unwrap();
+    let enemy = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Defender), &DomainValue::String("slot-1".into())).unwrap();
+    assert!(!encoded.contains(enemy.as_str()));
+    assert!(!encoded.contains("internal_secret_marker"));
+
+    let mut capped = context.clone();
+    capped.host_limits.max_diagnostic_events = plain.diagnostics.events.len() as u64
+        + traces.traces_for_owner(CombatantSide::Attacker).len() as u64
+        + traces.traces_for_owner(CombatantSide::Defender).len() as u64 + 1;
+    assert!(simulate(&attacker, &defender, &rules, &capped, &mut Vm::new(&rules)).is_ok());
+    let Err(error) = enbu::inspect_next_decision(&attacker, &defender, &rules, &capped, CombatantSide::Attacker, 1, "slot-1", &mut Vm::new(&rules)) else { panic!("inspection must respect the shared diagnostic limit") };
+    assert_eq!(error.code, ApiErrorCode::ResourceLimit);
+}
+
+#[test]
+fn next_decision_inspection_distinguishes_explicit_orders_from_unknown_wait() {
+    let rules = rules();
+    let unknown = BehaviorScoreTerm { signal: BehaviorSignal::RouteCost, weight: 1 };
+    let zero = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 0 };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1, policy_id: "inspection-wait".into(), version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(), test_only: true,
+        composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
+        domains: BehaviorDomains { navigation: vec![unknown], engagement: vec![zero.clone()], targeting: vec![zero.clone()], pursuit: vec![zero.clone()], survival: vec![zero.clone()], objective: vec![zero] },
+        candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Move, capability: "move".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode] }],
+    };
+    let (mut attacker, defender, mut context) = build_match(&rules, &[5], "inspection-wait", 1, None, None);
+    context.next_behavior = Some(NextBehaviorMatch { policy, inputs: NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() } });
+    let run = |attacker: &SenkeiSnapshot| serde_json::to_value(enbu::inspect_next_decision(attacker, &defender, &rules, &context, CombatantSide::Attacker, 1, "slot-1", &mut Vm::new(&rules)).unwrap()).unwrap();
+    let waiting = run(&attacker);
+    assert_eq!(waiting["decision"]["status"], "evaluated");
+    assert!(waiting["decision"]["candidates"].as_array().unwrap().iter().all(|candidate| candidate["outcome"] == "unknown" && candidate["score"].is_null()));
+    assert_eq!(waiting["decision"]["selections"][0]["source"], "wait");
+    assert!(waiting["decision"]["selections"][0]["committed_event"].is_null());
+
+    let goal = rules.plan().next.as_ref().unwrap().map.defender_base.clone();
+    attacker.program = compile(&movement_tactics(&[("slot-1".into(), goal.clone())]), &rules).unwrap().program;
+    let explicit = run(&attacker);
+    assert!(explicit["decision"]["candidates"].as_array().unwrap().is_empty(), "explicit squad movement bypasses default evaluation");
+    assert_eq!(explicit["decision"]["selections"][0]["source"], "explicit");
+    assert!(explicit["decision"]["selections"][0]["candidate_index"].is_null());
+    assert!(explicit["decision"]["selections"][0]["committed_event"].is_object());
+    assert_eq!(explicit["decision"]["selections"][0]["arguments"][1]["value"], goal);
+    assert_ne!(waiting["identity"]["snapshot_digest"], explicit["identity"]["snapshot_digest"]);
+    assert_ne!(waiting["identity"]["inspection_digest"], explicit["identity"]["inspection_digest"]);
+
+    struct Overrun(CostOperationId);
+    impl TacticalExecutionPort for Overrun {
+        fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            let available = request.budget.available_cu;
+            Ok(TacticalExecutionOutput { status: TacticalExecutionStatus::BudgetExceeded, intents: Vec::new(),
+                next_memory: request.memory.clone(), charged_cu: available, required_cu: LogicalCu(available.0 + 1),
+                diagnostics: vec![TacticalDiagnostic::CostCharged { operation: self.0.clone(), amount: available }] })
+        }
+    }
+    let operation = rules.plan().cost_schedule.operations.keys().next().unwrap().clone();
+    let incomplete = serde_json::to_value(enbu::inspect_next_decision(&attacker, &defender, &rules, &context, CombatantSide::Attacker, 1, "slot-1", &mut Overrun(operation)).unwrap()).unwrap();
+    assert_eq!(incomplete["decision"]["status"], "execution_incomplete");
+    assert!(incomplete["observation"]["snapshot"].is_object());
+    assert!(incomplete["decision"]["candidates"].as_array().unwrap().is_empty());
+}
+
 fn rules() -> VerifiedRulePlan {
     senritsu::validate(
         senritsu::next_package(),
@@ -2643,7 +2753,7 @@ fn local_trial_projection_changes_real_match_and_is_reproduced() {
             equipment: if side == CombatantSide::Attacker && i == 0 { vec![ProjectedEquipment { instance_id: "trial-item".into(), owner_id: owner.clone(), definition_id: "test.blade".into(), definition_version: blade.version, definition_digest: blade_digest.clone() }] } else { vec![] },
         }).collect();
         let relations = if side == CombatantSide::Attacker {
-            [("Attacker-0", "Attacker-1", 4), ("Attacker-1", "Attacker-0", 6)].into_iter().map(|(from, to, level)| ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level: Some(level), formula_version, formula_digest: formula_digest.clone() }).collect()
+            [("Attacker-0", "Attacker-1", 4), ("Attacker-1", "Attacker-0", 6)].into_iter().map(|(from, to, level)| ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level: Some(level), formula_version: Some(formula_version), formula_digest: Some(formula_digest.clone()), maturity_policy: None }).collect()
         } else { vec![] };
         sides.insert(side, ProjectedSide { owner_id: owner, authority: AssetAuthority::Local, heroes, relations });
     }

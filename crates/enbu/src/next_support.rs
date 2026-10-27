@@ -283,6 +283,7 @@ mod tests {
         };
         let rules = NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: crate::Version::new(1, 0, 0),
             world_identity: None,
             map: BattleMap {
@@ -390,6 +391,7 @@ mod tests {
         };
         let mut rules = NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: Version::new(1, 0, 0), world_identity: Some(identity.clone()),
             map: BattleMap {
                 id: "interval-test".into(), world_identity: Some(identity.clone()),

@@ -8,6 +8,8 @@ pub struct NextRules {
     pub mechanics_version: Version,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection_policy: Option<crate::ProjectionPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minion_control: Option<crate::NextMinionControlDeclaration>,
     /// Exact paired World artifact used to compile this ruleset. Required for
     /// verified next packages; `None` is retained only for legacy wire data.
     #[serde(default, skip_serializing_if = "Option::is_none")]

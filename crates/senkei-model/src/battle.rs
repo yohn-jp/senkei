@@ -130,6 +130,8 @@ pub struct MatchContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_minion_behavior: Option<crate::NextMinionBehaviorMatch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_minion_control: Option<crate::NextMinionControlMatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_route: Option<crate::NextRouteMatch>,
     pub versions: ComponentVersions,
     #[serde(default, skip_serializing_if = "Option::is_none")]

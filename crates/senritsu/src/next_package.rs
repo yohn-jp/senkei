@@ -25,6 +25,7 @@ pub fn next_local_trial_package() -> RulePackage {
         hero_catalog_version: next.mechanics_version, hero_catalog_digest: digest,
         equipment: std::collections::BTreeMap::from([("test.blade".into(), EquipmentEffectDefinition { version: Version::new(1, 0, 0), effects: vec![StatEffect { stat: ProjectedStat::Attack, add: 2 }] })]),
         relation: Some(RelationFormula { version: Version::new(1, 0, 0), stat: ProjectedStat::Defense, add_per_level: 1, max_level: 10, max_bonus: 5, rounding: RelationRounding::Floor }),
+        maturity: None,
     });
     crate::add_trial_behavior_preferences(&mut package);
     package.ruleset.digest = crate::canonical_digest(&package).expect("trial package");

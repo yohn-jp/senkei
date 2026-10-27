@@ -1383,6 +1383,7 @@ mod tests {
         let zero = stats(0, 0, 0, 0);
         NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: senkei_model::Version::new(1, 0, 0),
             world_identity: None,
             map: senkei_model::BattleMap {

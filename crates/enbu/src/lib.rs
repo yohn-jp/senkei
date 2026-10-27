@@ -6,11 +6,14 @@
 mod behavior;
 mod actor_decisions;
 mod next_behavior;
+mod next_decision_inspection;
 mod next_minion_behavior;
+mod next_minion_control;
 mod next_route;
 pub use actor_decisions::{AutonomousActorKind, AutonomousCombatAction, AutonomousCombatTrace, AutonomousCommittedEventRef, AutonomousNoAttackReason, AutonomousTargetSelection};
 pub use next_minion_behavior::{simulate_next_minion_behavior, NextMinionBehaviorExecutionInputs, NextMinionBehaviorSimulationArtifact, NextMinionBehaviorTrace, NextMinionPreferenceSource, NextMinionWaypoint};
 pub use next_behavior::{simulate_next_behavior, NextBehaviorCommittedEventRef, NextBehaviorCompositionTrace, NextBehaviorExecutionInputs, NextBehaviorMemberComposition, NextBehaviorProfile, NextBehaviorProfileSource, NextBehaviorSelectionSource, NextBehaviorSimulationArtifact, NextBehaviorTrace};
+pub use next_decision_inspection::{inspect_next_decision, NextDecisionInspection, NEXT_DECISION_INSPECTION_FORMAT_VERSION};
 pub mod projected_assets;
 pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
@@ -38,6 +41,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
         world_identity: rules.world_identity().cloned(),
         next_behavior: None,
         next_minion_behavior: None,
+        next_minion_control: None,
         next_route: None,
         versions: ComponentVersions {
             model: plan.model_version,
@@ -126,6 +130,7 @@ fn initialize_match(
     context: &MatchContext,
 ) -> Result<(WorldState, world::ProjectionIndex, Option<projected_assets::RelationRuntime>), ApiError> {
     validation::validate_inputs(attacker, defender, rules, context)?;
+    next_minion_control::validate_context(rules, context)?;
     let plan = rules.plan();
     if let Some(binding) = &context.next_minion_behavior {
         let policy = senritsu::validate_next_minion_behavior_policy(binding.policy.clone(), rules)
@@ -257,7 +262,7 @@ fn simulate_configured<P: TacticalExecutionPort>(
     }).transpose()?;
     let mut hero_hook = if let (Some(binding), Some(policy)) = (&context.next_behavior, &hero_policy) {
         next_behavior::validate_inputs(rules, context, policy, &binding.inputs)?;
-        Some(next_behavior::Hook { policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() })
+        Some(next_behavior::Hook { policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new(), inspection: None })
     } else { None };
     let mut minion_hook = if let (Some(binding), Some(policy)) = (&context.next_minion_behavior, &minion_policy) {
         next_minion_behavior::validate_inputs(rules, context, policy, &binding.inputs)?;
@@ -276,6 +281,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
 ) -> Result<SimulationArtifact, ApiError> {
     let (mut world, projection_index, mut relation_runtime) = initialize_match(attacker, defender, rules, context)?;
     if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
+    if let Some(inspection) = next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()) { inspection.validate_subject(&world)?; }
     let plan = rules.plan();
     let mut route_runtime = context.next_route.as_ref().map(next_route::Runtime::new);
     let mut memories = BTreeMap::from([
@@ -353,6 +359,12 @@ fn simulate_inner<P: TacticalExecutionPort>(
             observation(&world, plan, CombatantSide::Attacker, tick, &projection_index)?,
             observation(&world, plan, CombatantSide::Defender, tick, &projection_index)?,
         ];
+        if let Some(inspection) = next_behavior.as_deref_mut().and_then(|hook| hook.inspection.as_mut()).filter(|inspection| inspection.selector.tick == tick) {
+            let observation = observations.iter().find(|observation| observation.side == inspection.side).expect("both side observations");
+            // Until this side completes and reaches selection, the observation
+            // exists but no Behavior decision is claimed.
+            inspection.observe(observation, false)?;
+        }
         if let Some(collector) = actor_collector.as_deref_mut() {
             if let Some(side) = collector.owner_side() {
                 let observation = observations.iter().find(|observation| observation.side == side).expect("both side observations");
@@ -363,34 +375,11 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 collector.set_owner_observation(tick, known);
             }
         }
-        if let Some(hook) = minion_behavior.as_deref_mut() {
-            let first_trace = hook.traces.len();
-            hook.evaluate(&observations, plan.next.as_ref().ok_or_else(|| invalid_plan("Minion Behavior requires Next rules"))?, tick, context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events))?;
-            for trace in &hook.traces[first_trace..] {
-                if (diagnostics.len() as u64).saturating_add(hook.traces.len() as u64) >= context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
-                    return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
-                }
-                let source = match trace.source { NextMinionPreferenceSource::Army => "army", NextMinionPreferenceSource::Lane => "lane" };
-                let (status, waypoint) = match &trace.waypoint {
-                    NextMinionWaypoint::Ready { node } => ("ready", Some(node.clone())),
-                    NextMinionWaypoint::InTransit => ("in_transit", None),
-                    NextMinionWaypoint::EndOfLane => ("end_of_lane", None),
-                    NextMinionWaypoint::Unknown => ("unknown", None),
-                };
-                let mut details = BTreeMap::from([
-                    ("identity_space".into(), "owner_replay".into()),
-                    ("next_policy_id".into(), hook.policy.policy().policy_id.clone()),
-                    ("next_policy_digest".into(), hook.policy.digest().to_string()),
-                    ("lane".into(), trace.lane.as_str().to_owned()),
-                    ("source".into(), source.into()),
-                    ("candidate".into(), "lane_waypoint".into()),
-                    ("status".into(), status.into()),
-                ]);
-                if let Some(node) = waypoint { details.insert("waypoint".into(), node); }
-                let index = diagnostics.len();
-                push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, trace.side, DiagnosticRecord::RuntimeNotice { code: "enbu.minion_lane_decision".into(), details })?;
-                diagnostics.last_mut().unwrap().entity_id = Some(trace.actor.clone());
-                minion_diagnostics.insert((trace.side, tick, trace.actor.clone()), index);
+        if context.next_minion_control.is_none() {
+            if let Some(hook) = minion_behavior.as_deref_mut() {
+                record_minion_behavior(hook, &observations, plan.next.as_ref().ok_or_else(|| invalid_plan("Minion Behavior requires Next rules"))?, tick,
+                    context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events), None,
+                    &mut diagnostics, &mut diagnostic_sequence, &mut minion_diagnostics)?;
             }
         }
         let output_attacker = call_executor(
@@ -480,6 +469,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
         }
 
         if abort_for_overrun {
+            if (diagnostics.len() as u64).saturating_add(next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()).map_or(0, |inspection| inspection.used)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+                return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
+            }
             final_outcome = Some((
                 MatchOutcome::Aborted,
                 plan.cost_schedule.budget_overrun_reason.clone(),
@@ -519,6 +511,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 )?,
             }
         }
+        next_minion_control::prevalidate(plan.next.as_ref().and_then(|next| next.minion_control.as_ref()),
+            context.next_minion_control.is_some(), &mut validated, &outputs, tick, &mut diagnostics, &mut diagnostic_sequence)?;
         if let Some(hook) = behavior.as_deref_mut() {
             hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index, &mut diagnostics, &mut diagnostic_sequence)?;
         }
@@ -542,6 +536,16 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some(hook) = next_behavior.as_deref_mut() { accepted.append(&mut hook.accepted_preferences); }
         if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
         if let Some(hook) = next_behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
+        if context.next_minion_control.is_some() {
+            let next = plan.next.as_ref().ok_or_else(|| invalid_plan("Minion control requires Next rules"))?;
+            let declaration = next.minion_control.as_ref().ok_or_else(|| invalid_plan("Minion control declaration missing"))?;
+            let selections = next_minion_control::commit(declaration, &accepted, &mut world, next, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+            if let Some(hook) = minion_behavior.as_deref_mut() {
+                record_minion_behavior(hook, &observations, next, tick,
+                    context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events), Some(&selections),
+                    &mut diagnostics, &mut diagnostic_sequence, &mut minion_diagnostics)?;
+            }
+        }
 
         let accepted_sides = accepted.iter().map(|(side, _)| *side).collect::<BTreeSet<_>>();
         // Overrun output is discarded only for that side under the
@@ -655,7 +659,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             }
             capture_contest = contest;
             next_events.splice(0..0, objective_events);
-            next_squads::lifecycle(&mut world, next, tick);
+            next_squads::lifecycle_with_relationships(&mut world, next, tick, relation_runtime.as_ref())?;
             if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
             if let Some(outcome) = next_combat::outcome(&world) { transition_outcome = Some((outcome, SymbolId::from("base_destroyed"))); }
             event_count = event_count.checked_add(next_events.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit,"event count overflow"))?;
@@ -667,7 +671,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if actor_collector.as_deref().is_some_and(|collector| collector.observation_missing()) {
             return Err(api_error(ApiErrorCode::InternalError, "actor diagnostics observation was not bound to this tick"));
         }
-        if actor_collector.as_deref().is_some_and(|collector| collector.overflowed()) || (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)).saturating_add(next_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(minion_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(actor_collector.as_deref().map_or(0, |collector| collector.used() as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+        if actor_collector.as_deref().is_some_and(|collector| collector.overflowed()) || (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)).saturating_add(next_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()).map_or(0, |inspection| inspection.used)).saturating_add(minion_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(actor_collector.as_deref().map_or(0, |collector| collector.used() as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
         }
 
@@ -888,6 +892,47 @@ fn simulate_inner<P: TacticalExecutionPort>(
         return Err(api_error(ApiErrorCode::ResourceLimit, "public simulation response exceeds the host output byte limit"));
     }
     Ok(artifact)
+}
+
+fn record_minion_behavior(
+    hook: &mut next_minion_behavior::Hook<'_>, observations: &[ObservationSnapshot; 2],
+    rules: &senkei_model::NextRules, tick: u32, limit: u64,
+    selections: Option<&next_minion_control::MinionControlSelections>,
+    diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64,
+    indexes: &mut BTreeMap<(CombatantSide, u32, EntityId), usize>,
+) -> Result<(), ApiError> {
+    let first_trace = hook.traces.len();
+    hook.evaluate(observations, rules, tick, limit, selections)?;
+    for trace in &hook.traces[first_trace..] {
+        if (diagnostics.len() as u64).saturating_add(hook.traces.len() as u64) >= limit {
+            return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
+        }
+        let source = match trace.source { NextMinionPreferenceSource::Army => "army", NextMinionPreferenceSource::Lane => "lane", NextMinionPreferenceSource::Jinrei => "jinrei" };
+        let (status, waypoint) = match &trace.waypoint {
+            NextMinionWaypoint::Ready { node } => ("ready", Some(node.clone())),
+            NextMinionWaypoint::InTransit => ("in_transit", None),
+            NextMinionWaypoint::EndOfLane => ("end_of_lane", None),
+            NextMinionWaypoint::Unknown => ("unknown", None),
+        };
+        let mut details = BTreeMap::from([
+            ("identity_space".into(), "owner_replay".into()),
+            ("next_policy_id".into(), hook.policy.policy().policy_id.clone()),
+            ("next_policy_digest".into(), hook.policy.digest().to_string()),
+            ("lane".into(), trace.lane.as_str().to_owned()),
+            ("source".into(), source.into()),
+            ("candidate".into(), "lane_waypoint".into()),
+            ("status".into(), status.into()),
+        ]);
+        if let Some(node) = waypoint { details.insert("waypoint".into(), node); }
+        if !trace.action_ids.is_empty() {
+            details.insert("action_ids".into(), serde_json::to_string(&trace.action_ids).map_err(|_| api_error(ApiErrorCode::InternalError, "could not serialize Minion control action IDs"))?);
+        }
+        let index = diagnostics.len();
+        push_diagnostic(diagnostics, sequence, tick, trace.side, DiagnosticRecord::RuntimeNotice { code: "enbu.minion_lane_decision".into(), details })?;
+        diagnostics.last_mut().unwrap().entity_id = Some(trace.actor.clone());
+        indexes.insert((trace.side, tick, trace.actor.clone()), index);
+    }
+    Ok(())
 }
 
 fn call_executor<P: TacticalExecutionPort>(

@@ -74,7 +74,7 @@ pub fn simulate_next_behavior<P: TacticalExecutionPort>(attacker: &senkei_model:
     let binding = senkei_model::NextBehaviorMatch { policy: policy.policy().clone(), inputs: inputs.clone() };
     if frozen.next_behavior.as_ref().is_some_and(|existing| existing != &binding) { return Err(api_error(ApiErrorCode::ValidationFailed, "Next Behavior context mismatch")); }
     frozen.next_behavior = Some(binding);
-    let mut hook = Hook { policy, inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
+    let mut hook = Hook { policy, inputs, traces: Vec::new(), accepted_preferences: Vec::new(), inspection: None };
     let minion_policy = frozen.next_minion_behavior.as_ref().map(|binding| {
         senritsu::validate_next_minion_behavior_policy(binding.policy.clone(), rules)
             .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))
@@ -117,7 +117,7 @@ pub(crate) fn validate_bindings(inputs: &NextBehaviorExecutionInputs, world: &Wo
     Ok(())
 }
 fn profile_values(p: &NextBehaviorProfile) -> [Option<i64>; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
-pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace>, pub accepted_preferences: Vec<(CombatantSide, Intent)> }
+pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace>, pub accepted_preferences: Vec<(CombatantSide, Intent)>, pub inspection: Option<next_decision_inspection::Collector> }
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         let next = plan.next.as_ref().unwrap();
@@ -132,9 +132,13 @@ impl Hook<'_> {
         let (overrides, accepted_preferences) = consume_preferences(validated, outputs, tick, diagnostics, sequence)?;
         self.accepted_preferences = accepted_preferences;
         for side in [CombatantSide::Attacker, CombatantSide::Defender] {
-            if outputs.iter().find(|(s,_)| *s == side).unwrap().1.status != senkei_model::TacticalExecutionStatus::Completed { continue; }
             // Only values in the already frozen RulePlan observation are eligible.
             let observation = observations.iter().find(|o| o.side == side).unwrap();
+            let completed = outputs.iter().find(|(s,_)| *s == side).unwrap().1.status == senkei_model::TacticalExecutionStatus::Completed;
+            if let Some(inspection) = self.inspection.as_mut().filter(|inspection| inspection.matches(side, tick)) {
+                inspection.status = if completed { next_decision_inspection::NextInspectionStatus::SubjectUnavailable } else { next_decision_inspection::NextInspectionStatus::ExecutionIncomplete };
+            }
+            if !completed { continue; }
             let observation_digest = digest_json(observation)?;
             let view = observed_view(observation);
             let mut groups = BTreeMap::<String, Vec<EntityId>>::new();
@@ -206,6 +210,12 @@ impl Hook<'_> {
                         }).collect(),
                     }
                 };
+                let inspect_group = self.inspection.as_ref().is_some_and(|inspection| inspection.matches(side, tick) && members.contains(&inspection.actor));
+                if inspect_group {
+                    let inspection = self.inspection.as_mut().unwrap();
+                    let actor = inspection.actor.clone();
+                    inspection.start_group(&members, composition(&actor));
+                }
                 for intent in &explicit {
                     let actor = intent.actor.clone().unwrap();
                     self.traces.push(NextBehaviorTrace { tick, side, actor: actor.clone(), source: NextBehaviorSelectionSource::Explicit, policy_digest:self.policy.digest().clone(), observation_digest: observation_digest.clone(), composition: composition(&actor), eligible_candidates: explicit.len(), unknown_candidates: 0, selected: Some(intent.clone()), score: None, arbitration_accepted: false, transition_completed: false, committed_event: None });
@@ -227,9 +237,24 @@ impl Hook<'_> {
                         if let Some(id) = &target { args.push(DomainValue::Entity(id.clone())); }
                         let action_id = format!("behavior:{tick}:{actor}:{:?}:{}", definition.kind, target.as_ref().map_or("", |id| id.as_str()));
                         let intent = Intent { action_id: action_id.into(), capability: definition.capability.clone(), actor: Some(actor.clone()), target: target.clone(), arguments: args, priority: None };
-                        if validation::validate_intent(&intent, side, world, plan, tick, index).is_err() || !next_tactics::behavior_order_legal(world, next, side, &intent) { continue; }
+                        if validation::validate_intent(&intent, side, world, plan, tick, index).is_err() || !next_tactics::behavior_order_legal(world, next, side, &intent) {
+                            if inspect_group { self.inspection.as_mut().unwrap().add_candidate(next_decision_inspection::NextInspectionCandidate {
+                                index: 0, actor: actor.clone(), target: target.clone(), kind: definition.kind,
+                                capability: definition.capability.clone(), arguments: intent.arguments.clone(), outcome: next_decision_inspection::NextCandidateOutcome::Ineligible,
+                                score: None, rank: None, terms: Vec::new(), action_id: intent.action_id.clone(),
+                            })?; }
+                            continue;
+                        }
                         let target_view = target.as_ref().and_then(|id| view.entities.get(id));
-                        if let Some(score) = score(self.policy, definition.kind, own, target_view, &view, &members, offsets, matches!(observation.collections.get(&"enemies.visible_heroes".into()), Some(senkei_model::Observed::Known(_)))) { choices.push((score, definition.kind, intent)); } else { unknown_candidates += 1; }
+                        let mut terms = Vec::new();
+                        let remaining = self.inspection.as_ref().filter(|_| inspect_group).map_or(0, |inspection| inspection.limit.saturating_sub(inspection.used).saturating_sub(1));
+                        let value = score(self.policy, definition.kind, own, target_view, &view, &members, offsets, matches!(observation.collections.get(&"enemies.visible_heroes".into()), Some(senkei_model::Observed::Known(_))), if inspect_group { Some(&mut terms) } else { None }, remaining)?;
+                        if inspect_group { self.inspection.as_mut().unwrap().add_candidate(next_decision_inspection::NextInspectionCandidate {
+                            index: 0, actor: actor.clone(), target: target.clone(), kind: definition.kind,
+                            capability: definition.capability.clone(), arguments: intent.arguments.clone(), outcome: if value.is_some() { next_decision_inspection::NextCandidateOutcome::Conflict } else { next_decision_inspection::NextCandidateOutcome::Unknown },
+                            score: value, rank: None, terms, action_id: intent.action_id.clone(),
+                        })?; }
+                        if let Some(score) = value { choices.push((score, definition.kind, intent)); } else { unknown_candidates += 1; }
                     }
                 }
                 }
@@ -238,14 +263,15 @@ impl Hook<'_> {
                 let mut occupied = explicit_targets.clone();
                 let mut selected_shared = false;
                 let mut selected = Vec::new();
-                for (score,kind,intent) in choices {
+                for (rank,(score,kind,intent)) in choices.into_iter().enumerate() {
                     let actor = intent.actor.as_ref().unwrap();
-                    if kind == BehaviorCandidateKind::Target {
-                        if selected_shared || !occupied.insert(actor.clone()) { continue; }
+                    let selected_candidate = if kind == BehaviorCandidateKind::Target {
+                        !selected_shared && occupied.insert(actor.clone())
                     } else {
-                        if selected_shared || !occupied.is_empty() { continue; }
-                        selected_shared = true;
-                    }
+                        if selected_shared || !occupied.is_empty() { false } else { selected_shared = true; true }
+                    };
+                    if inspect_group { self.inspection.as_mut().unwrap().mark_rank(&intent.action_id, rank + 1, selected_candidate); }
+                    if !selected_candidate { continue; }
                     selected.push((score,intent));
                 }
                 if selected.is_empty() && unknown_candidates > 0 {
@@ -343,18 +369,53 @@ fn observed_view(observation: &ObservationSnapshot) -> senkei_model::WorldStateV
     }
     senkei_model::WorldStateView { entities, global_fields:BTreeMap::new() }
 }
-fn score(policy: &VerifiedNextBehaviorPolicy, kind: BehaviorCandidateKind, actor: &senkei_model::EntityStateView, target: Option<&senkei_model::EntityStateView>, view: &senkei_model::WorldStateView, members: &[EntityId], offsets: [i64;6], danger_known: bool) -> Option<i64> {
-    let d = &policy.policy().domains; let domains = [&d.navigation,&d.engagement,&d.targeting,&d.pursuit,&d.survival,&d.objective]; let mut result = 0i64;
+fn score(policy: &VerifiedNextBehaviorPolicy, kind: BehaviorCandidateKind, actor: &senkei_model::EntityStateView, target: Option<&senkei_model::EntityStateView>, view: &senkei_model::WorldStateView, members: &[EntityId], offsets: [i64;6], danger_known: bool, mut captured: Option<&mut Vec<next_decision_inspection::NextInspectionTerm>>, limit: u64) -> Result<Option<i64>, ApiError> {
+    use next_decision_inspection::NextInspectionTerm;
+    let mut record = |term: NextInspectionTerm| -> Result<(), ApiError> {
+        if let Some(terms) = captured.as_deref_mut() {
+            if terms.len() as u64 >= limit { return Err(api_error(ApiErrorCode::ResourceLimit, "inspection diagnostic limit exceeded")); }
+            terms.push(term);
+        }
+        Ok(())
+    };
+    let d = &policy.policy().domains;
+    let domains = [&d.navigation,&d.engagement,&d.targeting,&d.pursuit,&d.survival,&d.objective];
+    let names = ["navigation", "engagement", "targeting", "pursuit", "survival", "objective"];
+    let mut result = 0i64;
     for (index,(terms,offset)) in domains.into_iter().zip(offsets).enumerate() {
         let applicable = match kind { BehaviorCandidateKind::Move => matches!(index, 0 | 5), BehaviorCandidateKind::Pursue => index == 3, BehaviorCandidateKind::Target => matches!(index, 1 | 2), BehaviorCandidateKind::Retreat => index == 4 };
         if !applicable { continue; }
-        if kind == BehaviorCandidateKind::Target && index == 2 {
-            if offset != 0 { result = result.checked_add(target.and_then(health)?.checked_mul(offset)?)?; }
+        let (component, weight, value, contribution) = if kind == BehaviorCandidateKind::Target && index == 2 && offset != 0 {
+            let value = target.and_then(health);
+            ("target_health_offset", Some(offset), value, value.and_then(|value| value.checked_mul(offset)))
         } else {
-            result = result.checked_add(offset)?;
+            ("offset", None, Some(offset), Some(offset))
+        };
+        record(NextInspectionTerm { domain: names[index], kind: component, signal: None, weight, value, contribution })?;
+        let Some(total) = contribution.and_then(|value| result.checked_add(value)) else { return Ok(None) };
+        result = total;
+        for term in terms {
+            let signal = match term.signal {
+                BehaviorSignal::Constant => Some(100),
+                BehaviorSignal::CandidateMove => Some(if kind == BehaviorCandidateKind::Move { 100 } else { 0 }),
+                BehaviorSignal::CandidatePursue => Some(if kind == BehaviorCandidateKind::Pursue { 100 } else { 0 }),
+                BehaviorSignal::CandidateRetreat => Some(if kind == BehaviorCandidateKind::Retreat { 100 } else { 0 }),
+                BehaviorSignal::CandidateTarget => Some(if kind == BehaviorCandidateKind::Target { 100 } else { 0 }),
+                BehaviorSignal::ActorHealthPercent => health(actor),
+                BehaviorSignal::TargetHealthPercent => target.and_then(health),
+                BehaviorSignal::SquadHealthPercent => members.iter().map(|id| view.entities.get(id).and_then(health)).collect::<Option<Vec<_>>>().map(|values| values.iter().sum::<i64>() / values.len() as i64),
+                BehaviorSignal::TargetProximity => target.and_then(|target| proximity(actor,target)),
+                BehaviorSignal::ObservedDanger => danger_known.then(|| view.entities.values().filter(|entity| entity.owner != actor.owner && entity.entity_type.as_str() == "hero").count().min(100) as i64),
+                BehaviorSignal::ObjectiveValue => Some(100),
+                BehaviorSignal::RouteCost => None,
+            };
+            let contribution = signal.and_then(|value| value.checked_mul(term.weight));
+            record(NextInspectionTerm { domain: names[index], kind: "signal", signal: Some(term.signal), weight: Some(term.weight), value: signal, contribution })?;
+            let Some(total) = contribution.and_then(|value| result.checked_add(value)) else { return Ok(None) };
+            result = total;
         }
-        for term in terms { let signal = match term.signal { BehaviorSignal::Constant => Some(100), BehaviorSignal::CandidateMove => Some(if kind == BehaviorCandidateKind::Move { 100 } else { 0 }), BehaviorSignal::CandidatePursue => Some(if kind == BehaviorCandidateKind::Pursue { 100 } else { 0 }), BehaviorSignal::CandidateRetreat => Some(if kind == BehaviorCandidateKind::Retreat { 100 } else { 0 }), BehaviorSignal::CandidateTarget => Some(if kind == BehaviorCandidateKind::Target { 100 } else { 0 }), BehaviorSignal::ActorHealthPercent => health(actor), BehaviorSignal::TargetHealthPercent => target.and_then(health), BehaviorSignal::SquadHealthPercent => { let values: Option<Vec<_>> = members.iter().map(|id| view.entities.get(id).and_then(health)).collect(); let values = values?; Some(values.iter().sum::<i64>() / values.len() as i64) }, BehaviorSignal::TargetProximity => target.and_then(|t| proximity(actor,t)), BehaviorSignal::ObservedDanger => danger_known.then(|| view.entities.values().filter(|e| e.owner != actor.owner && e.entity_type.as_str() == "hero").count().min(100) as i64), BehaviorSignal::ObjectiveValue => Some(100), BehaviorSignal::RouteCost => None }; result = result.checked_add(signal?.checked_mul(term.weight)?)?; } }
-    Some(result)
+    }
+    Ok(Some(result))
 }
 fn health(entity: &senkei_model::EntityStateView) -> Option<i64> { let (DomainValue::Integer(hp),DomainValue::Integer(max)) = (entity.fields.get(&"hp".into())?,entity.fields.get(&"max_hp".into())?) else { return None }; if *max <= 0 { return None } Some((i128::from(*hp).clamp(0,i128::from(*max))*100/i128::from(*max)) as i64) }
 fn proximity(a: &senkei_model::EntityStateView,b: &senkei_model::EntityStateView) -> Option<i64> { let read = |e: &senkei_model::EntityStateView, k: &str| match e.fields.get(&k.into()) { Some(DomainValue::Integer(v)) => Some(*v), _ => None }; let dist = (i128::from(read(a,"x")?) - i128::from(read(b,"x")?)).abs() + (i128::from(read(a,"y")?) - i128::from(read(b,"y")?)).abs(); Some(100 - dist.min(100) as i64) }

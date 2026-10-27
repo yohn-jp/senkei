@@ -1741,6 +1741,7 @@ mod tests {
         ]);
         NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: Version::new(1, 0, 0),
             world_identity: None,
             map,

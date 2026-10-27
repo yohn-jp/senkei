@@ -20,7 +20,7 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
     let version = Version::new(1, 0, 0);
     let definition = EquipmentEffectDefinition { version, effects: vec![StatEffect { stat: ProjectedStat::Attack, add: 7 }] };
     let digest = ContentDigest::new(format!("{:x}", Sha256::digest(serde_json::to_vec(&definition).unwrap())));
-    let mut policy = ProjectionPolicy { schema_version: 1, test_only: true, hero_catalog_id: "catalogs".into(), hero_catalog_version: version, hero_catalog_digest: ContentDigest::new("catalog-digest"), equipment: BTreeMap::from([("blade".into(), definition)]), relation: None };
+    let mut policy = ProjectionPolicy { schema_version: 1, test_only: true, hero_catalog_id: "catalogs".into(), hero_catalog_version: version, hero_catalog_digest: ContentDigest::new("catalog-digest"), equipment: BTreeMap::from([("blade".into(), definition)]), relation: None, maturity: None };
     let mut world = WorldState::default();
     let mut sides = BTreeMap::new();
     for side in [CombatantSide::Attacker, CombatantSide::Defender] {
@@ -78,7 +78,7 @@ fn approved_equipment_changes_world_and_wrong_digest_is_atomic() {
     policy.relation = Some(formula);
     let player = projection.sides.get_mut(&CombatantSide::Attacker).unwrap();
     for (from, to, level) in [("Attacker-0", "Attacker-1", Some(4)), ("Attacker-1", "Attacker-0", Some(8)), ("Attacker-0", "Attacker-2", Some(2)), ("Attacker-2", "Attacker-0", Some(2))] {
-        player.relations.push(ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level, formula_version: version, formula_digest: formula_digest.clone() });
+        player.relations.push(ProjectedRelation { from_instance_id: from.into(), to_instance_id: to.into(), level, formula_version: Some(version), formula_digest: Some(formula_digest.clone()), maturity_policy: None });
     }
     let mut first = original.clone();
     let mut runtime = apply(&mut first, Some(&policy), &projection).unwrap();

@@ -685,6 +685,7 @@ mod tests {
         };
         NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: NEXT_VERSION,
             world_identity: None,
             map: BattleMap {

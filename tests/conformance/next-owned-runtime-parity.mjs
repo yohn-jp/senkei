@@ -5,7 +5,7 @@
 // SENKEI_WASM_PATH for prebuilt release artifacts.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,6 +150,18 @@ try {
   const snapshot={attacker,defender,context};
   const reproduced=await both('reproduce',{assets,snapshot,snapshot_digest:first.diagnostics.identity.snapshot_digest,include_diagnostics:true,diagnostics_side:'attacker'},{label:'retained reproduction'});
   assert(eq(first,reproduced),'reproduction differs from original complete response');
+  const inspectionRequest={format_version:1,assets,snapshot,snapshot_digest:first.diagnostics.identity.snapshot_digest,
+    authorized_side:'attacker',selector:{tick:1,slot_id:'slot-1'}};
+  const inspected=await both('inspect_next_decision',inspectionRequest,{label:'bounded Next decision inspection'});
+  const identity=inspected.identity;
+  assert(identity.result_digest===first.replay.result_digest && identity.snapshot_digest===inspectionRequest.snapshot_digest,'inspection Run identity differs');
+  assert(identity.inspection_digest===sha(JSON.stringify(canonical({format_version:1,snapshot_digest:identity.snapshot_digest,authorized_side:'attacker',selector:inspectionRequest.selector}))),'inspection selector identity differs');
+  assert(inspected.observation.identity_space==='inspection_observed' && inspected.observation.source_digest===decision.record.value.details.observation_digest,'inspection observation provenance differs');
+  assert(inspected.decision.status==='evaluated' && inspected.decision.candidates.length>0 && inspected.decision.candidates.every(c=>c.actor.startsWith('observed-')),'inspection candidates or identity projection missing');
+  assert(!defender.configuration.heroes.value.some(record=>JSON.stringify(inspected).includes(heroId('defender',record.value.slot_id.value))),'inspection leaked enemy roster ID');
+  const badInspection=clone(inspectionRequest); badInspection.snapshot_digest='0'.repeat(64);
+  await both('inspect_next_decision',badInspection,{ok:false,label:'inspection rejects stale snapshot'});
+  if (process.env.NEXT_INSPECTION_FIXTURE) await writeFile(process.env.NEXT_INSPECTION_FIXTURE,JSON.stringify({assets,snapshot,simulation:first,inspection:inspected}));
   for(const [domain,expected] of [['navigation','move'],['engagement','select_target'],['targeting','select_target'],['pursuit','pursue'],['survival','retreat'],['objective','move']]) {
     const x=clone(payload); x.context.next_behavior.inputs={schema_version:1,army:{},squads:{},heroes:{}};
     // Put both armies in observable range; only observed candidates may pursue.

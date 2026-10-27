@@ -195,6 +195,7 @@ fn setup(max_ticks: u32) -> (SenkeiSnapshot, SenkeiSnapshot, VerifiedRulePlan, M
         world_identity: None,
         next_behavior: None,
         next_minion_behavior: None,
+        next_minion_control: None,
         next_route: None,
         versions: ComponentVersions {
             model: v(), engine: ENGINE_VERSION, ruleset: v(),

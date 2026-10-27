@@ -48,6 +48,8 @@ pub struct ProjectionPolicy {
     pub hero_catalog_digest: crate::ContentDigest,
     pub equipment: BTreeMap<String, EquipmentEffectDefinition>,
     pub relation: Option<RelationFormula>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maturity: Option<crate::RelationMaturityPolicy>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,8 +70,12 @@ pub struct ProjectedRelation {
     pub from_instance_id: String,
     pub to_instance_id: String,
     pub level: Option<i64>,
-    pub formula_version: Version,
-    pub formula_digest: crate::ContentDigest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula_version: Option<Version>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula_digest: Option<crate::ContentDigest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maturity_policy: Option<crate::RelationMaturityPolicyRef>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

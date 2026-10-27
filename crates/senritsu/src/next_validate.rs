@@ -21,6 +21,9 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
         if let Some(formula) = &policy.relation {
             check(matches!(formula.stat, ProjectedStat::Attack | ProjectedStat::Defense) && formula.version.major > 0 && (0..=1_000_000).contains(&formula.max_level) && (0..=1_000_000).contains(&formula.add_per_level) && (0..=1_000_000).contains(&formula.max_bonus), "next.projection_policy.relation", "invalid relation formula");
         }
+        if let Some(maturity) = &policy.maturity {
+            check(crate::relation_maturity::valid(maturity), "next.projection_policy.maturity", "invalid relation maturity policy");
+        }
     }
     let paired_world_matches = match (&r.world_identity, &r.map.world_identity) {
         (Some(package_world), Some(map_world)) => {
@@ -76,6 +79,9 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
     let trial_preferences = package.domain.capabilities.contains_key(&CapabilityId::new("behavior_preference"))
         && r.projection_policy.as_ref().is_some_and(|p| p.test_only);
     if trial_preferences { crate::production_preferences::add_trial_behavior_preferences(&mut supported); }
+    if let Err(message) = crate::minion_control::validate_next_minion_control_declaration(package, &mut supported) {
+        check(false, "next.minion_control", &message);
+    }
     // The Replay-only contest field was added to this schema without changing
     // simulation semantics. Accept the exact earlier World schema as well so
     // retained, content-addressed RulePackages remain reproducible.
@@ -340,7 +346,8 @@ pub(crate) fn validate_next(package: &RulePackage, issues: &mut Vec<ValidationIs
             .domain
             .capabilities
             .keys()
-            .all(|id| CAPS.contains(&id.as_str()) || (trial_preferences && matches!(id.as_str(), "behavior_preference" | "select_target"))),
+            .all(|id| CAPS.contains(&id.as_str()) || (trial_preferences && matches!(id.as_str(), "behavior_preference" | "select_target"))
+                || r.minion_control.as_ref().is_some_and(|declaration| declaration.capabilities.contains_key(id))),
         "domain.capabilities",
         "unsupported finite battle capability",
     );

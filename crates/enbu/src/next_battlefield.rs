@@ -448,6 +448,7 @@ mod tests {
         ];
         NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: Version::new(2, 0, 0),
             world_identity: None,
             map: BattleMap { id: "test".into(), nodes, edges, lanes: BTreeMap::new(), world_projection: None,
