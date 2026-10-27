@@ -2536,3 +2536,28 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.is_none()));
     assert_ne!(artifact.run_digest(),waiting.run_digest());
 }
+
+#[test]
+fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
+    let rules = rules();
+    let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
+    let domains = BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] };
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"profile-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains, candidates:vec![
+        BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },
+        BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat, capability:"retreat".into(), arguments:vec![BehaviorArgument::Actor] },
+    ] };
+    let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
+    let (a,b,context) = build_match(&rules,&[2,3],"profile-test",1,None,None);
+    let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, army:BTreeMap::from([(CombatantSide::Attacker,enbu::NextBehaviorProfile { survival:200, ..Default::default() })]), squads:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([("attacker:squad-0".into(), enbu::NextBehaviorProfile { navigation:300, ..Default::default() })]))]), ..Default::default() };
+    let mut vm = Vm::new(&rules);
+    let result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
+    let traces = result.traces_for_owner(CombatantSide::Attacker);
+    assert_eq!(traces.len(),2);
+    assert_eq!(traces.iter().filter(|t| t.selected.as_ref().unwrap().capability.as_str()=="move").count(),1);
+    assert_eq!(traces.iter().filter(|t| t.selected.as_ref().unwrap().capability.as_str()=="retreat").count(),1);
+    let mut explicit = a.clone();
+    explicit.program = compile(&movement_tactics(&[("slot-1".into(), rules.plan().next.as_ref().unwrap().map.defender_base.clone())]), &rules).unwrap().program;
+    let mut vm = Vm::new(&rules);
+    let result = enbu::simulate_next_behavior(&explicit,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
+    assert_eq!(result.traces_for_owner(CombatantSide::Attacker).len(),1, "explicit member order suppresses whole current squad's default");
+}
