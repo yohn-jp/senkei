@@ -1,6 +1,6 @@
 import type { DomainCatalogDocument } from "@senkei/jinrei-editor";
 import type {
-  DiagnosticEvent, DomainValue, PresentationReplay, ReproductionAssets,
+  DiagnosticEvent, DomainValue, PresentationEvent, PresentationReplay, ReproductionAssets,
   SimulationResponse, SimulationSnapshot,
 } from "../../contracts";
 import { canonicalJson } from "../../worker/input-identity";
@@ -64,7 +64,11 @@ export async function verifyCoverageRun(
     const ruleset = run.snapshot.context.ruleset;
     const stamp = catalog.identity;
     if (canonicalJson(ruleset) !== canonicalJson(run.snapshot.attacker.ruleset)
+      || canonicalJson(ruleset) !== canonicalJson(run.snapshot.defender.ruleset)
       || canonicalJson(ruleset) !== canonicalJson(run.reproductionAssets.rule_package.ruleset)
+      || !publicReplay.ruleset || !ownerReplay.ruleset
+      || canonicalJson(ruleset) !== canonicalJson(publicReplay.ruleset)
+      || canonicalJson(ruleset) !== canonicalJson(ownerReplay.ruleset)
       || stamp.rulesetId !== ruleset.id || stamp.rulesetDigest !== ruleset.digest
       || canonicalJson(stamp.rulesetVersion) !== canonicalJson(ruleset.version)) {
       return unavailable("The Run and current RulePackage do not match.");
@@ -107,29 +111,91 @@ function subjectIds(replay: PresentationReplay, tick: number, subjects: readonly
 
 export type ScopedCoverageEvents =
   | { readonly status: "unavailable"; readonly reason: string }
-  | { readonly status: "available"; readonly events: readonly DiagnosticEvent[] };
+  | { readonly status: "available"; readonly events: readonly DiagnosticEvent[]; readonly rawIdentityAvailable: boolean };
 
-/** Keep unscoped state evaluations at Army level; never infer a Hero from target-first entity_id. */
+/** Resolve only the producer's explicit owner Replay reference, never by matching raw to projected entity IDs. */
+export function committedCoverageOrder(
+  verified: Extract<VerifiedCoverageRun, { status: "available" }>,
+  event: DiagnosticEvent,
+): PresentationEvent | null {
+  if (event.side !== "attacker" || event.record.kind !== "runtime_notice"
+    || event.record.value.code !== "enbu.behavior_order_committed" || !event.action_id) return null;
+  const details = event.record.value.details;
+  if (!/^(0|[1-9][0-9]*)$/.test(details.owner_replay_tick ?? "")
+    || !/^(0|[1-9][0-9]*)$/.test(details.owner_replay_sequence ?? "")) return null;
+  const tick = Number(details.owner_replay_tick), sequence = Number(details.owner_replay_sequence);
+  if (!Number.isSafeInteger(tick) || !Number.isSafeInteger(sequence) || tick !== event.tick) return null;
+  const frames = verified.ownerReplay.frames.filter(frame => frame.tick === tick);
+  if (frames.length !== 1) return null;
+  const matches = frames[0].events.filter(candidate => candidate.event === "next.behavior_order_committed"
+    && candidate.payload.tick?.kind === "integer" && candidate.payload.tick.value === tick
+    && candidate.payload.sequence?.kind === "integer" && candidate.payload.sequence.value === sequence);
+  return matches.length === 1 && matches[0].payload.action_id?.kind === "string"
+    && matches[0].payload.action_id.value === event.action_id ? matches[0] : null;
+}
+
+function orderMembers(order: PresentationEvent): readonly DomainValue[] {
+  return order.payload.members?.kind === "list" ? order.payload.members.value : [];
+}
+
+/** Bind raw diagnostic IDs only through the owner's immutable roster notices. */
+function rawSubjectIds(verified: Extract<VerifiedCoverageRun, { status: "available" }>, subjects: readonly CoverageSubject[]): Set<string> | null {
+  const roster = verified.run.snapshot.attacker.configuration?.heroes;
+  if (roster?.kind !== "list") return null;
+  const notices = verified.events.filter(event => event.side === "attacker" && event.tick === 0
+    && event.action_id === null && event.record.kind === "runtime_notice" && event.record.value.code === "enbu.next_hero_identity");
+  const ids = new Set<string>();
+  for (const subject of subjects) {
+    const rosterMatches = roster.value.filter(entry => entry.kind === "record" && scalar(entry.value.slot_id) === subject.slot_id);
+    const matches = notices.filter(event => event.record.kind === "runtime_notice"
+      && event.record.value.details.slot_id === subject.slot_id);
+    const entry = rosterMatches[0], notice = matches[0];
+    if (rosterMatches.length !== 1 || entry.kind !== "record" || scalar(entry.value.catalog_id) !== subject.catalog_id
+      || scalar(entry.value.squad) !== subject.squad || matches.length !== 1 || notice.record.kind !== "runtime_notice"
+      || notice.record.value.details.catalog_id !== subject.catalog_id || !notice.entity_id
+      || notices.filter(other => other.entity_id === notice.entity_id).length !== 1 || ids.has(notice.entity_id)) return null;
+    ids.add(notice.entity_id);
+  }
+  return ids;
+}
+
+/** Raw diagnostics and projected Replay IDs have distinct, explicit bindings. */
 export function scopedCoverageEvents(
   verified: Extract<VerifiedCoverageRun, { status: "available" }>,
   scope: "army" | "squad" | "hero",
   subjects: readonly CoverageSubject[],
   tick: number,
 ): ScopedCoverageEvents {
-  const events = verified.events.filter(event => event.side === "attacker" && event.tick === tick);
-  if (scope === "army") return { status: "available", events };
+  const events = verified.events.filter(event => event.side === "attacker" && event.tick === tick
+    && !(event.record.kind === "runtime_notice" && event.record.value.code === "enbu.next_hero_identity"));
+  if (scope === "army") return { status: "available", events, rawIdentityAvailable: true };
   if (!subjects.length) return { status: "unavailable", reason: "No Hero is selected for this scope." };
   const ids = subjectIds(verified.ownerReplay, tick, subjects);
   if (!ids) return { status: "unavailable", reason: "A unique owner Hero identity is unavailable at this Tick." };
-  return { status: "available", events: events.filter(({ record }) => {
-    if (record.kind !== "intent_proposed" && record.kind !== "intent_accepted" && record.kind !== "intent_rejected") return false;
-    return (record.value.intent.actor !== null && ids.has(record.value.intent.actor))
-      || (record.value.intent.target !== null && ids.has(record.value.intent.target));
-  }) };
+  const rawIds = rawSubjectIds(verified, subjects);
+  return { status: "available", events: events.filter(event => {
+    const { record } = event;
+    if (rawIds && (record.kind === "intent_proposed" || record.kind === "intent_accepted" || record.kind === "intent_rejected")) {
+      return (record.value.intent.actor !== null && rawIds.has(record.value.intent.actor))
+        || (record.value.intent.target !== null && rawIds.has(record.value.intent.target));
+    }
+    const order = committedCoverageOrder(verified, event);
+    if (!order) return false;
+    return orderMembers(order).some(member => member.kind === "record"
+      && member.value.entity?.kind === "entity" && ids.has(member.value.entity.value));
+  }), rawIdentityAvailable: rawIds !== null };
+}
+
+function valueText(value: DomainValue | undefined): string {
+  if (!value) return "not supplied";
+  if (value.kind === "null") return "null";
+  if (value.kind === "fixed") return `${value.value.coefficient} × 10⁻${value.value.scale}`;
+  if (value.kind === "list" || value.kind === "record") return JSON.stringify(value.value);
+  return String(value.value);
 }
 
 /** Report only values actually emitted by the owner diagnostics channel. */
-export function coverageDiagnosticText(event: DiagnosticEvent): string {
+export function coverageDiagnosticText(event: DiagnosticEvent, verified?: Extract<VerifiedCoverageRun, { status: "available" }>): string {
   const { record } = event;
   switch (record.kind) {
     case "state_evaluated": return `${record.value.state} · ${record.value.result.toUpperCase()}`;
@@ -144,6 +210,13 @@ export function coverageDiagnosticText(event: DiagnosticEvent): string {
     case "cost_charged": return `${record.value.operation} · ${record.value.amount} CU`;
     case "memory_read": return `${record.value.state} · memory read`;
     case "memory_written": return `${record.value.state} · memory updated`;
-    case "runtime_notice": return record.value.code;
+    case "runtime_notice": {
+      if (record.value.code !== "enbu.behavior_order_committed") return record.value.code;
+      const order = verified ? committedCoverageOrder(verified, event) : null;
+      if (!order) return "Committed-order Replay reference unavailable";
+      const members = orderMembers(order).flatMap(member => member.kind === "record" && member.value.entity?.kind === "entity"
+        ? [`${member.value.entity.value}: goal ${valueText(member.value.goal)}, target ${valueText(member.value.target)}, retreating ${valueText(member.value.retreating)}`] : []);
+      return members.length ? `Committed · ${members.join("; ")}` : "Committed · member details not supplied";
+    }
   }
 }

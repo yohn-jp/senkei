@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DomainCatalogDocument } from "@senkei/jinrei-editor";
 import type { DiagnosticEvent, MatchResult, SimulationSnapshot } from "../../contracts";
 import { reproductionSnapshotDigest } from "./experiment-restoration";
-import { coverageDiagnosticText, scopedCoverageEvents, verifyCoverageRun } from "./coverage-observed";
+import { committedCoverageOrder, coverageDiagnosticText, scopedCoverageEvents, verifyCoverageRun } from "./coverage-observed";
 import type { CoverageRun } from "./coverage-observed";
 
 const ruleset = { id: "rules", version: { major: 1, minor: 0, patch: 0 }, digest: "rules-digest" };
@@ -20,22 +20,34 @@ const hero = { owner: "attacker" as const, entity_type: "hero", fields: {
   slot_id: field(subject.slot_id), catalog_id: field(subject.catalog_id), squad: field(subject.squad),
 } };
 const events: DiagnosticEvent[] = [
+  { tick: 0, side: "attacker", sequence: 0, action_id: null, entity_id: "hero-entity",
+    record: { kind: "runtime_notice", value: { code: "enbu.next_hero_identity", details: { slot_id: "slot-1", catalog_id: "hero-a" } } } },
   { tick: 3, side: "attacker", sequence: 1, action_id: null, entity_id: null,
     record: { kind: "state_evaluated", value: { state: "can_attack", result: "unknown" } } },
   { tick: 3, side: "attacker", sequence: 2, action_id: "action-a", entity_id: "enemy",
     record: { kind: "intent_accepted", value: { intent: { action_id: "action-a", capability: "attack", actor: "hero-entity", target: "enemy", arguments: [], priority: null } } } },
   { tick: 3, side: "attacker", sequence: 3, action_id: "action-b", entity_id: "hero-entity",
     record: { kind: "intent_rejected", value: { intent: { action_id: "action-b", capability: "move", actor: "other", target: "hero-entity", arguments: [], priority: null }, reason: "blocked" } } },
+  { tick: 3, side: "attacker", sequence: 4, action_id: "action-a", entity_id: "hero-entity",
+    record: { kind: "runtime_notice", value: { code: "enbu.behavior_order_committed", details: { owner_replay_tick: "3", owner_replay_sequence: "0" } } } },
 ];
 
 async function validRun(): Promise<CoverageRun> {
   const snapshot = {
-    attacker: { ruleset, program: { content_digest: "program" } }, defender: {},
+    attacker: { ruleset, program: { content_digest: "program" }, configuration: { heroes: { kind: "list", value: [
+      { kind: "record", value: { slot_id: field("slot-1"), catalog_id: field("hero-a"), squad: field("front") } },
+    ] } } }, defender: { ruleset },
     context: { match_id: "match-a", ruleset, world_identity: world },
   } as unknown as SimulationSnapshot;
-  const replay = { schema_version: { major: 1, minor: 0, patch: 0 }, match_id: "match-a", result_digest: resultDigest, world_identity: world,
-    frames: [{ tick: 3, events: [], visible_state: { entities: { "hero-entity": hero }, global_fields: {} } }] };
-  const ownerReplay = { ...replay, perspective: "attacker" };
+  const replay = { schema_version: { major: 1, minor: 0, patch: 0 }, match_id: "match-a", result_digest: resultDigest, ruleset, world_identity: world,
+    frames: [{ tick: 3, events: [], visible_state: { entities: {}, global_fields: {} } }] };
+  const ownerReplay = { ...replay, perspective: "attacker", frames: [{ tick: 3, visible_state: { entities: { "visible-10": hero }, global_fields: {} },
+    events: [{ event: "next.behavior_order_committed", entity: "visible-10", payload: {
+      tick: { kind: "integer", value: 3 }, sequence: { kind: "integer", value: 0 }, action_id: field("action-a"),
+      members: { kind: "list", value: [{ kind: "record", value: {
+        entity: { kind: "entity", value: "visible-10" }, goal: field("node-b"), target: { kind: "null" }, retreating: { kind: "bool", value: false },
+      } }] },
+    } }] }] };
   return {
     snapshot, includeDiagnostics: true, sourceReplay: ownerReplay,
     reproductionAssets: { rule_package: { ruleset, next: { world_identity: world } } },
@@ -57,7 +69,7 @@ describe("Coverage owner Run evidence", () => {
     const army = scopedCoverageEvents(verified, "army", [], 3);
     expect(army.status).toBe("available");
     if (army.status !== "available") throw new Error(army.reason);
-    expect(army.events).toHaveLength(3);
+    expect(army.events).toHaveLength(4);
     expect(coverageDiagnosticText(army.events[0])).toBe("can_attack · UNKNOWN");
   });
 
@@ -80,19 +92,50 @@ describe("Coverage owner Run evidence", () => {
     expect((await verifyCoverageRun(wrongWorld, catalog, true, "program")).status).toBe("unavailable");
   });
 
-  it("requires unique same-Tick owner Hero identity and uses intent actor/target, not the target-first event entity", async () => {
+  it("uses roster notices for raw intent IDs and an explicit reference for projected committed-order IDs", async () => {
     const verified = await verifyCoverageRun(await validRun(), catalog, true, "program");
     if (verified.status !== "available") throw new Error(verified.reason);
     const heroEvents = scopedCoverageEvents(verified, "hero", [subject], 3);
     expect(heroEvents.status).toBe("available");
     if (heroEvents.status !== "available") throw new Error(heroEvents.reason);
-    expect(heroEvents.events.map(event => event.sequence)).toEqual([2, 3]);
-    expect(coverageDiagnosticText(heroEvents.events[1])).toContain("actor other · target hero-entity");
+    expect(heroEvents.rawIdentityAvailable).toBe(true);
+    expect(heroEvents.events.map(event => event.sequence)).toEqual([2, 3, 4]);
+    expect(coverageDiagnosticText(heroEvents.events[1], verified)).toContain("actor other · target hero-entity");
+    expect(coverageDiagnosticText(heroEvents.events[2], verified)).toContain("visible-10: goal node-b, target null, retreating false");
     expect(scopedCoverageEvents(verified, "hero", [subject], 4).status).toBe("unavailable");
     const frame = verified.ownerReplay.frames[0];
     const duplicated = { ...verified, ownerReplay: { ...verified.ownerReplay, frames: [{ ...frame,
       visible_state: { ...frame.visible_state!, entities: { ...frame.visible_state!.entities, duplicate: hero } } }] } };
     expect(scopedCoverageEvents(duplicated, "hero", [subject], 3).status).toBe("unavailable");
     expect(scopedCoverageEvents(verified, "squad", [{ ...subject, squad: "other" }], 3).status).toBe("unavailable");
+  });
+
+  it("rejects wrong, ambiguous, or malformed committed-order references", async () => {
+    const verified = await verifyCoverageRun(await validRun(), catalog, true, "program");
+    if (verified.status !== "available") throw new Error(verified.reason);
+    const notice = events[4];
+    expect(committedCoverageOrder(verified, notice)).not.toBeNull();
+    const frame = verified.ownerReplay.frames[0];
+    const duplicate = { ...verified, ownerReplay: { ...verified.ownerReplay, frames: [{ ...frame, events: [...frame.events, frame.events[0]] }] } };
+    expect(committedCoverageOrder(duplicate, notice)).toBeNull();
+    expect(scopedCoverageEvents(duplicate, "hero", [subject], 3)).toMatchObject({ status: "available", events: [events[2], events[3]] });
+    expect(committedCoverageOrder(verified, { ...notice, action_id: "different" })).toBeNull();
+    expect(committedCoverageOrder(verified, { ...notice, side: "defender" })).toBeNull();
+    const malformed = { ...notice, record: { kind: "runtime_notice" as const, value: { code: "enbu.behavior_order_committed", details: { owner_replay_tick: "03", owner_replay_sequence: "0" } } } };
+    expect(committedCoverageOrder(verified, malformed)).toBeNull();
+    expect(coverageDiagnosticText(malformed, verified)).toBe("Committed-order Replay reference unavailable");
+  });
+
+  it("keeps legacy or ambiguous raw identities unbound without losing separately verified commitments", async () => {
+    const verified = await verifyCoverageRun(await validRun(), catalog, true, "program");
+    if (verified.status !== "available") throw new Error(verified.reason);
+    const legacy = { ...verified, events: verified.events.filter(event => event.tick !== 0) };
+    expect(scopedCoverageEvents(legacy, "hero", [subject], 3)).toMatchObject({
+      status: "available", rawIdentityAvailable: false, events: [events[4]],
+    });
+    const duplicate = { ...verified, events: [...verified.events, { ...events[0], sequence: 99, entity_id: "other-id" }] };
+    expect(scopedCoverageEvents(duplicate, "hero", [subject], 3)).toMatchObject({
+      status: "available", rawIdentityAvailable: false, events: [events[4]],
+    });
   });
 });

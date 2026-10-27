@@ -210,7 +210,8 @@ export function JinreiWorkbench({
     && verifiedRun.programDigest === programDigest && verifiedRun.current === coverageRunCurrent
     ? verifiedRun.result : null;
   const observedTicks = observed?.status === "available"
-    ? [...new Set(observed.events.map(event => event.tick))].sort((a, b) => a - b) : [];
+    ? [...new Set(observed.events.filter(event => event.record.kind !== "runtime_notice"
+      || event.record.value.code !== "enbu.next_hero_identity").map(event => event.tick))].sort((a, b) => a - b) : [];
   const selectedTick = observedTick !== null && observedTicks.includes(observedTick) ? observedTick
     : coverageTick != null && observedTicks.includes(coverageTick) ? coverageTick : observedTicks[0] ?? null;
   const selectedSubjects = coverageScope === "hero" ? (activeHero ? [activeHero] : [])
@@ -487,11 +488,12 @@ export function JinreiWorkbench({
                 <p>{observed.run.snapshot.context.next_behavior
                   ? `Behavior ${observed.run.snapshot.context.next_behavior.policy.policy_id} · ${observed.run.snapshot.context.next_behavior.policy.test_only ? "test-only policy" : "Run policy"}.`
                   : "No Behavior policy identity is recorded in this Run."} The Run does not record a Catalog stamp: its relationship to the current Catalog is NOT CHECKED. These events are not per-field Profile observations or a static coverage proof.</p>
-                {selectedTick === null ? <p role="status">The authorized diagnostics contain no trace events.</p> : <>
+                {selectedTick === null ? <p role="status">The authorized diagnostics contain no decision trace events.</p> : <>
                   <label><span>Recorded Tick </span><select aria-label="Observed diagnostic Tick" value={selectedTick} onChange={event => setObservedTick(Number(event.currentTarget.value))}>{observedTicks.map(tick => <option key={tick} value={tick}>{tick}</option>)}</select></label>
                   {onCoverageReplayTick && <button type="button" onClick={() => onCoverageReplayTick(selectedTick)}>Open this Tick in Replay ↗</button>}
+                  {observedEvents?.status === "available" && !observedEvents.rawIdentityAvailable && <p role="status">This Run has no verified owner Hero diagnostic identity. Intent events remain available at Army scope.</p>}
                   {observedEvents?.status === "unavailable" ? <p role="status">{observedEvents.reason}</p>
-                    : observedEvents?.status === "available" && observedEvents.events.length > 0 ? <ol aria-label="Observed owner diagnostic events">{observedEvents.events.slice(currentObservedPage * 40, (currentObservedPage + 1) * 40).map(event => <li key={`${event.tick}-${event.sequence}`}><strong>{event.record.kind.replaceAll("_", " ")}</strong> · {coverageDiagnosticText(event)}{event.action_id && <> · action <code>{event.action_id}</code></>}</li>)}</ol>
+                    : observedEvents?.status === "available" && observedEvents.events.length > 0 ? <ol aria-label="Observed owner diagnostic events">{observedEvents.events.slice(currentObservedPage * 40, (currentObservedPage + 1) * 40).map(event => <li key={`${event.tick}-${event.sequence}`}><strong>{event.record.kind.replaceAll("_", " ")}</strong> · {coverageDiagnosticText(event, observed)}{event.action_id && <> · action <code>{event.action_id}</code></>}</li>)}</ol>
                       : <p role="status">No attributable events were supplied for this scope and Tick. Unattributed events remain available at Army scope.</p>}
                   {observedPageCount > 1 && <nav aria-label="Observed diagnostic pages"><button type="button" disabled={currentObservedPage === 0} onClick={() => setObservedPage(currentObservedPage - 1)}>Previous events</button><span> Page {currentObservedPage + 1} / {observedPageCount} </span><button type="button" disabled={currentObservedPage + 1 >= observedPageCount} onClick={() => setObservedPage(currentObservedPage + 1)}>Next events</button></nav>}
                 </>}
