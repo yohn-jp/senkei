@@ -45,6 +45,7 @@ pub fn apply(world: &mut WorldState, policy: Option<&ProjectionPolicy>, projecti
     }
     let mut runtime = RelationRuntime { projection: projection.clone(), policy: policy.clone(), previous: BTreeMap::new() };
     runtime.refresh(&mut updated)?;
+    runtime.validate_maturity()?;
     *world = updated;
     Ok(runtime)
 }
@@ -56,6 +57,89 @@ pub struct RelationRuntime {
     previous: BTreeMap<EntityId, i64>,
 }
 impl RelationRuntime {
+    /// Validate frozen maturity references before the match can begin. Missing
+    /// references stay undefined; a supplied reference must resolve exactly.
+    fn validate_maturity(&self) -> Result<(), ApiError> {
+        let invalid = |s: &str| ApiError::new(ApiErrorCode::ValidationFailed, s);
+        let policy = self.policy.maturity.as_ref();
+        if policy.is_some_and(|p| !p.has_valid_limits()) {
+            return Err(invalid("invalid relation maturity policy"));
+        }
+        let expected = policy.map(crate::digest_json).transpose()?;
+        for player in self.projection.sides.values() {
+            for relation in &player.relations {
+                let Some(reference) = &relation.maturity_policy else { continue };
+                let policy = policy.ok_or_else(|| invalid("relation maturity policy is undefined"))?;
+                if reference.version != policy.version || Some(&reference.digest) != expected.as_ref()
+                    || relation.level.is_some_and(|level| level < 0 || level > policy.max_level)
+                {
+                    return Err(invalid("invalid relation maturity policy reference or level"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Calculate an optional addition for one living Squad. Every unordered
+    /// pair must have both directed levels and exact policy references. This
+    /// keeps an undefined value distinct from zero and avoids extrapolating a
+    /// partly known squad. Arithmetic follows the policy's bounded floor rule.
+    pub(crate) fn maturity_increment(
+        &self,
+        world: &WorldState,
+        side: senkei_model::CombatantSide,
+        members: &[EntityId],
+    ) -> Result<Option<i64>, ApiError> {
+        let invalid = |s: &str| ApiError::new(ApiErrorCode::ValidationFailed, s);
+        let Some(policy) = &self.policy.maturity else { return Ok(None) };
+        // These semantics are enabled only by an explicit, versioned policy.
+        match (policy.target, policy.aggregation, policy.rounding) {
+            (senkei_model::RelationMaturityTarget::SquadMaturityIncrement,
+             senkei_model::RelationMaturityAggregation::CompletePairMean,
+             senkei_model::RelationRounding::Floor) => {}
+        }
+        if members.len() < 2 { return Ok(None); }
+        let player = self.projection.sides.get(&side).ok_or_else(|| invalid("relation owner missing"))?;
+        let mut instances = Vec::with_capacity(members.len());
+        for id in members {
+            let entity = world.entities.get(id).ok_or_else(|| invalid("relation Hero disappeared"))?;
+            if entity.entity_type.as_str() != "hero" || entity.owner != Some(side) {
+                return Err(invalid("relation Hero owner mismatch"));
+            }
+            let slot = match entity.fields.get(&FieldId::from("slot_id")) {
+                Some(DomainValue::String(slot)) => slot,
+                _ => return Err(invalid("relation Hero slot missing")),
+            };
+            let hero = player.heroes.iter().find(|hero| &hero.slot_id == slot)
+                .ok_or_else(|| invalid("relation Hero not in frozen owner projection"))?;
+            instances.push(hero.instance_id.as_str());
+        }
+        let directions: BTreeMap<(&str, &str), _> = player.relations.iter()
+            .map(|relation| ((relation.from_instance_id.as_str(), relation.to_instance_id.as_str()), relation))
+            .collect();
+        let mut total = 0_i64;
+        let mut pairs = 0_i64;
+        for left in 0..instances.len() {
+            for right in left + 1..instances.len() {
+                let (Some(forward), Some(backward)) = (
+                    directions.get(&(instances[left], instances[right])),
+                    directions.get(&(instances[right], instances[left])),
+                ) else { return Ok(None) };
+                if forward.maturity_policy.is_none() || backward.maturity_policy.is_none() {
+                    return Ok(None);
+                }
+                let (Some(a), Some(b)) = (forward.level, backward.level) else { return Ok(None) };
+                let pair = a.checked_add(b).ok_or_else(|| invalid("relation maturity overflow"))? / 2;
+                total = total.checked_add(pair).ok_or_else(|| invalid("relation maturity overflow"))?;
+                pairs += 1;
+            }
+        }
+        let bonus = (total / pairs).checked_mul(policy.add_per_level)
+            .ok_or_else(|| invalid("relation maturity overflow"))?
+            .min(policy.max_bonus);
+        Ok(Some(bonus))
+    }
+
     pub fn refresh(&mut self, world: &mut WorldState) -> Result<(), ApiError> {
         let invalid = |s: &str| ApiError::new(ApiErrorCode::ValidationFailed, s);
         let mut updated = world.clone();
@@ -75,13 +159,20 @@ impl RelationRuntime {
         for relation in &player.relations {
             if relation.from_instance_id == relation.to_instance_id || directions.insert((&relation.from_instance_id, &relation.to_instance_id), relation).is_some() { return Err(invalid("invalid relation pair")); }
             if !player.heroes.iter().any(|h| h.instance_id == relation.from_instance_id) || !player.heroes.iter().any(|h| h.instance_id == relation.to_instance_id) { return Err(invalid("unknown relation Hero")); }
-            let formula = self.policy.relation.as_ref().ok_or_else(|| invalid("relation formula is undefined"))?;
-            if relation.formula_version != formula.version || crate::digest_json(formula)? != relation.formula_digest || relation.level.is_some_and(|v| v < 0 || v > formula.max_level) { return Err(invalid("invalid relation formula or level")); }
+            match (&self.policy.relation, &relation.formula_version, &relation.formula_digest) {
+                (Some(formula), Some(version), Some(digest)) => {
+                    if *version != formula.version || *digest != crate::digest_json(formula)?
+                        || relation.level.is_some_and(|v| v < 0 || v > formula.max_level)
+                    { return Err(invalid("invalid relation formula or level")); }
+                }
+                (None, None, None) => {}
+                _ => return Err(invalid("relation stat formula reference is missing or undefined")),
+            }
         }
         let mut totals: BTreeMap<&str, (i64, i64)> = BTreeMap::new();
         for ((from, to), forward) in &directions {
             let backward = directions.get(&(to, from)).ok_or_else(|| invalid("both relation directions are required"))?;
-            if from >= to { continue; }
+            if from >= to || self.policy.relation.is_none() { continue; }
             let (Some(a), Some(b)) = (forward.level, backward.level) else { continue };
             let left = player.heroes.iter().find(|h| &h.instance_id == *from).unwrap();
             let right = player.heroes.iter().find(|h| &h.instance_id == *to).unwrap();

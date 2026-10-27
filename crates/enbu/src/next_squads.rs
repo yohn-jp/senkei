@@ -195,7 +195,19 @@ pub fn intents(
 
 /// Apply deaths, Solo respawns, and the time spent maintaining formation.
 /// W4 sets `hp` to zero and writes `death_tick` before this hook runs.
+#[cfg(test)]
 pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
+    lifecycle_with_relationships(world, rules, tick, None).expect("maturity without a projection is infallible");
+}
+
+/// Use the frozen relationship policy, when present, in the ordinary Squad
+/// maturity update after deaths and Solo respawns have been processed.
+pub(crate) fn lifecycle_with_relationships(
+    world: &mut WorldState,
+    rules: &NextRules,
+    tick: u32,
+    relationships: Option<&crate::projected_assets::RelationRuntime>,
+) -> Result<(), ApiError> {
     let mut changed_squads = BTreeSet::new();
     let hero_ids = world
         .entities
@@ -296,7 +308,7 @@ pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
         refresh_squad(world, *side, squad_id, rules, true);
     }
 
-    advance_maturity(world, rules, &changed_squads);
+    advance_maturity(world, rules, &changed_squads, relationships)
 }
 
 fn parse_loadout(
@@ -783,7 +795,8 @@ fn advance_maturity(
     world: &mut WorldState,
     rules: &NextRules,
     changed_squads: &BTreeSet<(CombatantSide, String)>,
-) {
+    relationships: Option<&crate::projected_assets::RelationRuntime>,
+) -> Result<(), ApiError> {
     let cap = support::param(rules, "squad_maturation_ticks", 40).clamp(1, MAX_WORLD_INT);
     let mut groups: BTreeMap<(CombatantSide, String), Vec<EntityId>> = BTreeMap::new();
     for (id, entity) in &world.entities {
@@ -829,13 +842,18 @@ fn advance_maturity(
             .min()
             .unwrap_or(0)
             .clamp(0, cap);
-        let next = prior.saturating_add(1).min(cap);
+        let bonus = match relationships {
+            Some(runtime) => runtime.maturity_increment(world, side, &members)?.unwrap_or(0),
+            None => 0,
+        };
+        let next = prior.saturating_add(1).saturating_add(bonus).min(cap);
         for id in &members {
             if let Some(entity) = world.entities.get_mut(id) {
                 support::set_int(entity, "maturity", next);
             }
         }
     }
+    Ok(())
 }
 
 fn clear_temporary_effects(entity: &mut EntityState) {
@@ -943,6 +961,7 @@ mod tests {
     fn rules() -> NextRules {
         NextRules {
             projection_policy: None,
+            minion_control: None,
             mechanics_version: Version::new(1, 0, 0),
             world_identity: None,
             map: BattleMap {
@@ -1040,6 +1059,163 @@ mod tests {
 
     fn field_string(world: &WorldState, id: &EntityId, key: &str) -> String {
         support::string(&world.entities[id], key)
+    }
+
+    // Only this test fixture chooses numeric maturity coefficients.
+    fn relationship_fixture(
+        attacker: &SenkeiSnapshot,
+        pairs: &[(&str, &str, Option<i64>, Option<i64>)],
+    ) -> (WorldState, crate::projected_assets::RelationRuntime, senkei_model::ProjectionPolicy, senkei_model::MatchProjection) {
+        use senkei_model::{AssetAuthority, MatchProjection, ProjectedHero, ProjectedRelation, ProjectedSide,
+            ProjectedStat, ProjectionPolicy, RelationFormula, RelationMaturityAggregation, RelationMaturityPolicy,
+            RelationMaturityPolicyRef, RelationMaturityTarget, RelationRounding};
+        let rules = rules();
+        let mut world = WorldState::default();
+        initialize(&mut world, attacker, CombatantSide::Attacker, &rules).unwrap();
+        initialize(&mut world, &loadout(), CombatantSide::Defender, &rules).unwrap();
+        let version = Version::new(1, 0, 0);
+        let stat = RelationFormula { version, stat: ProjectedStat::Defense, add_per_level: 0, max_level: 10, max_bonus: 0, rounding: RelationRounding::Floor };
+        let maturity = RelationMaturityPolicy { version: Version::new(3, 0, 0), target: RelationMaturityTarget::SquadMaturityIncrement, aggregation: RelationMaturityAggregation::CompletePairMean, add_per_level: 1, max_level: 10, max_bonus: 2, rounding: RelationRounding::Floor };
+        let stat_digest = crate::digest_json(&stat).unwrap();
+        let maturity_ref = RelationMaturityPolicyRef { version: maturity.version, digest: crate::digest_json(&maturity).unwrap() };
+        let policy = ProjectionPolicy { schema_version: 1, test_only: true, hero_catalog_id: "test-catalog".into(), hero_catalog_version: version, hero_catalog_digest: ContentDigest::new("test-digest"), equipment: BTreeMap::new(), relation: Some(stat), maturity: Some(maturity) };
+        let mut sides = BTreeMap::new();
+        for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+            let owner = format!("owner-{side:?}");
+            let heroes = (1..=5).map(|n| {
+                let slot = format!("h{n}");
+                let entity = &world.entities[&hero_entity_id(side, &slot)];
+                ProjectedHero { slot_id: slot.clone(), owner_id: owner.clone(), instance_id: format!("{side:?}-{slot}"), catalog_id: support::string(entity, "catalog_id"), definition_catalog_id: policy.hero_catalog_id.clone(), definition_version: version, definition_digest: policy.hero_catalog_digest.clone(), equipment: vec![] }
+            }).collect();
+            let mut relations = Vec::new();
+            if side == CombatantSide::Attacker {
+                for (a, b, forward, backward) in pairs {
+                    for (from, to, level) in [(*a, *b, *forward), (*b, *a, *backward)] {
+                        relations.push(ProjectedRelation { from_instance_id: format!("{side:?}-{from}"), to_instance_id: format!("{side:?}-{to}"), level, formula_version: Some(version), formula_digest: Some(stat_digest.clone()), maturity_policy: Some(maturity_ref.clone()) });
+                    }
+                }
+            }
+            sides.insert(side, ProjectedSide { owner_id: owner, authority: AssetAuthority::Local, heroes, relations });
+        }
+        let projection = MatchProjection { schema_version: 1, sides };
+        let runtime = crate::projected_assets::apply(&mut world, Some(&policy), &projection).unwrap();
+        (world, runtime, policy, projection)
+    }
+
+    #[test]
+    fn relationships_accelerate_existing_maturity_only_for_living_cohesive_squad() {
+        let rules = rules();
+        let (mut world, runtime, _, _) = relationship_fixture(&loadout(), &[("h1", "h2", Some(4), Some(6))]);
+        for tick in 1..=2 {
+            lifecycle_with_relationships(&mut world, &rules, tick, Some(&runtime)).unwrap();
+            assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), i64::from(tick) * 3);
+            assert_eq!(field_int(&world, &hero_id("h2"), "maturity"), i64::from(tick) * 3);
+            assert_eq!(field_int(&world, &hero_id("h3"), "maturity"), i64::from(tick));
+            assert_eq!(field_int(&world, &hero_id("h5"), "maturity"), 0);
+            assert_eq!(field_int(&world, &hero_entity_id(CombatantSide::Defender, "h1"), "maturity"), i64::from(tick));
+        }
+        intents(&mut world, &rules, &[(CombatantSide::Attacker, intent("split", "h1", None, "split"))], 3);
+        lifecycle_with_relationships(&mut world, &rules, 3, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
+        assert_eq!(field_int(&world, &hero_id("h2"), "maturity"), 0);
+        intents(&mut world, &rules, &[(CombatantSide::Attacker, intent("merge", "h1", Some("h2"), "merge"))], 5);
+        lifecycle_with_relationships(&mut world, &rules, 5, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 3);
+        assert_eq!(field_int(&world, &hero_id("h2"), "maturity"), 3);
+
+        let dead = world.entities.get_mut(&hero_id("h1")).unwrap();
+        support::set_int(dead, "hp", 0);
+        support::set_int(dead, "death_tick", 6);
+        lifecycle_with_relationships(&mut world, &rules, 6, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
+        assert_eq!(field_int(&world, &hero_id("h2"), "maturity"), 0);
+        lifecycle_with_relationships(&mut world, &rules, 26, Some(&runtime)).unwrap();
+        assert_ne!(field_string(&world, &hero_id("h1"), "squad"), field_string(&world, &hero_id("h2"), "squad"));
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
+        support::place(world.entities.get_mut(&hero_id("h1")).unwrap(), "field", &rules);
+        intents(&mut world, &rules, &[(CombatantSide::Attacker, intent("merge", "h1", Some("h2"), "rejoin"))], 28);
+        lifecycle_with_relationships(&mut world, &rules, 28, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 3);
+        support::place(world.entities.get_mut(&hero_id("h1")).unwrap(), "far", &rules);
+        lifecycle_with_relationships(&mut world, &rules, 29, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 0);
+        assert_eq!(field_int(&world, &hero_id("h2"), "maturity"), 0);
+    }
+
+    #[test]
+    fn pair_normalization_unknowns_and_cap_do_not_replace_normal_maturity() {
+        let rules = rules();
+        let three = snapshot(&[("h1", "back", "alpha", "field", "path_a"), ("h2", "front", "alpha", "field", "path_a"), ("h3", "front", "alpha", "field", "path_a"), ("h4", "back", "bravo", "field", "path_a"), ("h5", "front", "bravo", "field", "path_a")]);
+        let pairs = [("h1", "h2", Some(1), Some(3)), ("h1", "h3", Some(1), Some(3)), ("h2", "h3", Some(1), Some(3))];
+        let (mut pair_world, pair_runtime, _, _) = relationship_fixture(&loadout(), &[("h1", "h2", Some(1), Some(3))]);
+        lifecycle_with_relationships(&mut pair_world, &rules, 1, Some(&pair_runtime)).unwrap();
+        let (mut world, runtime, policy, projection) = relationship_fixture(&three, &pairs);
+        lifecycle_with_relationships(&mut world, &rules, 1, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), field_int(&pair_world, &hero_id("h1"), "maturity"), "three equal pairs have the same bonus as one pair");
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 3);
+        for slot in ["h1", "h2", "h3"] { support::set_int(world.entities.get_mut(&hero_id(slot)).unwrap(), "maturity", 39); }
+        lifecycle_with_relationships(&mut world, &rules, 2, Some(&runtime)).unwrap();
+        assert_eq!(field_int(&world, &hero_id("h1"), "maturity"), 40);
+
+        let mut unknown = projection.clone();
+        unknown.sides.get_mut(&CombatantSide::Attacker).unwrap().relations[0].level = None;
+        let (mut original, _, _, _) = relationship_fixture(&three, &pairs);
+        for slot in ["h1", "h2", "h3"] { support::set_int(original.entities.get_mut(&hero_id(slot)).unwrap(), "maturity", 7); }
+        let unknown_runtime = crate::projected_assets::apply(&mut original, Some(&policy), &unknown).unwrap();
+        lifecycle_with_relationships(&mut original, &rules, 1, Some(&unknown_runtime)).unwrap();
+        assert_eq!(field_int(&original, &hero_id("h1"), "maturity"), 8, "unknown does not erase normal progress or imply a bonus");
+
+        let mut no_policy = policy.clone();
+        no_policy.maturity = None;
+        let mut no_refs = projection.clone();
+        for relation in &mut no_refs.sides.get_mut(&CombatantSide::Attacker).unwrap().relations { relation.maturity_policy = None; }
+        let (mut baseline, _, _, _) = relationship_fixture(&three, &pairs);
+        let baseline_runtime = crate::projected_assets::apply(&mut baseline, Some(&no_policy), &no_refs).unwrap();
+        lifecycle_with_relationships(&mut baseline, &rules, 1, Some(&baseline_runtime)).unwrap();
+        assert_eq!(field_int(&baseline, &hero_id("h1"), "maturity"), 1, "absent policy preserves normal maturity");
+
+        let mut reordered = projection.clone();
+        let player = reordered.sides.get_mut(&CombatantSide::Attacker).unwrap();
+        player.heroes.reverse(); player.relations.reverse();
+        for relation in &mut player.relations { relation.level = relation.level.map(|level| if level == 1 { 3 } else { 1 }); }
+        let (mut reordered_world, _, _, _) = relationship_fixture(&three, &pairs);
+        let reordered_runtime = crate::projected_assets::apply(&mut reordered_world, Some(&policy), &reordered).unwrap();
+        lifecycle_with_relationships(&mut reordered_world, &rules, 1, Some(&reordered_runtime)).unwrap();
+        assert_eq!(field_int(&reordered_world, &hero_id("h1"), "maturity"), 3);
+    }
+
+    #[test]
+    fn maturity_reference_and_limits_are_checked_before_world_mutation() {
+        let pairs = [("h1", "h2", Some(4), Some(6))];
+        let (world, _, policy, projection) = relationship_fixture(&loadout(), &pairs);
+        let mut invalid = projection.clone();
+        invalid.sides.get_mut(&CombatantSide::Attacker).unwrap().relations[0].maturity_policy.as_mut().unwrap().digest = ContentDigest::new("wrong");
+        let mut unchanged = world.clone();
+        assert!(crate::projected_assets::apply(&mut unchanged, Some(&policy), &invalid).is_err());
+        assert_eq!(unchanged, world);
+        let mut missing_stat_ref = projection.clone();
+        missing_stat_ref.sides.get_mut(&CombatantSide::Attacker).unwrap().relations[0].formula_version = None;
+        assert!(crate::projected_assets::apply(&mut unchanged, Some(&policy), &missing_stat_ref).is_err());
+        assert_eq!(unchanged, world);
+        for invalid_value in [-1, 1_000_001] {
+            let mut bad = policy.clone();
+            bad.maturity.as_mut().unwrap().max_bonus = invalid_value;
+            assert!(crate::projected_assets::apply(&mut unchanged, Some(&bad), &projection).is_err());
+            assert_eq!(unchanged, world);
+        }
+        let mut absent = policy.clone();
+        absent.maturity = None;
+        assert!(crate::projected_assets::apply(&mut unchanged, Some(&absent), &projection).is_err());
+        assert_eq!(unchanged, world);
+        let mut too_low = policy.clone();
+        too_low.maturity.as_mut().unwrap().max_level = 4;
+        let mut low_ref = projection.clone();
+        let maturity = too_low.maturity.as_ref().unwrap();
+        for relation in &mut low_ref.sides.get_mut(&CombatantSide::Attacker).unwrap().relations {
+            relation.maturity_policy.as_mut().unwrap().digest = crate::digest_json(maturity).unwrap();
+        }
+        assert!(crate::projected_assets::apply(&mut unchanged, Some(&too_low), &low_ref).is_err());
+        assert_eq!(unchanged, world);
     }
 
     fn intent(capability: &str, actor: &str, target: Option<&str>, action: &str) -> Intent {
