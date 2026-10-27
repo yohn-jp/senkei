@@ -205,6 +205,45 @@ describe("presentation-only discrete battlefield layouts", () => {
     expect(offTrack.battlefield?.track).toBe("LEFT");
   });
 
+  it("retains an edge occupant's displayed position when peers join or leave", () => {
+    const map = replay(
+      [point("A.TOP.BANK", 0, 0, "A"), point("B.TOP.BANK", 12, 0, "B")], [],
+      [{ id: "bridge.TOP", region: "bridge", bridgeSite: "world.fixed-bridge.top", bridgeKind: "lane", points: [{ x: 0, y: 0 }, { x: 12, y: 0 }] } as RouteRow],
+    );
+    const onBridge = (id: string, x = 6) => unit(id, "A.TOP.BANK", { x, y: 0 },
+      { edgeTo: "B.TOP.BANK", progress: 100, track: "CENTER", crossing: "bridge" });
+    const offset = (values: ReadonlyMap<string, WorldPoint>, id: string) => values.get(id) ?? { x: 0, y: 0 };
+
+    const layout = new NodeDisplayLayout();
+    const incumbent = onBridge("z-incumbent"), earlierId = onBridge("a-new");
+    const solo = layout.update(atTick(0, incumbent), map);
+    const joined = layout.update(atTick(1, incumbent, earlierId), map);
+    expect(offset(joined, incumbent.id)).toEqual(offset(solo, incumbent.id));
+    expect(offset(joined, earlierId.id)).not.toEqual(offset(joined, incumbent.id));
+
+    const mergeLayout = new NodeDisplayLayout();
+    const approaching = unit("a-approaching", "A.TOP.BANK", { x: 5, y: 0 },
+      { edgeTo: "B.TOP.BANK", progress: 80, track: "CENTER", crossing: "bridge" });
+    const beforeMerge = mergeLayout.update(atTick(0, incumbent, approaching), map);
+    const merged = mergeLayout.update(atTick(1, incumbent, onBridge(approaching.id)), map);
+    expect(offset(merged, incumbent.id)).toEqual(offset(beforeMerge, incumbent.id));
+    expect(offset(merged, approaching.id)).not.toEqual(offset(merged, incumbent.id));
+
+    const survivorLayout = new NodeDisplayLayout();
+    const first = onBridge("a-first"), survivor = onBridge("b-survivor");
+    const pair = survivorLayout.update(atTick(0, first, survivor), map);
+    const afterLeave = survivorLayout.update(atTick(1, survivor), map);
+    expect(offset(afterLeave, survivor.id)).toEqual(offset(pair, survivor.id));
+    const afterJoin = survivorLayout.update(atTick(2, survivor, onBridge("0-new")), map);
+    expect(offset(afterJoin, survivor.id)).toEqual(offset(pair, survivor.id));
+
+    const nearEndLayout = new NodeDisplayLayout();
+    const near = [onBridge("a", 0.2), onBridge("b", 0.2), onBridge("c", 0.2), onBridge("d", 0.2)];
+    const nearPair = nearEndLayout.update(atTick(0, ...near.slice(0, 2)), map);
+    const nearCrowd = nearEndLayout.update(atTick(1, ...near), map);
+    expect(offset(nearCrowd, "b")).toEqual(offset(nearPair, "b"));
+  });
+
   it("separates same-track lane coincidences along the lane without lateral nudging", () => {
     const map = replay(
       [point("A.BASE", 0, 0, "A"), point("A.TOP.T1", 12, 0, "A")],

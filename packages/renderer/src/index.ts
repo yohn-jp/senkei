@@ -9,7 +9,7 @@ import { applyBattlefieldInformationLayers, type BattlefieldInformationLayers } 
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
 import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
-import { NodeDisplayLayout } from "./node-display-layout";
+import { BattlefieldReplayLayoutIndex } from "./battlefield-replay-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
 import { battlefieldUnitGroundingOffset, battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
@@ -342,7 +342,7 @@ export class Battlefield {
     .matches;
   private selected: string | null = null;
   private trackedIds: string[] = [];
-  private readonly unitLayout = new NodeDisplayLayout();
+  private readonly unitLayout: BattlefieldReplayLayoutIndex;
   private readonly unitMotion: BattlefieldUnitMotionIndex;
   private readonly unitOrientation: BattlefieldUnitOrientationIndex;
   private readonly transitionEffects: BattlefieldReplayEffectIndex;
@@ -369,6 +369,7 @@ export class Battlefield {
     private onSelect: (id: string) => void,
     private onFailure: (message: string) => void,
   ) {
+    this.unitLayout = new BattlefieldReplayLayoutIndex(replay);
     this.unitMotion = new BattlefieldUnitMotionIndex(replay);
     this.unitOrientation = new BattlefieldUnitOrientationIndex(replay);
     this.transitionEffects = new BattlefieldReplayEffectIndex(replay);
@@ -1947,7 +1948,7 @@ export class Battlefield {
     this.playing = playing;
     if (this.state === state) return;
     this.state = state;
-    this.modelOffsets = this.unitLayout.update(state, this.replay);
+    this.modelOffsets = this.unitLayout.at(state);
     if (this.trackedIds.length && !this.userCameraChanged) {
       this.frameTracked(this.trackedIds);
     } else if (

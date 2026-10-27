@@ -284,6 +284,7 @@ function signedEdgeOffset(slot: number): number {
 export class NodeDisplayLayout {
   private readonly nodeSlots = new Map<string, Map<string, number>>();
   private readonly edgeSlots = new Map<string, Map<string, number>>();
+  private readonly edgeCoincidences = new Map<string, string>();
   private lastTick?: number;
   private lastScene?: Replay["scene"];
 
@@ -293,8 +294,13 @@ export class NodeDisplayLayout {
     const backwardsSeek = this.lastTick !== undefined && state.tick < this.lastTick;
     const nodeOccupants = new Map<string, Set<string>>();
     const visibleEdges: EdgeUnit[] = [];
+    const dying = new Set(state.cues.flatMap(cue =>
+      cue.type === "destroy" && cue.tick === state.tick ? [cue.entityId] : []));
 
     for (const entity of Object.values(state.entities).sort((left, right) => compareIds(left.id, right.id))) {
+      // The renderer keeps a destroyed unit only for its confirmed death Tick.
+      // Retaining it as an occupant afterward would reserve an invisible slot.
+      if (entity.destroyed && !dying.has(entity.id)) continue;
       const node = settledNode(entity);
       if (node && nodes.has(node)) {
         const occupants = nodeOccupants.get(node) ?? new Set<string>();
@@ -308,6 +314,7 @@ export class NodeDisplayLayout {
     if (replayReset) {
       this.nodeSlots.clear();
       this.edgeSlots.clear();
+      this.edgeCoincidences.clear();
     } else if (backwardsSeek) {
       // Forget assignments for absent historical actors without perturbing actors still on
       // their current node or directed edge/track in the sought-to public frame.
@@ -365,12 +372,17 @@ export class NodeDisplayLayout {
       if (slots.size === 0) this.edgeSlots.delete(domain);
     }
     for (const group of coincidences.values()) {
-      if (group.length < 2) continue;
       const domain = group[0].domain;
       const slots = this.edgeSlots.get(domain) ?? new Map<string, number>();
       const used = new Set<number>();
       const keep = new Set<string>();
-      const sorted = [...group].sort((left, right) => compareIds(left.entity.id, right.entity.id));
+      // Reserve slot zero even for a lone occupant, and resolve a merge in
+      // favor of occupants already at this progress before new arrivals.
+      const sorted = [...group].sort((left, right) => {
+        const leftStayed = this.edgeCoincidences.get(left.entity.id) === left.coincidence;
+        const rightStayed = this.edgeCoincidences.get(right.entity.id) === right.coincidence;
+        return Number(rightStayed) - Number(leftStayed) || compareIds(left.entity.id, right.entity.id);
+      });
       // Keep every existing member's slot when it remains unique inside this
       // collision group. Distinct progress groups may reuse the same indices.
       for (const { entity } of sorted) {
@@ -389,6 +401,8 @@ export class NodeDisplayLayout {
       }
       this.edgeSlots.set(domain, slots);
     }
+    this.edgeCoincidences.clear();
+    for (const edge of visibleEdges) this.edgeCoincidences.set(edge.entity.id, edge.coincidence);
 
     const offsets = new Map<string, WorldPoint>();
     for (const [nodeId, occupants] of nodeOccupants) {
@@ -406,20 +420,23 @@ export class NodeDisplayLayout {
     }
 
     for (const group of coincidences.values()) {
-      if (group.length < 2) continue;
       const domain = group[0].domain;
       const slots = this.edgeSlots.get(domain);
       if (!slots) continue;
+      // A sole slot-zero actor needs no offset; a survivor in another slot
+      // keeps that offset instead of jumping when its last peer leaves.
+      if (group.length === 1 && slots.get(group[0].entity.id) === 0) continue;
       const from = nodes.get(group[0].from)!, to = nodes.get(group[0].to)!;
       const frame = closestEdgeFrame(from, to, replay);
       const directionX = frame.to.x - frame.from.x;
       const directionY = frame.to.y - frame.from.y;
       if (frame.length <= 1e-8) continue;
       const unitX = directionX / frame.length, unitY = directionY / frame.length;
-      const maxAbs = Math.max(...group.map(({ entity }) => Math.abs(signedEdgeOffset(slots.get(entity.id)!))));
       const fraction = edgeFraction(group[0].entity, frame);
       const room = Math.min(fraction * frame.length, (1 - fraction) * frame.length);
-      const compression = maxAbs > 0 ? Math.min(1, room / maxAbs) : 1;
+      // Every slot uses the same fixed upper bound, so adding/removing a peer
+      // cannot rescale the offsets already visible near an endpoint.
+      const compression = Math.min(1, room / (2 * EDGE_STRIDE));
       for (const { entity } of group) {
         const distance = signedEdgeOffset(slots.get(entity.id)!) * compression;
         offsets.set(entity.id, {
