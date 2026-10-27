@@ -21,7 +21,7 @@ pub fn add_trial_behavior_preferences(package: &mut RulePackage) {
     });
     package.arbitration.insert("select_target".into(), ArbitrationRule {
         conflict_keys: vec![IntentKey::Side, IntentKey::Actor],
-        resolution: ArbitrationResolution::SelectOrdered { sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }], max_accepted: 1 },
+        resolution: ArbitrationResolution::SelectOrdered { sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }], max_accepted: package.limits.max_intents_per_side_per_tick },
     });
     package.arbitration.insert("behavior_preference".into(), ArbitrationRule {
         conflict_keys: vec![IntentKey::Side, IntentKey::Actor, IntentKey::Argument(1)],

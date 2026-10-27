@@ -158,6 +158,30 @@ pub fn apply(
             }));
         }
     }
+    // Individual target selection writes only this Hero. Normal combat later
+    // consumes the same `target` field and retains its own range checks.
+    let mut targets = accepted.iter().filter(|(_,intent)| intent.capability.as_str()=="select_target").collect::<Vec<_>>();
+    targets.sort_by(|a,b| a.1.action_id.cmp(&b.1.action_id));
+    for (side,intent) in targets {
+        let (Some(actor),Some(target)) = (actor_id(intent),target_id(intent)) else { continue };
+        if !world.entities.get(&target).is_some_and(|e| e.owner.is_some() && e.owner != Some(*side) && support::alive(e)) { continue; }
+        let Some(entity) = world.entities.get_mut(&actor) else { continue };
+        if entity.entity_type.as_str()!=HERO || entity.owner != Some(*side) || !support::alive(entity) { continue; }
+        entity.fields.insert("target".into(),DomainValue::Entity(target));
+        let member=DomainValue::Record(std::collections::BTreeMap::from([
+            ("entity".into(),DomainValue::Entity(actor.clone())),
+            ("goal".into(),entity.fields.get(&"goal".into()).cloned().unwrap_or(DomainValue::Null)),
+            ("target".into(),entity.fields[&"target".into()].clone()),
+            ("retreating".into(),entity.fields.get(&"retreating".into()).cloned().unwrap_or(DomainValue::Null)),
+        ]));
+        let sequence=committed.iter().filter(|(owner,_)| owner==side).count() as i64;
+        committed.push((*side,senkei_model::PresentationEvent { event:"next.behavior_order_committed".into(),entity:Some(actor),payload:std::collections::BTreeMap::from([
+            ("tick".into(),DomainValue::Integer(i64::from(tick))),
+            ("sequence".into(),DomainValue::Integer(sequence)),
+            ("action_id".into(),DomainValue::String(intent.action_id.to_string())),
+            ("members".into(),DomainValue::List(vec![member])),
+        ]) }));
+    }
     committed
 }
 
@@ -251,6 +275,17 @@ pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &
             let side = match candidate.group { GoalGroup::Squad(side, _) | GoalGroup::Solo(side, _) => side };
             losers.insert((side, candidate.actor, candidate.action_id));
         }
+    }
+    let moving_groups = groups;
+    let mut seen_targets = BTreeSet::new();
+    let mut targets = accepted.iter().filter(|(_,intent)| intent.capability.as_str()=="select_target").collect::<Vec<_>>();
+    targets.sort_by(|a,b| a.1.action_id.cmp(&b.1.action_id));
+    for (side,intent) in targets {
+        let Some(actor) = intent.actor.as_ref() else { continue };
+        let Some(entity) = world.entities.get(actor) else { continue };
+        let squad = support::string(entity,"squad");
+        let group = if squad.is_empty() { GoalGroup::Solo(*side,actor.clone()) } else { GoalGroup::Squad(*side,squad) };
+        if moving_groups.contains(&group) || !seen_targets.insert((*side,actor.clone())) { losers.insert((*side,actor.clone(),intent.action_id.clone())); }
     }
     let mut rejected = Vec::new();
     accepted.retain(|(side, intent)| {

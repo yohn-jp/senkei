@@ -2792,7 +2792,7 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
     assert_eq!(results[0],results[1]);
 }
 
-fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad } }
+fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc } }
 fn test_behavior_defaults(rules: &VerifiedRulePlan) -> BTreeMap<String, NextBehaviorProfile> { rules.plan().next.as_ref().unwrap().heroes.iter().map(|h| (h.id.clone(), NextBehaviorProfile::default())).collect() }
 
 #[test]
@@ -2900,4 +2900,69 @@ fn unknown_conditional_preference_does_not_override() {
     assert!(diagnostics.events.iter().any(|e| matches!(&e.record,DiagnosticRecord::RuntimeNotice { code,.. } if code.as_str()=="when_unknown")));
     assert!(!diagnostics.events.iter().any(|e| matches!(&e.record,DiagnosticRecord::IntentProposed { intent } if intent.capability.as_str()=="behavior_preference")));
     assert!(result.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="move")));
+}
+
+#[test]
+fn trial_targeting_is_individual_and_drives_normal_attacks() {
+    let mut package=senritsu::next_local_trial_package();
+    senritsu::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest=senritsu::canonical_digest(&package).unwrap();
+    let rules=senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap();
+    let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant,weight:0 };
+    let policy=NextBehaviorPolicy { schema_version:1,policy_id:"target-test".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Target,capability:"select_target".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
+    let policy=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let nodes=vec!["N.MID.OBS".to_owned();5];
+    let (a,b,context)=build_match(&rules,&[5],"targets",12,Some(&nodes),Some(&nodes));
+    let hero=|slot:&str| derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Attacker),&DomainValue::String(slot.into())).unwrap();
+    let high=hero("slot-1"); let low=hero("slot-2");
+    let inputs=NextBehaviorExecutionInputs { schema_version:1,heroes:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([(high.clone(),NextBehaviorProfile { targeting:Some(1),..Default::default() }),(low.clone(),NextBehaviorProfile { targeting:Some(-1),..Default::default() })]))]),..Default::default() };
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+    let traces=result.traces_for_owner(CombatantSide::Attacker);
+    let tick=(1..=12).find(|tick| { let h=traces.iter().find(|t|t.tick==*tick && t.actor==high && t.arbitration_accepted); let l=traces.iter().find(|t|t.tick==*tick && t.actor==low && t.arbitration_accepted); h.zip(l).is_some_and(|(h,l)| h.selected.as_ref().unwrap().target!=l.selected.as_ref().unwrap().target) }).expect("Heroes chose different observed targets");
+    let (retained,_,_)=result.reproduction(); let mut vm=Vm::new(&rules);
+    let normal=simulate(&retained.attacker,&retained.defender,&rules,&retained.context,&mut vm).unwrap();
+    let frames=&normal.owner_replays[&CombatantSide::Attacker].frames;
+    let frame=frames.iter().find(|f| f.tick==tick).unwrap();
+    let orders:Vec<_>=frame.events.iter().filter(|e|e.event.as_str()=="next.behavior_order_committed").collect();
+    assert!(orders.len()>=2 && orders.iter().all(|e| matches!(e.payload.get(&FieldId::from("members")),Some(DomainValue::List(v)) if v.len()==1)));
+    let own=frame.visible_state.as_ref().unwrap().entities.values().filter(|e|e.owner==Some(CombatantSide::Attacker) && e.entity_type.as_str()=="hero").collect::<Vec<_>>();
+    assert!(own.iter().all(|e| e.fields.get(&FieldId::from("squad"))==Some(&DomainValue::String("attacker:squad-0".into()))));
+    // Match each committed actor and projected target to an actual normal attack,
+    // possibly on a later attack-ready tick while the same preference persists.
+    let linked=(tick..=12).any(|t| {
+        let frame=frames.iter().find(|f|f.tick==t).unwrap();
+        let orders:Vec<_>=frame.events.iter().filter(|e|e.event.as_str()=="next.behavior_order_committed" && matches!(e.payload.get(&FieldId::from("action_id")),Some(DomainValue::String(id)) if id.starts_with(&format!("behavior:{t}:{high}:")) || id.starts_with(&format!("behavior:{t}:{low}:")))).collect();
+        let attacks:Vec<_>=frame.events.iter().filter(|e|e.event.as_str()=="next.attack").collect();
+        let target = |order: &PresentationEvent| match order.payload.get(&FieldId::from("members")) { Some(DomainValue::List(v)) => match v.first() { Some(DomainValue::Record(fields)) => fields.get(&FieldId::from("target")).cloned(), _=>None }, _=>None };
+        orders.len()==2 && target(orders[0])!=target(orders[1]) && orders.iter().all(|order| attacks.iter().any(|attack| attack.payload.get(&FieldId::from("source"))==order.entity.as_ref().map(|id|DomainValue::Entity(id.clone())).as_ref() && attack.payload.get(&FieldId::from("target"))==target(order).as_ref()))
+    });
+    assert!(linked,"normal attacks use the individually committed targets");
+}
+
+#[test]
+fn trial_target_and_shared_move_conflict_atomically_and_hide_enemies() {
+    let mut package=senritsu::next_local_trial_package(); senritsu::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest=senritsu::canonical_digest(&package).unwrap();
+    let rules=senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap();
+    let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant,weight:0 };
+    let mut policy=NextBehaviorPolicy { schema_version:1,policy_id:"target-conflict".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Target,capability:"select_target".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] },BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let nodes=vec!["N.MID.OBS".to_owned();5]; let (a,b,context)=build_match(&rules,&[5],"target-conflict",1,Some(&nodes),Some(&nodes));
+    let inputs=NextBehaviorExecutionInputs { schema_version:1,..Default::default() };
+    for (movement,target) in [(10,0),(0,10)] {
+        policy.domains.navigation[0].weight=movement; policy.domains.targeting[0].weight=target;
+        let verified=senritsu::validate_next_behavior_policy(policy.clone(),&rules).unwrap();
+        let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&verified,&inputs).unwrap();
+        let (r,_,_)=result.reproduction(); let actual=simulate(&r.attacker,&r.defender,&rules,&r.context,&mut Vm::new(&rules)).unwrap();
+        let committed:Vec<_>=actual.owner_replays[&CombatantSide::Attacker].frames[1].events.iter().filter(|e|e.event.as_str()=="next.behavior_order_committed").collect();
+        if movement>0 { assert_eq!(committed.len(),1); assert!(matches!(&committed[0].payload[&FieldId::from("members")],DomainValue::List(v) if v.len()==5 && v.iter().all(|v| matches!(v,DomainValue::Record(fields) if fields.get(&FieldId::from("target"))==Some(&DomainValue::Null))))); }
+        else { assert_eq!(committed.len(),5); assert!(committed.iter().all(|e|matches!(&e.payload[&FieldId::from("members")],DomainValue::List(v) if v.len()==1))); }
+        let repeated=simulate(&r.attacker,&r.defender,&rules,&r.context,&mut Vm::new(&rules)).unwrap(); assert_eq!(actual.replay,repeated.replay); assert_eq!(actual.owner_replays,repeated.owner_replays);
+        assert!(actual.replay.frames.iter().flat_map(|f| &f.events).all(|e| e.event.as_str()!="next.behavior_order_committed"));
+    }
+    policy.candidates.retain(|candidate|candidate.kind==BehaviorCandidateKind::Target);
+    let verified=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let (a,b,context)=build_match(&rules,&[5],"target-hidden",1,None,None);
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&verified,&inputs).unwrap();
+    let enemies:BTreeSet<_>=(1..=5).map(|n|derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Defender),&DomainValue::String(format!("slot-{n}"))).unwrap()).collect();
+    assert!(result.traces_for_owner(CombatantSide::Attacker).iter().all(|t|t.selected.as_ref().and_then(|i|i.target.as_ref()).is_none_or(|id|!enemies.contains(id))));
 }
