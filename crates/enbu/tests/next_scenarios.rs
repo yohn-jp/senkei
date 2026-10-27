@@ -2843,7 +2843,7 @@ fn conditional_behavior_preference_is_tick_local_and_trial_bound() {
     let source=format!("senkei conditional {{ action preference {{ when match.tick == 1, do behavior_preference({actor}, survival, 1000), }}, }}");
     a.program=compile(&source,&rules).unwrap().program;
     assert!(preflight(&a,&b,&rules,&context).is_err(),"trial vocabulary requires frozen behavior");
-    let inputs=NextBehaviorExecutionInputs { schema_version:1,..Default::default() };
+    let inputs=NextBehaviorExecutionInputs { schema_version:1, army:BTreeMap::from([(CombatantSide::Attacker,NextBehaviorProfile { survival:Some(0),..Default::default() })]), squads:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([("attacker:squad-0".into(),NextBehaviorProfile { survival:Some(0),..Default::default() })]))]), ..Default::default() };
     let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
     let hero=derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Attacker),&DomainValue::String("slot-1".into())).unwrap();
     let traces=result.traces_for_owner(CombatantSide::Attacker);
