@@ -16,7 +16,8 @@ pub enum BehaviorSignal {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BehaviorScoreTerm { pub signal: BehaviorSignal, pub weight: i64 }
-/// Each domain contributes its declared terms to an action's score. Unknown
+/// Move uses Navigation and Objective; Pursue uses Engagement, Targeting and
+/// Pursuit; Retreat uses Survival. Unknown
 /// signals make the candidate ineligible; arithmetic is checked integer math.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,3 +45,22 @@ pub struct NextBehaviorPolicy {
     pub ruleset_digest: ContentDigest, pub test_only: bool,
     pub domains: BehaviorDomains, pub candidates: Vec<BehaviorCandidateDefinition>,
 }
+
+/// Additive offsets scoped to candidate domains. Move uses Navigation and
+/// Objective; Pursue uses Engagement, Targeting and Pursuit; Retreat uses
+/// Survival. Runtime combines Army, current Squad and Hero offsets.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextBehaviorProfile {
+    pub navigation: i64, pub engagement: i64, pub targeting: i64,
+    pub pursuit: i64, pub survival: i64, pub objective: i64,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextBehaviorExecutionInputs {
+    pub schema_version: u32,
+    pub army: std::collections::BTreeMap<crate::CombatantSide, NextBehaviorProfile>,
+    pub squads: std::collections::BTreeMap<crate::CombatantSide, std::collections::BTreeMap<String, NextBehaviorProfile>>,
+    pub heroes: std::collections::BTreeMap<crate::CombatantSide, std::collections::BTreeMap<crate::EntityId, NextBehaviorProfile>>,
+}
+/// Frozen reproduction inputs; policy must be revalidated against the RulePlan.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextBehaviorMatch { pub policy: NextBehaviorPolicy, pub inputs: NextBehaviorExecutionInputs }

@@ -125,6 +125,8 @@ pub struct MatchContext {
     pub ruleset: RulesetRef,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world_identity: Option<crate::WorldIdentityRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_behavior: Option<crate::NextBehaviorMatch>,
     pub versions: ComponentVersions,
     pub initial_world: WorldState,
     pub max_ticks: u32,

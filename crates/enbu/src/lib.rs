@@ -30,6 +30,7 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
         match_id,
         ruleset: rules.ruleset().clone(),
         world_identity: rules.world_identity().cloned(),
+        next_behavior: None,
         versions: ComponentVersions {
             model: plan.model_version,
             engine: validation::ENGINE_VERSION,

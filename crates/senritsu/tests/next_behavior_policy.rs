@@ -31,3 +31,11 @@ fn validates_bound_test_policy_and_rejects_malformed_policies() {
     let mut invalid = p; invalid.domains.survival[0].weight = i64::MAX;
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
 }
+
+#[test]
+fn behavior_match_round_trips_policy_and_profiles() {
+    let rules = validate(next_package(), &next_engine_compatibility()).unwrap();
+    let value = NextBehaviorMatch { policy: policy(&rules), inputs: NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() } };
+    let json = serde_json::to_vec(&value).unwrap();
+    assert_eq!(serde_json::from_slice::<NextBehaviorMatch>(&json).unwrap(), value);
+}
