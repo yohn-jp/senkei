@@ -70,6 +70,9 @@ export class BattlefieldFog {
   update(state: DisplayState): void {
     this.hasFogState = Boolean(state.fog);
     this.group.visible = this.hasFogState;
+    // A layer toggle may run before the first authorized state; restore concealment on every update.
+    this.unexploredLayer.visible = this.hasFogState;
+    this.exploredLayer.visible = this.hasFogState && this.annotationsEnabled;
     if (!state.fog) return;
     const fog = state.fog.state;
     for (const batch of this.batches) {
