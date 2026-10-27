@@ -1268,6 +1268,31 @@ function assertExportBundle(value: unknown): asserts value is LocalSenkeiExportB
   cloneJson(value, "Local export bundle", MAX_EXPORT_BYTES, MAX_EXPORT_NODES);
 }
 
+/** Recover the original IndexedDB records without interpreting unsupported document or revision schemas.
+ * This is a preservation export, not an executable or re-importable workspace bundle. */
+export async function exportOriginalDocumentRecords(documentId: string): Promise<string> {
+  try {
+    return await withTransaction([DOCUMENT_STORE, REVISION_STORE], "readonly", (transaction, setResult) => {
+      const current = transaction.objectStore(DOCUMENT_STORE).get(documentId);
+      const history = transaction.objectStore(REVISION_STORE).index("by_document_id").getAll(IDBKeyRange.only(documentId));
+      let gotDocument = false, gotHistory = false;
+      const finish = () => {
+        if (!gotDocument || !gotHistory) return;
+        try {
+          if (current.result === undefined) throw new PersistenceError("not_found", "This document is no longer stored.");
+          const json = JSON.stringify({ format: "senkei.raw-local-records", format_version: 1,
+            document_id: documentId, document_record: current.result, revision_records: history.result }, null, 2);
+          if (typeof json !== "string") throw new PersistenceError("invalid_data", "Original records cannot be serialized as JSON.");
+          if (utf8ByteLength(json) > MAX_EXPORT_BYTES) throw new PersistenceError("too_large", "Original records exceed the 64 MiB export limit.");
+          setResult(json);
+        } catch (error) { abortTransaction(transaction, error); }
+      };
+      current.onsuccess = () => { gotDocument = true; finish(); };
+      history.onsuccess = () => { gotHistory = true; finish(); };
+    }, "Could not export original local records");
+  } catch (error) { throw persistenceError(error, "Could not export original local records"); }
+}
+
 export async function exportDocumentJson(documentId: string): Promise<string> {
   const history = await loadAllHistory(documentId);
   const latest = await loadDocumentRevision(documentId);
