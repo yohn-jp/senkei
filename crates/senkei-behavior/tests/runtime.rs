@@ -991,7 +991,7 @@ fn assert_unordered_local_capacity() {
 }
 
 #[test]
-fn field_decisions_keep_independent_writes_and_use_field_order() {
+fn field_decisions_reject_partial_multi_field_selection() {
     let fixture = authored_order_fixture();
     let hero = actor(&fixture.hero_ids[0], "hero-one");
     let side = CombatantSide::Attacker;
@@ -1002,9 +1002,7 @@ fn field_decisions_keep_independent_writes_and_use_field_order() {
         (BehaviorFieldId::parse("navigation.destination").unwrap(), vec![movement, skill.clone()]),
         (BehaviorFieldId::parse("targeting.mode").unwrap(), vec![skill]),
     ]);
-    let decisions = fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()).unwrap();
-    assert_eq!(decisions[&BehaviorFieldId::parse("navigation.destination").unwrap()].selected.as_ref().unwrap().action_id.as_str(), "z_move");
-    assert_eq!(decisions[&BehaviorFieldId::parse("targeting.mode").unwrap()].selected.as_ref().unwrap().action_id.as_str(), "a_skill");
+    assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()), Err(BehaviorError::UnresolvedCandidateConflict));
 }
 
 #[test]

@@ -286,6 +286,24 @@ impl BehaviorResolver {
                 composition, actor, tick, side, candidates, fallbacks.get(field), Some(&field_key),
             )?);
         }
+        // An action is a single commitment: every applicable field it writes
+        // must select the same action. Missing fields and competing winners are
+        // undefined conflicts, not permission to commit a partial action.
+        for decision in decisions.values() {
+            if let Some(intent) = &decision.selected {
+                let capability = self.capabilities.get(&intent.capability)
+                    .ok_or(BehaviorError::UnknownCapability)?;
+                for field_key in capability.behavior_override_arguments.keys()
+                    .filter(|key| self.field_applies(actor.scope, key)) {
+                    let field = BehaviorFieldId::parse(field_key)
+                        .map_err(|_| BehaviorError::InvalidCandidateSet)?;
+                    if !decisions.get(&field).and_then(|d| d.selected.as_ref())
+                        .is_some_and(|selected| selected == intent) {
+                        return Err(BehaviorError::UnresolvedCandidateConflict);
+                    }
+                }
+            }
+        }
         Ok(decisions)
     }
 
