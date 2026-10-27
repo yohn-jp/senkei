@@ -2513,3 +2513,26 @@ fn long_workbench_local_response_fits_versioned_output_limit() {
             .expect("write the long authorized Workbench simulation for native/WASM parity");
     }
 }
+
+#[test]
+fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
+    let rules = rules();
+    let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    let domains = BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] };
+    let policy = NextBehaviorPolicy { schema_version: 1, policy_id:"test-only".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let verified = senritsu::validate_next_behavior_policy(policy.clone(), &rules).unwrap();
+    let (a,b,context) = build_match(&rules, &[2,3], "behavior-test", 1, None, None);
+    let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
+    let mut vm = Vm::new(&rules);
+    let artifact = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
+    let traces = artifact.traces_for_owner(CombatantSide::Attacker);
+    assert_eq!(traces.len(),2);
+    assert!(traces.iter().all(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "move") && t.arbitration_accepted && t.transition_completed));
+    let mut waiting = policy;
+    for domain in [&mut waiting.domains.navigation,&mut waiting.domains.engagement,&mut waiting.domains.targeting,&mut waiting.domains.pursuit,&mut waiting.domains.survival,&mut waiting.domains.objective] { domain[0].weight = -1; }
+    let verified = senritsu::validate_next_behavior_policy(waiting, &rules).unwrap();
+    let mut vm = Vm::new(&rules);
+    let waiting = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
+    assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.is_none()));
+    assert_ne!(artifact.run_digest(),waiting.run_digest());
+}
