@@ -23,7 +23,7 @@ pub fn simulate_next_behavior<P: TacticalExecutionPort>(attacker: &senkei_model:
     let binding = senkei_model::NextBehaviorMatch { policy: policy.policy().clone(), inputs: inputs.clone() };
     if frozen.next_behavior.as_ref().is_some_and(|existing| existing != &binding) { return Err(api_error(ApiErrorCode::ValidationFailed, "Next Behavior context mismatch")); }
     frozen.next_behavior = Some(binding);
-    let mut hook = Hook { policy, inputs, traces: Vec::new() };
+    let mut hook = Hook { policy, inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
     let artifact = simulate_inner(attacker, defender, rules, &frozen, executor, None, Some(&mut hook))?;
     let digest = artifact.diagnostic_snapshot_digest.clone();
     Ok(NextBehaviorSimulationArtifact { artifact, policy: policy.clone(), inputs: inputs.clone(), digest, traces: hook.traces })
@@ -58,11 +58,12 @@ pub(crate) fn validate_bindings(inputs: &NextBehaviorExecutionInputs, world: &Wo
     Ok(())
 }
 fn profile_values(p: &NextBehaviorProfile) -> [Option<i64>; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
-pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace> }
+pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace>, pub accepted_preferences: Vec<(CombatantSide, Intent)> }
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         let next = plan.next.as_ref().unwrap();
-        let overrides = consume_preferences(validated, outputs, tick, diagnostics, sequence)?;
+        let (overrides, accepted_preferences) = consume_preferences(validated, outputs, tick, diagnostics, sequence)?;
+        self.accepted_preferences = accepted_preferences;
         for side in [CombatantSide::Attacker, CombatantSide::Defender] {
             if outputs.iter().find(|(s,_)| *s == side).unwrap().1.status != senkei_model::TacticalExecutionStatus::Completed { continue; }
             // Only values in the already frozen RulePlan observation are eligible.
@@ -129,7 +130,7 @@ impl Hook<'_> {
                 let (value, intent) = match selected { Some((v,i)) => { if outputs.iter().flat_map(|(_,o)| &o.intents).any(|existing| existing.action_id == i.action_id) || validated.iter().any(|(_,existing)| existing.action_id == i.action_id) { return Err(api_error(ApiErrorCode::ValidationFailed, "duplicate Behavior action ID")); } push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentProposed { intent:i.clone() })?; validated.push((side,i.clone())); (Some(v),Some(i)) }, None => (None,None) };
                 let trace_actor = intent.as_ref().and_then(|i| i.actor.clone()).unwrap_or_else(|| members[0].clone());
                 self.traces.push(NextBehaviorTrace { tick, side, actor: trace_actor, selected:intent, score:value, arbitration_accepted:false, transition_completed:false });
-                if validated.iter().filter(|(s,_)| *s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit,"Behavior intent limit exceeded")); }
+                if validated.iter().filter(|(s,_)| *s == side).count() + self.accepted_preferences.iter().filter(|(s,_)| *s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit,"Behavior intent limit exceeded")); }
             }
         }
         Ok(())
@@ -140,7 +141,7 @@ impl Hook<'_> {
 /// Consume validated preference intents once. Different values for the same
 /// subject and field are ambiguous and all are rejected; identical values
 /// retain each originating accepted action in owner diagnostics.
-fn consume_preferences(validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], tick: u32, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<BTreeMap<(CombatantSide, EntityId, usize), i64>, ApiError> {
+fn consume_preferences(validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], tick: u32, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(BTreeMap<(CombatantSide, EntityId, usize), i64>, Vec<(CombatantSide, Intent)>), ApiError> {
     let mut groups: BTreeMap<(CombatantSide, EntityId, usize), Vec<(Intent,i64)>> = BTreeMap::new();
     let mut extracted = Vec::new();
     validated.retain(|(side, intent)| {
@@ -157,15 +158,17 @@ fn consume_preferences(validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[
         groups.entry(key).or_default().push((intent,value));
     }
     let mut result = BTreeMap::new();
+    let mut accepted = Vec::new();
     for (key, proposals) in groups {
         let consistent = proposals.iter().all(|(_,value)| *value == proposals[0].1);
         if consistent { result.insert(key.clone(),proposals[0].1); }
         for (intent,_) in proposals {
+            if consistent { accepted.push((key.0, intent.clone())); }
             let record = if consistent { DiagnosticRecord::IntentAccepted { intent } } else { DiagnosticRecord::IntentRejected { intent, reason: "enbu.behavior_preference_conflict".into() } };
             push_diagnostic(diagnostics, sequence, tick, key.0, record)?;
         }
     }
-    Ok(result)
+    Ok((result, accepted))
 }
 fn observed_view(observation: &ObservationSnapshot) -> senkei_model::WorldStateView {
     let mut entities = BTreeMap::new();

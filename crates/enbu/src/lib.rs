@@ -172,7 +172,7 @@ pub fn simulate<P: TacticalExecutionPort>(
         let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
             .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
         next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
-        let mut hook = next_behavior::Hook { policy: &policy, inputs: &binding.inputs, traces: Vec::new() };
+        let mut hook = next_behavior::Hook { policy: &policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
         simulate_inner(attacker, defender, rules, context, executor, None, Some(&mut hook))
     } else {
         simulate_inner(attacker, defender, rules, context, executor, None, None)
@@ -390,6 +390,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 event.record = DiagnosticRecord::IntentRejected { intent, reason: "enbu.next_goal_conflict".into() };
             }
         }
+        if let Some(hook) = next_behavior.as_deref_mut() { accepted.append(&mut hook.accepted_preferences); }
         if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
         if let Some(hook) = next_behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
 

@@ -2829,3 +2829,68 @@ fn next_behavior_preserves_independent_goals_after_same_tick_split() {
     let sizes:Vec<_>=events.iter().map(|event| match &event.payload[&FieldId::from("members")] { DomainValue::List(members) => members.len(), _ => 0 }).collect();
     assert!(sizes.contains(&1) && sizes.contains(&4));
 }
+#[test]
+fn conditional_behavior_preference_is_tick_local_and_trial_bound() {
+    let mut package=senritsu::next_local_trial_package();
+    senritsu::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest=senritsu::canonical_digest(&package).unwrap();
+    let rules=senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap();
+    let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
+    let policy=NextBehaviorPolicy { schema_version:1,policy_id:"preference-test".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat,capability:"retreat".into(),arguments:vec![BehaviorArgument::Actor] }] };
+    let policy=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let (mut a,b,context)=build_match(&rules,&[1,1,1,1,1],"conditional-preference",2,None,None);
+    let actor=hero_selector("slot-1");
+    let source=format!("senkei conditional {{ action preference {{ when match.tick == 1, do behavior_preference({actor}, survival, 1000), }}, }}");
+    a.program=compile(&source,&rules).unwrap().program;
+    assert!(preflight(&a,&b,&rules,&context).is_err(),"trial vocabulary requires frozen behavior");
+    let inputs=NextBehaviorExecutionInputs { schema_version:1,..Default::default() };
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+    let hero=derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Attacker),&DomainValue::String("slot-1".into())).unwrap();
+    let traces=result.traces_for_owner(CombatantSide::Attacker);
+    for (tick,expected) in [(1,"retreat"),(2,"move")] { let trace=traces.iter().find(|t|t.tick==tick && t.actor==hero).unwrap(); assert_eq!(trace.selected.as_ref().unwrap().capability.as_str(),expected); }
+    let diagnostics=result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert_eq!(diagnostics.events.iter().filter(|event| matches!(&event.record,DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str()=="behavior_preference")).count(),1);
+    assert!(!serde_json::to_string(&result.public_response()).unwrap().contains("behavior_preference"));
+    let total: u64 = diagnostics.events.iter().filter_map(|event| match &event.record { DiagnosticRecord::CostCharged { amount,.. } => Some(amount.0), _ => None }).sum();
+    assert_eq!(total,diagnostics.cu_by_side[&CombatantSide::Attacker].0,"Behavior introduces no charges beyond VM diagnostics");
+    for (second, accepted, rejected, expected) in [(1000,2,0,"retreat"),(999,0,2,"move")] {
+        let source=format!("senkei conditional {{ action p1 {{ when match.tick == 1, do behavior_preference({actor}, survival, 1000), }}, action p2 {{ when match.tick == 1, do behavior_preference({actor}, survival, {second}), }}, }}");
+        let mut duplicate=a.clone(); duplicate.program=compile(&source,&rules).unwrap().program;
+        let output=enbu::simulate_next_behavior(&duplicate,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+        let diag=output.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+        assert_eq!(diag.events.iter().filter(|e|matches!(&e.record,DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str()=="behavior_preference")).count(),accepted);
+        assert_eq!(diag.events.iter().filter(|e|matches!(&e.record,DiagnosticRecord::IntentRejected { intent,.. } if intent.capability.as_str()=="behavior_preference")).count(),rejected);
+        assert_eq!(output.traces_for_owner(CombatantSide::Attacker).iter().find(|t|t.tick==1 && t.actor==hero).unwrap().selected.as_ref().unwrap().capability.as_str(),expected);
+    }
+
+    for field in ["navigation","engagement","targeting","pursuit","survival","objective"] { let source=format!("senkei conditional {{ action p {{ when true, do behavior_preference({actor}, {field}, 0), }}, }}"); compile(&source,&rules).unwrap(); }
+    let invalid=format!("senkei conditional {{ action p {{ when true, do behavior_preference({actor}, invalid_field, 0), }}, }}"); assert!(compile(&invalid,&rules).is_err());
+}
+
+#[test]
+fn unknown_conditional_preference_does_not_override() {
+    let mut package=senritsu::next_local_trial_package();
+    senritsu::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest=senritsu::canonical_digest(&package).unwrap();
+    let rules=senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap();
+    let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
+    let policy=NextBehaviorPolicy { schema_version:1,policy_id:"unknown-preference".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat,capability:"retreat".into(),arguments:vec![BehaviorArgument::Actor] }] };
+    let policy=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let (mut a,b,context)=build_match(&rules,&[1,1,1,1,1],"unknown-preference",1,None,None);
+    let actor=hero_selector("slot-1");
+    a.program=compile(&format!("senkei conditional {{ action preference {{ when match.tick == 1, do behavior_preference({actor}, survival, 1000), }}, }}"),&rules).unwrap().program;
+    let inputs=NextBehaviorExecutionInputs { schema_version:1,..Default::default() };
+    struct UnknownVm(Vm);
+    impl TacticalExecutionPort for UnknownVm {
+        fn execute(&mut self, request:TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput,TacticalExecutionError> {
+            let mut observation=request.observation.clone();
+            observation.fields.insert(ObservationPath::from("match.tick"),Observed::Unknown);
+            self.0.execute(TacticalExecutionRequest { observation:&observation, ..request })
+        }
+    }
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut UnknownVm(Vm::new(&rules)),&policy,&inputs).unwrap();
+    let diagnostics=result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert!(diagnostics.events.iter().any(|e| matches!(&e.record,DiagnosticRecord::RuntimeNotice { code,.. } if code.as_str()=="when_unknown")));
+    assert!(!diagnostics.events.iter().any(|e| matches!(&e.record,DiagnosticRecord::IntentProposed { intent } if intent.capability.as_str()=="behavior_preference")));
+    assert!(result.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="move")));
+}
