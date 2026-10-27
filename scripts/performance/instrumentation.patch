@@ -1,0 +1,110 @@
+diff --git a/apps/web/src/features/next/experiment-restoration.ts b/apps/web/src/features/next/experiment-restoration.ts
+index b48b10d..6619537 100644
+--- a/apps/web/src/features/next/experiment-restoration.ts
++++ b/apps/web/src/features/next/experiment-restoration.ts
+@@ -132,7 +132,10 @@ export async function validateNextExperimentReproduction(
+     if (includeDiagnostics) await validateNextExperimentDiagnostics(response, snapshot);
+   }
+ 
+-  if (!sameJsonResponse(reproductionResponseView(actualResponse), reproductionResponseView(storedResponse))) {
++  const equalityStart = performance.now();
++  const equal = sameJsonResponse(reproductionResponseView(actualResponse), reproductionResponseView(storedResponse));
++  console.log("SENKEI_TIMING equality_ms", performance.now() - equalityStart);
++  if (!equal) {
+     throw new Error("Reproduced Enbu result, replay, or authorized local projection differs from the stored Run.");
+   }
+ }
+diff --git a/apps/web/src/features/persistence/repository.ts b/apps/web/src/features/persistence/repository.ts
+index 50bf186..4c53bf2 100644
+--- a/apps/web/src/features/persistence/repository.ts
++++ b/apps/web/src/features/persistence/repository.ts
+@@ -1416,8 +1416,12 @@ function assertNextExperimentStore(value: unknown): asserts value is LocalNextEx
+ 
+ /** Validates a portable Next experiment JSON value without touching stored data. */
+ export function parseNextExperimentStore(value: unknown): LocalNextExperimentStore {
++  const start = performance.now();
+   const copied = cloneJson(value, "Next experiment import", NEXT_EXPERIMENT_STORE_MAX_BYTES, MAX_NEXT_EXPERIMENT_STORE_NODES);
++  console.log("SENKEI_TIMING clone_ms", performance.now() - start);
++  const checkStart = performance.now();
+   assertNextExperimentStore(copied);
++  console.log("SENKEI_TIMING structural_ms", performance.now() - checkStart);
+   return copied;
+ }
+ 
+@@ -1466,11 +1470,13 @@ export async function loadNextExperimentStore(): Promise<LocalNextExperimentStor
+ /** Saves only the current completed run and one comparison baseline, with a 64 MiB JSON cap. */
+ export async function saveNextExperimentStore(value: LocalNextExperimentStore, beforePut?: () => void): Promise<void> {
+   const copied = parseNextExperimentStore(value);
++  const saveStart = performance.now();
+   await withTransaction(NEXT_EXPERIMENT_STORE, "readwrite", (transaction, setResult) => {
+     beforePut?.();
+     transaction.objectStore(NEXT_EXPERIMENT_STORE).put({ id: "latest", payload: copied });
+     setResult(undefined);
+   }, "Could not save Next experiments");
++  console.log("SENKEI_TIMING idb_ms", performance.now() - saveStart);
+ }
+ 
+ export async function clearNextExperimentStore(): Promise<void> {
+diff --git a/apps/web/src/worker/client.ts b/apps/web/src/worker/client.ts
+index 52bb8a7..69dc4eb 100644
+--- a/apps/web/src/worker/client.ts
++++ b/apps/web/src/worker/client.ts
+@@ -260,7 +260,9 @@ export class WorkerCoreClient implements CoreClient {
+   }
+ 
+   private readonly onMessage = (event: MessageEvent<unknown>): void => {
++    const receivedAt = performance.timeOrigin + performance.now();
+     const data = asRecord(event.data);
++    console.log("SENKEI_TIMING receive", data?.request_id, data?.operation, receivedAt);
+     const requestId = typeof data?.request_id === "string" ? data.request_id : null;
+     if (requestId === null) return;
+     const pending = this.pending.get(requestId);
+diff --git a/apps/web/src/worker/core.worker.ts b/apps/web/src/worker/core.worker.ts
+index 2d6112b..9834508 100644
+--- a/apps/web/src/worker/core.worker.ts
++++ b/apps/web/src/worker/core.worker.ts
+@@ -104,7 +104,10 @@ async function handleMessage(raw: unknown): Promise<void> {
+       result,
+     };
+     assertMessageSize(response, MAX_WORKER_RESPONSE_BYTES, "worker response");
++    const sentAt = performance.timeOrigin + performance.now();
++    console.log("SENKEI_TIMING post_start", request.request_id, request.operation, sentAt);
+     scope.postMessage(response);
++    console.log("SENKEI_TIMING post_end", request.request_id, request.operation, performance.timeOrigin + performance.now());
+   } catch (error) {
+     scope.postMessage(failureResponse(requestId, toWorkerFailure(error)));
+   }
+@@ -519,7 +522,12 @@ async function callCore(
+ 
+   let responseValue: unknown;
+   try {
+-    responseValue = JSON.parse(await wasm.dispatchJson(json)) as unknown;
++    const started = performance.now();
++    const raw = await wasm.dispatchJson(json);
++    console.log("SENKEI_TIMING wasm_dispatch_ms", operation, performance.now() - started, raw.length);
++    const parseStart = performance.now();
++    responseValue = JSON.parse(raw) as unknown;
++    console.log("SENKEI_TIMING worker_parse_ms", operation, performance.now() - parseStart);
+   } catch (error) {
+     throw new RequestFailure(
+       "worker_error",
+diff --git a/tests/browser/specs/experiment-import-safety.spec.ts b/tests/browser/specs/experiment-import-safety.spec.ts
+index 5504424..8c204ab 100644
+--- a/tests/browser/specs/experiment-import-safety.spec.ts
++++ b/tests/browser/specs/experiment-import-safety.spec.ts
+@@ -13,6 +13,7 @@ test.beforeAll(async ({ browser }, info) => {
+   if (!artifact) {
+     const context = await browser.newContext({ baseURL: info.project.use.baseURL });
+     const page = await context.newPage();
++    page.on("console", msg => { if (msg.text().includes("SENKEI_TIMING")) console.log(msg.text()); });
+     await page.goto("/");
+     await page.getByTestId("journey-home").getByRole("button", { name: "すぐ戦う", exact: true }).click();
+     await page.getByRole("button", { name: "この条件で進む", exact: true }).click();
+@@ -53,6 +54,7 @@ async function storedIdentity(page: Page) {
+   });
+ }
+ async function importBaseline(page: Page) {
++  page.on("console", msg => { if (msg.text().includes("SENKEI_TIMING")) console.log(msg.text()); });
+   await page.goto("/");
+   await expect(page.getByTestId("journey-home")).toBeVisible({ timeout: 60_000 });
+   await page.getByTestId("nav-library").click();
