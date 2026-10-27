@@ -48,3 +48,11 @@ Implementation tree: `b2ec271` (subsequent checkpoint documentation does not cha
 The first equipment browser attempt used a build before WASM was installed and failed at initial app navigation. It was rerun after actual WASM rebuild and production build; the successful run did not change test deadlines or skip assertions.
 
 Compressed completed command logs and checksum manifest: [evidence](../../evidence/wave2-2026-10-27/). Pending commands are not recorded as PASS.
+
+Final regression on implementation tree `b2ec271`, built/tested through checkpoint `3d15490`: `cargo test --workspace --release --locked --no-fail-fast` PASS (264 passed, 0 failed, 0 ignored, 36 suites). Ordinary Native/real-WASM conformance PASS for 7 scenarios; Behavior conformance PASS for 11 complete requests. Final current build PASS and production Browser combined run PASS (3 tests: owner isolation and Desktop/Mobile recovery). These results do not establish missing six-domain Next production execution.
+
+## Import recovery and closure
+
+[Actual measurement record](../../evidence/import-wave2-2026-10-27/README.md) retains the genuine 45,439,592-byte Tick-577 Run. Baseline `216360f` incompatible-world rejection/preservation PASS; final integration `3d15490` failed replacement preservation and unknown-schema/Core-unavailable export PASS (2/2), with original deadlines. No import source optimization was justified or made. WASM interface dispatch, parsing, clone, validation, equality and save timings are recorded; isolated Core computation versus serialization, cross-thread transfer cost, total import wall time and peak memory are **NOT_CHECKED**. The prior timeout root cause remains unresolved; a successful run under different load does not establish a universal performance fix.
+
+All fixed leaves now have delivered changes or explicit blockers. Architecture / Product completion remains **NO**. Six-domain Next execution, live owned-Hero producers, frozen combat asset projections, connected relationship UI and full performance attribution are not implemented/verified. The Wave closes at this fixed scope; the partial successful regressions do not turn these gaps into PASS.
