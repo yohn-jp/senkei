@@ -1,4 +1,4 @@
-import { reproductionSnapshotDigest } from "../../worker/input-identity";
+import { compareUnicodeScalars, reproductionSnapshotDigest } from "../../worker/input-identity";
 import { sameJsonResponse } from "../../worker/json-response-equality";
 export { reproductionSnapshotDigest } from "../../worker/input-identity";
 import type { DomainValue, MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
@@ -16,35 +16,35 @@ export function validateNextExperimentAuthorization(response: SimulationResponse
   if (error !== null) throw new Error(error);
 }
 
-function orderedDomainValue(value: DomainValue): DomainValue {
+function jsonFields(fields: readonly (readonly [string, string])[]): string {
+  return `{${fields.map(([key, value]) => `${JSON.stringify(key)}:${value}`).join(',')}}`;
+}
+
+function domainMapJson(values: Readonly<Record<string, DomainValue>>): string {
+  return jsonFields(Object.keys(values).sort(compareUnicodeScalars).map(key => [key, domainValueJson(values[key])]));
+}
+
+function domainValueJson(value: DomainValue): string {
+  const kind = JSON.stringify(value.kind);
+  const tagged = (encoded: string) => jsonFields([['kind', kind], ['value', encoded]]);
   switch (value.kind) {
-    case "null": return { kind: "null" };
-    case "fixed": return { kind: "fixed", value: { coefficient: value.value.coefficient, scale: value.value.scale } };
-    case "list": return { kind: "list", value: value.value.map(orderedDomainValue) };
-    case "record": return {
-      kind: "record",
-      value: Object.fromEntries(Object.keys(value.value).sort().map((key) => [key, orderedDomainValue(value.value[key])])),
-    };
-    case "bool": return { kind: "bool", value: value.value };
-    case "integer": return { kind: "integer", value: value.value };
-    case "string": return { kind: "string", value: value.value };
-    case "enum": return { kind: "enum", value: value.value };
-    case "entity": return { kind: "entity", value: value.value };
+    case "null": return jsonFields([['kind', kind]]);
+    case "fixed": return tagged(jsonFields([['coefficient', JSON.stringify(value.value.coefficient)], ['scale', JSON.stringify(value.value.scale)]]));
+    case "list": return tagged(`[${value.value.map(domainValueJson).join(',')}]`);
+    case "record": return tagged(domainMapJson(value.value));
+    default: return tagged(JSON.stringify(value.value));
   }
 }
 
-/** Recreates Rust MatchResult field order and BTreeMap ordering before SHA-256. */
-function matchResultDigestInput(result: MatchResult): MatchResult {
-  return {
-    match_id: result.match_id,
-    outcome: result.outcome,
-    termination_reason: result.termination_reason,
-    final_tick: result.final_tick,
-    statistics: Object.fromEntries(Object.keys(result.statistics).sort()
-      .map((key) => [key, orderedDomainValue(result.statistics[key])])) as MatchResult["statistics"],
-    cu_spent: { attacker: result.cu_spent.attacker, defender: result.cu_spent.defender },
-    final_state_digest: result.final_state_digest,
-  };
+/** Rust struct order plus BTreeMap scalar ordering, without JS numeric-key reordering. */
+export function matchResultDigestJson(result: MatchResult): string {
+  return jsonFields([
+    ['match_id', JSON.stringify(result.match_id)], ['outcome', JSON.stringify(result.outcome)],
+    ['termination_reason', JSON.stringify(result.termination_reason)], ['final_tick', JSON.stringify(result.final_tick)],
+    ['statistics', domainMapJson(result.statistics)],
+    ['cu_spent', jsonFields([['attacker', JSON.stringify(result.cu_spent.attacker)], ['defender', JSON.stringify(result.cu_spent.defender)]])],
+    ['final_state_digest', JSON.stringify(result.final_state_digest)],
+  ]);
 }
 
 /** Binds imported owner diagnostics to the exact Run, public result and authorized Program. */
@@ -95,7 +95,7 @@ export async function validateNextExperimentReplay(
   if (replay.perspective !== undefined && replay.perspective !== "attacker") {
     throw new Error("Stored replay perspective is not authorized for this attacker workspace.");
   }
-  const bytes = new TextEncoder().encode(JSON.stringify(matchResultDigestInput(result)));
+  const bytes = new TextEncoder().encode(matchResultDigestJson(result));
   const digestBuffer = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   const digest = Array.from(new Uint8Array(digestBuffer), (byte) => byte.toString(16).padStart(2, "0")).join("");
   if (replay.result_digest !== digest) {

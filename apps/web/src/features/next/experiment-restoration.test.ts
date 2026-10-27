@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
-import { reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay, validateNextExperimentReproduction } from "./experiment-restoration";
+import { matchResultDigestJson, reproductionSnapshotDigest, validateNextExperimentDiagnostics, validateNextExperimentReplay, validateNextExperimentReproduction } from "./experiment-restoration";
 
 const result: MatchResult = {
   match_id: "match-a",
@@ -120,6 +120,24 @@ describe("Next experiment replay restoration identity", () => {
       .rejects.toThrow("Replay match identity differs from the stored Enbu result.");
     await expect(validateNextExperimentReplay({ ...replay, perspective: "defender" }, result, "match-a"))
       .rejects.toThrow("Stored replay perspective is not authorized for this attacker workspace.");
+  });
+
+  it('serializes nested integer-like and Unicode keys in Rust map order', async () => {
+    const special: MatchResult = { ...result, statistics: {
+      '2': { kind: 'list', value: [{ kind: 'record', value: {
+        '2': { kind: 'integer', value: 2 }, '10': { kind: 'integer', value: 10 },
+        '\u{10000}': { kind: 'null' }, '\uE000': { kind: 'fixed', value: { coefficient: 3, scale: 2 } },
+      } }] },
+      '10': { kind: 'string', value: 'ten' },
+      '\u{10000}': { kind: 'entity', value: 'hero' }, '\uE000': { kind: 'bool', value: true },
+    } };
+    const statistics = '"10":{"kind":"string","value":"ten"},"2":{"kind":"list","value":[{"kind":"record","value":{"10":{"kind":"integer","value":10},"2":{"kind":"integer","value":2},"\uE000":{"kind":"fixed","value":{"coefficient":3,"scale":2}},"\u{10000}":{"kind":"null"}}}]},"\uE000":{"kind":"bool","value":true},"\u{10000}":{"kind":"entity","value":"hero"}';
+    const expected = `{"match_id":"match-a","outcome":"attacker_victory","termination_reason":"base_destroyed","final_tick":7,"statistics":{${statistics}},"cu_spent":{"attacker":1,"defender":2},"final_state_digest":${JSON.stringify(result.final_state_digest)}}`;
+    expect(matchResultDigestJson(special)).toBe(expected);
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expected));
+    const digest = [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    await expect(validateNextExperimentReplay({ ...replay, result_digest: digest }, special, 'match-a')).resolves.toBeUndefined();
+    await expect(validateNextExperimentReplay({ ...replay, result_digest: digest }, { ...special, final_tick: 8 }, 'match-a')).rejects.toThrow('result digest');
   });
 });
 

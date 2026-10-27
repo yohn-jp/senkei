@@ -1,6 +1,6 @@
 import type { SimulationSnapshot } from "../contracts/core";
 
-function compareUnicodeScalars(left: string, right: string): number {
+export function compareUnicodeScalars(left: string, right: string): number {
   let leftIndex = 0;
   let rightIndex = 0;
   while (leftIndex < left.length && rightIndex < right.length) {
