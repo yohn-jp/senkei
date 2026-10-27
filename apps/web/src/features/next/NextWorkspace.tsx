@@ -741,16 +741,17 @@ export async function prepareNextExperimentStore(
 
 export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, rulesetError, onRetryCore }: WorkspaceProps): ReactElement {
   const [trialPackage, setTrialPackage] = useState<RulePackage | null>(null);
-  const packageValue = trialPackage ?? suppliedPackage;
+  const [trialPending, setTrialPending] = useState(() => { try { return localStorage.getItem('senkei.local-trial-enabled.v1') === 'true'; } catch { return false; } });
+  const packageValue = trialPending ? null : trialPackage ?? suppliedPackage;
   const [ownedAssets, setOwnedAssets] = useState<OwnedAssetsState | null>(null);
   const [trialTickLimit, setTrialTickLimit] = useState(20);
   const isTrial = packageValue?.next?.projection_policy?.test_only === true;
   const enableTrial = async () => {
     if (!core) return;
-    try { const trial = await core.nextRuleset(true); localStorage.setItem('senkei.local-trial-enabled.v1', 'true'); setTrialPackage(trial); }
+    try { const trial = await core.nextRuleset(true); localStorage.setItem('senkei.local-trial-enabled.v1', 'true'); setTrialPackage(trial); setTrialPending(false); }
     catch (cause) { setError(String(cause)); }
   };
-  useEffect(() => { try { if (core && localStorage.getItem('senkei.local-trial-enabled.v1') === 'true') void core.nextRuleset(true).then(setTrialPackage).catch(() => undefined); } catch { /* The ordinary local workspace remains usable without this preference. */ } }, [core]);
+  useEffect(() => { if (!core) return; try { if (localStorage.getItem('senkei.local-trial-enabled.v1') === 'true') { setTrialPending(true); void core.nextRuleset(true).then(trial => { setTrialPackage(trial); setTrialPending(false); }).catch(cause => setError(`Trial ruleset unavailable; saved draft retained: ${String(cause)}`)); } } catch { setTrialPending(false); } }, [core]);
   const nextRules = packageValue?.next ?? null;
   const campaignScenarios = useMemo(() => packageValue?.next ? createNextCampaignScenarios(packageValue) : [], [packageValue]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("first-march");
@@ -1895,7 +1896,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       const projection = await buildMatchProjection({policy,rulesetDigest:packageValue.ruleset.digest,approvedRulesetDigest:packageValue.ruleset.digest,
         attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:owned.equipment,relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:owned.slotSelections[slot.slot_id] ?? ''}))},
         defender:{playerId:npcPlayer,heroSnapshot:npcSnapshot,equipment:[],relations:[],slots:opponentSlots.map(slot => ({slotId:slot.slot_id,heroInstanceId:npcHeroes.find(hero => hero.definition.id === slot.catalog_id)?.instanceId ?? ''}))}});
-      for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new Error('Owned Hero does not match the current formation definition.');
+      for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new PreflightProblem('Owned Hero does not match the current formation definition. Reselect the owned Hero for this slot.', 'invalid');
       if (stableKey(await readOwnedAssets(owned.playerId, approved)) !== stableKey(owned)) throw new Error('Assets changed during projection; validate again.');
       const behavior = localTrialBehavior(packageValue.ruleset.digest, nextRules.heroes.map(hero => hero.id));
       context = {...context,match_id:stableMatchId({ruleset:packageValue.ruleset,attacker,defender,projection,behavior,trialTickLimit}),max_ticks:trialTickLimit,match_projection:projection,next_behavior:behavior};
@@ -2437,7 +2438,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         </header>
         <div className={`next-load-state${rulesetError ? " is-error" : ""}`} role={rulesetError ? "alert" : "status"}>
           <span className="next-load-mark">{rulesetError ? "!" : "◌"}</span>
-          <div><strong>{rulesetError ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p><button type="button" onClick={onRetryCore}>読込を再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>
+          <div><strong>{rulesetError || error ? "Next ruleset unavailable" : "Loading the local battle rules"}</strong><p>{rulesetError ?? error ?? "The app is requesting the bundled Next ruleset from the local Rust core."}</p><button type="button" onClick={trialPending ? () => void enableTrial() : onRetryCore}>読込を再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>
         </div>
       </section>
     );
