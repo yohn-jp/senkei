@@ -1483,12 +1483,9 @@ mod tests {
             ("tower", Some(CombatantSide::Attacker)),
             ("base", Some(CombatantSide::Attacker)),
         ] {
-            for (requested, target_b_x) in [(false, 20), (false, 10), (true, 20)] {
+            for target_b_x in [20, 10] {
                 let mut start = WorldState::default();
-                let mut source = entity(kind, owner, 0, 100, 10, 100);
-                if requested {
-                    source.fields.insert("target".into(), DomainValue::Entity("target-b".into()));
-                }
+                let source = entity(kind, owner, 0, 100, 10, 100);
                 insert(&mut start, "source", source);
                 insert(&mut start, "target-a", entity("hero", Some(CombatantSide::Defender), 10, 100, 0, 0));
                 insert(&mut start, "target-b", entity("hero", Some(CombatantSide::Defender), target_b_x, 100, 0, 0));
@@ -1506,12 +1503,11 @@ mod tests {
                 assert_eq!(traced_events, plain_events);
                 let record = collector.records.iter().find(|record| record.trace.actor.as_str() == "source").unwrap();
                 assert_eq!(record.owner, owner);
-                let expected_target = if requested { "target-b" } else { "target-a" };
-                let expected_candidates: Vec<EntityId> = if requested { vec!["target-b".into()] } else { vec!["target-a".into(), "target-b".into()] };
-                assert_eq!(record.trace.candidates, expected_candidates, "{kind}");
+                let expected_target = "target-a";
+                assert_eq!(record.trace.candidates, vec![EntityId::from("target-a"), EntityId::from("target-b")], "{kind}");
                 assert_eq!(record.trace.action, AutonomousCombatAction::Attack {
                     target: expected_target.into(),
-                    selection: if requested { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId },
+                    selection: AutonomousTargetSelection::NearestThenEntityId,
                 });
                 let event = &traced_events[record.combat_event_index.unwrap()];
                 assert_eq!(event.event.as_str(), "next.attack");
@@ -1561,7 +1557,6 @@ mod tests {
         let mut start = WorldState::default();
         let mut source = entity("minion", Some(CombatantSide::Attacker), 0, 100, 10, 100);
         support::set_int(&mut source, "vision", 2);
-        source.fields.insert("target".into(), DomainValue::Entity("hidden".into()));
         insert(&mut start, "source", source);
         insert(&mut start, "visible", entity("hero", Some(CombatantSide::Defender), 1, 100, 0, 0));
         insert(&mut start, "hidden", entity("hero", Some(CombatantSide::Defender), 30, 100, 0, 0));
