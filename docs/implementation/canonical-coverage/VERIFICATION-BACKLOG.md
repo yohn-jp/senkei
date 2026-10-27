@@ -1,5 +1,11 @@
 # Verification backlog
 
+## User-requested stop before final verification
+
+Implementation source was saved at `d9fec65`; verification of that integration was not run, as explicitly requested by the user. Prior PASS/FAIL records below retain their original source/build scope and are not final-HEAD results.
+
+Outstanding before runtime acceptance: rebuild the real WASM from the final source (the current local `1b59edd1…` artifact lacks the three retained-editor operations), run typecheck/build and relevant regression/real Worker journeys, then assess CI and the wider E2E/performance/device backlog. Do not start these without a subsequent user instruction to resume. Graphics implementation is frozen by the latest instruction; unfinished retreat cues and new Hero造形 are not silently treated as completed or approved.
+
 This backlog separates **not yet run**, **failed**, **blocked by an unavailable environment or decision**, and **passed at a named revision**. The audited upstream source baseline is `783e10e`; this document does not assert that final integrated HEAD or remote CI has passed. On 2026-10-27 the user directed the team to leave graphics as it stands and stop after implementation, before verification. **Do not start new verification under that instruction.** The gates below describe future evidence and the historical results record checks completed before that direction; none imply a final-HEAD pass. If verification is later authorized, record the full commit SHA, clean/dirty worktree, commands, test counts, build/WASM identity, browser/environment and evidence location. See [CONTRACT-COVERAGE-LEDGER.md](CONTRACT-COVERAGE-LEDGER.md) for implementation and specification status.
 
 ## Current-source checks needed

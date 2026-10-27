@@ -1,5 +1,13 @@
 # Contract coverage ledger
 
+## Implementation stop requested by the user
+
+Final implementation commit for this session: `d9fec65`. The retained-assets Catalog/compile/format bridge (`899a7b2`) and retained Program editor (`f13c916`) are connected through the typed Worker client and Analysis to explicit improved-rematch preparation. The current Draft and non-target frozen inputs remain separate. The final integration also connects the owner decision inspector, official read/operation panels, maturity-only projection references, and typed Minion control inputs.
+
+The user explicitly requested leaving graphics unchanged and stopping after implementation, before verification. No new verification was started after that request. Uncommitted retreat-schema work was removed; previously committed graphics changes remain. Retreat cues and further Hero造形 are deferred by that instruction.
+
+**This final source integration is unverified.** It is not a build/runtime acceptance or a global zero-gap claim. The existing local WASM (`1b59edd14b7390965fc57c877555f75268f7ff90eba18566f2053d0e9eb041a3`) does not contain the retained editor operations from `899a7b2`; rebuilding it is outstanding. Undefined production policy, content and future official services remain explicit boundaries rather than fabricated data.
+
 This is a **bounded source audit**, not a declaration that every canonical clause is implemented or accepted. The audited upstream baseline is `783e10e` (main, PR #53). Subsequent local commits are identified explicitly below; final integrated HEAD and its checks belong in [VERIFICATION-BACKLOG.md](VERIFICATION-BACKLOG.md). Source presence, a test file, and a previous result do not establish current-HEAD acceptance. On 2026-10-27 the user directed the team to leave graphics as it stands, report after the remaining implementation work and stop before verification. Graphics work is deferred and no new verification should be started under that instruction.
 
 The task includes the defined UX-C and UX-X interactions. It does not authorize filling in unspecified game, economic, online, or art values by guesswork. A contract family may have entries in several sections below: implemented mechanisms can coexist with a missing consumer, an undecided rule, and an incomplete verification.
