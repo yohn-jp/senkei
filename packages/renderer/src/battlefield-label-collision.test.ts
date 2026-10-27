@@ -28,6 +28,8 @@ describe("battlefield screen label collision", () => {
     far.visible = false;
     const bounds = new THREE.Box3();
     const current = setVisibleLabelBounds(bounds, root).clone();
+    expect(current.min.toArray()).toEqual([3, -2, 4]);
+    expect(current.max.toArray()).toEqual([5, 2, 6]);
     far.position.set(100, 100, 100);
     expect(setVisibleLabelBounds(bounds, root)).toEqual(current);
     near.visible = false;
