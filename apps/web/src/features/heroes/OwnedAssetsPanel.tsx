@@ -41,7 +41,7 @@ const versionString = (v: Version) => `${v.major}.${v.minor}.${v.patch}`;
 function trialPolicy(ruleset: RulePackage): TrialPolicy | null { const p = (ruleset.next as unknown as { projection_policy?: TrialPolicy } | undefined)?.projection_policy; return p?.schema_version === 1 && p.test_only === true && p.hero_catalog_id && p.hero_catalog_digest && p.hero_catalog_version && p.equipment ? p : null; }
 async function equipmentDefinitions(policy: TrialPolicy): Promise<EquipmentDefinitionRef[]> { return Promise.all(Object.entries(policy.equipment).map(async ([id, d]) => { const bytes = new TextEncoder().encode(JSON.stringify({version: {major: d.version.major, minor: d.version.minor, patch: d.version.patch}, effects: d.effects.map(e => { const effect = e as {stat: unknown; add: unknown}; return {stat: effect.stat, add: effect.add}; })})); const hash = await crypto.subtle.digest('SHA-256', bytes); const digest = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join(''); return { id, version: versionString(d.version), digest, effectRef: id }; })); }
 export async function approvedEquipmentDefinitions(ruleset: RulePackage): Promise<EquipmentDefinitionRef[]> { const policy = trialPolicy(ruleset); return policy ? equipmentDefinitions(policy) : []; }
-function downloadArchive(archive: OwnedAssetsArchive, filename: string): void {
+function downloadArchive(archive: unknown, filename: string): void {
   const url = URL.createObjectURL(new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' }));
   try { const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); }
   finally { URL.revokeObjectURL(url); }
@@ -65,14 +65,14 @@ export async function readOwnedAssets(player: string, approved: readonly Equipme
   return { playerId: player, heroes, equipment, relationships: result.value, slotSelections: readSelections(player) };
 }
 export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraft, onEquipmentDraftChange, equipmentBaseline, previewEquipment, onSquadDraftChange, previewSquadChange, episodeProvider, onSelectOwnedHero, onAssetsChanged }: OwnedAssetsPanelProps): ReactElement {
-  const [state, setState] = useState<OwnedAssetsState | null>(null); const [error, setError] = useState(''); const [selected, setSelected] = useState(''); const [pair, setPair] = useState(''); const [level, setLevel] = useState('0'); const policy = trialPolicy(ruleset); const [restoreProfile, setRestoreProfile] = useState<OwnedAssetsArchive | null>(null); const [pendingRecovery, setPendingRecovery] = useState<OwnedAssetsArchive | null>(null); const [notice, setNotice] = useState(''); const refreshSequence = useRef(0);
-  const refresh = useCallback(async (player: string) => { const sequence = ++refreshSequence.current; const next = await readOwnedAssets(player, policy ? await equipmentDefinitions(policy) : []); if (sequence === refreshSequence.current) { setState(next); setPendingRecovery(null); onAssetsChanged(next); } }, [onAssetsChanged, policy]);
+  const [state, setState] = useState<OwnedAssetsState | null>(null); const [error, setError] = useState(''); const [selected, setSelected] = useState(''); const [pair, setPair] = useState(''); const [level, setLevel] = useState('0'); const policy = trialPolicy(ruleset); const [restoreProfile, setRestoreProfile] = useState<OwnedAssetsArchive | null>(null); const [pendingRecovery, setPendingRecovery] = useState<{archive: OwnedAssetsArchive; paused: boolean} | null>(null); const [notice, setNotice] = useState(''); const refreshSequence = useRef(0);
+  const refresh = useCallback(async (player: string) => { const sequence = ++refreshSequence.current; const next = await readOwnedAssets(player, policy ? await equipmentDefinitions(policy) : []); if (sequence === refreshSequence.current) { setState(next); setPendingRecovery(await new OwnedAssetsRecovery(player, policy ? await equipmentDefinitions(policy) : []).pendingRecovery()); onAssetsChanged(next); } }, [onAssetsChanged, policy]);
   useEffect(() => { let active = true; onAssetsChanged(null); (async () => {
     const id = playerId();
-    try { const next = await readOwnedAssets(id, policy ? await equipmentDefinitions(policy) : []); if (active) { setState(next); setPendingRecovery(null); onAssetsChanged(next); } }
+    try { const next = await readOwnedAssets(id, policy ? await equipmentDefinitions(policy) : []); if (active) { setState(next); setPendingRecovery(await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).pendingRecovery()); onAssetsChanged(next); } }
     catch (e) { if (active) {
       setError(String(e));
-      try { setPendingRecovery(await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).pendingArchive()); }
+      try { setPendingRecovery(await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).pendingRecovery()); }
       catch (recoveryError) { setError(String(recoveryError)); }
     } }
   })(); return () => { active = false; }; }, [ruleset.ruleset.id, ruleset.ruleset.digest]);
@@ -89,20 +89,37 @@ export function OwnedAssetsPanel({ ruleset, slots, heroSelections, equipmentDraf
   const edit = async () => { const levelPolicy = policy?.relation ?? policy?.maturity; if (!state || !policy || !levelPolicy || !selected || !pair) return; const value = Number(level); if (!Number.isInteger(value) || value < 0 || value > levelPolicy.max_level) { setError('Invalid trial level'); return; } try { const repo = new OwnedRelationshipRepository(state.playerId, heroOwnershipAuthority(state.heroes).ownsHero); const result = await repo.applyEvent({eventId: crypto.randomUUID(), source: 'authoritative', from: selected, to: pair, definitionVersion: versionString(levelPolicy.version), value, tags: [], history: 'Explicit local trial edit'}); if (!result.ok) throw new Error(result.reason); await refresh(state.playerId); } catch (e) { setError(String(e)); } };
   const exportArchive = async () => { if (!state) return; try { const archive = await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).export(); downloadArchive(archive, 'senkei-owned-assets.json'); } catch (e) { setError(String(e)); const pending = await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).pendingArchive(); setPendingRecovery(pending); } };
   const abandonRecovery = async () => { if (!pendingRecovery) return; try {
-    const id = pendingRecovery.playerId; await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).abandonPending();
-    setPendingRecovery(null); setNotice('Automatic restore retry abandoned. Previously applied assets remain; use the saved archive for a deliberate retry.');
+    const id = pendingRecovery.archive.playerId;
+    await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).abandonPending();
+    setPendingRecovery({ ...pendingRecovery, paused: true });
+    setNotice('Automatic restore retry paused. The original archive remains stored on this device; existing partially applied assets were not discarded.');
     if (id === playerId()) await refresh(id);
   } catch (e) { setError(String(e)); } };
-  const importArchive = async (file: File) => { if (!state) return; try { const archive = JSON.parse(await file.text()) as OwnedAssetsArchive; if (!archive || archive.schemaVersion !== 1 || typeof archive.playerId !== 'string' || !archive.playerId.trim()) throw new Error('Invalid archive'); if (archive.playerId !== state.playerId) { setRestoreProfile(archive); return; } await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).begin(archive); await refresh(state.playerId); setError(''); setNotice('Owned assets recovered. Formation selections are a separate local draft.'); } catch (e) { setError(String(e)); setPendingRecovery(await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).pendingArchive()); } };
+  const exportRecoveryEvidence = async () => { if (!pendingRecovery) return; try {
+    const coordinator = new OwnedAssetsRecovery(pendingRecovery.archive.playerId, policy ? await equipmentDefinitions(policy) : []);
+    const evidence = await coordinator.exportRecoveryEvidence();
+    if (!evidence) throw new Error('Recovery journal not found');
+    downloadArchive(evidence, 'senkei-asset-recovery-evidence.json');
+  } catch (e) { setError(String(e)); } };
+  const retryRecovery = async () => { if (!pendingRecovery?.paused) return; try {
+    const archive = pendingRecovery.archive;
+    await new OwnedAssetsRecovery(archive.playerId, policy ? await equipmentDefinitions(policy) : []).begin(archive);
+    await refresh(archive.playerId); setError(''); setNotice('Asset recovery completed.');
+  } catch (e) { setError(String(e)); } };
+  const importArchive = async (file: File) => { if (!state) return; try { const archive = JSON.parse(await file.text()) as OwnedAssetsArchive; if (!archive || archive.schemaVersion !== 1 || typeof archive.playerId !== 'string' || !archive.playerId.trim()) throw new Error('Invalid archive'); if (archive.playerId !== state.playerId) { setRestoreProfile(archive); return; } await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).begin(archive); await refresh(state.playerId); setError(''); setNotice('Owned assets recovered. Formation selections are a separate local draft.'); } catch (e) { setError(String(e)); setPendingRecovery(await new OwnedAssetsRecovery(state.playerId, policy ? await equipmentDefinitions(policy) : []).pendingRecovery()); } };
   const confirmProfileRestore = async () => { if (!restoreProfile) return; try { const id = restoreProfile.playerId; await new OwnedAssetsRecovery(id, policy ? await equipmentDefinitions(policy) : []).begin(restoreProfile); onAssetsChanged(null); localStorage.setItem(PLAYER_KEY, id); setSelected(''); setPair(''); await refresh(id); setRestoreProfile(null); setError(''); setNotice('Archived local profile restored. Select owned Heroes for your formation; formation selections are a separate local draft.'); } catch (e) { setError(String(e)); } };
   const hero = state?.heroes.heroes.find(h => h.instanceId === selected);
   const selections = state && heroSelections?.playerId === state.playerId ? heroSelections.slots : state?.slotSelections ?? {};
   return <section aria-label="Owned Heroes and local assets"><h2>Owned Heroes · local trial</h2>
     <p>Local trial ownership is stored on this device.</p><button type="button" onClick={() => void obtain()}>Obtain trial roster</button>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {pendingRecovery && <section aria-label="Pending asset recovery" role="region"><p role="alert">Asset recovery could not complete. Some Heroes or equipment may already have been applied. The original pending archive remains saved. Export it before abandoning the automatic retry.</p>
-      <button type="button" onClick={() => downloadArchive(pendingRecovery, 'senkei-pending-owned-assets.json')}>Export pending original archive</button>
-      <button type="button" onClick={() => void abandonRecovery()}>Abandon automatic recovery (keep partial assets)</button>
+    {pendingRecovery && <section aria-label="Pending asset recovery" role="region"><p role="alert">{pendingRecovery.paused
+      ? 'Automatic restore retries are paused. The original archive and the partially restored stores remain intact across reloads. Resolve any conflicting assets before explicitly retrying.'
+      : 'Asset recovery could not complete. Some Heroes or equipment may already have been applied. Save both copies or pause automatic retries; no conflicting data will be overwritten.'}</p>
+      <button type="button" onClick={() => downloadArchive(pendingRecovery.archive, 'senkei-pending-owned-assets.json')}>Export original recovery archive</button>
+      <button type="button" onClick={() => void exportRecoveryEvidence()}>Export original and current recovery evidence</button>
+      {!pendingRecovery.paused && <button type="button" onClick={() => void abandonRecovery()}>Pause automatic retry (preserve original and current)</button>}
+      {pendingRecovery.paused && <button type="button" onClick={() => void retryRecovery()}>Retry archived restore explicitly</button>}
     </section>}{restoreProfile && <div role="group" aria-label="Restore archived local profile"><p>Archive belongs to local player <code>{restoreProfile.playerId}</code>. Restore that profile on this device? The current profile remains stored. This does not transfer ownership.</p><button type="button" onClick={() => void confirmProfileRestore()}>Restore archived local profile</button><button type="button" onClick={() => setRestoreProfile(null)}>Cancel profile restore</button></div>}
     {state && <><button type="button" onClick={() => void exportArchive()}>Export owned assets</button><label>Recover owned assets <input type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importArchive(file); e.target.value = ''; }} /></label><p>Player: <code>{state.playerId}</code></p>
       {heroSelections && heroSelections.playerId !== state.playerId && <p role="alert">The Hero selections belong to another local Player. Select owned Heroes for this Draft.</p>}
