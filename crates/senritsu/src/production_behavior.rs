@@ -46,6 +46,9 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
             bound = bound.checked_add(contribution).ok_or("score overflow")?;
         }
     }
+    // One bounded targeting coefficient can contribute 100 * 1_000_000.
+    // Reserve room for the remaining five bounded profile fields as well.
+    bound.checked_add(105_000_000).ok_or("score overflow")?;
     if policy.candidates.is_empty() || policy.candidates.len() > 4 { return Err("invalid candidate count".into()); }
     let mut kinds = BTreeSet::new();
     for candidate in &policy.candidates {

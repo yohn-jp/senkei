@@ -6,7 +6,7 @@ fn policy(rules: &VerifiedRulePlan) -> NextBehaviorPolicy {
     NextBehaviorPolicy {
         schema_version: 1, policy_id: "test-policy".into(), version: Version::new(1, 0, 0),
         ruleset_digest: rules.package_digest().clone(), test_only: true,
-        composition: BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc },
+        composition: BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad, action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc, targeting_profile: BehaviorTargetingProfile::TargetHealthWeight },
         hero_defaults: rules.plan().next.as_ref().unwrap().heroes.iter().map(|hero| (hero.id.clone(), NextBehaviorProfile::default())).collect(),
         domains: BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] },
         candidates: vec![BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Retreat, capability: "retreat".into(), arguments: vec![BehaviorArgument::Actor] }],

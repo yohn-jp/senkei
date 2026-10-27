@@ -44,9 +44,15 @@ pub enum BehaviorHeroAggregation { MeanFloor }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BehaviorOverrideOrder { ArmyThenSquad }
+/// On Target candidates, Targeting profile values are signed additional
+/// weights multiplied by observed TargetHealthPercent. None inherits; zero
+/// contributes nothing. Other policy terms remain in force.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BehaviorTargetingProfile { TargetHealthWeight }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BehaviorComposition { pub hero_aggregation: BehaviorHeroAggregation, pub override_order: BehaviorOverrideOrder, pub action_order: BehaviorActionOrder }
+pub struct BehaviorComposition { pub hero_aggregation: BehaviorHeroAggregation, pub override_order: BehaviorOverrideOrder, pub action_order: BehaviorActionOrder, pub targeting_profile: BehaviorTargetingProfile }
 /// Descending score, then ascending stable action ID. Shared movement orders
 /// write the squad goal, target and retreating state and conflict with every
 /// Target in the squad; Target writes only its Hero target and conflicts only
