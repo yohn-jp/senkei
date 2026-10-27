@@ -266,6 +266,15 @@ fn goal_candidates(world: &WorldState, rules: &NextRules, accepted: &[(Combatant
     candidates
 }
 
+/// Check against the same finite target and goal rules used during commitment.
+pub(crate) fn behavior_order_legal(world: &WorldState, rules: &NextRules, side: CombatantSide, intent: &Intent) -> bool {
+    match intent.capability.as_str() {
+        "move" | "pursue" | "retreat" => !goal_candidates(world, rules, &[(side,intent.clone())]).is_empty(),
+        "select_target" => target_id(intent).and_then(|id| world.entities.get(&id)).is_some_and(crate::next_combat::is_targetable),
+        _ => true,
+    }
+}
+
 /// Resolve final write-set conflicts using explicit Next goal order first,
 /// then Behavior score and stable action ID for generated candidates.
 pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &mut Vec<(CombatantSide, Intent)>, scores: &std::collections::BTreeMap<(CombatantSide, senkei_model::ActionId),i64>) -> Vec<(CombatantSide, Intent)> {

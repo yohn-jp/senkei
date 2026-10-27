@@ -1218,7 +1218,7 @@ fn is_combatant(entity: &EntityState) -> bool {
     matches!(entity.entity_type.as_str(), "hero" | "minion" | "monster" | "tower" | "base")
 }
 
-fn is_targetable(entity: &EntityState) -> bool {
+pub(crate) fn is_targetable(entity: &EntityState) -> bool {
     matches!(entity.entity_type.as_str(), "hero" | "minion" | "monster" | "tower" | "base")
 }
 

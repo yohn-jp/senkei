@@ -62,6 +62,14 @@ pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inp
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         let next = plan.next.as_ref().unwrap();
+        let mut ineligible = Vec::new();
+        validated.retain(|(side,intent)| {
+            if next_tactics::behavior_order_legal(world, next, *side, intent) { true }
+            else { ineligible.push((*side,intent.clone())); false }
+        });
+        for (side,intent) in ineligible {
+            push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentRejected { intent, reason:"enbu.next_order_ineligible".into() })?;
+        }
         let (overrides, accepted_preferences) = consume_preferences(validated, outputs, tick, diagnostics, sequence)?;
         self.accepted_preferences = accepted_preferences;
         for side in [CombatantSide::Attacker, CombatantSide::Defender] {
@@ -106,6 +114,7 @@ impl Hook<'_> {
                 for value in &mut shared { *value = value.div_euclid(members.len() as i64); }
                 for actor in &members {
                 let mut offsets = shared;
+                offsets[1] = member_profiles[actor][1];
                 offsets[2] = member_profiles[actor][2];
                 let own = &view.entities[actor];
                 let target_ids: Vec<_> = view.entities.iter().filter(|(_,e)| e.owner != Some(side) && matches!(e.entity_type.as_str(), "hero"|"minion"|"monster"|"tower"|"base")).map(|(id,_)| id.clone()).collect();
@@ -118,7 +127,7 @@ impl Hook<'_> {
                         if let Some(id) = &target { args.push(DomainValue::Entity(id.clone())); }
                         let action_id = format!("behavior:{tick}:{actor}:{:?}:{}", definition.kind, target.as_ref().map_or("", |id| id.as_str()));
                         let intent = Intent { action_id: action_id.into(), capability: definition.capability.clone(), actor: Some(actor.clone()), target: target.clone(), arguments: args, priority: None };
-                        if validation::validate_intent(&intent, side, world, plan, tick, index).is_err() { continue; }
+                        if validation::validate_intent(&intent, side, world, plan, tick, index).is_err() || !next_tactics::behavior_order_legal(world, next, side, &intent) { continue; }
                         let target_view = target.as_ref().and_then(|id| view.entities.get(id));
                         if let Some(score) = score(self.policy, definition.kind, own, target_view, &view, &members, offsets, matches!(observation.collections.get(&"enemies.visible_heroes".into()), Some(senkei_model::Observed::Known(_)))) { choices.push((score, definition.kind, intent)); } else { unknown_candidates += 1; }
                     }

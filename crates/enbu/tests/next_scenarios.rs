@@ -2969,3 +2969,62 @@ fn trial_target_and_shared_move_conflict_atomically_and_hide_enemies() {
 }
 
 fn trial_target_rules() -> VerifiedRulePlan { let mut package=senritsu::next_local_trial_package(); senritsu::add_trial_behavior_preferences(&mut package); package.ruleset.digest=senritsu::canonical_digest(&package).unwrap(); senritsu::validate(package,&senritsu::next_engine_compatibility()).unwrap() }
+
+#[test]
+fn next_behavior_rejects_invalid_explicit_goals_before_defaults() {
+    let rules=trial_target_rules(); let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant,weight:1 };
+    let policy=NextBehaviorPolicy { schema_version:1,policy_id:"legality".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let policy=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let (a,b,context)=build_match(&rules,&[5],"illegal-goal",1,None,None);
+    let actor=hero_selector("slot-1"); let inputs=NextBehaviorExecutionInputs { schema_version:1,..Default::default() };
+    let mut invalid=a.clone(); invalid.program=compile(&format!("senkei bad {{ action bad_move {{ when true, do move({actor}, \"not-a-map-node\"), }}, }}"),&rules).unwrap().program;
+    let result=enbu::simulate_next_behavior(&invalid,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+    let diag=result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert!(diag.events.iter().any(|e|matches!(&e.record,DiagnosticRecord::IntentRejected { intent,reason } if intent.action_id.as_str()=="bad_move" && reason.as_str()=="enbu.next_order_ineligible")));
+    assert!(result.traces_for_owner(CombatantSide::Attacker).iter().any(|t|t.arbitration_accepted && t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="move")));
+    // Add a visible enemy-owned bridge in the initial world. The common
+    // entity schema permits it, and OtherSide permits it for select_target;
+    // neither Next goal movement nor normal combat supports bridge targets.
+    let mut bridge_context=context.clone(); let base=&rules.plan().next.as_ref().unwrap().map.attacker_base; let point=&rules.plan().next.as_ref().unwrap().map.nodes[base];
+    bridge_context.initial_world.entities.insert("test.enemy.bridge".into(),EntityState { entity_type:"bridge".into(),owner:Some(CombatantSide::Defender),fields:BTreeMap::from([("hp".into(),DomainValue::Integer(1)),("max_hp".into(),DomainValue::Integer(1)),("x".into(),DomainValue::Integer(point.x)),("y".into(),DomainValue::Integer(point.y)),("node".into(),DomainValue::String(base.clone())),("edge_to".into(),DomainValue::String(String::new())),("site".into(),DomainValue::String("test".into()))]) });
+    for capability in ["pursue","select_target"] {
+        let mut snapshot=a.clone(); let source=format!("senkei bad {{ action bad_target {{ when true, do {capability}({actor}, argmin bridge in battlefield.bridges by bridge.hp then bridge.id), }}, }}"); snapshot.program=compile(&source,&rules).unwrap().program;
+        let result=enbu::simulate_next_behavior(&snapshot,&b,&rules,&bridge_context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+        let diag=result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+        if capability == "pursue" {
+            assert!(diag.events.iter().any(|e|matches!(&e.record,DiagnosticRecord::IntentRejected { intent,reason } if intent.action_id.as_str()=="bad_target" && reason.as_str()=="enbu.next_order_ineligible")));
+        } else {
+            // The VM cannot prove OtherSide ownership from the Any-owner
+            // bridge collection and does not emit this action at all.
+            assert!(diag.events.iter().any(|e|matches!(&e.record,DiagnosticRecord::RuntimeNotice { code,.. } if code.as_str()=="capability_target_owner_mismatch")));
+        }
+        assert!(result.traces_for_owner(CombatantSide::Attacker).iter().any(|t|t.arbitration_accepted && t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="move")));
+    }
+    struct InjectTarget(Vm);
+    impl TacticalExecutionPort for InjectTarget {
+        fn execute(&mut self, request:TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput,TacticalExecutionError> {
+            let side=request.side; let tick=request.tick; let mut output=self.0.execute(request)?;
+            if side==CombatantSide::Attacker && tick==1 {
+                let actor=derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(side),&DomainValue::String("slot-1".into())).unwrap();
+                let target=EntityId::from("test.enemy.bridge");
+                output.intents.push(Intent { action_id:"injected_target".into(),capability:"select_target".into(),actor:Some(actor.clone()),target:Some(target.clone()),arguments:vec![DomainValue::Entity(actor),DomainValue::Entity(target)],priority:None });
+            }
+            Ok(output)
+        }
+    }
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&bridge_context,&mut InjectTarget(Vm::new(&rules)),&policy,&inputs).unwrap();
+    assert!(result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events.iter().any(|e|matches!(&e.record,DiagnosticRecord::IntentRejected { intent,reason } if intent.action_id.as_str()=="injected_target" && reason.as_str()=="enbu.next_order_ineligible")));
+
+}
+
+#[test]
+fn targeting_engagement_profile_is_individual_within_squad() {
+    let rules=trial_target_rules(); let term=BehaviorScoreTerm { signal:BehaviorSignal::Constant,weight:1 };
+    let policy=NextBehaviorPolicy { schema_version:1,policy_id:"individual-engagement".into(),version:Version::new(1,0,0),ruleset_digest:rules.package_digest().clone(),test_only:true,composition:test_behavior_composition(),hero_defaults:test_behavior_defaults(&rules),domains:BehaviorDomains { navigation:vec![term.clone()],engagement:vec![term.clone()],targeting:vec![term.clone()],pursuit:vec![term.clone()],survival:vec![term.clone()],objective:vec![term] },candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move,capability:"move".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Target,capability:"select_target".into(),arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
+    let policy=senritsu::validate_next_behavior_policy(policy,&rules).unwrap();
+    let nodes=vec!["N.MID.OBS".to_owned();5]; let (a,b,context)=build_match(&rules,&[2,3],"engagement",1,Some(&nodes),Some(&nodes));
+    let hero=|slot:&str|derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Attacker),&DomainValue::String(slot.into())).unwrap(); let high=hero("slot-1"); let low=hero("slot-2");
+    let inputs=NextBehaviorExecutionInputs { schema_version:1,heroes:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([(high.clone(),NextBehaviorProfile { engagement:Some(300),..Default::default() }),(low.clone(),NextBehaviorProfile { engagement:Some(-300),..Default::default() })]))]),..Default::default() };
+    let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
+    assert!(result.traces_for_owner(CombatantSide::Attacker).iter().any(|t|t.actor==high && t.arbitration_accepted && t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="select_target")));
+}
