@@ -1,5 +1,5 @@
 import type { ReproductionAssets, SimulationSnapshot } from "./core";
-import type { CombatantSide, ObservationSnapshot } from "./core-model";
+import type { CombatantSide, DomainValue, ObservationSnapshot } from "./core-model";
 import type { BehaviorDomain, BehaviorSignal } from "./next-production";
 
 export interface NextDecisionInspectionRequest {
@@ -27,6 +27,7 @@ export interface NextDecisionInspectionCandidate {
   readonly target: string | null;
   readonly kind: "move" | "pursue" | "retreat" | "target";
   readonly capability: string;
+  readonly arguments: readonly DomainValue[];
   readonly outcome: "ineligible" | "unknown" | "selected" | "conflict";
   readonly score: number | null;
   readonly rank: number | null;
@@ -37,6 +38,8 @@ export interface NextDecisionInspectionSelection {
   readonly source: "explicit" | "default" | "wait";
   readonly actor: string;
   readonly capability: string | null;
+  /** Null when no selection exists or any argument is not observable. */
+  readonly arguments: readonly DomainValue[] | null;
   readonly target: string | null;
   readonly score: number | null;
   readonly candidate_index: number | null;

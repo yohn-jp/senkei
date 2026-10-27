@@ -129,6 +129,7 @@ export async function verifyDecisionInspection(run: AvailableRun, request: NextD
     for (const candidate of decision.candidates) {
       if (!integer(candidate.index) || candidate.index < 0 || indices.has(candidate.index) || !alias(candidate.actor)
         || !optionalAlias(candidate.target) || typeof candidate.capability !== "string"
+        || !Array.isArray(candidate.arguments) || !candidate.arguments.every(projectedValue)
         || !["move", "pursue", "retreat", "target"].includes(candidate.kind)
         || !["ineligible", "unknown", "selected", "conflict"].includes(candidate.outcome)
         || !optionalInteger(candidate.score) || !optionalInteger(candidate.rank) || !Array.isArray(candidate.terms)) return false;
@@ -140,7 +141,9 @@ export async function verifyDecisionInspection(run: AvailableRun, request: NextD
     for (const selection of decision.selections) {
       const event = selection.committed_event;
       if (!["explicit", "default", "wait"].includes(selection.source) || !alias(selection.actor) || !optionalAlias(selection.target)
-        || !(selection.capability === null || typeof selection.capability === "string") || !optionalInteger(selection.score)
+        || !(selection.capability === null || typeof selection.capability === "string")
+        || !(selection.arguments === null || (Array.isArray(selection.arguments) && selection.arguments.every(projectedValue)))
+        || !optionalInteger(selection.score)
         || !(selection.candidate_index === null || (integer(selection.candidate_index) && indices.has(selection.candidate_index)))
         || typeof selection.arbitration_accepted !== "boolean" || typeof selection.transition_completed !== "boolean"
         || (event !== null && (!integer(event.tick) || event.tick !== request.selector.tick || !integer(event.sequence) || event.sequence < 0))) return false;

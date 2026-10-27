@@ -48,9 +48,9 @@ async function setup() {
         boolean: { status: "known", value: { kind: "bool", value: false } } },
       collections: { heroes: { status: "known", value: [{ id: "observed-1", entity_type: "hero", fields: { self: { status: "known", value: { kind: "entity", value: "observed-1" } } } }] } } } },
     decision: { status: "evaluated", subject: "observed-1", composition: { squad_id: "squad", members: [{ actor: "observed-1", catalog_id: "F01", values: [0, 0, 0, 0, 0, 0], sources: ["army", "army", "army", "army", "army", "army"] }], shared: [0, 0, 0, 0, 0, 0], baseline_effective: [0, 0, 0, 0, 0, 0], effective: [0, 0, 0, 0, 0, 0] },
-      candidates: [{ index: 0, actor: "observed-1", target: "observed-2", kind: "target", capability: "select_target", outcome: "selected", score: 0, rank: 1,
+      candidates: [{ index: 0, actor: "observed-1", target: "observed-2", kind: "target", capability: "select_target", arguments: [{ kind: "entity", value: "observed-1" }], outcome: "selected", score: 0, rank: 1,
         terms: [{ domain: "targeting", kind: "signal", signal: "target_health_percent", weight: 0, value: null, contribution: null }] }],
-      selections: [{ source: "default", actor: "observed-1", target: "observed-2", capability: "select_target", score: 0, candidate_index: 0,
+      selections: [{ source: "default", actor: "observed-1", target: "observed-2", capability: "select_target", arguments: [{ kind: "entity", value: "observed-1" }], score: 0, candidate_index: 0,
         arbitration_accepted: true, transition_completed: true, committed_event: { tick: 2, sequence: 4 } }] } };
   return { run, verified, request, response };
 }
@@ -82,6 +82,8 @@ describe("owner Next decision inspection", () => {
     const candidate = response.decision.candidates[0];
     expect(await verifyDecisionInspection(verified, request, { ...response, decision: { ...response.decision,
       candidates: [{ ...candidate, actor: "visible-1" }] } })).toBe(false);
+    expect(await verifyDecisionInspection(verified, request, { ...response, decision: { ...response.decision,
+      candidates: [{ ...candidate, arguments: [{ kind: "entity", value: "raw-enemy" }] }] } })).toBe(false);
     const observation = response.observation.snapshot!;
     expect(await verifyDecisionInspection(verified, request, { ...response, observation: { ...response.observation,
       snapshot: { ...observation, fields: { leaked: { status: "known", value: { kind: "entity", value: "raw-enemy" } } } } } })).toBe(false);

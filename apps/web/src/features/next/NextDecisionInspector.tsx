@@ -81,6 +81,7 @@ export function DecisionInspectionResult({ inspection, verified, onReplayTick }:
         const tick = decisionCommittedReplayTick(verified, selection);
         return <div className="decision-entry" key={`${selection.actor}:${index}`}>
           <p>{selection.actor} · {selection.source} · capability {selection.capability ?? "none"} · target {selection.target ?? "not supplied"}</p>
+          <p>Arguments: {selection.arguments === null ? "not available" : selection.arguments.length ? selection.arguments.map(decisionValueText).join(", ") : "none"}</p>
           <p>Score: {selection.score === null ? "not supplied" : selection.score} · candidate: {selection.candidate_index ?? "none"} · arbitration accepted: {selection.arbitration_accepted ? "yes" : "no"} · transition completed: {selection.transition_completed ? "yes" : "no"}</p>
           <p>Committed event: {selection.committed_event ? `Tick ${selection.committed_event.tick}, sequence ${selection.committed_event.sequence}` : "none"}
             {selection.committed_event && tick === null ? " · matching owner Replay event unavailable" : ""}</p>
@@ -92,6 +93,7 @@ export function DecisionInspectionResult({ inspection, verified, onReplayTick }:
       {decision.candidates.slice(current * pageSize, (current + 1) * pageSize).map(candidate => <details className="decision-entry" key={candidate.index}>
         <summary>#{candidate.index} · {candidate.kind} · {candidate.outcome} · score {candidate.score === null && candidate.outcome === "ineligible" ? "not scored" : numberText(candidate.score)}</summary>
         <p>Actor: {candidate.actor} · target: {candidate.target ?? "none"} · capability: {candidate.capability} · rank: {candidate.rank ?? "unavailable"}</p>
+        <p>Arguments: {candidate.arguments.length ? candidate.arguments.map(decisionValueText).join(", ") : "none"}</p>
         <table><thead><tr><th>Domain</th><th>Term</th><th>Weight</th><th>Value</th><th>Contribution</th></tr></thead><tbody>
           {candidate.terms.map((term, index) => <tr key={index}><th>{term.domain}</th><td>{term.kind}{term.signal ? ` · ${term.signal}` : ""}</td>
             <td>{term.weight === null ? "—" : term.weight}</td><td>{numberText(term.value)}</td><td>{numberText(term.contribution)}</td></tr>)}
