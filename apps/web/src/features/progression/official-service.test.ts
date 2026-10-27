@@ -15,6 +15,15 @@ describe('official operation recovery', () => {
     expect(await service.submit(request)).toEqual({ kind: 'unavailable' });
     expect(await evidence.getRaw(identity.requestId)).toBeUndefined();
   });
+  it('recovers an unresolved request without sending or inquiring until requested', async () => {
+    const evidence = journal();
+    await evidence.begin({ schemaVersion: 1, request, transaction: { ...identity, status: 'submitted' } });
+    const submit = vi.fn(async () => committed); const inquire = vi.fn(async () => committed);
+    const service = new OfficialOperations({ kind: 'configured', adapter: { submit, inquire }, verifier: { verify: async (_request, response) => response } }, evidence);
+    expect(await service.recover(identity)).toMatchObject({ kind: 'recorded', request, transaction: { status: 'submitted' } });
+    expect(submit).not.toHaveBeenCalled(); expect(inquire).not.toHaveBeenCalled();
+    expect(await service.recover({ ...identity, requestId: 'missing' })).toEqual({ kind: 'not-recorded' });
+  });
   it('journals the full request before submission and recovers a lost result by inquiry, never a second draw', async () => {
     const evidence = journal();
     const submit = vi.fn(async () => { expect(await evidence.getRaw(identity.requestId)).toMatchObject({ request, transaction: { status: 'submitted' } }); throw new Error('connection lost'); });

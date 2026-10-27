@@ -38,6 +38,7 @@ export type OfficialServiceConfiguration =
   | { readonly kind: 'not-configured' }
   | { readonly kind: 'configured'; readonly adapter: OfficialServiceAdapter; readonly verifier: OfficialOperationVerifier };
 export type OfficialOperationResult = { readonly kind: 'unavailable' } | { readonly kind: 'recorded'; readonly request: OfficialRequest; readonly transaction: OfficialServiceTransaction };
+export type OfficialRecoveryResult = OfficialOperationResult | { readonly kind: 'not-recorded' };
 type RecordValue = OfficialJournalRecord<OfficialRequest, OfficialServiceTransaction>;
 function submitted(identity: OfficialIdentity): Extract<OfficialTransaction, { status: 'submitted' }> {
   const value = createOfficialTransaction(identity);
@@ -123,6 +124,29 @@ export class OfficialOperations {
     } });
     return response;
   }
+  /** Re-read and authenticate retained claims without issuing another operation. */
+  async recover(identityInput: OfficialIdentity): Promise<OfficialRecoveryResult> {
+    const identity = structuredClone(identityInput); createOfficialTransaction(identity);
+    if (this.configuration.kind === 'not-configured') return { kind: 'unavailable' };
+    const journal = this.journal ?? new OfficialOperationJournal<OfficialRequest, OfficialServiceTransaction>();
+    const record = await this.readRecord(journal, identity);
+    return record ? { kind: 'recorded', request: record.request, transaction: record.transaction } : { kind: 'not-recorded' };
+  }
+  private async readRecord(journal: OfficialOperationJournal<OfficialRequest, OfficialServiceTransaction>, identity: OfficialIdentity): Promise<RecordValue | undefined> {
+    const raw = await journal.getRaw(identity.requestId);
+    if (raw === undefined) return undefined;
+    if (!keysAre(raw, ['schemaVersion', 'request', 'transaction']) || (raw as RecordValue).schemaVersion !== 1) throw new Error('Unsupported official journal record; original data preserved');
+    const record = structuredClone(raw as RecordValue);
+    validateOfficialRequest(record.request);
+    if (!sameIdentity(identity, record.request) || !record.transaction || !sameIdentity(record.request, record.transaction)) throw new Error('Official request identity mismatch');
+    const initial = submitted(record.request);
+    if (record.transaction.status === 'submitted') {
+      if (canonical(record.transaction) !== canonical(initial)) throw new Error('Invalid submitted journal record');
+    } else {
+      await this.accept(record.request, initial, record.transaction);
+    }
+    return record;
+  }
   async submit(requestInput: OfficialRequest): Promise<OfficialOperationResult> {
     const request = structuredClone(requestInput); validateOfficialRequest(request);
     if (this.configuration.kind === 'not-configured') return { kind: 'unavailable' };
@@ -141,16 +165,11 @@ export class OfficialOperations {
     const identity = structuredClone(identityInput); createOfficialTransaction(identity);
     if (this.configuration.kind === 'not-configured') return { kind: 'unavailable' };
     const journal = this.journal ?? new OfficialOperationJournal<OfficialRequest, OfficialServiceTransaction>();
-    const raw = await journal.getRaw(identity.requestId);
-    if (!raw) throw new Error('Request has not been recorded');
-    if (!keysAre(raw, ['schemaVersion', 'request', 'transaction']) || (raw as RecordValue).schemaVersion !== 1) throw new Error('Unsupported official journal record; original data preserved');
-    let record = structuredClone(raw as RecordValue);
-    validateOfficialRequest(record.request);
-    if (!sameIdentity(identity, record.request) || !record.transaction || !sameIdentity(record.request, record.transaction)) throw new Error('Official request identity mismatch');
+    let record = await this.readRecord(journal, identity);
+    if (!record) throw new Error('Request has not been recorded');
     const initial = submitted(record.request);
     if (record.transaction.status !== 'submitted') {
-      const verified = await this.accept(record.request, initial, record.transaction);
-      if (verified.status === 'committed' || verified.status === 'rejected') return { kind: 'recorded', request: record.request, transaction: verified };
+      if (record.transaction.status === 'committed' || record.transaction.status === 'rejected') return { kind: 'recorded', request: record.request, transaction: record.transaction };
     } else {
       if (canonical(record.transaction) !== canonical(initial)) throw new Error('Invalid submitted journal record');
       const unknown = await this.accept(record.request, initial, { ...identity, status: 'outcome_unknown' });
