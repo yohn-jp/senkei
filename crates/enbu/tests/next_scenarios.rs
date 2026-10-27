@@ -2519,7 +2519,7 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     let rules = rules();
     let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
     let domains = BehaviorDomains { navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()], pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term] };
-    let policy = NextBehaviorPolicy { schema_version: 1, policy_id:"test-only".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let policy = NextBehaviorPolicy { schema_version: 1, policy_id:"test-only".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules), domains, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
     let verified = senritsu::validate_next_behavior_policy(policy.clone(), &rules).unwrap();
     let (a,b,context) = build_match(&rules, &[2,3], "behavior-test", 1, None, None);
     let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
@@ -2566,13 +2566,13 @@ fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
     let rules = rules();
     let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
     let domains = BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] };
-    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"profile-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains, candidates:vec![
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"profile-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules), domains, candidates:vec![
         BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },
         BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat, capability:"retreat".into(), arguments:vec![BehaviorArgument::Actor] },
     ] };
     let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
     let (a,b,context) = build_match(&rules,&[2,3],"profile-test",1,None,None);
-    let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, army:BTreeMap::from([(CombatantSide::Attacker,enbu::NextBehaviorProfile { survival:200, ..Default::default() })]), squads:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([("attacker:squad-0".into(), enbu::NextBehaviorProfile { navigation:300, ..Default::default() })]))]), ..Default::default() };
+    let inputs = enbu::NextBehaviorExecutionInputs { schema_version:1, army:BTreeMap::from([(CombatantSide::Attacker,enbu::NextBehaviorProfile { survival:Some(200), ..Default::default() })]), squads:BTreeMap::from([(CombatantSide::Attacker,BTreeMap::from([("attacker:squad-0".into(), enbu::NextBehaviorProfile { navigation:Some(300), ..Default::default() })]))]), ..Default::default() };
     let mut vm = Vm::new(&rules);
     let result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&inputs).unwrap();
     let traces = result.traces_for_owner(CombatantSide::Attacker);
@@ -2581,10 +2581,27 @@ fn next_behavior_inherits_profiles_and_preserves_explicit_squad_order() {
     assert_eq!(traces.iter().filter(|t| t.selected.as_ref().unwrap().capability.as_str()=="retreat").count(),1);
     let hero_id = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Attacker), &DomainValue::String("slot-2".into())).unwrap();
     let mut hero_inputs = inputs.clone();
-    hero_inputs.heroes.insert(CombatantSide::Attacker, BTreeMap::from([(hero_id.clone(), enbu::NextBehaviorProfile { survival: 1000, ..Default::default() })]));
+    hero_inputs.heroes.insert(CombatantSide::Attacker, BTreeMap::from([(hero_id.clone(), enbu::NextBehaviorProfile { survival: Some(1000), ..Default::default() })]));
     let mut vm = Vm::new(&rules);
     let hero_result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&policy,&hero_inputs).unwrap();
-    assert!(hero_result.traces_for_owner(CombatantSide::Attacker).iter().any(|t| t.actor == hero_id && t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "retreat")));
+    assert_eq!(hero_result.traces_for_owner(CombatantSide::Attacker).iter().filter(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "move")).count(), 1, "Army and Squad override member preference by field");
+    let mut no_overrides = hero_inputs.clone();
+    no_overrides.army.clear(); no_overrides.squads.clear();
+    let averaged = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&no_overrides).unwrap();
+    assert!(averaged.traces_for_owner(CombatantSide::Attacker).iter().any(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "retreat")));
+    // First Squad has two catalog members: 200 averages to 100, so
+    // Move ties Retreat and wins stable ordering; 202 averages to 101.
+    let first_catalog = match &a.configuration[&FieldId::from("heroes")] { DomainValue::List(v) => match &v[0] { DomainValue::Record(fields) => match &fields[&FieldId::from("catalog_id")] { DomainValue::String(id) => id.clone(), _ => unreachable!() }, _ => unreachable!() }, _ => unreachable!() };
+    let empty = enbu::NextBehaviorExecutionInputs { schema_version:1, ..Default::default() };
+    for (preference,expected) in [(200,"move"),(202,"retreat")] {
+        let mut test_policy = policy.policy().clone();
+        test_policy.hero_defaults.get_mut(&first_catalog).unwrap().survival = Some(preference);
+        let test_policy = senritsu::validate_next_behavior_policy(test_policy,&rules).unwrap();
+        let result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&test_policy,&empty).unwrap();
+        let first_ids = ["slot-1","slot-2"].map(|slot| derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Attacker), &DomainValue::String(slot.into())).unwrap());
+        let trace = result.traces_for_owner(CombatantSide::Attacker).into_iter().find(|t| first_ids.contains(&t.actor)).unwrap();
+        assert_eq!(trace.selected.unwrap().capability.as_str(),expected,"mixed Squad mean at {preference}");
+    }
     let mut explicit = a.clone();
     explicit.program = compile(&movement_tactics(&[("slot-1".into(), rules.plan().next.as_ref().unwrap().map.defender_base.clone())]), &rules).unwrap().program;
     let mut vm = Vm::new(&rules);
@@ -2640,7 +2657,7 @@ fn local_trial_projection_changes_real_match_and_is_reproduced() {
 fn next_behavior_pursues_only_currently_visible_targets() {
     let rules = rules();
     let term = |signal| BehaviorScoreTerm { signal, weight: 1 };
-    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"fog-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true,
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"fog-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
         domains:BehaviorDomains { navigation:vec![term(BehaviorSignal::Constant)], engagement:vec![term(BehaviorSignal::ObservedDanger)], targeting:vec![term(BehaviorSignal::TargetHealthPercent)], pursuit:vec![term(BehaviorSignal::TargetProximity)], survival:vec![term(BehaviorSignal::ActorHealthPercent)], objective:vec![term(BehaviorSignal::SquadHealthPercent)] },
         candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Pursue, capability:"pursue".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
     let policy = senritsu::validate_next_behavior_policy(policy, &rules).unwrap();
@@ -2661,7 +2678,7 @@ fn next_behavior_pursues_only_currently_visible_targets() {
 fn next_behavior_all_six_domains_independently_change_accepted_orders() {
     let rules = rules();
     let term = || BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:0 };
-    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"domain-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true,
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"domain-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
         domains:BehaviorDomains { navigation:vec![term()], engagement:vec![term()], targeting:vec![term()], pursuit:vec![term()], survival:vec![term()], objective:vec![term()] },
         candidates:vec![
             BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] },
@@ -2697,7 +2714,7 @@ fn next_behavior_rejects_missing_and_enemy_profile_references() {
     let rules = rules();
     let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
     let domains = BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] };
-    let p = NextBehaviorPolicy { schema_version:1, policy_id:"reference-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat, capability:"retreat".into(), arguments:vec![BehaviorArgument::Actor] }] };
+    let p = NextBehaviorPolicy { schema_version:1, policy_id:"reference-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules), domains, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Retreat, capability:"retreat".into(), arguments:vec![BehaviorArgument::Actor] }] };
     let policy = senritsu::validate_next_behavior_policy(p, &rules).unwrap();
     let (a,b,context) = build_match(&rules,&[5],"references",1,None,None);
     let enemy = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Defender), &DomainValue::String("slot-1".into())).unwrap();
@@ -2715,7 +2732,7 @@ fn next_behavior_rejects_missing_and_enemy_profile_references() {
 fn next_behavior_target_health_changes_accepted_target() {
     let rules = rules();
     let term = |signal,weight| BehaviorScoreTerm { signal,weight };
-    let mut p = NextBehaviorPolicy { schema_version:1, policy_id:"health-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true,
+    let mut p = NextBehaviorPolicy { schema_version:1, policy_id:"health-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
         domains:BehaviorDomains { navigation:vec![term(BehaviorSignal::Constant,0)], engagement:vec![term(BehaviorSignal::Constant,0)], targeting:vec![term(BehaviorSignal::TargetHealthPercent,1)], pursuit:vec![term(BehaviorSignal::Constant,0)], survival:vec![term(BehaviorSignal::Constant,0)], objective:vec![term(BehaviorSignal::Constant,0)] },
         candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Pursue, capability:"pursue".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObservedTarget] }] };
     let base = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
@@ -2736,7 +2753,7 @@ fn next_behavior_target_health_changes_accepted_target() {
 fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() {
     let rules = rules();
     let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
-    let p = NextBehaviorPolicy { schema_version:1, policy_id:"conflict-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, domains:BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] }, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let p = NextBehaviorPolicy { schema_version:1, policy_id:"conflict-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules), domains:BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] }, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
     let policy = senritsu::validate_next_behavior_policy(p,&rules).unwrap();
     let node = rules.plan().next.as_ref().unwrap().map.attacker_base.clone();
     let nodes = vec![node;5];
@@ -2760,3 +2777,6 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
     }
     assert_eq!(results[0],results[1]);
 }
+
+fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad } }
+fn test_behavior_defaults(rules: &VerifiedRulePlan) -> BTreeMap<String, NextBehaviorProfile> { rules.plan().next.as_ref().unwrap().heroes.iter().map(|h| (h.id.clone(), NextBehaviorProfile::default())).collect() }

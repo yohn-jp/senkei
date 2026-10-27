@@ -37,7 +37,7 @@ pub(crate) fn validate_inputs(rules: &VerifiedRulePlan, context: &MatchContext, 
     let bound = terms.into_iter().flatten().try_fold(18_000_000i64, |sum, term| term.weight.checked_abs()?.checked_mul(100).and_then(|v| sum.checked_add(v)));
     if bound.is_none() { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior score and profile bounds overflow")); }
     let profiles = inputs.army.values().chain(inputs.squads.values().flat_map(|m| m.values())).chain(inputs.heroes.values().flat_map(|m| m.values()));
-    if profiles.flat_map(profile_values).any(|x| !(-1_000_000..=1_000_000).contains(&x)) { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior profile offset out of range")); }
+    if profiles.flat_map(profile_values).flatten().any(|x| !(-1_000_000..=1_000_000).contains(&x)) { return Err(api_error(ApiErrorCode::ValidationFailed, "Behavior profile offset out of range")); }
     Ok(())
 }
 pub(crate) fn validate_bindings(inputs: &NextBehaviorExecutionInputs, world: &WorldState) -> Result<(), ApiError> {
@@ -57,7 +57,7 @@ pub(crate) fn validate_bindings(inputs: &NextBehaviorExecutionInputs, world: &Wo
     }
     Ok(())
 }
-fn profile_values(p: &NextBehaviorProfile) -> [i64; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
+fn profile_values(p: &NextBehaviorProfile) -> [Option<i64>; 6] { [p.navigation,p.engagement,p.targeting,p.pursuit,p.survival,p.objective] }
 pub(crate) struct Hook<'a> { pub policy: &'a VerifiedNextBehaviorPolicy, pub inputs: &'a NextBehaviorExecutionInputs, pub traces: Vec<NextBehaviorTrace> }
 impl Hook<'_> {
     pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
@@ -74,10 +74,29 @@ impl Hook<'_> {
                 if validated.iter().any(|(s,i)| *s == side && i.actor.as_ref().is_some_and(|id| members.contains(id)) && matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
                 let mut choices = Vec::new();
                 let mut unknown_candidates = 0usize;
+                let squad = next_support::string(&world.entities[&members[0]], "squad");
+                // Hero instance preferences override catalog defaults per field.
+                // Movement authority is shared by the current living squad, so
+                // aggregate every member before applying Army and Squad overrides.
+                let mut member_profiles = BTreeMap::new();
+                for member in &members {
+                    let catalog = next_support::string(&world.entities[member], "catalog_id");
+                    let defaults = self.policy.policy().hero_defaults.get(&catalog).ok_or_else(|| api_error(ApiErrorCode::ValidationFailed, "missing Hero catalog profile"))?;
+                    let mut values = profile_values(defaults).map(|value| value.unwrap_or(0));
+                    if let Some(profile) = self.inputs.heroes.get(&side).and_then(|m| m.get(member)) {
+                        for (value, override_value) in values.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
+                    }
+                    member_profiles.insert(member.clone(), values);
+                }
+                let mut shared = [0i64;6];
+                for values in member_profiles.values() { for (sum,value) in shared.iter_mut().zip(values) { *sum += value; } }
+                for value in &mut shared { *value = value.div_euclid(members.len() as i64); }
                 for actor in &members {
-                let squad = next_support::string(&world.entities[actor], "squad");
-                let mut offsets = [0i64;6];
-                for p in [self.inputs.army.get(&side), self.inputs.squads.get(&side).and_then(|m| m.get(&squad)), self.inputs.heroes.get(&side).and_then(|m| m.get(actor))].into_iter().flatten() { for (sum,v) in offsets.iter_mut().zip(profile_values(p)) { *sum += v; } }
+                let mut offsets = shared;
+                offsets[2] = member_profiles[actor][2];
+                for profile in [self.inputs.army.get(&side), self.inputs.squads.get(&side).and_then(|m| m.get(&squad))].into_iter().flatten() {
+                    for (value, override_value) in offsets.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
+                }
                 let own = &view.entities[actor];
                 let target_ids: Vec<_> = view.entities.iter().filter(|(_,e)| e.owner != Some(side) && matches!(e.entity_type.as_str(), "hero"|"minion"|"monster"|"tower"|"base")).map(|(id,_)| id.clone()).collect();
                 for definition in &self.policy.policy().candidates {

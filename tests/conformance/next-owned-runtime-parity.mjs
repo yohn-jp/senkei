@@ -96,9 +96,10 @@ try {
   const term=(signal,weight)=>({signal,weight});
   const zero=()=>[term('constant',0)];
   const behavior={schema_version:1,policy_id:'conformance-test-only',version:api,ruleset_digest:packageValue.ruleset.digest,test_only:true,
+    composition:{hero_aggregation:'mean_floor',override_order:'army_then_squad'}, hero_defaults:Object.fromEntries(packageValue.next.heroes.map(h=>[h.id,{navigation:null,engagement:null,targeting:null,pursuit:null,survival:null,objective:null}])),
     domains:{navigation:zero(),engagement:zero(),targeting:zero(),pursuit:zero(),survival:zero(),objective:zero()},
     candidates:[{kind:'move',capability:'move',arguments:['actor','objective_node']},{kind:'pursue',capability:'pursue',arguments:['actor','observed_target']},{kind:'retreat',capability:'retreat',arguments:['actor']}]};
-  const blank=()=>({navigation:0,engagement:0,targeting:0,pursuit:0,survival:0,objective:0});
+  const blank=()=>({navigation:null,engagement:null,targeting:null,pursuit:null,survival:null,objective:null});
   const h=heroId('attacker','slot-1');
   const inputs={schema_version:1,army:{attacker:{...blank(),navigation:1}},squads:{attacker:{'attacker:squad-0':{...blank(),objective:1}}},heroes:{attacker:{[h]:{...blank(),survival:1}}}};
   context.next_behavior={policy:behavior,inputs};
