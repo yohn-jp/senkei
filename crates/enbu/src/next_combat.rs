@@ -469,7 +469,7 @@ fn collect_basic_attacks(
         if !support::alive(source) || !is_combatant(source) {
             continue;
         }
-        let decision_index = AutonomousActorKind::from_type(source.entity_type.as_str())
+        let mut decision_index = AutonomousActorKind::from_type(source.entity_type.as_str())
             .and_then(|kind| collector.as_deref_mut().and_then(|collector| collector.begin(tick, source_id, kind, source.owner)));
         // Persistent movement goals do not consume a tick. Only movement
         // selected by navigation for any cohort member excludes an attack.
@@ -477,26 +477,26 @@ fn collect_basic_attacks(
         let current_action_lock = cohort_action_lock_until(world, start, source_id);
         if moved_this_tick {
             if let Some(collector) = collector.as_deref_mut() {
-                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::Moved });
+                let _ = collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::Moved });
             }
             continue;
         }
         if support::int(source, "action_lock_until").max(current_action_lock) > i64::from(tick) {
             if let Some(collector) = collector.as_deref_mut() {
-                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::ActionLocked });
+                let _ = collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::ActionLocked });
             }
             continue;
         }
         let interval = support::int(source, "attack_interval").max(1);
         if support::int(source, "attack_ready") > i64::from(tick) {
             if let Some(collector) = collector.as_deref_mut() {
-                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackNotReady });
+                let _ = collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackNotReady });
             }
             continue;
         }
         if support::int(source, "attack") <= 0 || support::int(source, "range") < 0 {
             if let Some(collector) = collector.as_deref_mut() {
-                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackUnavailable });
+                let _ = collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::AttackUnavailable });
             }
             continue;
         }
@@ -524,12 +524,12 @@ fn collect_basic_attacks(
         });
         let Some((target_id, _)) = selected else {
             if let Some(collector) = collector.as_deref_mut() {
-                collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::NoEligibleTarget });
+                let _ = collector.action(decision_index, AutonomousCombatAction::NoAttack { reason: AutonomousNoAttackReason::NoEligibleTarget });
             }
             continue;
         };
         if let Some(collector) = collector.as_deref_mut() {
-            collector.action(decision_index, AutonomousCombatAction::Attack { target: target_id.clone(), selection });
+            decision_index = collector.action(decision_index, AutonomousCombatAction::Attack { target: target_id.clone(), selection });
         }
         // Selection for every combatant reads the same pre-attack lock state.
         // Do not publish a squad member's new action lock until all attacks
@@ -1583,10 +1583,29 @@ mod tests {
         let mut collector = ActorDecisionCollector::new(2);
         let events = resolve_from_snapshot_with_actor_decisions(&mut world, &start, &rules, &[], 1, &mut collector);
         assert!(collector.overflowed());
-        assert_eq!(collector.used(), 2);
-        assert_eq!(collector.records[0].trace.candidates.len(), 1);
+        assert_eq!(collector.used(), 0);
+        assert!(collector.records.is_empty(), "an incomplete decision must not be published");
         assert_eq!(world, expected_world);
         assert_eq!(events, expected_events);
+    }
+
+    #[test]
+    fn owner_scoped_collection_drops_unknown_candidates_without_mislinking_events() {
+        let rules = rules();
+        let mut start = WorldState::default();
+        insert(&mut start, "a-source", entity("minion", Some(CombatantSide::Attacker), 0, 100, 10, 100));
+        insert(&mut start, "b-source", entity("minion", Some(CombatantSide::Attacker), 0, 100, 0, 100));
+        insert(&mut start, "hidden-to-observation", entity("hero", Some(CombatantSide::Defender), 10, 100, 0, 0));
+        let mut world = start.clone();
+        let mut collector = ActorDecisionCollector::new_for_owner(1, CombatantSide::Attacker);
+        collector.set_owner_observation(1, BTreeSet::from([EntityId::from("a-source"), EntityId::from("b-source")]));
+        let events = resolve_from_snapshot_with_actor_decisions(&mut world, &start, &rules, &[], 1, &mut collector);
+        assert!(events.iter().any(|event| event.event.as_str() == "next.attack"));
+        assert!(!collector.overflowed());
+        assert_eq!(collector.used(), 1);
+        assert_eq!(collector.records.len(), 1);
+        assert_eq!(collector.records[0].trace.actor, EntityId::from("b-source"));
+        assert!(collector.records[0].combat_event_index.is_none(), "the discarded source must not link its event to another actor");
     }
 
     #[test]

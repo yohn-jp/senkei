@@ -1,4 +1,4 @@
-use enbu::{new_match_context, simulate, simulate_with_actor_decisions, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
+use enbu::{new_match_context, simulate, simulate_with_actor_decisions, simulate_with_actor_decisions_for_owner, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
 use jinrei::{compile, Vm};
 use senkei_model::*;
 use std::collections::BTreeMap;
@@ -90,6 +90,11 @@ fn owner_traces_match_real_events_and_do_not_change_simulation() {
         let traces = traced.traces_for_owner(side);
         assert_eq!(traces, repeated.traces_for_owner(side));
         assert!(!traces.is_empty());
+        let scoped = simulate_with_actor_decisions_for_owner(&attacker, &defender, &rules, &context, side, &mut Vm::new(&rules)).unwrap();
+        assert_eq!(scoped.public_response(), standard.public_response());
+        assert_eq!(scoped.traces_for_owner(side), traces);
+        let other = match side { CombatantSide::Attacker => CombatantSide::Defender, CombatantSide::Defender => CombatantSide::Attacker };
+        assert!(scoped.traces_for_owner(other).is_empty());
         let replay = &standard.owner_replays[&side];
         for trace in traces {
             assert_ne!(trace.kind, AutonomousActorKind::Monster);
@@ -173,7 +178,7 @@ fn unknown_observation_does_not_reveal_attack_candidates_in_owner_traces() {
         }
     }
     let mut vm = ObserveUnknown { vm: Vm::new(&rules), seen: false };
-    let traced = simulate_with_actor_decisions(&attacker, &defender, &rules, &context, &mut vm).unwrap();
+    let traced = simulate_with_actor_decisions_for_owner(&attacker, &defender, &rules, &context, CombatantSide::Attacker, &mut vm).unwrap();
     assert!(vm.seen, "the frozen enemy Base collection must really be Unknown");
     assert_eq!(traced.public_response(), baseline.public_response());
     let frame = baseline.owner_replays[&CombatantSide::Attacker].frames.iter().find(|frame| frame.tick == 1).unwrap();
