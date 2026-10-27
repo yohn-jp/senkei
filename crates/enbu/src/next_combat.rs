@@ -198,6 +198,21 @@ pub fn prepare_actions(
     }
 }
 
+/// Only a skill that can actually reserve this tick suppresses generated Behavior movement.
+pub(crate) fn eligible_explicit_skill(
+    intent: &Intent,
+    side: CombatantSide,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+) -> bool {
+    let Some(actor_id) = intent.actor.as_ref() else { return false };
+    active_skill_target(intent, side, snapshot, rules, tick).is_some()
+        && !cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
+            .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot)))
+        && cohort_action_lock_until(snapshot, snapshot, actor_id) <= i64::from(tick)
+}
+
 fn explicit_movement_action_for(
     actor_id: &EntityId,
     accepted: &[(CombatantSide, Intent)],
