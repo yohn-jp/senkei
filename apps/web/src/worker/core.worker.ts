@@ -1,4 +1,6 @@
 import { simulationAuthorizationError } from "./simulation-authorization";
+import { behaviorResponseError } from "./behavior-response";
+import type { BehaviorSimulationRequest } from "../contracts/behavior";
 import { CORE_API_VERSION, WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
 import type { CoreJsonValue, CoreVersion, WorkerFailureCode } from "../contracts/core";
 import { WasmRuntime } from "./wasm-runtime";
@@ -21,6 +23,7 @@ type RequestOperation =
   | "format_ast"
   | "preflight"
   | "simulate"
+  | "simulate_behavior"
   | "reproduce"
   | "preflight_reproduction"
   | "benchmark";
@@ -140,6 +143,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "format_ast" &&
     operation !== "preflight" &&
     operation !== "simulate" &&
+    operation !== "simulate_behavior" &&
     operation !== "reproduce" &&
     operation !== "preflight_reproduction" &&
     operation !== "benchmark"
@@ -164,6 +168,17 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
 
 function validatePayload(operation: RequestOperation, payload: Record<string, unknown>): void {
   switch (operation) {
+    case "simulate_behavior": {
+      if (payload.format_version !== 1) throw new RequestFailure("invalid_request", "Unsupported Behavior input format.");
+      requireRecord(payload.rule_package, "simulate_behavior.rule_package");
+      requireRecord(payload.catalog_metadata_extension, "simulate_behavior.catalog_metadata_extension");
+      requireRecord(payload.behavior_inputs, "simulate_behavior.behavior_inputs");
+      requireRecord(payload.snapshot, "simulate_behavior.snapshot");
+      validateSnapshot(payload.snapshot, "simulate_behavior.snapshot");
+      const error = simulationDiagnosticsRequestError(payload.include_diagnostics, payload.diagnostics_side);
+      if (error) throw new RequestFailure("invalid_request", error);
+      return;
+    }
     case "initial_ruleset":
     case "next_ruleset":
     case "next_reproduction_assets":
@@ -328,6 +343,12 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     }
     case "simulate":
       return runSimulation(request.payload, request.request_id);
+    case "simulate_behavior": {
+      const result = await callCore("simulate_behavior", request.payload, request.request_id);
+      const error = await behaviorResponseError(result, request.payload as unknown as BehaviorSimulationRequest);
+      if (error) throw new RequestFailure("core_error", error);
+      return result;
+    }
     case "reproduce":
       return runReproduction(request.payload, request.request_id);
     case "preflight_reproduction": {

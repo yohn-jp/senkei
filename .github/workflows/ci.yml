@@ -51,6 +51,8 @@ jobs:
         run: node tests/conformance/generate-scenario-inputs.mjs --check
       - name: Determinism — native and real WebAssembly adapters
         run: node tests/conformance/compare-adapters.mjs
+      - name: Behavior — native and real WebAssembly identity and owner parity
+        run: node tests/conformance/behavior-dispatch-parity.mjs
       - name: Gameplay — fixed Next scenario matrix and adapter parity
         run: |
           mkdir -p target/next-balance

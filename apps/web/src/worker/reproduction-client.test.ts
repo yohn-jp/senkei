@@ -5,6 +5,7 @@ import type { WebWorkerRequest } from "../contracts/worker";
 import { WorkerCoreClient } from "./client";
 
 class RecordingWorker {
+  constructor(private readonly behaviorResponse?: unknown) {}
   readonly requests: WebWorkerRequest[] = [];
   private readonly listeners = new Map<string, (event: MessageEvent<unknown>) => void>();
 
@@ -19,7 +20,7 @@ class RecordingWorker {
   postMessage(value: unknown): void {
     const request = value as WebWorkerRequest;
     this.requests.push(request);
-    const result = request.operation === "next_reproduction_assets"
+    const result = request.operation === "simulate_behavior" ? this.behaviorResponse : request.operation === "next_reproduction_assets"
       ? assets
       : request.operation === "preflight_reproduction"
         ? null
@@ -57,6 +58,16 @@ const response = {
 };
 
 describe("reproduction Core client transport", () => {
+  it("preserves versioned Behavior input and explicit owner selection", async () => {
+    const result = { format_version: 1, result: { match_id: "behavior" } };
+    const worker = new RecordingWorker(result);
+    const client = new WorkerCoreClient({ worker: worker as unknown as Worker });
+    const payload = { format_version: 1, snapshot, include_diagnostics: true, diagnostics_side: "attacker",
+      rule_package: {}, catalog_metadata_extension: {}, behavior_inputs: { schema_version: 1, catalog_key: {}, bindings: {}, candidates: {} } } as unknown as import("../contracts/behavior").BehaviorSimulationRequest;
+    await expect(client.simulateBehavior(payload)).resolves.toEqual(result);
+    expect(worker.requests[0]).toMatchObject({ operation: "simulate_behavior", payload });
+    client.dispose();
+  });
   it("loads the reproduction assets with the explicit Worker operation", async () => {
     const worker = new RecordingWorker();
     const client = new WorkerCoreClient({ worker: worker as unknown as Worker });

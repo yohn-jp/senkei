@@ -14,6 +14,7 @@ import type {
   WorkerFailure,
 } from "./core";
 import type { ContentDigest, RulePackage } from "./core-model";
+import type { BehaviorSimulationRequest, BehaviorSimulationResponse } from "./behavior";
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import { WEB_WORKER_PROTOCOL_VERSION } from "./core";
 
@@ -23,6 +24,7 @@ interface WorkerRequestBase {
 }
 
 export type WebWorkerRequest =
+  | (WorkerRequestBase & { readonly operation: "simulate_behavior"; readonly payload: BehaviorSimulationRequest })
   | (WorkerRequestBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
       readonly payload: Record<string, never>;
@@ -94,6 +96,7 @@ interface WorkerResponseBase {
 }
 
 export type WebWorkerResponse =
+  | (WorkerResponseBase & { readonly operation: "simulate_behavior"; readonly ok: true; readonly result: BehaviorSimulationResponse })
   | (WorkerResponseBase & {
       readonly operation: "initial_ruleset" | "next_ruleset";
       readonly ok: true;

@@ -18,6 +18,7 @@ import type { ContentDigest, MatchContext, RulePackage, StructuredTacticsAst } f
 import type { CompilerRequest as EditorCompileRequest } from "@senkei/jinrei-editor";
 import type { WebWorkerRequest, WebWorkerResponse } from "../contracts/worker";
 import { WEB_WORKER_PROTOCOL_VERSION } from "../contracts/core";
+import type { BehaviorSimulationRequest, BehaviorSimulationResponse } from "../contracts/behavior";
 
 const DEFAULT_MAX_PENDING = 64;
 const DEFAULT_MAX_REQUEST_BYTES = 16 * 1024 * 1024;
@@ -52,6 +53,10 @@ let clientSequence = 0;
 
 /** Request/reply facade for the dedicated worker and local Rust/WASM core. */
 export class WorkerCoreClient implements CoreClient {
+  /** Opt-in generic mechanism; not a production Next Profile or saved Run. */
+  simulateBehavior(payload: BehaviorSimulationRequest): Promise<BehaviorSimulationResponse> {
+    return this.request("simulate_behavior", payload) as Promise<BehaviorSimulationResponse>;
+  }
   private readonly worker: Worker;
   private readonly maxPendingRequests: number;
   private readonly maxRequestBytes: number;
