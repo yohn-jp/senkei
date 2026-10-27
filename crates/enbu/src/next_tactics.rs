@@ -46,7 +46,7 @@ pub fn apply(
     rules: &NextRules,
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
-) {
+) -> Vec<(CombatantSide, senkei_model::PresentationEvent)> {
     // Track selection is a typed, deterministic tactical order. A Squad shares
     // its selected lane; one stable actor/action wins contradictory orders.
     let mut track_orders = accepted
@@ -110,6 +110,58 @@ pub fn apply(
         }
     }
 
+    let candidates = goal_candidates(world, rules, accepted);
+    let mut committed: Vec<(CombatantSide, senkei_model::PresentationEvent)> = Vec::new();
+    let mut handled_groups = BTreeSet::new();
+    for candidate in candidates {
+        if !handled_groups.insert(candidate.group.clone()) {
+            continue;
+        }
+        let (side, squad) = match candidate.group {
+            GoalGroup::Squad(side, squad) => (side, Some(squad)),
+            GoalGroup::Solo(side, _) => (side, None),
+        };
+        let mut affected = Vec::new();
+        for (entity_id, entity) in world.entities.iter_mut() {
+            if entity.entity_type.as_str() != HERO
+                || entity.owner != Some(side)
+                || !support::alive(entity)
+            {
+                continue;
+            }
+            if let Some(squad) = squad.as_deref() {
+                if support::string(entity, "squad") != squad {
+                    continue;
+                }
+            } else if entity_id != &candidate.actor {
+                // A Solo order is scoped by its stable actor ID.
+                continue;
+            }
+            apply_order(entity, &candidate.order, tick);
+            affected.push(DomainValue::Record(std::collections::BTreeMap::from([
+                ("entity".into(), DomainValue::Entity(entity_id.clone())),
+                ("goal".into(), entity.fields[&"goal".into()].clone()),
+                ("target".into(), entity.fields[&"target".into()].clone()),
+                ("retreating".into(), entity.fields[&"retreating".into()].clone()),
+            ])));
+        }
+        if !affected.is_empty() {
+            let sequence = committed.iter().filter(|(owner,_)| *owner == side).count() as i64;
+            committed.push((side, senkei_model::PresentationEvent {
+                event: "next.behavior_order_committed".into(), entity: Some(candidate.actor.clone()),
+                payload: std::collections::BTreeMap::from([
+                    ("tick".into(), DomainValue::Integer(i64::from(tick))),
+                    ("sequence".into(), DomainValue::Integer(sequence)),
+                    ("action_id".into(), DomainValue::String(candidate.action_id.to_string())),
+                    ("members".into(), DomainValue::List(affected)),
+                ]),
+            }));
+        }
+    }
+    committed
+}
+
+fn goal_candidates(world: &WorldState, rules: &NextRules, accepted: &[(CombatantSide, Intent)]) -> Vec<Candidate> {
     let mut candidates = Vec::new();
     for (side, intent) in accepted {
         let Some(actor_id) = actor_id(intent) else {
@@ -187,33 +239,26 @@ pub fn apply(
             .then_with(|| left.action_id.cmp(&right.action_id))
     });
 
-    let mut handled_groups = BTreeSet::new();
-    for candidate in candidates {
-        if !handled_groups.insert(candidate.group.clone()) {
-            continue;
-        }
-        let (side, squad) = match candidate.group {
-            GoalGroup::Squad(side, squad) => (side, Some(squad)),
-            GoalGroup::Solo(side, _) => (side, None),
-        };
-        for (entity_id, entity) in world.entities.iter_mut() {
-            if entity.entity_type.as_str() != HERO
-                || entity.owner != Some(side)
-                || !support::alive(entity)
-            {
-                continue;
-            }
-            if let Some(squad) = squad.as_deref() {
-                if support::string(entity, "squad") != squad {
-                    continue;
-                }
-            } else if entity_id != &candidate.actor {
-                // A Solo order is scoped by its stable actor ID.
-                continue;
-            }
-            apply_order(entity, &candidate.order, tick);
+    candidates
+}
+
+/// Remove cross-capability losers using exactly the order used to commit goals.
+pub fn resolve_goal_conflicts(world: &WorldState, rules: &NextRules, accepted: &mut Vec<(CombatantSide, Intent)>) -> Vec<(CombatantSide, Intent)> {
+    let mut groups = BTreeSet::new();
+    let mut losers = BTreeSet::new();
+    for candidate in goal_candidates(world, rules, accepted) {
+        if !groups.insert(candidate.group.clone()) {
+            let side = match candidate.group { GoalGroup::Squad(side, _) | GoalGroup::Solo(side, _) => side };
+            losers.insert((side, candidate.actor, candidate.action_id));
         }
     }
+    let mut rejected = Vec::new();
+    accepted.retain(|(side, intent)| {
+        if intent.actor.as_ref().is_some_and(|actor| losers.contains(&(*side, actor.clone(), intent.action_id.clone()))) {
+            rejected.push((*side, intent.clone())); false
+        } else { true }
+    });
+    rejected
 }
 
 fn apply_order(entity: &mut EntityState, order: &GoalOrder, tick: u32) {

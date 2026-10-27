@@ -374,7 +374,15 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some(hook) = next_behavior.as_deref_mut() {
             hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index, &mut diagnostics, &mut diagnostic_sequence)?;
         }
-        let accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        let mut accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
+        if next_behavior.is_some() {
+            let rejected = next_tactics::resolve_goal_conflicts(&world, plan.next.as_ref().unwrap(), &mut accepted);
+            for (side, intent) in rejected {
+                let event = diagnostics.iter_mut().rev().find(|event| event.tick == tick && event.side == side && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent: accepted } if *accepted == intent))
+                    .ok_or_else(|| api_error(ApiErrorCode::InternalError, "missing goal arbitration diagnostic"))?;
+                event.record = DiagnosticRecord::IntentRejected { intent, reason: "enbu.next_goal_conflict".into() };
+            }
+        }
         if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
         if let Some(hook) = next_behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }
 
@@ -427,10 +435,22 @@ fn simulate_inner<P: TacticalExecutionPort>(
             sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
         }).unwrap_or_default();
         let mut next_events = Vec::new();
+        let mut committed_orders = Vec::new();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
             if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
-            next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            let orders = next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            if next_behavior.is_some() {
+                for (side, event) in &orders {
+                    let action_id = match event.payload.get(&"action_id".into()) { Some(DomainValue::String(id)) => id.clone(), _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks action ID")) };
+                    push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, *side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_order_committed".into(), details: BTreeMap::new() })?;
+                    let notice = diagnostics.last_mut().unwrap();
+                    notice.action_id = Some(action_id.into());
+                    notice.entity_id = event.entity.clone();
+                }
+                event_count = event_count.checked_add(orders.len() as u64).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "event count overflow"))?;
+                committed_orders = orders;
+            }
             // Resolve legality and attacks from one committed position snapshot.
             // Preparation reserves an exclusive action without moving anyone.
             let action_start = world.clone();
@@ -474,7 +494,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     tick,
                     events: next_events.iter()
                         .filter(|event| event_references_known(event, owner_before, &owner_after))
-                        .cloned().collect(),
+                        .cloned().chain(committed_orders.iter().filter(|(owner,_)| *owner == side).map(|(_, event)| event.clone())).collect(),
                     visible_state: Some(owner_after),
                 };
                 owner_frames.get_mut(&side).unwrap().push(frame);
@@ -1594,7 +1614,15 @@ fn project_replay_identities(mut frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
         }
         for event in &mut frame.events {
             event.entity=event.entity.as_ref().and_then(|raw|active.get(raw).map(|(id,_)|id.clone()));
-            for value in event.payload.values_mut() { if let DomainValue::Entity(raw)=value { *value=active.get(raw).map(|(id,_)|DomainValue::Entity(id.clone())).unwrap_or(DomainValue::Null); } }
+            fn project_value(value: &mut DomainValue, active: &BTreeMap<EntityId,(EntityId,i64)>) {
+                match value {
+                    DomainValue::Entity(raw) => *value = active.get(raw).map(|(id,_)| DomainValue::Entity(id.clone())).unwrap_or(DomainValue::Null),
+                    DomainValue::List(values) => for value in values { project_value(value, active); },
+                    DomainValue::Record(values) => for value in values.values_mut() { project_value(value, active); },
+                    _ => {},
+                }
+            }
+            for value in event.payload.values_mut() { project_value(value, &active); }
         }
         let entities=std::mem::take(&mut view.entities);
         view.entities=entities.into_iter().filter_map(|(raw,entity)|active.get(&raw).map(|(id,_)|(id.clone(),EntityStateView { ..entity }))).collect();

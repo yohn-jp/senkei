@@ -2533,6 +2533,16 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     assert_eq!(&standard.diagnostic_snapshot_digest, artifact.run_digest());
     assert_eq!(standard.reproduction.context.next_behavior, frozen.next_behavior);
     let traces = artifact.traces_for_owner(CombatantSide::Attacker);
+    let owner_events = &standard.owner_replays[&CombatantSide::Attacker].frames[1].events;
+    for trace in &traces {
+        let action = trace.selected.as_ref().unwrap().action_id.as_str();
+        let event = owner_events.iter().find(|e| e.event.as_str() == "next.behavior_order_committed" && e.payload.get(&"action_id".into()) == Some(&DomainValue::String(action.into()))).expect("committed order event");
+        assert!(event.entity.as_ref().is_some_and(|id| id.as_str().starts_with("visible-")));
+        assert!(matches!(event.payload.get(&"members".into()), Some(DomainValue::List(members)) if !members.is_empty()));
+        assert!(standard.diagnostics.events.iter().any(|d| d.action_id.as_ref() == Some(&trace.selected.as_ref().unwrap().action_id) && d.entity_id.as_ref() == Some(&trace.actor) && matches!(&d.record, DiagnosticRecord::RuntimeNotice { code,.. } if code.as_str() == "enbu.behavior_order_committed")));
+    }
+    assert!(standard.replay.frames.iter().flat_map(|f| &f.events).all(|e| e.event.as_str() != "next.behavior_order_committed"));
+    assert!(standard.owner_replays[&CombatantSide::Defender].frames.iter().flat_map(|f| &f.events).all(|e| e.event.as_str() != "next.behavior_order_committed" || !traces.iter().any(|t| e.payload.get(&"action_id".into()) == t.selected.as_ref().map(|i| &i.action_id).map(|id| DomainValue::String(id.to_string())).as_ref())));
     assert_eq!(traces.len(),2);
     assert!(traces.iter().all(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "move") && t.arbitration_accepted && t.transition_completed));
     let diagnostics = artifact.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
@@ -2742,6 +2752,10 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
         a.program = compile(&source,&rules).unwrap().program;
         let artifact = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
         assert!(artifact.traces_for_owner(CombatantSide::Attacker).is_empty());
+        let events = artifact.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events;
+        let movement: Vec<_> = events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } | DiagnosticRecord::IntentRejected { intent,.. } if matches!(intent.capability.as_str(), "move" | "pursue" | "retreat"))).collect();
+        assert_eq!(movement.iter().filter(|event| matches!(event.record, DiagnosticRecord::IntentAccepted { .. })).count(),1);
+        assert_eq!(movement.iter().filter(|event| matches!(event.record, DiagnosticRecord::IntentRejected { .. })).count(),2);
         results.push(artifact.public_response());
     }
     assert_eq!(results[0],results[1]);
