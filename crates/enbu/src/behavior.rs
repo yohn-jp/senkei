@@ -129,7 +129,7 @@ pub fn simulate_with_behavior<P: TacticalExecutionPort>(
     let resolver = BehaviorResolver::new(catalog, &catalog.compatibility_key())
         .map_err(|e| api_error(ApiErrorCode::ValidationFailed, &e.to_string()))?;
     let mut hook = Hook { resolver, catalog, inputs, traces: Vec::new(), limit: context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) as usize, trace_records: 0 };
-    let mut artifact = simulate_inner(attacker, defender, rules, context, executor, Some(&mut hook), None)?;
+    let mut artifact = simulate_inner(attacker, defender, rules, context, executor, Some(&mut hook), None, None, None)?;
     let run_digest = digest_json(&serde_json::json!({
         "behavior_input_schema": 1,
         "behavior_runtime_version": senkei_behavior::BEHAVIOR_RUNTIME_VERSION,

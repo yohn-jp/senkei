@@ -5,9 +5,13 @@ mod initial;
 mod validate;
 mod next_validate;
 mod production_behavior;
+mod minion_behavior;
+mod next_route;
 mod production_preferences;
 pub use production_preferences::add_trial_behavior_preferences;
 pub use production_behavior::{validate_next_behavior_policy, VerifiedNextBehaviorPolicy};
+pub use minion_behavior::{validate_next_minion_behavior_policy, VerifiedNextMinionBehaviorPolicy};
+pub use next_route::{validate_next_route_policy, VerifiedNextRoutePolicy};
 pub mod catalog;
 
 pub use initial::{initial_engine_compatibility, initial_package};

@@ -5,6 +5,32 @@ use senritsu::VerifiedNextBehaviorPolicy;
 use serde::Serialize;
 
 pub use senkei_model::{NextBehaviorExecutionInputs, NextBehaviorProfile};
+/// Indices in the following six-element arrays are Navigation, Engagement,
+/// Targeting, Pursuit, Survival and Objective, in that order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NextBehaviorProfileSource { TestFallbackZero, HeroCatalog, HeroInstance, Army, Squad, JinreiConditional }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct NextBehaviorMemberComposition {
+    pub actor: EntityId,
+    pub catalog_id: String,
+    pub values: [i64; 6],
+    pub sources: [NextBehaviorProfileSource; 6],
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct NextBehaviorCompositionTrace {
+    pub squad_id: String,
+    pub members: Vec<NextBehaviorMemberComposition>,
+    pub shared: [i64; 6],
+    /// Same roster and inherited preferences before tick-local Jinrei overrides.
+    pub baseline_effective: [i64; 6],
+    /// The selected actor's individual engagement and targeting replace the
+    /// respective shared values. Other fields remain shared movement values.
+    pub effective: [i64; 6],
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NextBehaviorSelectionSource { Explicit, Default, Wait }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct NextBehaviorCommittedEventRef {
     /// Tick in the owner's replay. The side comes from the containing trace.
@@ -17,6 +43,13 @@ pub struct NextBehaviorTrace {
     pub tick: u32,
     pub side: CombatantSide,
     pub actor: EntityId,
+    pub source: NextBehaviorSelectionSource,
+    pub policy_digest: ContentDigest,
+    /// Digest of the side-authorized frozen observation used for this tick.
+    pub observation_digest: ContentDigest,
+    pub composition: NextBehaviorCompositionTrace,
+    pub eligible_candidates: usize,
+    pub unknown_candidates: usize,
     pub selected: Option<Intent>,
     /// A policy score for generated candidates; explicit Jinrei actions have no score.
     pub score: Option<i64>,
@@ -42,7 +75,15 @@ pub fn simulate_next_behavior<P: TacticalExecutionPort>(attacker: &senkei_model:
     if frozen.next_behavior.as_ref().is_some_and(|existing| existing != &binding) { return Err(api_error(ApiErrorCode::ValidationFailed, "Next Behavior context mismatch")); }
     frozen.next_behavior = Some(binding);
     let mut hook = Hook { policy, inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
-    let artifact = simulate_inner(attacker, defender, rules, &frozen, executor, None, Some(&mut hook))?;
+    let minion_policy = frozen.next_minion_behavior.as_ref().map(|binding| {
+        senritsu::validate_next_minion_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))
+    }).transpose()?;
+    let mut minion_hook = if let (Some(binding), Some(policy)) = (&frozen.next_minion_behavior, &minion_policy) {
+        next_minion_behavior::validate_inputs(rules, &frozen, policy, &binding.inputs)?;
+        Some(next_minion_behavior::Hook { policy, inputs: &binding.inputs, traces: Vec::new() })
+    } else { None };
+    let artifact = simulate_inner(attacker, defender, rules, &frozen, executor, None, Some(&mut hook), minion_hook.as_mut(), None)?;
     let digest = artifact.diagnostic_snapshot_digest.clone();
     Ok(NextBehaviorSimulationArtifact { artifact, policy: policy.clone(), inputs: inputs.clone(), digest, traces: hook.traces })
 }
@@ -94,6 +135,7 @@ impl Hook<'_> {
             if outputs.iter().find(|(s,_)| *s == side).unwrap().1.status != senkei_model::TacticalExecutionStatus::Completed { continue; }
             // Only values in the already frozen RulePlan observation are eligible.
             let observation = observations.iter().find(|o| o.side == side).unwrap();
+            let observation_digest = digest_json(observation)?;
             let view = observed_view(observation);
             let mut groups = BTreeMap::<String, Vec<EntityId>>::new();
             for (id, entity) in &view.entities { if entity.owner == Some(side) && entity.entity_type.as_str() == "hero" && world.entities.get(id).is_some_and(next_support::alive) { let squad = next_support::string(&world.entities[id], "squad"); let group = if squad.is_empty() { format!("solo:{id}") } else { format!("squad:{squad}") }; groups.entry(group).or_default().push(id.clone()); } }
@@ -106,11 +148,6 @@ impl Hook<'_> {
                         && matches!(intent.capability.as_str(), "move" | "pursue" | "retreat" | "select_target")
                 }).map(|(_, intent)| intent.clone()).collect();
                 explicit.sort_by(|a, b| a.action_id.cmp(&b.action_id));
-                for intent in &explicit {
-                    self.traces.push(NextBehaviorTrace { tick, side, actor: intent.actor.clone().unwrap(), selected: Some(intent.clone()), score: None, arbitration_accepted: false, transition_completed: false, committed_event: None });
-                }
-                // Explicit Jinrei goal orders take precedence for the entire current squad.
-                if explicit.iter().any(|i| matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
                 let explicit_targets: BTreeSet<_> = explicit.iter().filter_map(|i| (i.capability.as_str() == "select_target").then(|| i.actor.clone()).flatten()).collect();
                 let mut choices = Vec::new();
                 let mut unknown_candidates = 0usize;
@@ -119,28 +156,62 @@ impl Hook<'_> {
                 // Movement authority is shared by the current living squad, so
                 // aggregate every member before applying Army and Squad overrides.
                 let mut member_profiles = BTreeMap::new();
+                let mut baseline_profiles = BTreeMap::new();
+                let mut member_sources = BTreeMap::new();
+                let mut member_catalogs = BTreeMap::new();
                 for member in &members {
                     let catalog = next_support::string(&world.entities[member], "catalog_id");
                     let defaults = self.policy.policy().hero_defaults.get(&catalog).ok_or_else(|| api_error(ApiErrorCode::ValidationFailed, "missing Hero catalog profile"))?;
-                    let mut values = profile_values(defaults).map(|value| value.unwrap_or(0));
+                    let defaults = profile_values(defaults);
+                    let mut values = defaults.map(|value| value.unwrap_or(0));
+                    let mut sources = defaults.map(|value| if value.is_some() { NextBehaviorProfileSource::HeroCatalog } else { NextBehaviorProfileSource::TestFallbackZero });
                     if let Some(profile) = self.inputs.heroes.get(&side).and_then(|m| m.get(member)) {
-                        for (value, override_value) in values.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
+                        for (field, override_value) in profile_values(profile).into_iter().enumerate() { if let Some(v) = override_value { values[field] = v; sources[field] = NextBehaviorProfileSource::HeroInstance; } }
                     }
                     member_profiles.insert(member.clone(), values);
+                    member_sources.insert(member.clone(), sources);
+                    member_catalogs.insert(member.clone(), catalog);
                 }
                 // Army and Squad are field replacements, then the conditional
                 // preference overrides that member for this tick only.
                 for (member, values) in &mut member_profiles {
-                    for profile in [self.inputs.army.get(&side), self.inputs.squads.get(&side).and_then(|m| m.get(&squad))].into_iter().flatten() {
-                        for (value, override_value) in values.iter_mut().zip(profile_values(profile)) { if let Some(v) = override_value { *value = v; } }
+                    for (profile, source) in [(self.inputs.army.get(&side), NextBehaviorProfileSource::Army), (self.inputs.squads.get(&side).and_then(|m| m.get(&squad)), NextBehaviorProfileSource::Squad)] {
+                        if let Some(profile) = profile {
+                            for (field, override_value) in profile_values(profile).into_iter().enumerate() { if let Some(v) = override_value { values[field] = v; member_sources.get_mut(member).unwrap()[field] = source; } }
+                        }
                     }
+                    baseline_profiles.insert(member.clone(), *values);
                     for (field, value) in values.iter_mut().enumerate() {
-                        if let Some(conditional) = overrides.get(&(side, member.clone(), field)) { *value = *conditional; }
+                        if let Some(conditional) = overrides.get(&(side, member.clone(), field)) { *value = *conditional; member_sources.get_mut(member).unwrap()[field] = NextBehaviorProfileSource::JinreiConditional; }
                     }
                 }
                 let mut shared = [0i64;6];
+                let mut baseline_shared = [0i64;6];
                 for values in member_profiles.values() { for (sum,value) in shared.iter_mut().zip(values) { *sum += value; } }
+                for values in baseline_profiles.values() { for (sum,value) in baseline_shared.iter_mut().zip(values) { *sum += value; } }
                 for value in &mut shared { *value = value.div_euclid(members.len() as i64); }
+                for value in &mut baseline_shared { *value = value.div_euclid(members.len() as i64); }
+                let composition = |actor: &EntityId| {
+                    let mut effective = shared;
+                    effective[1] = member_profiles[actor][1];
+                    effective[2] = member_profiles[actor][2];
+                    let mut baseline_effective = baseline_shared;
+                    baseline_effective[1] = baseline_profiles[actor][1];
+                    baseline_effective[2] = baseline_profiles[actor][2];
+                    NextBehaviorCompositionTrace {
+                        squad_id: squad.clone(), shared, effective, baseline_effective,
+                        members: members.iter().map(|member| NextBehaviorMemberComposition {
+                            actor: member.clone(), catalog_id: member_catalogs[member].clone(),
+                            values: member_profiles[member], sources: member_sources[member],
+                        }).collect(),
+                    }
+                };
+                for intent in &explicit {
+                    let actor = intent.actor.clone().unwrap();
+                    self.traces.push(NextBehaviorTrace { tick, side, actor: actor.clone(), source: NextBehaviorSelectionSource::Explicit, policy_digest:self.policy.digest().clone(), observation_digest: observation_digest.clone(), composition: composition(&actor), eligible_candidates: explicit.len(), unknown_candidates: 0, selected: Some(intent.clone()), score: None, arbitration_accepted: false, transition_completed: false, committed_event: None });
+                }
+                // Explicit Jinrei goal orders take precedence for the entire current squad.
+                if explicit.iter().any(|i| matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
                 for actor in &members {
                 let mut offsets = shared;
                 offsets[1] = member_profiles[actor][1];
@@ -162,6 +233,7 @@ impl Hook<'_> {
                     }
                 }
                 }
+                let eligible_candidates = choices.len();
                 choices.sort_by(|a,b| b.0.cmp(&a.0).then_with(|| a.2.action_id.cmp(&b.2.action_id)));
                 let mut occupied = explicit_targets.clone();
                 let mut selected_shared = false;
@@ -180,29 +252,51 @@ impl Hook<'_> {
                     push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_unknown_observation".into(), details: BTreeMap::from([("actor".into(), members[0].to_string()), ("candidates".into(), unknown_candidates.to_string())]) })?;
                 }
                 if selected.is_empty() && explicit_targets.is_empty() {
-                    self.traces.push(NextBehaviorTrace { tick, side, actor:members[0].clone(), selected:None, score:None, arbitration_accepted:false, transition_completed:false, committed_event:None });
+                    let trace = NextBehaviorTrace { tick, side, actor:members[0].clone(), source:NextBehaviorSelectionSource::Wait, policy_digest:self.policy.digest().clone(), observation_digest:observation_digest.clone(), composition:composition(&members[0]), eligible_candidates, unknown_candidates, selected:None, score:None, arbitration_accepted:false, transition_completed:false, committed_event:None };
+                    push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::RuntimeNotice { code: "enbu.behavior_wait".into(), details: self.decision_details(&trace)? })?;
+                    diagnostics.last_mut().unwrap().entity_id = Some(trace.actor.clone());
+                    self.traces.push(trace);
                 }
                 for (value,intent) in selected {
                     if outputs.iter().flat_map(|(_,o)| &o.intents).any(|existing| existing.action_id == intent.action_id) || validated.iter().any(|(_,existing)| existing.action_id == intent.action_id) { return Err(api_error(ApiErrorCode::ValidationFailed, "duplicate Behavior action ID")); }
                     push_diagnostic(diagnostics, sequence, tick, side, DiagnosticRecord::IntentProposed { intent:intent.clone() })?;
                     validated.push((side,intent.clone()));
-                    self.traces.push(NextBehaviorTrace { tick, side, actor:intent.actor.clone().unwrap(), selected:Some(intent), score:Some(value), arbitration_accepted:false, transition_completed:false, committed_event:None });
+                    let actor = intent.actor.clone().unwrap();
+                    self.traces.push(NextBehaviorTrace { tick, side, actor:actor.clone(), source:NextBehaviorSelectionSource::Default, policy_digest:self.policy.digest().clone(), observation_digest:observation_digest.clone(), composition:composition(&actor), eligible_candidates, unknown_candidates, selected:Some(intent), score:Some(value), arbitration_accepted:false, transition_completed:false, committed_event:None });
                 }
                 if validated.iter().filter(|(s,_)| *s == side).count() + self.accepted_preferences.iter().filter(|(s,_)| *s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit,"Behavior intent limit exceeded")); }
             }
         }
         Ok(())
     }
-    pub fn record_arbitration(&mut self,tick:u32,accepted:&[(CombatantSide,Intent)]) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.arbitration_accepted = t.selected.as_ref().is_some_and(|i| accepted.iter().any(|(s,a)| *s == t.side && a == i)); } }
-    pub fn record_committed(&mut self, tick: u32, side: CombatantSide, action_id: &str, sequence: u32) {
-        for trace in self.traces.iter_mut().filter(|trace| {
-            trace.tick == tick && trace.side == side && trace.arbitration_accepted
+    pub fn record_arbitration(&mut self,tick:u32,accepted:&[(CombatantSide,Intent)]) { for t in self.traces.iter_mut().rev().take_while(|t| t.tick == tick) { t.arbitration_accepted = t.selected.as_ref().is_some_and(|i| accepted.iter().any(|(s,a)| *s == t.side && a == i)); } }
+    pub fn record_committed(&mut self, tick: u32, side: CombatantSide, action_id: &str, sequence: u32) -> Option<NextBehaviorTrace> {
+        let mut committed = None;
+        for trace in self.traces.iter_mut().rev().take_while(|trace| trace.tick == tick).filter(|trace| {
+            trace.side == side && trace.arbitration_accepted
                 && trace.selected.as_ref().is_some_and(|intent| intent.action_id.as_str() == action_id)
         }) {
             trace.committed_event = Some(NextBehaviorCommittedEventRef { tick, sequence });
+            committed = Some(trace.clone());
         }
+        committed
     }
-    pub fn record_transition(&mut self,tick:u32) { for t in self.traces.iter_mut().filter(|t| t.tick == tick) { t.transition_completed = true; } }
+    pub fn decision_details(&self, trace: &NextBehaviorTrace) -> Result<BTreeMap<String, String>, ApiError> {
+        let composition = serde_json::to_string(&trace.composition).map_err(|_| api_error(ApiErrorCode::InternalError, "could not serialize Behavior composition"))?;
+        let source = match trace.source { NextBehaviorSelectionSource::Explicit => "explicit", NextBehaviorSelectionSource::Default => "default", NextBehaviorSelectionSource::Wait => "wait" };
+        let mut details = BTreeMap::from([
+            ("next_policy_id".into(), self.policy.policy().policy_id.clone()),
+            ("next_policy_digest".into(), trace.policy_digest.to_string()),
+            ("observation_digest".into(), trace.observation_digest.to_string()),
+            ("decision_source".into(), source.into()),
+            ("profile_composition_json".into(), composition),
+            ("eligible_candidates".into(), trace.eligible_candidates.to_string()),
+            ("unknown_candidates".into(), trace.unknown_candidates.to_string()),
+        ]);
+        if let Some(score) = trace.score { details.insert("selected_score".into(), score.to_string()); }
+        Ok(details)
+    }
+    pub fn record_transition(&mut self,tick:u32) { for t in self.traces.iter_mut().rev().take_while(|t| t.tick == tick) { t.transition_completed = true; } }
 }
 /// Consume validated preference intents once. Different values for the same
 /// subject and field are ambiguous and all are rejected; identical values

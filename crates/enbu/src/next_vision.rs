@@ -478,7 +478,7 @@ fn lane_endpoint<'a>(nodes: &'a [String], side: CombatantSide) -> Option<&'a str
 
 /// Selects the next node in the configured lane order, then the opposing base.
 /// Minions therefore retain their lane and do not take a shorter jungle route.
-fn lane_waypoint(map: &BattleMap, side: CombatantSide, lane: &str, node: &str) -> Option<String> {
+pub(crate) fn lane_waypoint(map: &BattleMap, side: CombatantSide, lane: &str, node: &str) -> Option<String> {
     let nodes = map.lanes.get(lane)?;
     let index = nodes.iter().position(|candidate| candidate == node);
     let next = match (side, index) {

@@ -22,6 +22,10 @@ fn validates_bound_test_policy_and_rejects_malformed_policies() {
     let verified = validate_next_behavior_policy(p.clone(), &rules).unwrap();
     assert_eq!(verified.policy(), &p);
     assert!(verified.policy().test_only);
+    use sha2::{Digest, Sha256};
+    let canonical = serde_json::to_vec(&serde_json::to_value(&p).unwrap()).unwrap();
+    assert_eq!(verified.digest().as_str(), format!("{:x}", Sha256::digest(&canonical)));
+    assert_ne!(canonical, serde_json::to_vec(&p).unwrap(), "digest uses sorted JSON keys, not Rust field order");
     let mut invalid = p.clone(); invalid.ruleset_digest = ContentDigest::new("wrong");
     assert!(validate_next_behavior_policy(invalid, &rules).is_err());
     let mut invalid = p.clone(); invalid.domains.navigation.clear();

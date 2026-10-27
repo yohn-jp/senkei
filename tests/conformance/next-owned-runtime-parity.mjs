@@ -110,6 +110,19 @@ try {
   assert(eq(first,again) && JSON.stringify(payload)===frozen,'snapshot or repeated result changed');
   assert(first.diagnostics?.events.every(e=>e.side==='attacker'),'attacker diagnostics leaked other side');
   assert(Object.keys(first.owner_replays ?? {}).join() === 'attacker','attacker owner replay scope');
+  const decision=first.diagnostics.events.find(e=>e.record.kind==='runtime_notice' && e.record.value.code==='enbu.behavior_order_committed');
+  assert(decision?.record.value.details.next_policy_digest===sha(JSON.stringify(canonical(behavior))), 'Next policy digest differs from canonical JavaScript JSON');
+  assert(decision.record.value.details.observation_digest?.length===64 && decision.record.value.details.profile_composition_json,'owner decision provenance missing');
+  const actorTrace=await both('simulate_actor_decisions',payload,{label:'owner autonomous decisions'});
+  assert(actorTrace.format_version===1 && actorTrace.trace_schema_version===1 && actorTrace.authorized_side==='attacker','actor trace identity');
+  assert(eq(actorTrace.simulation,first),'actor inspection changed the complete simulation response');
+  assert(actorTrace.trace.length>0 && actorTrace.trace.every(t=>t.actor.startsWith('visible-') && t.kind!=='monster'),'actor trace leaked private identity or neutral decisions');
+  for (const trace of actorTrace.trace) if (trace.committed_event) {
+    const frame=first.owner_replays.attacker.frames.find(f=>f.tick===trace.committed_event.tick);
+    const event=frame?.events[trace.committed_event.event_index];
+    assert(event?.event==='next.attack' && event.payload.source.value===trace.actor && event.payload.target.value===trace.action.target,'actor event reference mismatch');
+  }
+  await both('simulate_actor_decisions',{attacker,defender,context,include_diagnostics:false},{ok:false,label:'actor trace requires owner authorization'});
   const defenderResult=await both('simulate',{...payload,diagnostics_side:'defender'},{label:'defender owner'});
   assert(defenderResult.diagnostics?.events.every(e=>e.side==='defender'),'defender diagnostics leaked other side');
   assert(Object.keys(defenderResult.owner_replays ?? {}).join() === 'defender','defender owner replay scope');
@@ -137,6 +150,19 @@ try {
   const wait=clone(payload); wait.context.next_behavior.policy.domains.navigation=[term('route_cost',1)]; wait.context.next_behavior.policy.candidates=[behavior.candidates[0]];
   const waited=await both('simulate',wait,{label:'unknown wait'});
   assert(waited.diagnostics.events.some(e=>e.record.kind==='runtime_notice' && e.record.value.code==='enbu.behavior_unknown_observation'),'unknown WAIT omitted diagnostic');
+  assert(waited.diagnostics.events.some(e=>e.record.kind==='runtime_notice' && e.record.value.code==='enbu.behavior_wait'),'WAIT decision omitted diagnostic');
+  const minion=clone(payload); minion.context.max_ticks=31;
+  const minionPolicy={schema_version:1,policy_id:'conformance-lane-only',version:api,ruleset_digest:packageValue.ruleset.digest,test_only:true,candidate:'lane_waypoint'};
+  minion.context.next_minion_behavior={policy:minionPolicy,inputs:{schema_version:1,army:{attacker:'lane_waypoint'},lanes:{defender:{bot:'lane_waypoint'}}}};
+  const minionResult=await both('simulate',minion,{label:'scoped Minion trace'});
+  const minionEvents=minionResult.diagnostics.events.filter(e=>e.record.kind==='runtime_notice' && e.record.value.code==='enbu.minion_lane_decision');
+  assert(minionEvents.length>0,'scoped Minion notices missing');
+  for (const event of minionEvents) {
+    const details=event.record.value.details;
+    const frame=minionResult.owner_replays.attacker.frames.find(frame=>frame.tick===event.tick);
+    assert(event.side==='attacker' && event.entity_id?.startsWith('visible-') && frame?.visible_state.entities[event.entity_id]?.entity_type==='minion','Minion trace is not linked to the authorized frame');
+    assert(details.identity_space==='owner_replay' && details.candidate==='lane_waypoint' && details.next_policy_digest===sha(JSON.stringify(canonical(minionPolicy))),'Minion policy identity mismatch');
+  }
   const fog=clone(payload); fog.context.next_behavior.policy.candidates=[behavior.candidates[1]];
   const hidden=await both('simulate',fog,{label:'fog'});
   const defenderIds=new Set(defender.configuration.heroes.value.map(r=>heroId('defender',r.value.slot_id.value)));

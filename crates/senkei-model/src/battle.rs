@@ -127,6 +127,10 @@ pub struct MatchContext {
     pub world_identity: Option<crate::WorldIdentityRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_behavior: Option<crate::NextBehaviorMatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_minion_behavior: Option<crate::NextMinionBehaviorMatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_route: Option<crate::NextRouteMatch>,
     pub versions: ComponentVersions,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub match_projection: Option<crate::MatchProjection>,

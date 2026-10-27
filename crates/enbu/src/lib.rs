@@ -4,8 +4,13 @@
 //! bytecode is opaque and is executed only through `TacticalExecutionPort`.
 
 mod behavior;
+mod actor_decisions;
 mod next_behavior;
-pub use next_behavior::{simulate_next_behavior, NextBehaviorCommittedEventRef, NextBehaviorExecutionInputs, NextBehaviorProfile, NextBehaviorSimulationArtifact, NextBehaviorTrace};
+mod next_minion_behavior;
+mod next_route;
+pub use actor_decisions::{AutonomousActorKind, AutonomousCombatAction, AutonomousCombatTrace, AutonomousCommittedEventRef, AutonomousNoAttackReason, AutonomousTargetSelection};
+pub use next_minion_behavior::{simulate_next_minion_behavior, NextMinionBehaviorExecutionInputs, NextMinionBehaviorSimulationArtifact, NextMinionBehaviorTrace, NextMinionPreferenceSource, NextMinionWaypoint};
+pub use next_behavior::{simulate_next_behavior, NextBehaviorCommittedEventRef, NextBehaviorCompositionTrace, NextBehaviorExecutionInputs, NextBehaviorMemberComposition, NextBehaviorProfile, NextBehaviorProfileSource, NextBehaviorSelectionSource, NextBehaviorSimulationArtifact, NextBehaviorTrace};
 pub mod projected_assets;
 pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
@@ -32,6 +37,8 @@ pub fn new_match_context(rules: &VerifiedRulePlan, match_id: MatchId) -> MatchCo
         ruleset: rules.ruleset().clone(),
         world_identity: rules.world_identity().cloned(),
         next_behavior: None,
+        next_minion_behavior: None,
+        next_route: None,
         versions: ComponentVersions {
             model: plan.model_version,
             engine: validation::ENGINE_VERSION,
@@ -120,6 +127,12 @@ fn initialize_match(
 ) -> Result<(WorldState, world::ProjectionIndex, Option<projected_assets::RelationRuntime>), ApiError> {
     validation::validate_inputs(attacker, defender, rules, context)?;
     let plan = rules.plan();
+    if let Some(binding) = &context.next_minion_behavior {
+        let policy = senritsu::validate_next_minion_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
+        next_minion_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
+    }
+    if let Some(binding) = &context.next_route { next_route::validate_inputs(rules, context, binding)?; }
     if plan.domain.capabilities.contains_key(&"behavior_preference".into()) && context.next_behavior.is_none() {
         return Err(api_error(ApiErrorCode::ValidationFailed, "behavior_preference requires frozen Next Behavior inputs"));
     }
@@ -156,6 +169,9 @@ fn initialize_match(
     validation::validate_configuration(&defender.configuration, plan, &world)?;
     validation::validate_memory(&attacker.initial_memory, plan, &world)?;
     validation::validate_memory(&defender.initial_memory, plan, &world)?;
+    if let Some(binding) = &context.next_route {
+        next_route::validate_bindings(binding, &world, plan.next.as_ref().ok_or_else(|| invalid_plan("route binding requires Next rules"))?)?;
+    }
     Ok((world, projection_index, relation_runtime))
 }
 
@@ -168,15 +184,86 @@ pub fn simulate<P: TacticalExecutionPort>(
     context: &MatchContext,
     executor: &mut P,
 ) -> Result<SimulationArtifact, ApiError> {
-    if let Some(binding) = &context.next_behavior {
-        let policy = senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
-            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))?;
-        next_behavior::validate_inputs(rules, context, &policy, &binding.inputs)?;
-        let mut hook = next_behavior::Hook { policy: &policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() };
-        simulate_inner(attacker, defender, rules, context, executor, None, Some(&mut hook))
-    } else {
-        simulate_inner(attacker, defender, rules, context, executor, None, None)
+    simulate_configured(attacker, defender, rules, context, executor, None)
+}
+
+/// Optional bounded diagnostics for the existing autonomous combat selection.
+/// Only explicitly authorized owner projections leave this wrapper.
+#[derive(Clone)]
+pub struct ActorDecisionSimulationArtifact {
+    artifact: SimulationArtifact,
+    owner_traces: BTreeMap<CombatantSide, Vec<AutonomousCombatTrace>>,
+}
+impl ActorDecisionSimulationArtifact {
+    pub fn public_response(&self) -> senkei_model::PublicSimulationResponse { self.artifact.public_response() }
+    pub fn response_for_owner(&self, side: CombatantSide) -> senkei_model::LocalSimulationResponse { self.artifact.diagnostic_response(side) }
+    pub fn diagnostics_for_owner(&self, side: CombatantSide) -> BehaviorOwnerDiagnostics {
+        BehaviorOwnerDiagnostics {
+            behavior_run_digest: self.artifact.diagnostic_snapshot_digest.clone(),
+            diagnostics: self.artifact.diagnostic_response(side).diagnostics.expect("owner diagnostics"),
+        }
     }
+    pub fn traces_for_owner(&self, side: CombatantSide) -> Vec<AutonomousCombatTrace> {
+        self.owner_traces.get(&side).cloned().unwrap_or_default()
+    }
+    pub fn reproduction(&self) -> &ReproductionContext { &self.artifact.reproduction }
+}
+
+pub fn simulate_with_actor_decisions<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
+) -> Result<ActorDecisionSimulationArtifact, ApiError> {
+    if rules.plan().next.is_none() { return Err(api_error(ApiErrorCode::ValidationFailed, "autonomous actor diagnostics require Next rules")); }
+    let limit = context.host_limits.max_diagnostic_events.min(rules.plan().limits.max_diagnostic_events).min(usize::MAX as u64) as usize;
+    simulate_actor_decisions_with_collector(attacker, defender, rules, context, executor, actor_decisions::ActorDecisionCollector::new(limit))
+}
+
+/// Owner-scoped collection prevents inaccessible actors and candidates from
+/// consuming the trace budget of a player-facing diagnostic request.
+pub fn simulate_with_actor_decisions_for_owner<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan, context: &MatchContext, side: CombatantSide, executor: &mut P,
+) -> Result<ActorDecisionSimulationArtifact, ApiError> {
+    if rules.plan().next.is_none() { return Err(api_error(ApiErrorCode::ValidationFailed, "autonomous actor diagnostics require Next rules")); }
+    let limit = context.host_limits.max_diagnostic_events.min(rules.plan().limits.max_diagnostic_events).min(usize::MAX as u64) as usize;
+    simulate_actor_decisions_with_collector(attacker, defender, rules, context, executor, actor_decisions::ActorDecisionCollector::new_for_owner(limit, side))
+}
+
+fn simulate_actor_decisions_with_collector<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
+    mut collector: actor_decisions::ActorDecisionCollector,
+) -> Result<ActorDecisionSimulationArtifact, ApiError> {
+    let artifact = simulate_configured(attacker, defender, rules, context, executor, Some(&mut collector))?;
+    let mut owner_traces: BTreeMap<CombatantSide, Vec<AutonomousCombatTrace>> = BTreeMap::new();
+    for record in collector.records {
+        if let Some(side) = record.owner { owner_traces.entry(side).or_default().push(record.trace); }
+    }
+    Ok(ActorDecisionSimulationArtifact { artifact, owner_traces })
+}
+
+fn simulate_configured<P: TacticalExecutionPort>(
+    attacker: &senkei_model::SenkeiSnapshot, defender: &senkei_model::SenkeiSnapshot,
+    rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
+    actor_collector: Option<&mut actor_decisions::ActorDecisionCollector>,
+) -> Result<SimulationArtifact, ApiError> {
+    let hero_policy = context.next_behavior.as_ref().map(|binding| {
+        senritsu::validate_next_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))
+    }).transpose()?;
+    let minion_policy = context.next_minion_behavior.as_ref().map(|binding| {
+        senritsu::validate_next_minion_behavior_policy(binding.policy.clone(), rules)
+            .map_err(|e| api_error(ApiErrorCode::ValidationFailed, e))
+    }).transpose()?;
+    let mut hero_hook = if let (Some(binding), Some(policy)) = (&context.next_behavior, &hero_policy) {
+        next_behavior::validate_inputs(rules, context, policy, &binding.inputs)?;
+        Some(next_behavior::Hook { policy, inputs: &binding.inputs, traces: Vec::new(), accepted_preferences: Vec::new() })
+    } else { None };
+    let mut minion_hook = if let (Some(binding), Some(policy)) = (&context.next_minion_behavior, &minion_policy) {
+        next_minion_behavior::validate_inputs(rules, context, policy, &binding.inputs)?;
+        Some(next_minion_behavior::Hook { policy, inputs: &binding.inputs, traces: Vec::new() })
+    } else { None };
+    simulate_inner(attacker, defender, rules, context, executor, None, hero_hook.as_mut(), minion_hook.as_mut(), actor_collector)
 }
 
 fn simulate_inner<P: TacticalExecutionPort>(
@@ -184,10 +271,13 @@ fn simulate_inner<P: TacticalExecutionPort>(
     rules: &VerifiedRulePlan, context: &MatchContext, executor: &mut P,
     mut behavior: Option<&mut behavior::Hook<'_>>,
     mut next_behavior: Option<&mut next_behavior::Hook<'_>>,
+    mut minion_behavior: Option<&mut next_minion_behavior::Hook<'_>>,
+    mut actor_collector: Option<&mut actor_decisions::ActorDecisionCollector>,
 ) -> Result<SimulationArtifact, ApiError> {
     let (mut world, projection_index, mut relation_runtime) = initialize_match(attacker, defender, rules, context)?;
     if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     let plan = rules.plan();
+    let mut route_runtime = context.next_route.as_ref().map(next_route::Runtime::new);
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),
         (CombatantSide::Defender, defender.initial_memory.clone()),
@@ -198,6 +288,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
     ]);
     let mut diagnostics = Vec::new();
     let mut diagnostic_sequence = 0_u64;
+    let mut minion_diagnostics = BTreeMap::<(CombatantSide, u32, EntityId), usize>::new();
     if plan.next.is_some() {
         for (entity_id, entity) in &world.entities {
             let Some(side) = entity.owner else { continue };
@@ -262,6 +353,46 @@ fn simulate_inner<P: TacticalExecutionPort>(
             observation(&world, plan, CombatantSide::Attacker, tick, &projection_index)?,
             observation(&world, plan, CombatantSide::Defender, tick, &projection_index)?,
         ];
+        if let Some(collector) = actor_collector.as_deref_mut() {
+            if let Some(side) = collector.owner_side() {
+                let observation = observations.iter().find(|observation| observation.side == side).expect("both side observations");
+                let known = observation.collections.values().filter_map(|collection| match collection {
+                    senkei_model::Observed::Known(items) => Some(items.iter().map(|item| item.id.clone())),
+                    senkei_model::Observed::Unknown => None,
+                }).flatten().collect();
+                collector.set_owner_observation(tick, known);
+            }
+        }
+        if let Some(hook) = minion_behavior.as_deref_mut() {
+            let first_trace = hook.traces.len();
+            hook.evaluate(&observations, plan.next.as_ref().ok_or_else(|| invalid_plan("Minion Behavior requires Next rules"))?, tick, context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events))?;
+            for trace in &hook.traces[first_trace..] {
+                if (diagnostics.len() as u64).saturating_add(hook.traces.len() as u64) >= context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+                    return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
+                }
+                let source = match trace.source { NextMinionPreferenceSource::Army => "army", NextMinionPreferenceSource::Lane => "lane" };
+                let (status, waypoint) = match &trace.waypoint {
+                    NextMinionWaypoint::Ready { node } => ("ready", Some(node.clone())),
+                    NextMinionWaypoint::InTransit => ("in_transit", None),
+                    NextMinionWaypoint::EndOfLane => ("end_of_lane", None),
+                    NextMinionWaypoint::Unknown => ("unknown", None),
+                };
+                let mut details = BTreeMap::from([
+                    ("identity_space".into(), "owner_replay".into()),
+                    ("next_policy_id".into(), hook.policy.policy().policy_id.clone()),
+                    ("next_policy_digest".into(), hook.policy.digest().to_string()),
+                    ("lane".into(), trace.lane.as_str().to_owned()),
+                    ("source".into(), source.into()),
+                    ("candidate".into(), "lane_waypoint".into()),
+                    ("status".into(), status.into()),
+                ]);
+                if let Some(node) = waypoint { details.insert("waypoint".into(), node); }
+                let index = diagnostics.len();
+                push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, trace.side, DiagnosticRecord::RuntimeNotice { code: "enbu.minion_lane_decision".into(), details })?;
+                diagnostics.last_mut().unwrap().entity_id = Some(trace.actor.clone());
+                minion_diagnostics.insert((trace.side, tick, trace.actor.clone()), index);
+            }
+        }
         let output_attacker = call_executor(
             executor,
             attacker,
@@ -400,7 +531,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             // from the same post-squad membership that goal application sees.
             let mut goal_world = world.clone();
             next_squads::intents(&mut goal_world, plan.next.as_ref().unwrap(), &accepted, tick);
-            let scores = next_behavior.as_deref().unwrap().traces.iter().filter(|trace| trace.tick==tick).filter_map(|trace| Some(((trace.side,trace.selected.as_ref()?.action_id.clone()),trace.score?))).collect();
+            let scores = next_behavior.as_deref().unwrap().traces.iter().rev().take_while(|trace| trace.tick==tick).filter_map(|trace| Some(((trace.side,trace.selected.as_ref()?.action_id.clone()),trace.score?))).collect();
             let rejected = next_tactics::resolve_goal_conflicts(&goal_world, plan.next.as_ref().unwrap(), &mut accepted, &scores);
             for (side, intent) in rejected {
                 let event = diagnostics.iter_mut().rev().find(|event| event.tick == tick && event.side == side && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent: accepted } if *accepted == intent))
@@ -464,10 +595,14 @@ fn simulate_inner<P: TacticalExecutionPort>(
         let mut committed_orders = Vec::new();
         let mut capture_contest = None;
         let mut contest_observers = BTreeSet::new();
+        let collector_start = actor_collector.as_deref().map_or(0, |collector| collector.records.len());
+        let mut combat_event_count = 0usize;
+        let combat_event_offset = objective_events.len();
         if let Some(next) = &plan.next {
             next_squads::intents(&mut world, next, &accepted_by_side, tick);
             if let Some(runtime) = relation_runtime.as_mut() { runtime.refresh(&mut world)?; }
             let orders = next_tactics::apply(&mut world, next, &accepted_by_side, tick);
+            if let Some(runtime) = route_runtime.as_mut() { runtime.update_committed_orders(&orders, &accepted_by_side, &world); }
             if next_behavior.is_some() {
                 for (side, event) in &orders {
                     let action_id = match event.payload.get(&"action_id".into()) { Some(DomainValue::String(id)) => id.clone(), _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks action ID")) };
@@ -475,13 +610,18 @@ fn simulate_inner<P: TacticalExecutionPort>(
                         Some(DomainValue::Integer(value)) => u32::try_from(*value).map_err(|_| api_error(ApiErrorCode::InternalError, "committed order has invalid sequence"))?,
                         _ => return Err(api_error(ApiErrorCode::InternalError, "committed order lacks sequence")),
                     };
-                    if let Some(hook) = next_behavior.as_deref_mut() { hook.record_committed(tick, *side, &action_id, order_sequence); }
+                    let mut details = BTreeMap::from([
+                        ("owner_replay_tick".into(), tick.to_string()),
+                        ("owner_replay_sequence".into(), order_sequence.to_string()),
+                    ]);
+                    if let Some(hook) = next_behavior.as_deref_mut() {
+                        if let Some(trace) = hook.record_committed(tick, *side, &action_id, order_sequence) {
+                            details.extend(hook.decision_details(&trace)?);
+                        }
+                    }
                     push_diagnostic(&mut diagnostics, &mut diagnostic_sequence, tick, *side, DiagnosticRecord::RuntimeNotice {
                         code: "enbu.behavior_order_committed".into(),
-                        details: BTreeMap::from([
-                            ("owner_replay_tick".into(), tick.to_string()),
-                            ("owner_replay_sequence".into(), order_sequence.to_string()),
-                        ]),
+                        details,
                     })?;
                     let notice = diagnostics.last_mut().unwrap();
                     notice.action_id = Some(action_id.into());
@@ -497,8 +637,14 @@ fn simulate_inner<P: TacticalExecutionPort>(
             let skill_start = world.clone();
             next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
             let adjudication_start = world.clone();
-            next_navigation::advance(&mut world, next, tick);
-            next_events = next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick);
+            if let Some(runtime) = route_runtime.as_mut() { next_navigation::advance_with_routes(&mut world, next, tick, runtime); }
+            else { next_navigation::advance(&mut world, next, tick); }
+            next_events = if let Some(collector) = actor_collector.as_deref_mut() {
+                next_combat::resolve_from_snapshot_with_actor_decisions(&mut world, &adjudication_start, next, &accepted_by_side, tick, collector)
+            } else {
+                next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick)
+            };
+            combat_event_count = next_events.len();
             let (battlefield_events, contest) = next_battlefield::resolve(&mut world, &action_start, next, &accepted_by_side, tick);
             next_events.extend(battlefield_events);
             if let Some((id, _)) = &contest {
@@ -518,7 +664,10 @@ fn simulate_inner<P: TacticalExecutionPort>(
         validation::validate_world(&world, plan, context.host_limits.max_entities)?;
         if let Some(hook) = behavior.as_deref_mut() { hook.record_transition(tick); }
         if let Some(hook) = next_behavior.as_deref_mut() { hook.record_transition(tick); }
-        if (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)).saturating_add(next_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
+        if actor_collector.as_deref().is_some_and(|collector| collector.observation_missing()) {
+            return Err(api_error(ApiErrorCode::InternalError, "actor diagnostics observation was not bound to this tick"));
+        }
+        if actor_collector.as_deref().is_some_and(|collector| collector.overflowed()) || (diagnostics.len() as u64).saturating_add(behavior.as_deref().map_or(0, |hook| hook.trace_records as u64)).saturating_add(next_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(minion_behavior.as_deref().map_or(0, |hook| hook.traces.len() as u64)).saturating_add(actor_collector.as_deref().map_or(0, |collector| collector.used() as u64)) > context.host_limits.max_diagnostic_events.min(plan.limits.max_diagnostic_events) {
             return Err(api_error(ApiErrorCode::ResourceLimit, "diagnostic event limit exceeded"));
         }
 
@@ -541,11 +690,43 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 );
                 if contest_observers.contains(&side) { add_contest_fact(&mut owner_after, plan, capture_contest.as_ref()); }
                 let owner_before = &before_owner[&side];
+                let mut events = Vec::new();
+                let mut combat_to_owner = BTreeMap::new();
+                for (index, event) in next_events.iter().enumerate() {
+                    if !event_references_known(event, owner_before, &owner_after) { continue; }
+                    if index >= combat_event_offset && index - combat_event_offset < combat_event_count {
+                        combat_to_owner.insert(index - combat_event_offset, events.len());
+                    }
+                    events.push(event.clone());
+                }
+                if let Some(collector) = actor_collector.as_deref_mut() {
+                    let observation = observations.iter().find(|observation| observation.side == side).expect("both side observations");
+                    for record in &mut collector.records[collector_start..] {
+                        if record.owner != Some(side) { continue; }
+                        let known = |id: &EntityId| observation.collections.values().any(|collection| {
+                            matches!(collection, senkei_model::Observed::Known(items) if items.iter().any(|item| &item.id == id))
+                        });
+                        if record.trace.kind == AutonomousActorKind::Monster || !known(&record.trace.actor)
+                            || record.trace.candidates.iter().any(|id| !known(id)) {
+                            record.owner = None;
+                            continue;
+                        }
+                        if let Some(combat_index) = record.combat_event_index {
+                            if let Some(event_index) = combat_to_owner.get(&combat_index) {
+                                record.trace.committed_event = Some(AutonomousCommittedEventRef { tick, event_index: *event_index });
+                            } else {
+                                // A hidden or filtered attack cannot be reconstructed as an owner fact.
+                                record.owner = None;
+                            }
+                        } else if matches!(record.trace.action, AutonomousCombatAction::Attack { .. }) {
+                            record.owner = None;
+                        }
+                    }
+                }
+                events.extend(committed_orders.iter().filter(|(owner,_)| *owner == side).map(|(_, event)| event.clone()));
                 let frame = ReplayFrame {
                     tick,
-                    events: next_events.iter()
-                        .filter(|event| event_references_known(event, owner_before, &owner_after))
-                        .cloned().chain(committed_orders.iter().filter(|(owner,_)| *owner == side).map(|(_, event)| event.clone())).collect(),
+                    events,
                     visible_state: Some(owner_after),
                 };
                 owner_frames.get_mut(&side).unwrap().push(frame);
@@ -600,7 +781,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
         result_digest: result_digest.clone(),
         frames: if plan.next.is_some() { project_replay_identities(replay_frames) } else { replay_frames },
     };
-    let diagnostics = RestrictedDiagnostics {
+    let mut diagnostics = RestrictedDiagnostics {
         identity: senkei_model::RestrictedDiagnosticsIdentity {
             schema_version: 1,
             side: CombatantSide::Attacker,
@@ -621,19 +802,70 @@ fn simulate_inner<P: TacticalExecutionPort>(
         rule_package_digest: rules.package_digest().clone(),
         context: context.clone(),
     };
-    let owner_replays: BTreeMap<CombatantSide, PresentationReplay> = if plan.next.is_some() {
-        owner_frames.into_iter().map(|(side, frames)| (side, PresentationReplay {
-            perspective: Some(side),
-            schema_version: validation::REPLAY_SCHEMA_VERSION,
-            world_identity: context.world_identity.clone(),
-            ruleset: Some(context.ruleset.clone()),
-            match_id: context.match_id.clone(),
-            result_digest: result_digest.clone(),
-            frames: project_replay_identities(frames),
-        })).collect()
-    } else {
-        BTreeMap::new()
-    };
+    let mut owner_replays = BTreeMap::new();
+    let mut dropped_minion_traces = BTreeSet::new();
+    let mut dropped_minion_diagnostics = BTreeSet::new();
+    if plan.next.is_some() {
+        for (side, frames) in owner_frames {
+            let mut actor_by_tick: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+            if let Some(collector) = actor_collector.as_deref() {
+                for (index, record) in collector.records.iter().enumerate() {
+                    if record.owner == Some(side) { actor_by_tick.entry(record.trace.tick).or_default().push(index); }
+                }
+            }
+            let mut minion_by_tick: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+            if let Some(hook) = minion_behavior.as_deref() {
+                for (index, trace) in hook.traces.iter().enumerate() {
+                    if trace.side == side { minion_by_tick.entry(trace.tick).or_default().push(index); }
+                }
+            }
+            let frames = if actor_collector.is_some() || minion_behavior.is_some() {
+                project_replay_identities_with(frames, |tick, active| {
+                    let map = |id: &EntityId| active.get(id).map(|(projected, _)| projected.clone());
+                    if let Some(collector) = actor_collector.as_deref_mut() {
+                        for index in actor_by_tick.get(&tick).into_iter().flatten() {
+                            let record = &mut collector.records[*index];
+                            let Some(actor) = map(&record.trace.actor) else { record.owner = None; continue };
+                            let Some(candidates) = record.trace.candidates.iter().map(map).collect::<Option<Vec<_>>>() else { record.owner = None; continue };
+                            if let AutonomousCombatAction::Attack { target, .. } = &mut record.trace.action {
+                                let Some(projected) = map(target) else { record.owner = None; continue };
+                                *target = projected;
+                            }
+                            record.trace.actor = actor;
+                            record.trace.candidates = candidates;
+                        }
+                    }
+                    if let Some(hook) = minion_behavior.as_deref_mut() {
+                        for index in minion_by_tick.get(&tick).into_iter().flatten() {
+                            let trace = &mut hook.traces[*index];
+                            let key = (side, tick, trace.actor.clone());
+                            let Some(event_index) = minion_diagnostics.get(&key).copied() else { dropped_minion_traces.insert(*index); continue };
+                            if let Some(actor) = map(&trace.actor) {
+                                trace.actor = actor.clone();
+                                diagnostics.events[event_index].entity_id = Some(actor);
+                            } else {
+                                dropped_minion_traces.insert(*index);
+                                dropped_minion_diagnostics.insert(event_index);
+                            }
+                        }
+                    }
+                })
+            } else {
+                project_replay_identities(frames)
+            };
+            owner_replays.insert(side, PresentationReplay {
+                perspective: Some(side), schema_version: validation::REPLAY_SCHEMA_VERSION,
+                world_identity: context.world_identity.clone(), ruleset: Some(context.ruleset.clone()),
+                match_id: context.match_id.clone(), result_digest: result_digest.clone(), frames,
+            });
+        }
+    }
+    if let Some(hook) = minion_behavior.as_deref_mut() {
+        hook.traces = std::mem::take(&mut hook.traces).into_iter().enumerate().filter_map(|(index, trace)| (!dropped_minion_traces.contains(&index)).then_some(trace)).collect();
+    }
+    if !dropped_minion_diagnostics.is_empty() {
+        diagnostics.events = std::mem::take(&mut diagnostics.events).into_iter().enumerate().filter_map(|(index, event)| (!dropped_minion_diagnostics.contains(&index)).then_some(event)).collect();
+    }
     let owner_replay = owner_replays.get(&CombatantSide::Attacker).cloned();
     let diagnostic_program_digests_by_side = BTreeMap::from([
         (CombatantSide::Attacker, attacker.program.content_digest.clone()),
@@ -1662,7 +1894,14 @@ fn event_references_known(event:&senkei_model::PresentationEvent,before:&senkei_
 
 /// Strip internal roster keys before either presentation channel leaves Enbu.
 /// Visibility re-entry and a confirmed respawn allocate a new incarnation.
-fn project_replay_identities(mut frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
+fn project_replay_identities(frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
+    project_replay_identities_with(frames, |_, _| {})
+}
+
+fn project_replay_identities_with(
+    mut frames: Vec<ReplayFrame>,
+    mut on_frame: impl FnMut(u32, &BTreeMap<EntityId, (EntityId, i64)>),
+) -> Vec<ReplayFrame> {
     use senkei_model::{EntityId,EntityStateView};
     let mut active:BTreeMap<EntityId,(EntityId,i64)>=BTreeMap::new();
     let mut serial=0_u64;
@@ -1675,6 +1914,7 @@ fn project_replay_identities(mut frames:Vec<ReplayFrame>)->Vec<ReplayFrame> {
             if !active.contains_key(raw)||respawn { serial+=1;active.insert(raw.clone(),(EntityId::new(format!("visible-{serial}")),hp)); }
             else if let Some((_,old_hp))=active.get_mut(raw) { *old_hp=hp; }
         }
+        on_frame(frame.tick, &active);
         for event in &mut frame.events {
             event.entity=event.entity.as_ref().and_then(|raw|active.get(raw).map(|(id,_)|id.clone()));
             fn project_value(value: &mut DomainValue, active: &BTreeMap<EntityId,(EntityId,i64)>) {

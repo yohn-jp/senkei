@@ -69,7 +69,10 @@ pub fn validate_next_behavior_policy(policy: NextBehaviorPolicy, rules: &Verifie
             return Err("candidate template does not match capability metadata".into());
         }
     }
-    let bytes = serde_json::to_vec(&policy).map_err(|e| e.to_string())?;
+    // Hash recursively sorted JSON object keys, matching the immutable-input
+    // canonical JSON used by the Web consumer independently of key order.
+    let canonical = serde_json::to_value(&policy).map_err(|e| e.to_string())?;
+    let bytes = serde_json::to_vec(&canonical).map_err(|e| e.to_string())?;
     let digest = ContentDigest::new(format!("{:x}", Sha256::digest(bytes)));
     Ok(VerifiedNextBehaviorPolicy { policy, digest })
 }

@@ -2561,6 +2561,8 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     let waiting = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
     assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.selected.is_none()));
     assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.committed_event.is_none()));
+    assert!(waiting.traces_for_owner(CombatantSide::Attacker).iter().all(|t| t.source == enbu::NextBehaviorSelectionSource::Wait && t.unknown_candidates > 0 && t.observation_digest.has_sha256_shape()));
+    assert!(waiting.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events.iter().any(|event| matches!(&event.record, DiagnosticRecord::RuntimeNotice { code, details } if code.as_str() == "enbu.behavior_wait" && details.get("decision_source").is_some_and(|value| value == "wait"))));
     assert!(waiting.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events.iter().any(|event| matches!(&event.record, DiagnosticRecord::RuntimeNotice { code, .. } if code.as_str() == "enbu.behavior_unknown_observation")));
     assert_ne!(artifact.run_digest(),waiting.run_digest());
 }
@@ -2903,8 +2905,20 @@ fn conditional_behavior_preference_is_tick_local_and_trial_bound() {
     let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
     let hero=derive_projected_entity_id(&ContentDigest::new("0".repeat(64)),&ProjectionId::from("next.hero"),&TypeId::from("hero"),Some(CombatantSide::Attacker),&DomainValue::String("slot-1".into())).unwrap();
     let traces=result.traces_for_owner(CombatantSide::Attacker);
-    for (tick,expected) in [(1,"retreat"),(2,"move")] { let trace=traces.iter().find(|t|t.tick==tick && t.actor==hero).unwrap(); assert_eq!(trace.selected.as_ref().unwrap().capability.as_str(),expected); }
+    for (tick,expected) in [(1,"retreat"),(2,"move")] {
+        let trace=traces.iter().find(|t|t.tick==tick && t.actor==hero).unwrap();
+        assert_eq!(trace.selected.as_ref().unwrap().capability.as_str(),expected);
+        assert_eq!(trace.source, enbu::NextBehaviorSelectionSource::Default);
+        let member = trace.composition.members.iter().find(|member| member.actor == hero).unwrap();
+        assert_eq!(member.sources[4], if tick == 1 { enbu::NextBehaviorProfileSource::JinreiConditional } else { enbu::NextBehaviorProfileSource::Squad });
+        assert_eq!(member.values[4], if tick == 1 { 1000 } else { 0 });
+        assert_eq!(trace.composition.baseline_effective[4], 0);
+        assert_eq!(trace.composition.effective[4], if tick == 1 { 1000 } else { 0 });
+        assert_eq!(trace.policy_digest, *policy.digest());
+        assert!(trace.observation_digest.has_sha256_shape());
+    }
     let diagnostics=result.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert!(diagnostics.events.iter().any(|event| matches!(&event.record, DiagnosticRecord::RuntimeNotice { code, details } if code.as_str() == "enbu.behavior_order_committed" && details.get("next_policy_digest") == Some(&policy.digest().to_string()) && details.get("decision_source").is_some_and(|value| value == "default") && details.get("profile_composition_json").and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok()).is_some_and(|value| value["members"].is_array()))));
     assert_eq!(diagnostics.events.iter().filter(|event| matches!(&event.record,DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str()=="behavior_preference")).count(),1);
     assert!(!serde_json::to_string(&result.public_response()).unwrap().contains("behavior_preference"));
     let total: u64 = diagnostics.events.iter().filter_map(|event| match &event.record { DiagnosticRecord::CostCharged { amount,.. } => Some(amount.0), _ => None }).sum();

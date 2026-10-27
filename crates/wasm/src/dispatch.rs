@@ -7,6 +7,7 @@ use senkei_model::{
     OP_PREFLIGHT_REPRODUCTION, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
     WASM_API_VERSION, OP_SIMULATE_BEHAVIOR, BEHAVIOR_SIMULATION_FORMAT_VERSION,
     SimulateBehaviorPayload, BehaviorSimulationResponse, BehaviorOwnerResponse,
+    OP_SIMULATE_ACTOR_DECISIONS, ACTOR_DECISIONS_FORMAT_VERSION, ACTOR_DECISIONS_TRACE_SCHEMA_VERSION,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -178,6 +179,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         "preflight" => preflight(payload),
         "simulate" => simulate(payload),
         OP_SIMULATE_BEHAVIOR => simulate_behavior(payload),
+        OP_SIMULATE_ACTOR_DECISIONS => simulate_actor_decisions(payload),
         _ => Err(api_error(
             ApiErrorCode::InvalidRequest,
             Some("operation"),
@@ -373,6 +375,34 @@ fn simulate_behavior(payload: Value) -> Result<(Value, u64), ApiError> {
         Some(BehaviorOwnerResponse { authorized_side: side, behavior_run_digest: diagnostics.behavior_run_digest, diagnostics: diagnostics.diagnostics, trace: encode(&artifact.traces_for_owner(side), "result.owner.trace")? })
     } else { None };
     let response = BehaviorSimulationResponse { format_version: BEHAVIOR_SIMULATION_FORMAT_VERSION, behavior_runtime_version: enbu::BEHAVIOR_RUNTIME_VERSION, result: public.result, replay: public.replay, owner };
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Explicit owner-only diagnostics for bounded autonomous combat decisions.
+/// This uses the same immutable inputs and side authorization as `simulate`.
+fn simulate_actor_decisions(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: SimulatePayload = decode_strict(payload, "payload")?;
+    let side = requested_diagnostics_side(request.include_diagnostics, request.diagnostics_side)?
+        .ok_or_else(|| api_error(ApiErrorCode::InvalidRequest, Some("payload.include_diagnostics"), "owner diagnostics are required for actor decisions"))?;
+    let rules = resolve_ruleset(&request.context.ruleset)?;
+    let max_output_bytes = rules.plan().limits.max_output_bytes.min(request.context.host_limits.max_output_bytes);
+    let mut vm = jinrei::Vm::new(&rules);
+    let artifact = enbu::simulate_with_actor_decisions_for_owner(&request.attacker, &request.defender, &rules, &request.context, side, &mut vm)?;
+    #[derive(serde::Serialize)]
+    struct Response {
+        format_version: u16,
+        trace_schema_version: u16,
+        authorized_side: CombatantSide,
+        simulation: LocalSimulationResponse,
+        trace: Vec<enbu::AutonomousCombatTrace>,
+    }
+    let response = Response {
+        format_version: ACTOR_DECISIONS_FORMAT_VERSION,
+        trace_schema_version: ACTOR_DECISIONS_TRACE_SCHEMA_VERSION,
+        authorized_side: side,
+        simulation: artifact.response_for_owner(side),
+        trace: artifact.traces_for_owner(side),
+    };
     Ok((encode(&response, "result")?, max_output_bytes))
 }
 

@@ -73,6 +73,36 @@ fn valid_snapshot(rules: &VerifiedRulePlan, side: CombatantSide) -> SenkeiSnapsh
 }
 
 #[test]
+fn actor_decision_dispatch_binds_one_owner_and_the_same_simulation() {
+    let rules = senritsu::validate(senritsu::next_package(), &senritsu::next_engine_compatibility()).unwrap();
+    let attacker = valid_snapshot(&rules, CombatantSide::Attacker);
+    let defender = valid_snapshot(&rules, CombatantSide::Defender);
+    let mut context = new_match_context(&rules, MatchId::new("actor-diagnostics"));
+    context.max_ticks = 1;
+    let mut payload = json!({"attacker": attacker, "defender": defender, "context": context,
+        "include_diagnostics": true, "diagnostics_side": "attacker"});
+    let ordinary = dispatch("simulate", payload.clone());
+    let response = dispatch("simulate_actor_decisions", payload.clone());
+    assert_eq!(response["ok"], true, "{response:#}");
+    let result = &response["result"];
+    assert_eq!(result["format_version"], 1);
+    assert_eq!(result["trace_schema_version"], 1);
+    assert_eq!(result["authorized_side"], "attacker");
+    assert_eq!(result["simulation"], ordinary["result"]);
+    assert_eq!(result["simulation"]["diagnostics"]["identity"]["side"], "attacker");
+    assert_eq!(result["simulation"]["diagnostics"]["identity"]["snapshot_digest"], enbu::reproduction_snapshot_digest(&attacker, &defender, &context).unwrap().as_str());
+    assert!(result["trace"].as_array().is_some_and(|trace| !trace.is_empty()));
+    assert!(result["trace"].as_array().unwrap().iter().all(|trace| trace["actor"].as_str().is_some_and(|id| id.starts_with("visible-")) && trace["kind"] != "monster"));
+    assert!(result["simulation"]["owner_replays"].get("defender").is_none());
+
+    payload["include_diagnostics"] = json!(false);
+    payload.as_object_mut().unwrap().remove("diagnostics_side");
+    let rejected = dispatch("simulate_actor_decisions", payload);
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"]["code"], "invalid_request");
+}
+
+#[test]
 fn preflight_operation_accepts_a_real_launch_snapshot_and_rejects_invalid_roster() {
     let rules = senritsu::validate(senritsu::next_package(), &senritsu::next_engine_compatibility())
         .expect("published Next package validates");
