@@ -152,6 +152,8 @@ export class KnownBaseSites {
         color: site.side === "azure" ? "#b0e2df" : "#f3c1aa", background: "#101d20ed",
         borderLeft: `3px solid #${color.toString(16)}`, font: "600 11px/1.35 system-ui",
         width: "176px", boxSizing: "border-box", textAlign: "center", whiteSpace: "normal", transform: "none",
+        // The renderer measures this label immediately after positioning it.
+        transitionProperty: "none",
       });
       host.appendChild(label);
       this.entries.push({ site, label, marker });

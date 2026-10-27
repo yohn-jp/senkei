@@ -444,6 +444,10 @@ export class Battlefield {
     for (const lane of replay.scene.lanes) {
       const element = document.createElement("span");
       element.className = "world-label";
+      // Collision decisions measure positions synchronously. A global
+      // reduced-motion rule can otherwise start a short transition on every
+      // property, leaving that measurement at the previous position.
+      element.style.transitionProperty = "none";
       element.textContent = lane.label;
       host.appendChild(element);
       // Put each name near the middle of its own route. The first waypoint is
@@ -458,6 +462,7 @@ export class Battlefield {
     for (const camp of replay.scene.camps ?? []) {
       const element = document.createElement("span");
       element.className = "world-label";
+      element.style.transitionProperty = "none";
       const location = camp.id.replace(/^camp[_-]?/i, "").replaceAll("_", " ");
       element.textContent = `CAMP · ${location.toUpperCase()}`;
       element.style.whiteSpace = "nowrap";
@@ -2023,6 +2028,7 @@ export class Battlefield {
           padding: "2px 4px",
           textAlign: "center",
           transform: "translate(-50%, -120%)",
+          transitionProperty: "none",
           whiteSpace: "normal",
           zIndex: "3",
         });
@@ -2109,6 +2115,7 @@ export class Battlefield {
           lineHeight: "24px",
           padding: "0",
           textAlign: "center",
+          transitionProperty: "none",
           whiteSpace: "nowrap",
           width: "24px",
           zIndex: "4",
