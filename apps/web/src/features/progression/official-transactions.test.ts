@@ -52,20 +52,28 @@ it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromi
     await page.goto("http://localhost/", { timeout: 20_000 });
     // Chromium launches under a heavily contended Rust/Playwright CI runner. Bound each actual stage independently.
     const result = await page.evaluate(async () => {
+      const bounded = async <T>(stage: string, operation: Promise<T>): Promise<T> => {
+        let handle: ReturnType<typeof setTimeout> | undefined;
+        try { return await Promise.race([operation, new Promise<T>((_, reject) => {
+          handle = setTimeout(() => reject(new Error(`Browser IndexedDB contract stalled at ${stage}`)), 20_000);
+        })]); }
+        finally { if (handle !== undefined) clearTimeout(handle); }
+      };
       const modulePath = "/apps/web/src/features/progression/official-transactions.ts";
-      const { OfficialTransactionEvidenceStore, createOfficialTransaction } = await (new Function("path", "return import(path)"))(modulePath);
+      const { OfficialTransactionEvidenceStore, createOfficialTransaction } = await bounded("module import",
+        (new Function("path", "return import(path)"))(modulePath) as Promise<typeof import("./official-transactions")>);
       const identity = { operationId: "op", requestId: "req", playerId: "player", authorityId: "authority" };
       const record = createOfficialTransaction(identity);
       const name = `test-official-${crypto.randomUUID()}`;
       const first = new OfficialTransactionEvidenceStore(indexedDB, name);
-      await first.put(record);
+      await bounded("initial put", first.put(record));
       const second = new OfficialTransactionEvidenceStore(indexedDB, name);
-      const loaded = await second.get("req");
+      const loaded = await bounded("cross-instance get", second.get("req"));
       const unknown = { ...record, status: "outcome_unknown" };
-      await second.put(unknown, loaded);
+      await bounded("compare-and-set put", second.put(unknown, loaded));
       let conflict = false;
-      try { await first.put(record, loaded); } catch { conflict = true; }
-      return { loaded, updated: await first.get("req"), conflict };
+      try { await bounded("stale writer conflict", first.put(record, loaded)); } catch (caught) { if (!(caught instanceof Error) || !caught.message.includes("Evidence record conflict")) throw caught; conflict = true; }
+      return { loaded, updated: await bounded("final get", first.get("req")), conflict };
     });
     expect(result.loaded.status).toBe("submitted");
     expect(result.updated.status).toBe("outcome_unknown");
