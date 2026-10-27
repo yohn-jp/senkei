@@ -50,6 +50,25 @@ describe('buildMatchProjection', () => {
     expect(projection.sides.attacker.relations.map(r => r.level)).toEqual([3, null]);
     expect(projection.sides.defender.relations).toEqual([]);
   });
+  it('binds a maturity-only policy without inventing a zero-valued stat formula', async () => {
+    const input = await fixture();
+    input.policy.relation = null;
+    input.policy.maturity = {version,target:'squad_maturity_increment',aggregation:'complete_pair_mean',add_per_level:2,max_level:4,max_bonus:3,rounding:'floor'};
+    input.attacker.relations = [{from:'attacker-0',to:'attacker-1',definitionVersion:'1.0.0',value:3}];
+    const projection = await buildMatchProjection(input);
+    const pair = projection.sides.attacker.relations;
+    expect(pair.map(relation => relation.level)).toEqual([3,null]);
+    expect(pair[0]).not.toHaveProperty('formula_version');
+    expect(pair[0]).not.toHaveProperty('formula_digest');
+    expect(pair[0].maturity_policy).toEqual({version,digest:await digest(input.policy.maturity)});
+    input.attacker.relations = [{...input.attacker.relations[0],value:5}];
+    await expect(buildMatchProjection(input)).rejects.toThrow('Invalid relationship');
+  });
+  it('preserves Core-defined opaque UTF-8 slot IDs in frozen ownership projections', async () => {
+    const input = await fixture();
+    input.attacker.slots = input.attacker.slots.map((slot,index) => index === 0 ? {...slot,slotId:'\uFEFF'} : slot);
+    expect((await buildMatchProjection(input)).sides.attacker.heroes.map(hero => hero.slot_id)).toContain('\uFEFF');
+  });
   it.each(['foreign hero', 'official hero', 'foreign equipment', 'official equipment', 'hero catalog digest', 'hero catalog version', 'unknown equip target', 'definition digest', 'definition version', 'unapproved equipment', 'duplicate hero', 'duplicate equipment', 'foreign relation', 'unapproved rules'] as const)('rejects %s', async failure => {
     const input = await fixture();
     const heroes = input.attacker.heroSnapshot.heroes as unknown as Array<{ instanceId: string; playerId: string; authority: string; definition: { digest: string; version: string } }>;

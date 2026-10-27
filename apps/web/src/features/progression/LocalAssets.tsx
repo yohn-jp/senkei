@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { EquipmentRepository, type EquipmentInstance } from "../equipment/repository";
+import { OfficialReadPanel, type OfficialReadPanelProps } from './OfficialReadPanel';
+import { OfficialOperationPanel, type OfficialOperationPanelProps } from './OfficialOperationPanel';
 
 /** Read/recovery UI only: no definition or Hero ownership producer is configured. */
-export function LocalAssets() {
+export function LocalAssets<Credentials = never>({officialRead,officialOperation}: {officialRead?:OfficialReadPanelProps<Credentials>;officialOperation?:OfficialOperationPanelProps} = {}) {
   const [playerId, setPlayerId] = useState("");
   const [items, setItems] = useState<EquipmentInstance[] | null>(null);
   const [query, setQuery] = useState("");
@@ -17,6 +19,8 @@ export function LocalAssets() {
   const repository = () => new EquipmentRepository();
   return <details><summary>Local trial equipment</summary>
     <p>Local trial assets are separate from official ownership. Official assets, rewards, draws and market: not configured. Battle results do not issue Libra.</p>
+    <OfficialReadPanel<Credentials> {...(officialRead ?? {configuration:{kind:'not-configured' as const}})} />
+    <OfficialOperationPanel {...(officialOperation ?? {configuration:{kind:'not-configured' as const}})} />
     <label>Local Player identity <input value={playerId} onChange={event => { setPlayerId(event.target.value); setItems(null); setArchive(""); setStatus(""); }} disabled={busy}/></label>
     <button type="button" disabled={busy || !playerId.trim()} onClick={() => void perform(async () => { setItems(await repository().list(playerId)); setStatus("Equipment loaded."); })}>Load / retry</button>
     <label>Search owned instances <input value={query} onChange={event => setQuery(event.target.value)}/></label>

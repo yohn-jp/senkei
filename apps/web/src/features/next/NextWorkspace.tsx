@@ -1,3 +1,6 @@
+import { loadRetainedOriginal, compileRetainedSource } from "./retained-program-editor";
+import { RetainedProgramEditor } from "./RetainedProgramEditor";
+import { NextDecisionInspector } from "./NextDecisionInspector";
 import { TrialProfileEditor, parseTrialPreferences } from "./TrialProfileEditor";
 import type { NextBehaviorInputs } from "../../contracts/next-production";
 import { RoutePlanEditor } from "./RoutePlanEditor";
@@ -880,15 +883,18 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     let obsolete = false;
     const original = run.setup.draft;
     const unavailable = (reason: string) => setRunSourceProof({ experimentId: run.experimentId, map: null, reason });
-    if (!core || !packageValue || !sameRulesetRef(original.ruleset, packageValue.ruleset)
-      || !sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset)) {
+    const retainedEditor = Boolean(core?.editorCatalogRetained && core?.editorCompileRetained);
+    if (!core || (!retainedEditor && (!packageValue || !sameRulesetRef(original.ruleset, packageValue.ruleset)
+      || !sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset)))) {
       unavailable("Original Run RulePackage is unavailable. No source correspondence was inferred."); return;
     }
     if (original.program_input.kind !== "text") { unavailable("Original Run has no text source locations. Structured AST was not converted into guessed spans."); return; }
     const source = original.program_input.source;
     unavailable("Checking original Run source and Program identity…");
-    void core.compile({ kind: "text", source, ruleset_ref: original.ruleset })
-      .then(result => verifyRunSourceMap(source, run.snapshot.attacker.program.content_digest, result))
+    const compiled = retainedEditor
+      ? loadRetainedOriginal(core,run,original.program_input,0).then(retained => compileRetainedSource(core,retained.verified,retained.stamp,source,1))
+      : core.compile({ kind: "text", source, ruleset_ref: original.ruleset });
+    void compiled.then(result => verifyRunSourceMap(source, run.snapshot.attacker.program.content_digest, result))
       .then(proof => { if (!obsolete) setRunSourceProof({ experimentId: run.experimentId, ...proof }); })
       .catch(cause => { if (!obsolete) unavailable(`Original source verification failed: ${cause instanceof Error ? cause.message : String(cause)}`); });
     return () => { obsolete = true; };
@@ -2152,6 +2158,18 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     } finally { operationInFlight.current = false; setChecking(false); }
   };
 
+  const prepareRetainedProgram = (compiled: CompileOutcome, source: string): void => {
+    const base = runRef.current;
+    if (!base || !base.includeDiagnostics || !sameRulesetRef(compiled.program.ruleset, base.snapshot.attacker.ruleset)) throw new Error('The retained owner Run changed. Select it again before preparing a rematch.');
+    if (compiled.program.content_digest === base.snapshot.attacker.program.content_digest) throw new Error('The Program is unchanged. Use the original Run Snapshot rematch, or change its Jinrei.');
+    const revised = {...base.setup.draft,revision:incrementRevision(base.setup.draft.revision),program_input:{kind:'text' as const,source}};
+    const attacker = {...base.snapshot.attacker,revision:revised.revision,program:compiled.program};
+    const derived = buildImprovedRematch(base.snapshot,attacker);
+    if (derived.status === 'rejected' || derived.comparison.category !== 'improved') throw new Error('The original non-target inputs could not be retained for this Program.');
+    setFrozenRematch({kind:'improved',run:{...base,snapshot:derived.snapshot,setup:{...base.setup,draft:revised},estimatedCU:compiled.estimated_cu}});
+    setPrepared(null);setPreflightFailure(null);setError(null);setScreen('ready');
+  };
+
   const editScreen = (target: AtelierScreen | "jinrei"): void => {
     setHeroRepairFocus(null); setJinreiRepairFocus(null); setScenarioRepairFocus(null);
     setExactRun(null);
@@ -2814,6 +2832,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
           </section>
 
           <section aria-labelledby="next-tab-analysis" className="next-panel next-analysis-panel" hidden={tab !== "analysis"} id="next-panel-analysis" role="tabpanel">
+            <RetainedProgramEditor core={core} run={run} source={run?.setup.draft.program_input ?? null} onPrepared={prepareRetainedProgram} />
+            <NextDecisionInspector core={core} run={run} selectedTick={displayState?.tick ?? null} onReplayTick={tick => {player?.pause();player?.seek(tick);setTab("battle");}} />
             <AutonomousDecisions core={core} run={run} onReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} />
             <BattleAnalysis context={analysisContext} traceSourceStatus={traceSourceStatus} onTraceSource={inspectTraceSource} run={run} baselineRun={baselineRun} draftChanged={!runIsCurrent} busy={busy || checking}
               onReplayEvent={inspectReplayEvent}

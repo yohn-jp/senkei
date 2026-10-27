@@ -24,6 +24,10 @@ interface WorkerRequestBase {
 }
 
 export type WebWorkerRequest =
+  | (WorkerRequestBase & {readonly operation:'editor_catalog_retained';readonly payload:{readonly assets:ReproductionAssets}})
+  | (WorkerRequestBase & {readonly operation:'editor_compile_retained';readonly payload:EditorCompileRequest & {readonly assets:ReproductionAssets}})
+  | (WorkerRequestBase & {readonly operation:'format_ast_retained';readonly payload:{readonly assets:ReproductionAssets;readonly ast:import('./core-model').StructuredTacticsAst}})
+  | (WorkerRequestBase & { readonly operation: "inspect_next_decision"; readonly payload: import("./next-decision-inspection").NextDecisionInspectionRequest })
   | (WorkerRequestBase & { readonly operation: "simulate_actor_decisions"; readonly payload: import("./actor-decisions").ActorDecisionRequest })
   | (WorkerRequestBase & { readonly operation: "editor_resolve_behavior"; readonly payload: import("./behavior-resolution").BehaviorResolveRequest })
   | (WorkerRequestBase & { readonly operation: "simulate_behavior"; readonly payload: BehaviorSimulationRequest })
@@ -98,6 +102,9 @@ interface WorkerResponseBase {
 }
 
 export type WebWorkerResponse =
+  | (WorkerResponseBase & {readonly operation:'editor_catalog_retained'|'format_ast_retained';readonly ok:true;readonly result:string})
+  | (WorkerResponseBase & {readonly operation:'editor_compile_retained';readonly ok:true;readonly result:EditorCompilerEnvelope})
+  | (WorkerResponseBase & { readonly operation: "inspect_next_decision"; readonly ok: true; readonly result: import("./next-decision-inspection").NextDecisionInspection })
   | (WorkerResponseBase & { readonly operation: "simulate_actor_decisions"; readonly ok: true; readonly result: import("./actor-decisions").ActorDecisionResponse })
   | (WorkerResponseBase & { readonly operation: "editor_resolve_behavior"; readonly ok: true; readonly result: import("./behavior-resolution").BehaviorResolveReply })
   | (WorkerResponseBase & { readonly operation: "simulate_behavior"; readonly ok: true; readonly result: BehaviorSimulationResponse })

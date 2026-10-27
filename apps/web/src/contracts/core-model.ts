@@ -578,6 +578,7 @@ export interface HostLimits {
 }
 
 export interface MatchContext {
+  readonly next_minion_control?: import('./minion-control').NextMinionControlMatch;
   readonly next_minion_behavior?: import('./next-route-minion').NextMinionBehaviorMatch;
   readonly next_route?: import('./next-route-minion').NextRouteMatch;
   readonly match_projection?: import("./next-production").MatchProjection;
@@ -739,6 +740,7 @@ export interface WorldIdentityRef {
 
 /** Senritsu-owned versioned content, matching senkei-model::NextRules. */
 export interface NextRules {
+  readonly minion_control?: import('./minion-control').NextMinionControlDeclaration;
   readonly projection_policy?: import("./next-production").ProjectionPolicy;
   readonly world_identity?: WorldIdentityRef;
   readonly mechanics_version: import("./core").CoreVersion;

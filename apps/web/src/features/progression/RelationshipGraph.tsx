@@ -78,11 +78,16 @@ export function RelationshipGraph({ heroes, events, formationIds, selectedPair, 
           const dx = b.x - a.x; const dy = b.y - a.y; const distance = Math.hypot(dx, dy) || 1;
           const start = { x: a.x + 20 * dx / distance, y: a.y + 20 * dy / distance };
           const end = { x: b.x - 20 * dx / distance, y: b.y - 20 * dy / distance };
+          const normal = { x: -dy / distance * 9, y: dx / distance * 9 };
+          // SVG line bounds exclude their stroke. A vertical/horizontal edge
+          // otherwise has a zero-sized focus box despite its visible stroke.
+          const hitPoints = [[start.x + normal.x,start.y + normal.y],[end.x + normal.x,end.y + normal.y],
+            [end.x - normal.x,end.y - normal.y],[start.x - normal.x,start.y - normal.y]].map(point => point.join(',')).join(' ');
           const selected = isSelected(pair, selectedPair);
           return <g key={JSON.stringify([pair.from.instanceId, pair.to.instanceId])} role="button" tabIndex={0}
             aria-label={`Inspect ${pair.from.label} and ${pair.to.label}`} aria-pressed={selected}
             onClick={() => onSelectPair(pair.from.instanceId, pair.to.instanceId)} onKeyDown={event => activate(event, pair)}>
-            <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="transparent" strokeWidth="18" />
+            <polygon points={hitPoints} fill="transparent" />
             <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke={selected ? '#ffd28a' : '#dce9e4'} strokeWidth={selected ? 3 : 2}
               markerStart={pair.reverse ? `url(#${marker})` : undefined} markerEnd={pair.forward ? `url(#${marker})` : undefined} />
           </g>;

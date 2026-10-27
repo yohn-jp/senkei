@@ -24,10 +24,18 @@ for (const width of [1440, 390]) {
     const panel = await openOwned(page);
     await panel.getByRole('button', { name: 'Obtain trial roster' }).click();
     const selected: string[] = [];
+    let choices: string[] = [];
     for (let n = 1; n <= 5; n++) {
       const slot = panel.getByRole('combobox', { name: `Slot slot-0${n}`, exact: true });
       await expect.poll(() => slot.locator('option').count()).toBeGreaterThan(5);
-      const id = await slot.locator('option').nth(n).getAttribute('value');
+      if (n === 1) {
+        const roster = await slot.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean).sort());
+        // Opposite graph nodes force a vertical edge, whose SVG focus target
+        // must have real bounds independently of the visible line's stroke.
+        const opposite = [roster[0],roster[Math.floor(roster.length / 2)]];
+        choices = [...opposite,...roster.filter(id => !opposite.includes(id)).slice(0,3)];
+      }
+      const id = choices[n - 1];
       expect(id).toBeTruthy(); selected.push(id!); await slot.selectOption(id!);
     }
     expect(new Set(selected).size).toBe(5);

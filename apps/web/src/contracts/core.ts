@@ -186,6 +186,10 @@ export interface WorkerFailure {
 }
 
 export interface CoreClient {
+  editorCatalogRetained?(assets: ReproductionAssets): Promise<string>;
+  editorCompileRetained?(request: EditorCompileRequest & {readonly assets: ReproductionAssets}): Promise<EditorCompilerEnvelope>;
+  formatRetainedAst?(assets: ReproductionAssets, ast: StructuredTacticsAst): Promise<string>;
+  inspectNextDecision?(request: import("./next-decision-inspection").NextDecisionInspectionRequest): Promise<import("./next-decision-inspection").NextDecisionInspection>;
   inspectActorDecisions?(request: import("./actor-decisions").ActorDecisionRequest): Promise<import("./actor-decisions").ActorDecisionResponse>;
   /** Pure Catalog-bound composition; provided evaluation is caller evidence. */
   editorResolveBehavior?(request: import("./behavior-resolution").BehaviorResolveRequest): Promise<import("./behavior-resolution").BehaviorResolveReply>;

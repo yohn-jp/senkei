@@ -1,6 +1,8 @@
 # Canonical coverage — clause register and implementation evidence
 
-Latest scoped status: [2026-10-27 fixed A/B/C implementation and verification](IMPLEMENTATION-WAVE-2026-10-27.md), implementation `1468724`. Native/real-WASM/Web checks passed; local browser checks were 5 PASS / 3 FAIL. Non-graphics Architecture/Product completion is **NO**. This fixed wave stops after saving its results; historical continuation statements below do not authorize another wave.
+Current implementation tracking: [Contract Coverage Ledger](CONTRACT-COVERAGE-LEDGER.md) and [Verification Backlog](VERIFICATION-BACKLOG.md), reassessed from fetched main `783e10e` and subsequent integration commits. The current user instruction continues implementation through Architecture Implementation Scope closure; historical Wave stop rules do not apply. The ledger distinguishes actual implementation, missing connections, undefined policy/provider inputs and verification. No zero-gap or final completion claim is made while the ledger contains open implementation obligations.
+
+Historical scoped status: [2026-10-27 fixed A/B/C implementation and verification](IMPLEMENTATION-WAVE-2026-10-27.md), implementation `1468724`. Its Native/real-WASM/Web checks and 5 PASS / 3 FAIL browser results apply to that implementation only. Later Wave 2 and PR #53 changed the implementation; old missing-work rows must be checked against current code.
 
 ## Historical registers
 

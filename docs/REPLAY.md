@@ -26,6 +26,8 @@ Enbuは二つのSenkeiとSenritsuから戦闘結果を決定論的に計算し�
 
 Replay 0.4では、`header.ruleset` が `id`／version／digestを持ち、`header.world` がWorld ID、World schema版、実際に使用したWorld Compiler版、compiler compatibility、validation profile、logic digest、presentation digestを持つ。Enbu Replay、RulePackage、BattleMapのpaired World identityが完全一致しないNext Replayは拒否する。新しいofficial／local Replayではpaired World identityに`compiler_version`を必須とする。Replay 0.3は旧identity形の歴史的Replayとして読み取れるが、新規生成・再現入力には使わない。
 
+Replay 0.5はこのidentity契約を維持し、現在認可された観測拠点に任意のBoolean `battlefield.captureContested` を追加する。これはEnbuが当該Tickの占領解決時に実際に判定した競合であり、描画時のユニット位置から推測しない。`true`／`false` と値の欠落（不明）を区別する。視界外の最終観測履歴を現在の競合として表示せず、再出現時は新しい認可済み値を使う。この事実を含む新規Replayは0.5を使用し、旧0.4以前のデータは引き続き読み取れる。未対応の旧Consumerには既存版へ新しいfieldを混在させず、版不一致として拒否させる。
+
 論理座標と表示座標は別の空間である。表示位置はpaired Worldのnode position／edge pathと論理上の進捗から投影する。橋routeの`bridgePosition`は同じWorld crossing intervalから求めた静的なサイト中心で、現在見える橋と最終観測マーカーが共有する。選択・Squad追従・分析は同Tickの認可済みgraph identityで対応付け、論理x/yと表示位置の一致を要求しない。
 
 ## 3. 座標・時間とイベント
@@ -36,6 +38,7 @@ Replay 0.4では、`header.ruleset` が `id`／version／digestを持ち、`head
 - 任意の `scene.baseSites` は公開Worldの本拠地所在地（id・陣営・座標）だけを投影する。所在地の既知性は施設の生存・HP・視認を意味しない。未観測時は状態不明の地図注記に限り、施設の現在状態・破壊確認は観測可能なReplayの事実から表示する。旧Replayは省略でき、非公開の敵状態をこの項目に入れない。
 - 時刻は**整数Tick＋同一Tick内の規範的順序**。描画FPS、演出ミリ秒、再生速度と切り離す。
 - 再生、巻き戻し、直接シークは同じ確定状態へ戻る。Checkpointの使用有無によって結果を変えない。
+- 同Tickの表示用スロット配置も同じになる。Issue #51に対するユーザー承認に基づき、Rendererは認可済みReplayを一度時系列に処理した配置索引を保持できる。既存の加入・離脱時の配置安定性を保ち、索引へ非公開位置を補完しない。Replay Playerの確定状態構築やEnbuの所有責務は変えない。
 - 出現・移動・攻撃Cue・被害による確定状態変化・破壊・非表示化・終局を意味イベントとして提供する。
 - イベントにモデルのGLBファイル名やTypeScript関数、未観測の座標、Jinrei内部ルールIDを埋め込まない。
 

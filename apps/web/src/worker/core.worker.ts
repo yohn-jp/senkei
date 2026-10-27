@@ -1,3 +1,4 @@
+import { decisionInspectionResponseError } from "./decision-inspection-response";
 import { actorResponseError } from "./actor-response";
 import { simulationAuthorizationError } from "./simulation-authorization";
 import { behaviorResponseError } from "./behavior-response";
@@ -18,6 +19,9 @@ type RequestOperation =
   | "next_reproduction_assets"
   | "editor_catalog"
   | "editor_compile"
+  | "editor_catalog_retained"
+  | "editor_compile_retained"
+  | "format_ast_retained"
   | "editor_resolve_behavior"
   | "new_match_context"
   | "compile"
@@ -27,6 +31,7 @@ type RequestOperation =
   | "simulate"
   | "simulate_behavior"
   | "simulate_actor_decisions"
+  | "inspect_next_decision"
   | "reproduce"
   | "preflight_reproduction"
   | "benchmark";
@@ -140,6 +145,9 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "next_reproduction_assets" &&
     operation !== "editor_catalog" &&
     operation !== "editor_compile" &&
+    operation !== "editor_catalog_retained" &&
+    operation !== "editor_compile_retained" &&
+    operation !== "format_ast_retained" &&
     operation !== "editor_resolve_behavior" &&
     operation !== "new_match_context" &&
     operation !== "compile" &&
@@ -149,6 +157,7 @@ function validateWorkerRequest(value: unknown): WorkerRequest {
     operation !== "simulate" &&
     operation !== "simulate_behavior" &&
     operation !== "simulate_actor_decisions" &&
+    operation !== "inspect_next_decision" &&
     operation !== "reproduce" &&
     operation !== "preflight_reproduction" &&
     operation !== "benchmark"
@@ -207,7 +216,23 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       if (!Number.isSafeInteger(payload.revision) || (payload.revision as number) < 0 || !Number.isSafeInteger(payload.tick) || (payload.tick as number) < 0 || !isCombatantSide(payload.side)) throw new RequestFailure('invalid_request', 'Invalid Behavior revision, Tick or side.');
       return;
     }
+    case "editor_catalog_retained":
+    case "format_ast_retained": {
+      const assets = requireRecord(payload.assets, `${operation}.assets`);
+      if (assets.format_version !== 1) throw new RequestFailure('invalid_request', 'Unsupported retained assets.');
+      requireRecord(assets.rule_package, `${operation}.assets.rule_package`);
+      requireRecord(assets.world_definition, `${operation}.assets.world_definition`);
+      if (operation === 'format_ast_retained') requireRecord(payload.ast, 'format_ast_retained.ast');
+      return;
+    }
+    case "editor_compile_retained":
     case "editor_compile": {
+      if (operation === 'editor_compile_retained') {
+        const assets = requireRecord(payload.assets, 'editor_compile_retained.assets');
+        if (assets.format_version !== 1) throw new RequestFailure('invalid_request', 'Unsupported retained assets.');
+        requireRecord(assets.rule_package, 'editor_compile_retained.assets.rule_package');
+        requireRecord(assets.world_definition, 'editor_compile_retained.assets.world_definition');
+      }
       requireString(payload.source, "editor_compile.source");
       requireRecord(payload.stamp, "editor_compile.stamp");
       const stamp = payload.stamp as Record<string, unknown>;
@@ -245,6 +270,18 @@ function validatePayload(operation: RequestOperation, payload: Record<string, un
       requireRecord(payload.ruleset_ref, "format_ast.ruleset_ref");
       requireRecord(payload.ast, "format_ast.ast");
       return;
+    case "inspect_next_decision": {
+      if (payload.format_version !== 1 || !isCombatantSide(payload.authorized_side)) throw new RequestFailure('invalid_request', 'Explicit owner selection is required for decision inspection.');
+      validateSnapshot(payload.snapshot, 'inspect_next_decision.snapshot');
+      const assets = requireRecord(payload.assets, 'inspect_next_decision.assets');
+      if (assets.format_version !== 1) throw new RequestFailure('invalid_request', 'Unsupported reproduction assets.');
+      const digest = requireString(payload.snapshot_digest, 'inspect_next_decision.snapshot_digest');
+      if (!/^[0-9a-f]{64}$/.test(digest)) throw new RequestFailure('invalid_request', 'Invalid snapshot digest.');
+      const selector = requireRecord(payload.selector, 'inspect_next_decision.selector');
+      requireString(selector.slot_id, 'inspect_next_decision.selector.slot_id');
+      if (!Number.isSafeInteger(selector.tick) || (selector.tick as number) < 1) throw new RequestFailure('invalid_request', 'Inspection Tick must be a positive integer.');
+      return;
+    }
     case "simulate_actor_decisions":
       if (payload.include_diagnostics !== true || !isCombatantSide(payload.diagnostics_side)) throw new RequestFailure('invalid_request', 'Autonomous decisions require an explicit owner diagnostics request.');
       validateSnapshot(payload.snapshot, 'simulate_actor_decisions.snapshot');
@@ -338,6 +375,10 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
       return callCore("editor_catalog", request.payload, request.request_id);
     case "editor_resolve_behavior":
       return callCore("editor_resolve_behavior", request.payload, request.request_id);
+    case "editor_catalog_retained":
+    case "editor_compile_retained":
+    case "format_ast_retained":
+      return callCore(request.operation, request.payload, request.request_id);
     case "editor_compile":
       return callCore("editor_compile", request.payload, request.request_id);
     case "new_match_context":
@@ -369,6 +410,12 @@ async function runOperation(request: WorkerRequest): Promise<unknown> {
     }
     case "simulate":
       return runSimulation(request.payload, request.request_id);
+    case "inspect_next_decision": {
+      const response = await callCore('inspect_next_decision', request.payload, request.request_id);
+      const error = await decisionInspectionResponseError(response, request.payload as unknown as import('../contracts/next-decision-inspection').NextDecisionInspectionRequest);
+      if (error) throw new RequestFailure('core_error', error);
+      return response;
+    }
     case "simulate_actor_decisions": {
       const snapshot = requireRecord(request.payload.snapshot, 'simulate_actor_decisions.snapshot');
       const result = requireRecord(await callCore('simulate_actor_decisions', {...snapshot,include_diagnostics:true,diagnostics_side:request.payload.diagnostics_side}, request.request_id), 'autonomous.result');

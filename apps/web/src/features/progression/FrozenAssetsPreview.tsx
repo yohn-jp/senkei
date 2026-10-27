@@ -14,6 +14,9 @@ export function FrozenAssetsPreview({snapshot,assets,initialState}:{snapshot:Sim
     </li>)}</ul>
     <p>Directed relationship values are fixed. Symmetric cooperation requires both defined directions and living Heroes in the same current Squad; split, death and revival recompute applicability. Undefined values grant no inferred bonus.</p>
     <p>{projection.sides.attacker.relations.length} directed relationship inputs. Formula: {definitions?.relation ? `${definitions.relation.rounding}, pair-normalized, capped at ${definitions.relation.max_bonus} (${definitions.relation.stat})` : 'undefined'}.</p>
+    <p>{definitions?.maturity
+      ? `Additional maturity: ${definitions.maturity.aggregation}, ${definitions.maturity.rounding}, coefficient ${definitions.maturity.add_per_level}, cap ${definitions.maturity.max_bonus}. All living same-Squad pairs require both defined directions and exact policy references. Ordinary maturity continues separately.`
+      : 'No additional relationship maturity policy is configured. Ordinary Squad maturity is unchanged.'}</p>
     <details><summary>Immutable input references</summary><pre>{JSON.stringify({projection,behavior:snapshot.context.next_behavior,minionBehavior:snapshot.context.next_minion_behavior,route:snapshot.context.next_route,match:snapshot.context.match_id},null,2)}</pre></details>
   </section>;
 }

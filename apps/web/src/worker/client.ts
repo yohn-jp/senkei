@@ -94,12 +94,32 @@ export class WorkerCoreClient implements CoreClient {
     return this.request("next_reproduction_assets", localTrial ? {local_trial:true} : {}) as Promise<ReproductionAssets>;
   }
 
+  editorCatalogRetained(assets: ReproductionAssets): Promise<string> {
+    return this.request('editor_catalog_retained', {assets}) as Promise<string>;
+  }
+
+  editorCompileRetained(request: EditorCompileRequest & {readonly assets: ReproductionAssets}): Promise<EditorCompilerEnvelope> {
+    return (this.request('editor_compile_retained', request) as Promise<EditorCompilerEnvelope>).then(reply => {
+      if (!reply || reply.revision !== request.revision || !reply.reply?.stamp || !sameCatalog(reply.reply.stamp, request.stamp))
+        throw new CoreClientError({code:'core_error',message:'Retained compiler reply does not match its Catalog or revision.'});
+      return reply;
+    });
+  }
+
+  formatRetainedAst(assets: ReproductionAssets, ast: StructuredTacticsAst): Promise<string> {
+    return this.request('format_ast_retained', {assets,ast}) as Promise<string>;
+  }
+
   editorCatalogJson(localTrial = false): Promise<string> {
     return this.request("editor_catalog", localTrial ? {local_trial:true} : {}) as Promise<string>;
   }
 
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope> {
     return this.request("editor_compile", request) as Promise<EditorCompilerEnvelope>;
+  }
+
+  inspectNextDecision(request: import("../contracts/next-decision-inspection").NextDecisionInspectionRequest): Promise<import("../contracts/next-decision-inspection").NextDecisionInspection> {
+    return this.request("inspect_next_decision", request) as Promise<import("../contracts/next-decision-inspection").NextDecisionInspection>;
   }
 
   inspectActorDecisions(request: import("../contracts/actor-decisions").ActorDecisionRequest): Promise<import("../contracts/actor-decisions").ActorDecisionResponse> {

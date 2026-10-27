@@ -6,7 +6,8 @@ type Relation = { from: string; to: string; definitionVersion: string; value: nu
 type Effect = { stat: string; add: number };
 type EquipmentDefinition = { version: Version; effects: Effect[] };
 type Formula = { version: Version; stat: string; add_per_level: number; max_level: number; max_bonus: number; rounding: 'floor' };
-export type TrialPolicy = { schema_version: 1; test_only: true; hero_catalog_id: string; hero_catalog_version: Version; hero_catalog_digest: string; equipment: Record<string, EquipmentDefinition>; relation: Formula | null };
+export type RelationMaturityPolicy = {version:Version;target:'squad_maturity_increment';aggregation:'complete_pair_mean';add_per_level:number;max_level:number;max_bonus:number;rounding:'floor'};
+export type TrialPolicy = { schema_version: 1; test_only: true; hero_catalog_id: string; hero_catalog_version: Version; hero_catalog_digest: string; equipment: Record<string, EquipmentDefinition>; relation: Formula | null; maturity?:RelationMaturityPolicy };
 export type TrialSideInput = { playerId: string; heroSnapshot: { playerId: string; heroes: readonly Hero[] }; equipment: readonly Equipment[]; relations: readonly Relation[]; slots: readonly { slotId: string; heroInstanceId: string }[] };
 export type TrialProjectionInput = { policy: TrialPolicy; rulesetDigest: string; approvedRulesetDigest: string; attacker: TrialSideInput; defender: TrialSideInput };
 const wireVersion = (v: Version): Version => ({ major: v.major, minor: v.minor, patch: v.patch });
@@ -30,7 +31,7 @@ export async function buildOwnedSideProjection(policyInput: TrialPolicy, sourceI
     const policy = structuredClone(policyInput);
     const source = structuredClone(sourceInput);
     if (policy.schema_version !== 1 || policy.test_only !== true || !digestShape(policy.hero_catalog_digest)) throw new Error('Unapproved trial policy');
-    if (!source.playerId.trim() || source.heroSnapshot.playerId !== source.playerId || source.slots.length !== 5 || source.slots.some(s => !s.slotId.trim() || !s.heroInstanceId.trim()) || new Set(source.slots.map(s => s.slotId)).size !== 5 || new Set(source.slots.map(s => s.heroInstanceId)).size !== 5) throw new Error('Invalid formation ownership');
+    if (!source.playerId.trim() || source.heroSnapshot.playerId !== source.playerId || source.slots.length !== 5 || source.slots.some(s => !s.slotId.replace(/\p{White_Space}/gu,'') || /[\uD800-\uDFFF]/u.test(s.slotId) || new TextEncoder().encode(s.slotId).byteLength > 48 || !s.heroInstanceId.trim()) || new Set(source.slots.map(s => s.slotId)).size !== 5 || new Set(source.slots.map(s => s.heroInstanceId)).size !== 5) throw new Error('Invalid formation ownership');
     const ownedIds = new Set(source.heroSnapshot.heroes.map(h => h.instanceId));
     if (ownedIds.size !== source.heroSnapshot.heroes.length || source.heroSnapshot.heroes.some(h => !h.instanceId.trim() || h.playerId !== source.playerId || h.authority !== 'local')) throw new Error('Invalid Hero ownership snapshot');
     if (source.equipment.some(e => !e.instanceId.trim() || e.playerId !== source.playerId || e.authority !== 'local' || (e.heroId !== null && !ownedIds.has(e.heroId)))) throw new Error('Invalid equipment ownership snapshot');
@@ -54,21 +55,27 @@ export async function buildOwnedSideProjection(policyInput: TrialPolicy, sourceI
     const selected = new Set(heroes.map(h => h.instance_id));
     if (new Set(source.equipment.map(e => e.instanceId)).size !== source.equipment.length) throw new Error('Duplicate equipment instance');
     const pairs = new Map<string, Relation>();
+    const levelDefinition = policy.relation ?? policy.maturity;
     for (const relation of source.relations) {
       if (!selected.has(relation.from) || !selected.has(relation.to)) continue;
-      if (relation.from === relation.to || !policy.relation || relation.definitionVersion !== versionText(policy.relation.version) || (relation.value !== null && (!Number.isSafeInteger(relation.value) || relation.value < 0 || relation.value > policy.relation.max_level))) throw new Error('Invalid relationship');
+      if (relation.from === relation.to || !levelDefinition || relation.definitionVersion !== versionText(levelDefinition.version)
+        || (relation.value !== null && (!Number.isSafeInteger(relation.value) || relation.value < 0
+          || [policy.relation,policy.maturity].some(formula => formula && relation.value! > formula.max_level)))) throw new Error('Invalid relationship');
       pairs.set(JSON.stringify([relation.from, relation.to]), relation);
     }
     const relations = [];
-    if (policy.relation) {
+    if (levelDefinition) {
       const formula = policy.relation;
-      const formulaDigest = await digestJson({ version: wireVersion(formula.version), stat: formula.stat, add_per_level: formula.add_per_level, max_level: formula.max_level, max_bonus: formula.max_bonus, rounding: formula.rounding });
+      const formulaDigest = formula ? await digestJson({ version: wireVersion(formula.version), stat: formula.stat, add_per_level: formula.add_per_level, max_level: formula.max_level, max_bonus: formula.max_bonus, rounding: formula.rounding }) : undefined;
+      const maturity = policy.maturity;
+      const maturityRef = maturity ? {version:wireVersion(maturity.version),digest:await digestJson({version:wireVersion(maturity.version),target:maturity.target,aggregation:maturity.aggregation,add_per_level:maturity.add_per_level,max_level:maturity.max_level,max_bonus:maturity.max_bonus,rounding:maturity.rounding})} : undefined;
       const ids = [...selected].sort();
       for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
         const a = pairs.get(JSON.stringify([ids[i], ids[j]]));
         const b = pairs.get(JSON.stringify([ids[j], ids[i]]));
         if (!a && !b) continue;
-        for (const [from, to, value] of [[ids[i], ids[j], a?.value ?? null], [ids[j], ids[i], b?.value ?? null]] as const) relations.push({ from_instance_id: from, to_instance_id: to, level: value, formula_version: formula.version, formula_digest: formulaDigest });
+        for (const [from, to, value] of [[ids[i], ids[j], a?.value ?? null], [ids[j], ids[i], b?.value ?? null]] as const) relations.push({ from_instance_id: from, to_instance_id: to, level: value,
+          ...(formula ? {formula_version:formula.version,formula_digest:formulaDigest!} : {}),...(maturityRef ? {maturity_policy:maturityRef} : {}) });
       }
     }
     return freeze(structuredClone({ owner_id: source.playerId, authority: 'local' as const, heroes, relations }));
