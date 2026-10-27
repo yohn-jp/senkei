@@ -159,7 +159,7 @@ describe("semantic preparation of imported completed Runs", () => {
       restricted_diagnostics: { events: [], cu_by_side: {}, final_memory_by_side: {} },
     });
     const noRunCore = { ...core, reproduce: async () => { throw new Error("must not reproduce identity-less data"); } } as unknown as CoreClient;
-    await expect(prepareNextExperimentStore(input, packageValue, noRunCore)).rejects.toThrow("Stored diagnostics have no Run identity");
+    await expect(prepareNextExperimentStore(input, packageValue, noRunCore)).rejects.toThrow(/diagnostic identity/);
   });
 
   it("rejects a stored snapshot digest that does not bind the complete input", async () => {
