@@ -85,6 +85,53 @@ fn composes_actual_hero_and_army_layers_using_the_authored_order() {
 }
 
 #[test]
+fn caller_supplied_jinrei_override_requires_explicit_legality() {
+    use senkei_model::{ArbitrationResolution, ArbitrationRule, CapabilityId, DomainType, IntentKey, IntentSortTerm, SortDirection, TypeId, Version};
+    use senritsu::{catalog::catalog_semantics_digest, BehaviorOrderContract, BehaviorOrderDeclaration, BehaviorScope, CapabilityContractMetadata, CapabilityLifetime, EntityControlScope};
+    use std::collections::{BTreeMap, BTreeSet};
+    let (mut package, mut extension) = profile_catalog::authored_profile_package();
+    let provisional = senritsu::validate(senritsu::next_package(), &senritsu::next_engine_compatibility()).unwrap();
+    let capabilities = provisional.plan().domain.capabilities.iter().filter_map(|(id, capability)| {
+        let actor = capability.actor_argument.and_then(|index| capability.arguments.get(index as usize))?;
+        let DomainType::Entity { entity_type: Some(entity_type) } = &actor.value_type else { return None };
+        (entity_type == &TypeId::new("hero") && !capability.phases.is_empty()).then(|| id.clone())
+    }).collect();
+    extension.behavior_profiles.cross_capability_order = Some(BehaviorOrderContract {
+        intent_selection: vec![BehaviorOrderDeclaration { scope: BehaviorScope::Hero, actor_type: TypeId::new("hero"), capabilities,
+            arbitration: ArbitrationRule { conflict_keys: vec![IntentKey::Side, IntentKey::Actor], resolution: ArbitrationResolution::SelectOrdered {
+                max_accepted: 1, sort_by: vec![IntentSortTerm { key: IntentKey::ActionId, direction: SortDirection::Ascending }],
+            } } }], field_writers: BTreeMap::new(),
+    });
+    extension.entity_scopes.insert(TypeId::new("hero"), EntityControlScope::Hero);
+    extension.capabilities.insert(CapabilityId::new("move"), CapabilityContractMetadata {
+        version: Version::new(1, 0, 0), effect_lifetime: CapabilityLifetime::IntentOnly,
+        rejection_codes: BTreeSet::new(), description: None,
+        behavior_override_arguments: BTreeMap::from([("navigation.mode".into(), 1)]),
+    });
+    package.catalog_semantics_digest = Some(catalog_semantics_digest(&extension).unwrap());
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    extension.ruleset_digest = package.ruleset.digest.clone();
+    let plan = senritsu::validate_with_catalog_extension(package.clone(), &senritsu::next_engine_compatibility(), extension.clone()).unwrap();
+    let catalog = senritsu::DomainCatalog::from_verified_plan_with_extension(&plan, extension.clone()).unwrap();
+    let mut input = request();
+    input["rulePackage"] = serde_json::to_value(package).unwrap();
+    input["catalogMetadataExtension"] = serde_json::to_value(extension).unwrap();
+    input["stamp"] = serde_json::to_value(catalog.compatibility_key()).unwrap();
+    input["evaluation"] = json!({ "kind": "provided", "intents": [{ "action_id": "order", "capability": "move",
+        "actor": "slot-01", "target": null, "priority": null, "arguments": [
+            { "kind": "entity", "value": "slot-01" }, { "kind": "string", "value": "fastest" }
+        ] }], "diagnostics": [], "legality": {} });
+    let uncertain = resolve(input.clone()).unwrap();
+    assert_eq!(uncertain["composition"]["values"]["navigation.mode"]["value"], "safest");
+    assert_eq!(uncertain["composition"]["unknown_overrides"][0]["action_id"], "order");
+    input["evaluation"]["legality"]["order"] = json!({ "kind": "known_legal" });
+    let legal = resolve(input).unwrap();
+    assert_eq!(legal["evaluationKind"], "provided");
+    assert_eq!(legal["composition"]["values"]["navigation.mode"]["value"], "fastest");
+    assert_eq!(legal["composition"]["provenance"]["navigation.mode"]["layer"], "jinrei_conditional_preference");
+}
+
+#[test]
 fn distinguishes_undeclared_profile_and_rejected_input() {
     let mut undeclared = request();
     let package = senritsu::next_package();
