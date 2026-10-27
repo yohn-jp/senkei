@@ -2560,6 +2560,10 @@ export class Battlefield {
         this.camera.bottom,
         this.host.clientWidth,
         this.host.clientHeight,
+        // Collision rectangles use viewport coordinates, so scrolling or
+        // moving the host must invalidate them even with an unchanged camera.
+        hostRect.left,
+        hostRect.top,
       ].map((value) => value.toFixed(3)).join(":") +
         `:${this.mobile ? "mobile" : "desktop"}:${this.selected ?? ""}:${this.trackedIds.join(",")}:${this.state?.tick ?? -1}`;
       if (cueCameraSignature !== this.silhouetteLayoutSignature) {
