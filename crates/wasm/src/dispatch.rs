@@ -169,6 +169,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         OP_PREFLIGHT_REPRODUCTION => preflight_reproduction(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
+        "editor_resolve_behavior" => editor_resolve_behavior(payload),
         "new_match_context" => new_match_context(payload),
         "parse_text" => parse_text(payload),
         "format_ast" => format_ast(payload),
@@ -261,6 +262,13 @@ fn editor_compile(payload: Value) -> Result<(Value, u64), ApiError> {
         )
     })?;
     Ok((response, MAX_RESPONSE_BYTES as u64))
+}
+
+/// Compose a Profile against the exact verified package and Catalog stamp.
+fn editor_resolve_behavior(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: senkei_editor_adapter::BehaviorResolveRequest = decode_strict(payload, "payload")?;
+    let response = senkei_editor_adapter::resolve_behavior(request).map_err(editor_adapter_error)?;
+    Ok((encode(&response, "result")?, MAX_RESPONSE_BYTES as u64))
 }
 
 fn editor_adapter_error(error: senkei_editor_adapter::AdapterError) -> ApiError {

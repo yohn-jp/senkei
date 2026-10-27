@@ -1,4 +1,4 @@
-use senkei_model::{DomainType, DomainValue};
+use senkei_model::{DomainType, DomainValue, RulePackage};
 use senritsu::{
     next_engine_compatibility, next_package, validate, validate_with_catalog_extension,
     canonical_digest, BehaviorFieldDefinition,
@@ -10,7 +10,7 @@ use senritsu::catalog::catalog_semantics_digest;
 
 /// Build a real producer Catalog with an authored test profile. The profile
 /// exists only in this fixture helper; the bundled RulePackage remains unchanged.
-pub fn authored_profile_catalog_json() -> String {
+pub fn authored_profile_package() -> (RulePackage, CatalogMetadataExtension) {
     let mut package = next_package();
     let plan = validate(package.clone(), &next_engine_compatibility())
         .expect("bundled next package validates");
@@ -64,6 +64,11 @@ pub fn authored_profile_catalog_json() -> String {
         .expect("fixture Behavior semantics have a canonical digest"));
     package.ruleset.digest = canonical_digest(&package).expect("bound fixture package has a digest");
     extension.ruleset_digest = package.ruleset.digest.clone();
+    (package, extension)
+}
+
+pub fn authored_profile_catalog_json() -> String {
+    let (package, extension) = authored_profile_package();
     let plan = validate_with_catalog_extension(package, &next_engine_compatibility(), extension.clone())
         .expect("fixture RulePackage binds its authored Behavior semantics before validation");
     let catalog = DomainCatalog::from_verified_plan_with_extension(&plan, extension)

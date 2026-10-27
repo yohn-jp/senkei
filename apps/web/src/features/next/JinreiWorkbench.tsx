@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { behaviorCoveragePresentation, completeCatalog } from "@senkei/jinrei-editor";
 import type { ActorSelection, CatalogCapability, ComparisonSurface, CompletionItem, DomainCatalogDocument } from "@senkei/jinrei-editor";
-import type { CompileOutcome, CoreClient, RulePackage, SenkeiDraft, TacticalInput } from "../../contracts";
+import type { CompileOutcome, CoreClient, CoreJsonValue, RulePackage, SenkeiDraft, TacticalInput } from "../../contracts";
 import { EditorFeature } from "../editor";
 import { JinreiDomainPanel, actorSelection, capabilityMatchesScope } from "./JinreiDomainPanel";
 import "./jinrei-workbench.css";
@@ -13,6 +13,8 @@ import { repairSourceCursor } from "./repair-focus";
 import type { JinreiRepairFocusRequest } from "./repair-focus";
 import { coverageDiagnosticText, scopedCoverageEvents, verifyCoverageRun } from "./coverage-observed";
 import type { CoverageRun, VerifiedCoverageRun } from "./coverage-observed";
+import { baselineComposition, baselineRequest, inheritedCoverageRows, profileValueText } from "./coverage-composition";
+import type { BehaviorProfileComposition } from "../../contracts/behavior-resolution";
 export type { JinreiRepairFocusRequest } from "./repair-focus";
 export type { CoverageRun } from "./coverage-observed";
 
@@ -42,6 +44,8 @@ export interface JinreiWorkbenchProps {
   readonly draftKey: string | null;
   readonly compilation: CompileOutcome | null;
   readonly coverageRun?: CoverageRun | null;
+  readonly coverageRulePackage?: RulePackage | null;
+  readonly coverageMetadataExtension?: CoreJsonValue | null;
   readonly coverageRunCurrent?: boolean;
   readonly coverageTick?: number | null;
   readonly onCoverageReplayTick?: (tick: number) => void;
@@ -87,6 +91,8 @@ export function JinreiWorkbench({
   draftKey,
   compilation,
   coverageRun,
+  coverageRulePackage,
+  coverageMetadataExtension,
   coverageRunCurrent = false,
   coverageTick,
   onCoverageReplayTick,
@@ -107,6 +113,11 @@ export function JinreiWorkbench({
   const [surface, setSurface] = useState<ComparisonSurface>("effective");
   const [observedTick, setObservedTick] = useState<number | null>(null);
   const [observedPage, setObservedPage] = useState(0);
+  const baselineRevision = useRef(0);
+  const [baselineResult, setBaselineResult] = useState<{
+    key: string; core: CoreClient | null; catalog: DomainCatalogDocument | null; rulePackage: RulePackage | null | undefined;
+    extension: CoreJsonValue | null | undefined; composition: BehaviorProfileComposition | null; reason: string | null;
+  } | null>(null);
   const [verifiedRun, setVerifiedRun] = useState<{
     run: CoverageRun | null | undefined; catalog: DomainCatalogDocument | null;
     programDigest: string | undefined; current: boolean; result: VerifiedCoverageRun;
@@ -190,9 +201,41 @@ export function JinreiWorkbench({
   const coverage = useMemo(() => catalog
     ? behaviorCoveragePresentation(catalog, coverageActor, surface)
     : null, [catalog, coverageActor, surface]);
-  const visibleRows = useMemo(() => coverage?.rows.filter((row) =>
+  const baselineKey = JSON.stringify({ scope: coverageScope, selected: activeHero?.slot_id, slots, draftKey });
+  useEffect(() => {
+    if (!active || screen !== "coverage" || surface === "observed" || !catalog || catalog.behaviorProfiles.status !== "authored_extension") return;
+    let cancelled = false;
+    const report = (composition: BehaviorProfileComposition | null, reason: string | null): void => {
+      if (!cancelled) setBaselineResult({ key: baselineKey, core, catalog, rulePackage: coverageRulePackage,
+        extension: coverageMetadataExtension, composition, reason });
+    };
+    if (!core?.editorResolveBehavior || !coverageRulePackage || !coverageMetadataExtension) {
+      report(null, "The verified package, authored extension, or Profile resolver is unavailable.");
+      return () => { cancelled = true; };
+    }
+    if (baselineRevision.current >= Number.MAX_SAFE_INTEGER) {
+      report(null, "Profile resolution revisions are exhausted; reload the workspace.");
+      return () => { cancelled = true; };
+    }
+    const request = baselineRequest(++baselineRevision.current, catalog, coverageRulePackage,
+      coverageMetadataExtension, coverageScope, slots, activeHero);
+    if (!request) {
+      report(null, "Select a Hero or Squad to resolve its Catalog baseline.");
+      return () => { cancelled = true; };
+    }
+    void core.editorResolveBehavior(request).then(reply => {
+      const composition = baselineComposition(request, reply);
+      report(composition, composition ? null : reply.status === "rejected" ? reply.reason
+        : reply.status === "not_declared" ? "The RulePackage does not declare a Behavior Profile."
+          : "Profile resolver reply does not match the current Catalog and selection.");
+    }).catch(() => report(null, "Profile composition could not be verified against this RulePackage and Catalog."));
+    return () => { cancelled = true; };
+  }, [active, screen, surface, core, catalog, coverageRulePackage, coverageMetadataExtension, baselineKey]);
+  const baseline = baselineResult?.key === baselineKey && baselineResult.core === core && baselineResult.catalog === catalog
+    && baselineResult.rulePackage === coverageRulePackage && baselineResult.extension === coverageMetadataExtension ? baselineResult : null;
+  const visibleRows = useMemo(() => (catalog && coverage ? inheritedCoverageRows(catalog, coverageScope, activeHero?.catalog_id, coverage.rows) : []).filter((row) =>
     `${row.fieldId} ${row.reason} ${row.senritsuDefault} ${row.heroCatalogDefault}`
-      .toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [coverage, filter]);
+      .toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())), [catalog, coverage, coverageScope, activeHero?.catalog_id, filter]);
   const programDigest = compilation?.program.content_digest;
   useEffect(() => {
     setObservedTick(null);
@@ -476,8 +519,11 @@ export function JinreiWorkbench({
 
         {catalog && coverage ? <>
           <div className="next-coverage-provenance" role="note"><strong>{coverage.profileDeclared ? "Behavior Profile extension declared" : "Behavior Profile not declared"}</strong><span>RulePackage {catalog.identity.rulesetId} · Catalog {catalog.catalogDigest.slice(0, 12)}… · extension {catalog.metadataExtensionDigest?.slice(0, 12) ?? "none"}</span><p>{coverage.profileDeclared
-            ? "Senritsu and Hero Catalog defaults below come from this Catalog. Squad/Army merge, Jinrei override resolution and decision coverage are not supplied by the connected compiler."
+            ? "Catalog defaults and the no-Jinrei baseline are separate from the current Draft. The baseline uses no player preferences; the current Jinrei decision is not evaluated here."
             : "This RulePackage declares no Behavior Profile metadata. A missing default remains Not Declared; no fallback value is inferred."}</p></div>
+          {coverage.profileDeclared && surface !== "observed" && <div className="next-coverage-provenance" role="status"><strong>Catalog baseline composition</strong><p>{baseline === null ? "Resolving the no-Jinrei baseline against the exact Catalog…"
+            : baseline.composition ? "Resolved by the Catalog-stamped Profile resolver for this roster, with no Jinrei or player preferences. This is not a state-class coverage proof."
+              : baseline.reason}</p></div>}
           <div className="next-coverage-legend" aria-label="Coverage states"><span><b>Default</b> Catalog-authored baseline</span><span><b>Explicit</b> authored Behavior Profile override, if producer supplies one</span><span><b>Effective</b> resolved inheritance result</span><span><b>Unknown</b> value unavailable in an authorized observation</span><span><b>Not Proven</b> static coverage proof unavailable</span><span><b>Not Checked</b> no field-level sample supplied</span></div>
           {surface === "observed" && <section className="next-coverage-provenance" aria-label="Observed Run diagnostics">
             <strong>Original Run · owner diagnostics</strong>
@@ -500,8 +546,8 @@ export function JinreiWorkbench({
               </>}
           </section>}
           <div className="next-coverage-table-wrap">
-            <table className="next-coverage-table"><thead><tr><th scope="col">Behavior field</th>{surface !== "observed" && <><th scope="col">Default · Senritsu</th><th scope="col">Default · Hero Catalog</th></>}{surface === "effective" && <><th scope="col">Explicit · Jinrei</th><th scope="col">Effective</th></>}{surface === "observed" && <th scope="col">Observed Profile field</th>}<th scope="col">Evidence</th></tr></thead>
-              <tbody>{visibleRows.map((row) => <tr key={row.fieldId}><th scope="row"><code>{row.fieldId}</code></th>{surface !== "observed" && <><td data-label="Default · Senritsu"><span className={`next-coverage-value${row.defaultStatus === "not_declared" ? " is-unavailable" : ""}`}>{row.senritsuDefault}</span></td><td data-label="Default · Hero Catalog"><span className="next-coverage-value">{row.heroCatalogDefault}</span></td></>}{surface === "effective" && <><td data-label="Explicit · Jinrei"><span className="next-coverage-state is-unproven">{row.explicitStatus.replaceAll("_", " ")}</span><small>Compiled tactics have no Behavior Profile field binding in this Compiler output.</small></td><td data-label="Effective"><span className="next-coverage-state is-unproven">{row.effectiveStatus.replaceAll("_", " ").toUpperCase()}</span><small>{row.reason}</small></td></>}{surface === "observed" && <td data-label="Observed Profile field"><span className="next-coverage-state is-unchecked">{row.observedStatus}</span><small>Run diagnostics do not provide a matching Profile-field observation.</small></td>}<td data-label="Evidence"><details><summary>Evidence and limits</summary><p>{row.reason}</p></details></td></tr>)}</tbody>
+            <table className="next-coverage-table"><thead><tr><th scope="col">Behavior field</th>{surface !== "observed" && <><th scope="col">Default · Senritsu</th><th scope="col">Default · Hero Catalog</th><th scope="col">Composed baseline</th></>}{surface === "effective" && <><th scope="col">Explicit · Jinrei</th><th scope="col">Effective</th></>}{surface === "observed" && <th scope="col">Observed Profile field</th>}<th scope="col">Evidence</th></tr></thead>
+              <tbody>{visibleRows.map((row) => <tr key={row.fieldId}><th scope="row"><code>{row.fieldId}</code></th>{surface !== "observed" && <><td data-label="Default · Senritsu"><span className={`next-coverage-value${row.defaultStatus === "not_declared" ? " is-unavailable" : ""}`}>{row.senritsuDefault}</span></td><td data-label="Default · Hero Catalog"><span className="next-coverage-value">{row.heroCatalogDefault}</span></td><td data-label="Composed baseline">{baseline?.composition?.values[row.fieldId] ? <><span className="next-coverage-value">{profileValueText(baseline.composition.values[row.fieldId])}</span><small>{baseline.composition.provenance[row.fieldId]?.layer ?? "Source not supplied"} · {baseline.composition.provenance[row.fieldId]?.source ?? ""}</small></> : <span className="next-coverage-state is-unchecked">NOT CHECKED</span>}</td></>}{surface === "effective" && <><td data-label="Explicit · Jinrei"><span className="next-coverage-state is-unproven">{row.explicitStatus.replaceAll("_", " ")}</span><small>Compiled tactics have no Behavior Profile field binding in this Compiler output.</small></td><td data-label="Effective"><span className="next-coverage-state is-unproven">{row.effectiveStatus.replaceAll("_", " ").toUpperCase()}</span><small>{row.reason}</small></td></>}{surface === "observed" && <td data-label="Observed Profile field"><span className="next-coverage-state is-unchecked">{row.observedStatus}</span><small>Run diagnostics do not provide a matching Profile-field observation.</small></td>}<td data-label="Evidence"><details><summary>Evidence and limits</summary><p>{row.reason}</p></details></td></tr>)}</tbody>
             </table>
             {visibleRows.length === 0 && <p className="next-jinrei-state">No declared Behavior Profile fields match this filter. Catalog observations and capabilities can be explored in the Domain Catalog view.</p>}
           </div>

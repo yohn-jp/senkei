@@ -133,6 +133,7 @@ name = "senkei-editor-adapter"
 version = "0.1.0"
 dependencies = [
  "jinrei",
+ "senkei-behavior",
  "senkei-model",
  "senritsu",
  "serde",

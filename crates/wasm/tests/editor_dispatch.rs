@@ -1,4 +1,6 @@
 use serde_json::{json, Value};
+#[path = "../../senkei-editor-adapter/tests/support/profile_catalog.rs"]
+mod profile_catalog;
 
 fn dispatch(operation: &str, payload: Value) -> Value {
     let request = json!({
@@ -70,6 +72,50 @@ fn editor_catalog_operation_requires_an_empty_payload() {
     let response = dispatch("editor_catalog", json!({ "ruleset_id": "senkei.next" }));
     assert_eq!(response["ok"], false);
     assert_eq!(response["error"]["code"], "invalid_request");
+}
+
+#[test]
+fn behavior_composition_dispatch_checks_catalog_and_keeps_undeclared_distinct() {
+    let package = dispatch("next_ruleset", json!({}))["result"].clone();
+    let catalog_response = dispatch("editor_catalog", json!({}));
+    let catalog: Value = serde_json::from_str(catalog_response["result"].as_str().unwrap()).unwrap();
+    let mut payload = json!({
+        "revision": 9,
+        "stamp": { "identity": catalog["identity"], "catalogDigest": catalog["catalogDigest"],
+            "metadataExtensionDigest": catalog["metadataExtensionDigest"] },
+        "rulePackage": package, "catalogMetadataExtension": null,
+        "actor": { "subjectId": "slot-01", "scope": "hero", "heroCatalogId": "F01", "squadMembers": [] },
+        "preferences": { "armyId": "attacker", "army": {}, "squadId": "front", "squad": {} },
+        "tick": 0, "side": "attacker", "evaluation": { "kind": "defaults_only" },
+    });
+    let response = dispatch("editor_resolve_behavior", payload.clone());
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["revision"], 9);
+    assert_eq!(response["result"]["evaluationKind"], "defaults_only");
+    assert_eq!(response["result"]["status"], "not_declared");
+    payload["stamp"]["catalogDigest"] = json!("0".repeat(64));
+    let stale = dispatch("editor_resolve_behavior", payload);
+    assert_eq!(stale["ok"], false);
+    assert_eq!(stale["error"]["code"], "invalid_ruleset");
+}
+
+#[test]
+fn behavior_composition_dispatch_resolves_an_authored_extension() {
+    let (package, extension) = profile_catalog::authored_profile_package();
+    let catalog: Value = serde_json::from_str(&profile_catalog::authored_profile_catalog_json()).unwrap();
+    let payload = json!({
+        "revision": 10, "stamp": { "identity": catalog["identity"], "catalogDigest": catalog["catalogDigest"],
+            "metadataExtensionDigest": catalog["metadataExtensionDigest"] },
+        "rulePackage": package, "catalogMetadataExtension": extension,
+        "actor": { "subjectId": "slot-01", "scope": "hero", "heroCatalogId": "F01", "squadMembers": [] },
+        "preferences": { "armyId": "attacker", "army": {}, "squadId": "front", "squad": {} },
+        "tick": 0, "side": "attacker", "evaluation": { "kind": "defaults_only" },
+    });
+    let response = dispatch("editor_resolve_behavior", payload);
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["status"], "resolved");
+    assert_eq!(response["result"]["composition"]["values"]["navigation.mode"]["value"], "safest");
+    assert_eq!(response["result"]["composition"]["provenance"]["navigation.mode"]["layer"], "senritsu_default");
 }
 
 #[test]

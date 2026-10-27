@@ -8,6 +8,9 @@ use senritsu::{next_engine_compatibility, next_package, validate, DomainCatalog}
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+mod behavior;
+pub use behavior::{resolve_behavior, BehaviorResolveRequest};
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogStamp {

@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 jinrei = { path = "../jinrei" }
 senkei-model = { path = "../senkei-model" }
+senkei-behavior = { path = "../senkei-behavior" }
 senritsu = { path = "../senritsu" }
 serde.workspace = true
 serde_json.workspace = true
