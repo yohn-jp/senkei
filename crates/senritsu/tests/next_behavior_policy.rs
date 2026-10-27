@@ -13,7 +13,10 @@ fn policy(rules: &VerifiedRulePlan) -> NextBehaviorPolicy {
 #[test]
 fn validates_bound_test_policy_and_rejects_malformed_policies() {
     let rules = validate(next_package(), &next_engine_compatibility()).unwrap();
-    let p = policy(&rules);
+    let mut p = policy(&rules);
+    p.domains.navigation.push(BehaviorScoreTerm { signal: BehaviorSignal::CandidateMove, weight: 2 });
+    p.domains.pursuit.push(BehaviorScoreTerm { signal: BehaviorSignal::CandidatePursue, weight: 3 });
+    p.domains.survival.push(BehaviorScoreTerm { signal: BehaviorSignal::CandidateRetreat, weight: 4 });
     let verified = validate_next_behavior_policy(p.clone(), &rules).unwrap();
     assert_eq!(verified.policy(), &p);
     assert!(verified.policy().test_only);

@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub enum BehaviorSignal {
     Constant, ActorHealthPercent, TargetHealthPercent, TargetProximity,
     ObservedDanger, ObjectiveValue, RouteCost, SquadHealthPercent,
+    /// 100 when the evaluated candidate has the corresponding kind, otherwise 0.
+    CandidateMove, CandidatePursue, CandidateRetreat,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
