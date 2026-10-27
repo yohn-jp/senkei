@@ -22,6 +22,6 @@ export class OwnedRelationshipRepository {
     });
   }
   read(): Promise<Result<RelationshipArchive>> { return this.transact(false, r => r.read()); }
-  applyEvent(event: RelationshipEvent): Promise<Result<RelationshipArchive>> { return this.transact(true, r => r.applyEvent(event)); }
+  applyEvent(event: RelationshipEvent): Promise<Result<RelationshipArchive>> { const snapshot = structuredClone(event); return this.transact(true, r => r.applyEvent(snapshot)); }
   importArchive(raw: string): Promise<Result<RelationshipArchive>> { return this.transact(true, r => r.importArchive(raw)); }
 }
