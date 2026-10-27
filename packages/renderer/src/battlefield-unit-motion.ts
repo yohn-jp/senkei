@@ -146,8 +146,9 @@ function stableEntityPhaseOffset(entityId: string): number {
 }
 
 function phaseAtElapsedSeconds(elapsedSeconds: number, entityId: string): number {
-  const phase = elapsedSeconds * BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY + stableEntityPhaseOffset(entityId);
-  return ((phase % TWO_PI) + TWO_PI) % TWO_PI;
+  // The rig samples several distinct frequencies from this clock. Wrapping
+  // the base phase at 2π would reset the other, non-integer cycles abruptly.
+  return elapsedSeconds * BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY + stableEntityPhaseOffset(entityId);
 }
 
 /** A stable Hero breathing phase derived only from Replay tick, tick duration, and entity ID. */

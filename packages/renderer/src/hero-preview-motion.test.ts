@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { buildBattlefieldHero } from "./battlefield-units";
 import { battlefieldUnitRigMotion } from "./battlefield-unit-rig-motion";
-import { battlefieldUnitPose } from "./battlefield-unit-motion";
+import { BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY, battlefieldUnitIdlePhaseAtSeconds, battlefieldUnitPose } from "./battlefield-unit-motion";
 import { applyHeroPreviewMotion, heroPreviewPose, type HeroPreviewPose } from "./hero-preview-motion";
 import { disposeHeroPreviewScene } from "./renderer-hero-model-preview";
 import type { DisplayEntity } from "@senkei/replay-contract";
@@ -41,12 +41,27 @@ describe("catalog Hero animation", () => {
     const rig = buildBattlefieldHero(model, entity, 0x71847b, entity.appearanceKey!);
 
     expect(pose).toEqual(replayPose);
+    expect(heroPreviewPose("idle", 2.6, false, entity.id))
+      .toEqual(battlefieldUnitPose(52, [], entity.id, false, true, 0.9, 50));
     applyHeroPreviewMotion(rig, model, "idle", elapsedSeconds, false, entity.id);
     expect(rig.joints.torso!.rotation.x).toBeCloseTo((rig.restPose?.torso?.x ?? 0) + motion.joints.torso!.x, 10);
     expect(rig.joints.torso!.rotation.y).toBeCloseTo((rig.restPose?.torso?.y ?? 0) + motion.joints.torso!.y, 10);
     expect(rig.joints.cape!.rotation.x).toBeCloseTo((rig.restPose?.cape?.x ?? 0) + motion.joints.cape!.x, 10);
     expect(heroPreviewPose("idle", elapsedSeconds, false, "preview:other").idlePhase)
       .not.toBe(pose.idlePhase);
+  });
+
+  it("keeps every idle joint continuous when the breathing oscillator completes a cycle", () => {
+    const initialPhase = battlefieldUnitIdlePhaseAtSeconds(0, entity.id);
+    const boundary = (Math.PI * 2 - initialPhase) / BATTLEFIELD_HERO_IDLE_ANGULAR_FREQUENCY;
+    const before = battlefieldUnitRigMotion(heroPreviewPose("idle", boundary - 0.00001, false, entity.id), true);
+    const after = battlefieldUnitRigMotion(heroPreviewPose("idle", boundary + 0.00001, false, entity.id), true);
+
+    for (const [name, joint] of Object.entries(before.joints)) {
+      for (const axis of ["x", "y", "z"] as const) {
+        expect(Math.abs(joint[axis] - after.joints[name]![axis]), `${name}.${axis}`).toBeLessThan(0.001);
+      }
+    }
   });
 
   it("animates one built rig without replacing identity, equipment or accumulating offsets", () => {
