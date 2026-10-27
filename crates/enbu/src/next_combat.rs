@@ -171,6 +171,11 @@ pub fn prepare_actions(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) {
+    // The combat phase learns eligible path skills before resolving activations.
+    // Project that same-tick unlock for pre-navigation reservations, without mutating
+    // the live world or consuming the one-and-only skill-acquired replay event.
+    let mut eligible_snapshot = snapshot.clone();
+    learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
     let mut actions = accepted.iter().collect::<Vec<_>>();
     actions.sort_by(|(side_a, a), (side_b, b)| {
         (side_a, &a.actor, &a.action_id).cmp(&(side_b, &b.actor, &b.action_id))
@@ -183,7 +188,7 @@ pub fn prepare_actions(
         }
         if cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
             .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot))) { continue; }
-        if active_skill_target(intent, *side, snapshot, rules, tick).is_none() { continue; }
+        if active_skill_target(intent, *side, &eligible_snapshot, rules, tick).is_none() { continue; }
         if cohort_action_lock_until(world, snapshot, actor_id) > i64::from(tick) {
             continue;
         }
@@ -207,7 +212,9 @@ pub(crate) fn eligible_explicit_skill(
     tick: u32,
 ) -> bool {
     let Some(actor_id) = intent.actor.as_ref() else { return false };
-    active_skill_target(intent, side, snapshot, rules, tick).is_some()
+    let mut eligible_snapshot = snapshot.clone();
+    learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
+    active_skill_target(intent, side, &eligible_snapshot, rules, tick).is_some()
         && !cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
             .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot)))
         && cohort_action_lock_until(snapshot, snapshot, actor_id) <= i64::from(tick)
