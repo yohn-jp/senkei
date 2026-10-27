@@ -3,7 +3,7 @@ import type {
   DiagnosticEvent, DomainValue, PresentationEvent, PresentationReplay, ReproductionAssets,
   SimulationResponse, SimulationSnapshot,
 } from "../../contracts";
-import { canonicalJson } from "../../worker/input-identity";
+import { canonicalJson, sha256Hex } from "../../worker/input-identity";
 import {
   validateNextExperimentAuthorization, validateNextExperimentDiagnostics, validateNextExperimentReplay,
 } from "./experiment-restoration";
@@ -26,7 +26,7 @@ export interface CoverageSubject {
 export type VerifiedCoverageRun =
   | { readonly status: "unavailable"; readonly reason: string }
   | { readonly status: "available"; readonly run: CoverageRun; readonly ownerReplay: PresentationReplay;
-      readonly events: readonly DiagnosticEvent[] };
+      readonly events: readonly DiagnosticEvent[]; readonly trialPolicyDigest: string | null };
 
 const unavailable = (reason: string): VerifiedCoverageRun => ({ status: "unavailable", reason });
 
@@ -80,7 +80,10 @@ export async function verifyCoverageRun(
       || canonicalJson(world) !== canonicalJson(run.reproductionAssets.rule_package.next?.world_identity)) {
       return unavailable("The Run World identity cannot be verified against its Replays and RulePackage.");
     }
-    return { status: "available", run, ownerReplay, events: run.response.restricted_diagnostics.events };
+    const policy = run.snapshot.context.next_behavior?.policy;
+    const trialPolicyDigest = policy?.schema_version === 1 && policy.test_only && policy.ruleset_digest === ruleset.digest
+      ? await sha256Hex(canonicalJson(policy)) : null;
+    return { status: "available", run, ownerReplay, events: run.response.restricted_diagnostics.events, trialPolicyDigest };
   } catch {
     return unavailable("The owner authorization or immutable Run identity could not be verified.");
   }
@@ -182,6 +185,9 @@ export function scopedCoverageEvents(
     if (rawIds && record.kind === "runtime_notice" && record.value.code === "enbu.behavior_unknown_observation") {
       return rawIds.has(record.value.details.actor ?? "");
     }
+    if (rawIds && record.kind === "runtime_notice" && record.value.code === "enbu.behavior_wait") {
+      return event.entity_id !== null && rawIds.has(event.entity_id);
+    }
     const order = committedCoverageOrder(verified, event);
     if (!order) return false;
     return orderMembers(order).some(member => member.kind === "record"
@@ -218,6 +224,7 @@ export function coverageDiagnosticText(event: DiagnosticEvent, verified?: Extrac
         const { actor, candidates } = record.value.details;
         return `UNKNOWN observation · actor ${actor ?? "not supplied"} · candidates ${candidates ?? "not supplied"}`;
       }
+      if (record.value.code === "enbu.behavior_wait") return "WAIT · no order selected";
       if (record.value.code !== "enbu.behavior_order_committed") return record.value.code;
       const order = verified ? committedCoverageOrder(verified, event) : null;
       if (!order) return "Committed-order Replay reference unavailable";

@@ -15,6 +15,8 @@ import { coverageDiagnosticText, scopedCoverageEvents, verifyCoverageRun } from 
 import type { CoverageRun, VerifiedCoverageRun } from "./coverage-observed";
 import { baselineComposition, baselineRequest, inheritedCoverageRows, profileValueText } from "./coverage-composition";
 import type { BehaviorProfileComposition } from "../../contracts/behavior-resolution";
+import { trialBehaviorEvidence } from "./coverage-trial";
+import { TrialBehaviorDetails } from "./TrialBehaviorDetails";
 export type { JinreiRepairFocusRequest } from "./repair-focus";
 export type { CoverageRun } from "./coverage-observed";
 
@@ -241,7 +243,7 @@ export function JinreiWorkbench({
     setObservedTick(null);
   }, [coverageRun]);
   useEffect(() => {
-    if (!active || screen !== "coverage" || surface !== "observed") return;
+    if (!active || screen !== "coverage" || surface === "default") return;
     let cancelled = false;
     void verifyCoverageRun(coverageRun, catalog, coverageRunCurrent, programDigest).then(result => {
       if (!cancelled) setVerifiedRun({ run: coverageRun, catalog, programDigest, current: coverageRunCurrent, result });
@@ -264,6 +266,13 @@ export function JinreiWorkbench({
   useEffect(() => setObservedPage(0), [coverageScope, activeSlot, selectedTick]);
   const observedPageCount = observedEvents?.status === "available" ? Math.max(1, Math.ceil(observedEvents.events.length / 40)) : 1;
   const currentObservedPage = Math.min(observedPage, observedPageCount - 1);
+  const trialEvidence = observed?.status === "available" && observedEvents?.status === "available"
+    ? observedEvents.events.flatMap(event => {
+      const evidence = trialBehaviorEvidence(observed, event);
+      return evidence ? [{ event, evidence }] : [];
+    }) : [];
+  const trialPageCount = Math.max(1, Math.ceil(trialEvidence.length / 40));
+  const currentTrialPage = Math.min(observedPage, trialPageCount - 1);
   const compileState = compilation
     ? "COMPILED"
     : "COMPILE REQUIRED";
@@ -524,6 +533,19 @@ export function JinreiWorkbench({
           {coverage.profileDeclared && surface !== "observed" && <div className="next-coverage-provenance" role="status"><strong>Catalog baseline composition</strong><p>{baseline === null ? "Resolving the no-Jinrei baseline against the exact Catalog…"
             : baseline.composition ? "Resolved by the Catalog-stamped Profile resolver for this roster, with no Jinrei or player preferences. This is not a state-class coverage proof."
               : baseline.reason}</p></div>}
+          {surface === "effective" && coverageRun?.snapshot.context.next_behavior?.policy.test_only && <section className="next-coverage-provenance" aria-label="Trial Behavior at selected Tick">
+            <strong>Local trial policy · original Run</strong><p>These values come from the selected Tick of the matching test-only Run. They use the trial policy, whose fields are separate from the Catalog Profile below.</p>
+            {observed === null ? <p role="status">Checking the owner authorization and Run identity…</p>
+              : observed.status === "unavailable" ? <p role="status">Restricted / Unavailable · {observed.reason}</p>
+                : selectedTick === null ? <p role="status">No decision trace events were supplied.</p> : <>
+                  <label><span>Recorded Tick </span><select aria-label="Trial diagnostic Tick" value={selectedTick} onChange={event => setObservedTick(Number(event.currentTarget.value))}>{observedTicks.map(tick => <option key={tick} value={tick}>{tick}</option>)}</select></label>
+                  {onCoverageReplayTick && <button type="button" onClick={() => onCoverageReplayTick(selectedTick)}>Open this Tick in Replay ↗</button>}
+                  {observedEvents?.status === "unavailable" ? <p role="status">{observedEvents.reason}</p>
+                    : trialEvidence.length ? trialEvidence.slice(currentTrialPage * 40, (currentTrialPage + 1) * 40).map(({ event, evidence }) => <TrialBehaviorDetails key={`${event.tick}-${event.sequence}`} evidence={evidence} />)
+                      : <p role="status">No identity-verified trial composition was supplied for this scope and Tick.</p>}
+                  {trialPageCount > 1 && <nav aria-label="Trial Behavior pages"><button type="button" disabled={currentTrialPage === 0} onClick={() => setObservedPage(currentTrialPage - 1)}>Previous decisions</button><span> Page {currentTrialPage + 1} / {trialPageCount} </span><button type="button" disabled={currentTrialPage + 1 >= trialPageCount} onClick={() => setObservedPage(currentTrialPage + 1)}>Next decisions</button></nav>}
+                </>}
+          </section>}
           <div className="next-coverage-legend" aria-label="Coverage states"><span><b>Default</b> Catalog-authored baseline</span><span><b>Explicit</b> authored Behavior Profile override, if producer supplies one</span><span><b>Effective</b> resolved inheritance result</span><span><b>Unknown</b> value unavailable in an authorized observation</span><span><b>Not Proven</b> static coverage proof unavailable</span><span><b>Not Checked</b> no field-level sample supplied</span></div>
           {surface === "observed" && <section className="next-coverage-provenance" aria-label="Observed Run diagnostics">
             <strong>Original Run · owner diagnostics</strong>
@@ -539,7 +561,10 @@ export function JinreiWorkbench({
                   {onCoverageReplayTick && <button type="button" onClick={() => onCoverageReplayTick(selectedTick)}>Open this Tick in Replay ↗</button>}
                   {observedEvents?.status === "available" && !observedEvents.rawIdentityAvailable && <p role="status">This Run has no verified owner Hero diagnostic identity. Intent events remain available at Army scope.</p>}
                   {observedEvents?.status === "unavailable" ? <p role="status">{observedEvents.reason}</p>
-                    : observedEvents?.status === "available" && observedEvents.events.length > 0 ? <ol aria-label="Observed owner diagnostic events">{observedEvents.events.slice(currentObservedPage * 40, (currentObservedPage + 1) * 40).map(event => <li key={`${event.tick}-${event.sequence}`}><strong>{event.record.kind.replaceAll("_", " ")}</strong> · {coverageDiagnosticText(event, observed)}{event.action_id && <> · action <code>{event.action_id}</code></>}</li>)}</ol>
+                    : observedEvents?.status === "available" && observedEvents.events.length > 0 ? <ol aria-label="Observed owner diagnostic events">{observedEvents.events.slice(currentObservedPage * 40, (currentObservedPage + 1) * 40).map(event => {
+                      const evidence = trialBehaviorEvidence(observed, event);
+                      return <li key={`${event.tick}-${event.sequence}`}><strong>{event.record.kind.replaceAll("_", " ")}</strong> · {coverageDiagnosticText(event, observed)}{event.action_id && <> · action <code>{event.action_id}</code></>}{evidence && <TrialBehaviorDetails evidence={evidence} />}</li>;
+                    })}</ol>
                       : <p role="status">No attributable events were supplied for this scope and Tick. Unattributed events remain available at Army scope.</p>}
                   {observedPageCount > 1 && <nav aria-label="Observed diagnostic pages"><button type="button" disabled={currentObservedPage === 0} onClick={() => setObservedPage(currentObservedPage - 1)}>Previous events</button><span> Page {currentObservedPage + 1} / {observedPageCount} </span><button type="button" disabled={currentObservedPage + 1 >= observedPageCount} onClick={() => setObservedPage(currentObservedPage + 1)}>Next events</button></nav>}
                 </>}
