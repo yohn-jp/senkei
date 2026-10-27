@@ -1,4 +1,4 @@
-use enbu::{new_match_context, simulate, simulate_with_actor_decisions, AutonomousActorKind, AutonomousCombatAction};
+use enbu::{new_match_context, simulate, simulate_with_actor_decisions, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
 use jinrei::{compile, Vm};
 use senkei_model::*;
 use std::collections::BTreeMap;
@@ -118,7 +118,18 @@ fn owner_traces_match_real_events_and_do_not_change_simulation() {
     assert!(kinds.contains(&AutonomousActorKind::Minion));
     let public = serde_json::to_string(&traced.public_response()).unwrap();
     assert!(!public.contains("candidates"));
-    assert!(!public.contains("NearestThenEntityId"));
+    assert!(!public.contains("nearest_then_entity_id"));
+}
+
+#[test]
+fn autonomous_trace_wire_actions_are_tagged_and_stable() {
+    assert_eq!(serde_json::to_value(AutonomousActorKind::Monster).unwrap(), serde_json::json!("monster"));
+    assert_eq!(serde_json::to_value(AutonomousCombatAction::Attack {
+        target: "visible-1".into(), selection: AutonomousTargetSelection::NearestThenEntityId,
+    }).unwrap(), serde_json::json!({"kind":"attack", "target":"visible-1", "selection":"nearest_then_entity_id"}));
+    assert_eq!(serde_json::to_value(AutonomousCombatAction::NoAttack {
+        reason: AutonomousNoAttackReason::NoEligibleTarget,
+    }).unwrap(), serde_json::json!({"kind":"no_attack", "reason":"no_eligible_target"}));
 }
 
 #[test]

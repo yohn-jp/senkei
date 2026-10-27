@@ -9,6 +9,7 @@ use senkei_model::{CombatantSide, EntityId};
 use serde::Serialize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AutonomousActorKind {
     Minion,
     Monster,
@@ -30,6 +31,7 @@ impl AutonomousActorKind {
 
 /// The branch of the existing target selection that chose the attack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AutonomousTargetSelection {
     RequestedTarget,
     NearestThenEntityId,
@@ -38,6 +40,7 @@ pub enum AutonomousTargetSelection {
 /// Why this actor did not select a basic attack in this combat phase.
 /// This does not claim that the actor took no action elsewhere in the tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AutonomousNoAttackReason {
     Moved,
     ActionLocked,
@@ -47,6 +50,7 @@ pub enum AutonomousNoAttackReason {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AutonomousCombatAction {
     Attack { target: EntityId, selection: AutonomousTargetSelection },
     NoAttack { reason: AutonomousNoAttackReason },
