@@ -171,6 +171,9 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         "inspect_next_decision" => inspect_next_decision(payload),
         "editor_catalog" => editor_catalog(payload),
         "editor_compile" => editor_compile(payload),
+        "editor_catalog_retained" => editor_catalog_retained(payload),
+        "editor_compile_retained" => editor_compile_retained(payload),
+        "format_ast_retained" => format_ast_retained(payload),
         "editor_resolve_behavior" => editor_resolve_behavior(payload),
         "new_match_context" => new_match_context(payload),
         "parse_text" => parse_text(payload),
@@ -265,6 +268,77 @@ fn editor_compile(payload: Value) -> Result<(Value, u64), ApiError> {
         )
     })?;
     Ok((response, MAX_RESPONSE_BYTES as u64))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetainedCatalogPayload {
+    assets: ReproductionAssets,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetainedCompilePayload {
+    assets: ReproductionAssets,
+    source: String,
+    stamp: senkei_editor_adapter::CatalogStamp,
+    revision: u64,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetainedFormatAstPayload {
+    assets: ReproductionAssets,
+    ast: senkei_model::StructuredTacticsAst,
+}
+
+/// Verify retained World/package inputs before exposing their real Catalog.
+fn editor_catalog_retained(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: RetainedCatalogPayload = decode_strict(payload, "payload")?;
+    let (rules, extension) = retained_editor_inputs(request.assets)?;
+    let catalog = senkei_editor_adapter::catalog_for_verified_plan(&rules, extension)
+        .map_err(editor_adapter_error)?;
+    let json = String::from_utf8(catalog.canonical_json().map_err(|error| {
+        api_error(ApiErrorCode::InternalError, Some("result"), error.to_string())
+    })?).map_err(|error| api_error(ApiErrorCode::InternalError, Some("result"), error.to_string()))?;
+    Ok((Value::String(json), rules.plan().limits.max_output_bytes))
+}
+
+/// Compile against precisely the retained package and Catalog identity.
+fn editor_compile_retained(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: RetainedCompilePayload = decode_strict(payload, "payload")?;
+    let (rules, extension) = retained_editor_inputs(request.assets)?;
+    let response = senkei_editor_adapter::compile_verified_request(
+        senkei_editor_adapter::EditorCompileRequest {
+            source: request.source,
+            stamp: request.stamp,
+            revision: request.revision,
+        },
+        &rules,
+        extension,
+    ).map_err(editor_adapter_error)?;
+    Ok((encode(&response, "result")?, rules.plan().limits.max_output_bytes))
+}
+
+fn format_ast_retained(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: RetainedFormatAstPayload = decode_strict(payload, "payload")?;
+    let rules = validate_reproduction_assets(request.assets)?;
+    let source = jinrei::format(&request.ast)?;
+    Ok((encode(&source, "result")?, rules.plan().limits.max_output_bytes))
+}
+
+fn retained_editor_inputs(
+    assets: ReproductionAssets,
+) -> Result<(VerifiedRulePlan, Option<senritsu::CatalogMetadataExtension>), ApiError> {
+    let extension = assets.catalog_metadata_extension.clone();
+    let rules = validate_reproduction_assets(assets)?;
+    // validate_reproduction_assets has already parsed and checked the exact
+    // retained extension; keep that same value for the Catalog producer.
+    let extension = extension.map(|value| serde_json::from_value(value).map_err(|error| {
+        api_error(ApiErrorCode::InternalError, Some("payload.assets.catalog_metadata_extension"),
+            format!("verified Catalog extension could not be decoded: {error}"))
+    })).transpose()?;
+    Ok((rules, extension))
 }
 
 /// Compose a Profile against the exact verified package and Catalog stamp.

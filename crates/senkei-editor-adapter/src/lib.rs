@@ -4,7 +4,9 @@
 
 use jinrei::compile;
 use senkei_model::{ApiError, CompileResult, EngineCompatibility, VerifiedRulePlan};
-use senritsu::{next_engine_compatibility, next_package, validate, DomainCatalog};
+use senritsu::{
+    next_engine_compatibility, next_package, validate, CatalogMetadataExtension, DomainCatalog,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -119,11 +121,44 @@ pub fn compile_next_source(
     } else { verified_next_plan()? };
     let catalog = DomainCatalog::from_verified_plan(&plan)
         .map_err(|error| AdapterError::CatalogInvalid(error.to_string()))?;
-    let stamp = CatalogStamp::from_catalog(&catalog);
+    compile_checked_source(source, expected, &plan, &catalog)
+}
+
+/// Build the exact producer Catalog for an already verified retained package.
+pub fn catalog_for_verified_plan(
+    plan: &VerifiedRulePlan,
+    extension: Option<CatalogMetadataExtension>,
+) -> Result<DomainCatalog, AdapterError> {
+    match extension {
+        Some(extension) => DomainCatalog::from_verified_plan_with_extension(plan, extension),
+        None => DomainCatalog::from_verified_plan(plan),
+    }
+    .map_err(|error| AdapterError::CatalogInvalid(error.to_string()))
+}
+
+/// Compile against the verified plan and the Catalog made from its retained
+/// extension. The complete Catalog stamp must match before Jinrei runs.
+pub fn compile_verified_request(
+    request: EditorCompileRequest,
+    plan: &VerifiedRulePlan,
+    extension: Option<CatalogMetadataExtension>,
+) -> Result<EditorCompileEnvelope, AdapterError> {
+    let catalog = catalog_for_verified_plan(plan, extension)?;
+    let reply = compile_checked_source(&request.source, &request.stamp, plan, &catalog)?;
+    Ok(EditorCompileEnvelope { revision: request.revision, reply })
+}
+
+fn compile_checked_source(
+    source: &str,
+    expected: &CatalogStamp,
+    plan: &VerifiedRulePlan,
+    catalog: &DomainCatalog,
+) -> Result<CompileReply, AdapterError> {
+    let stamp = CatalogStamp::from_catalog(catalog);
     if &stamp != expected {
         return Err(AdapterError::CatalogMismatch);
     }
-    let reply = match compile(source, &plan) {
+    let reply = match compile(source, plan) {
         Ok(result) => CompileReply::Compiled { stamp, result },
         Err(error) => CompileReply::Rejected { stamp, error },
     };
