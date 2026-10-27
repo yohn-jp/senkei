@@ -1059,3 +1059,15 @@ fn subtract(left: RuleExpression, right: RuleExpression) -> RuleExpression {
 
 fn and(items: Vec<RuleExpression>) -> RuleExpression { RuleExpression::And(items) }
 fn not(inner: RuleExpression) -> RuleExpression { RuleExpression::Not(Box::new(inner)) }
+
+#[cfg(test)]
+mod deploy_arbitration_tests {
+    use super::*;
+
+    #[test]
+    fn deploy_conflicts_on_the_producer_regardless_of_reserve_target() {
+        let rules = arbitration();
+        let deploy = rules.get(&id("deploy")).expect("initial deploy rule");
+        assert_eq!(deploy.conflict_keys, vec![IntentKey::Actor]);
+    }
+}
