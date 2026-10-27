@@ -1,5 +1,7 @@
 # Canonical implementation wave — 2026-10-27
 
+This is the historical Wave 1 checkpoint. Current user decisions and Wave 2 implementation boundaries supersede the ownership/authority/WAIT undecided entries below; see [Wave 2](WAVE2-CHECKPOINT.md).
+
 Baseline: main `8ac2fd84d41bbd148198e6f0bc253028bb922324`. Authority is the current user instruction, Issue #5, then `docs/README.md` and its domain documents. This fixed A/B/C wave excludes graphics and Issue #51. Historical coverage entries are not current missing-work claims.
 
 ## Ownership and delivered boundaries
