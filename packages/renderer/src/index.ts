@@ -2627,7 +2627,10 @@ export class Battlefield {
           labelPlacements.push({ element, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, priority: 0 });
         }
       }
-      if (this.cueLayoutSignature) {
+      // Cached cue rectangles are valid only for the exact current layout.
+      // Seeding a recomputation with stale rectangles makes label choices
+      // depend on the previous camera or viewport position.
+      if (this.cueLayoutSignature && cueCameraSignature === this.cueLayoutSignature) {
         for (const cueLabel of this.cueLabels) {
           if (cueLabel.element.hidden) continue;
           const rect = cueLabel.element.getBoundingClientRect();
