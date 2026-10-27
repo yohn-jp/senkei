@@ -24,11 +24,12 @@ is no longer rendered. A query at Tick `t` uses the latest record at or before
 Only Replay-authorized facts enter the fold. A new Replay receives a fresh
 index, and there is no interpolation through an unobserved visibility gap.
 
-For `E` events, relevant Ticks `i`, active counts `N_i` and recorded changes
-`D`, construction costs `O(E + Σ layout(N_i) + D)`, where grouping/sorting
+For `E` events, `K` relevant Ticks, active counts `N_i` and recorded changes
+`D`, construction costs `O(E + K log K + Σ layout(N_i) + D)`, where grouping/sorting
 is at least `O(N_i log N_i)` and existing node/edge slot geometry also has its
-own cost. Storage is `O(D)` plus the current fold state; worst-case `D` can
-still be large for dense, moving battles. Indexed lookup costs at most
+own cost. Persistent index storage is `O(D)`; construction additionally holds
+`O(E + K + max(N_i))` temporary event references and fold state. Worst-case `D`
+can still be large for dense, moving battles. Indexed lookup costs at most
 `O(V log D_entity)` for `V` currently visible actors, plus output allocation.
 No placement query replays all prior Ticks. Replay Player also advances its
 existing projection incrementally during forward playback; a backward seek
@@ -63,3 +64,9 @@ physical GPU performance, and user art judgment remain independent checks.
 
 This document records an approved approach and its validation requirements;
 it is not a claim that Issue #51 is fixed or visually accepted.
+
+At `986dcad`, the scoped Renderer and Replay suites passed 194 tests. A single
+local synthetic run with 100 units, 1,000 Ticks and 100,001 events took 192 ms
+to construct the index and 14.8 ms for 1,000 queries; the uncollected heap
+increase was approximately 51.1 MB. These are not real-battle, peak-memory,
+physical-GPU, or visual-acceptance measurements.
