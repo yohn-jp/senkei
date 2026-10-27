@@ -48,6 +48,10 @@ describe("finite decision classes", () => {
     expect(report.classes.filter(c => c.values["match.tick"]?.label === "0…4").map(c => c.actions[0]?.hypothesis))
       .toEqual(["applies_legal", "applies_illegal", "other_actor", "unresolved"]);
     expect(report.classes.filter(c => c.values["match.tick"]?.label === "5…5")[0]?.actions[0]?.condition).toBe("false");
+    const boundary = report.classes.find(c => c.values["match.tick"]?.label === "5…5")!;
+    expect(boundary.obligations.find(o => o.id === "condition")).toMatchObject({ status: "proven" });
+    expect(boundary.obligations.find(o => o.id === "legality")).toMatchObject({ status: "not_proven" });
+    expect(boundary.obligations.find(o => o.id === "reachability")).toMatchObject({ status: "not_proven" });
     expect(report.classes.filter(c => c.values["match.tick"]?.label === "Unknown")[0]).toMatchObject({ status: "UNKNOWN", disposition: "unresolved" });
     expect(report.partitionComplete).toBe(false);
     expect(report.classes.every(c => c.status !== ("PROVEN" as string))).toBe(true);
@@ -81,6 +85,25 @@ describe("finite decision classes", () => {
     expect(missing.status).toBe("UNKNOWN");
   });
 
+  it("resolves a text AST enum symbol through the Catalog rather than treating it as an observation", () => {
+    const input = setup([action("draw", { kind: "compare", value: { left: path("result"), operator: "equal", right: path("draw") } })]);
+    addObservation(input, "result", { kind: "enum", value: { domain: "outcome", values: ["aborted", "attacker_victory", "defender_victory", "draw"] } });
+    const report = analyzed(input);
+    expect(report.axes.map(axis => axis.path)).toEqual(["result"]);
+    expect(report.classes.find(c => c.values.result?.label === "draw")?.actions[0]?.condition).toBe("true");
+    expect(report.classes.find(c => c.values.result?.label === "aborted")?.actions[0]?.condition).toBe("false");
+    expect(report.classes.find(c => c.values.result?.label === "Unknown")?.actions[0]?.condition).toBe("unknown");
+  });
+
+  it("does not misread a state-valued path as an observation with the same name", () => {
+    const input = setup([{ kind: "state", name: "flag", predicates: [{ kind: "literal_truth", value: true }] },
+      action("a", { kind: "knownness", value: { value: path("flag"), test: "known" } })]);
+    addObservation(input, "flag", { kind: "bool" });
+    const report = analyzed(input);
+    expect(report.axes).toEqual([]);
+    expect(report.classes[0]?.actions[0]?.condition).toBe("not_proven");
+  });
+
   it("expands referenced states and marks dynamic expressions as an unenumerated remainder", () => {
     const unsupported = { kind: "quantified", value: { quantifier: "any", binding: "hero", collection: { kind: "path", value: ["allies", "heroes"] }, predicates: [] } };
     const input = setup([{ kind: "state", name: "ready", predicates: [compare("match.tick", "greater_than", "integer", 3), unsupported] },
@@ -89,6 +112,7 @@ describe("finite decision classes", () => {
     expect(report.axes[0]?.path).toBe("match.tick");
     expect(report.unresolved.some(reason => reason.includes("quantified"))).toBe(true);
     expect(report.classes.every(c => c.actions[0]?.condition === "not_proven")).toBe(true);
+    expect(report.classes.every(c => c.obligations.find(o => o.id === "condition")?.status === "not_proven")).toBe(true);
     expect(report.classes.every(c => c.reasons.some(reason => reason.includes("further decision classes")))).toBe(true);
     expect(report.partitionComplete).toBe(false);
   });

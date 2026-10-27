@@ -69,7 +69,13 @@ export interface CoverageAction {
   /** Hypotheses describe a partition, not a claim about a real actor or legal action. */
   readonly hypothesis: "applies_legal" | "applies_illegal" | "other_actor" | "not_applicable" | "unresolved";
 }
+export interface CoverageObligation {
+  readonly id: "condition" | "subject" | "legality" | "budget" | "ordering" | "profile_and_action" | "reachability";
+  readonly status: "proven" | "unknown" | "not_proven";
+  readonly explanation: string;
+}
 export interface DecisionClass {
+  readonly obligations: readonly CoverageObligation[];
   readonly values: Readonly<Record<string, CoverageValueClass>>;
   readonly actions: readonly CoverageAction[];
   readonly conflict: string;
@@ -139,12 +145,21 @@ function pathOf(value: unknown): string | null {
     ? value.value.join(".") : null;
 }
 function literalOf(value: unknown): Obj | null { return obj(value) && value.kind === "literal" && obj(value.value) ? value.value : null; }
-function atomOf(value: unknown): Atom | null {
+function atomOf(value: unknown, catalog: DomainCatalogDocument, states: Map<string, readonly unknown[]>): Atom | null {
   if (!obj(value) || !obj(value.value) || value.kind !== "compare" || typeof value.value.operator !== "string") return null;
   const { left, right, operator } = value.value;
   const lp = pathOf(left), rp = pathOf(right), ll = literalOf(left), rl = literalOf(right);
-  if (lp && rl) return { path: lp, literal: rl, operator };
-  if (rp && ll && reverse[operator]) return { path: rp, literal: ll, operator: reverse[operator]! };
+  if (lp && !states.has(lp) && rl) return { path: lp, literal: rl, operator };
+  if (rp && !states.has(rp) && ll && reverse[operator]) return { path: rp, literal: ll, operator: reverse[operator]! };
+  // In text-authored ASTs a bare enum constant is a path. The compiler
+  // resolves the right operand against the left enum's expected domain, after
+  // checking state and observation paths first. Use only Catalog-declared
+  // symbols and never reinterpret a state or observation as a constant.
+  const leftType = lp ? catalog.observations[lp]?.valueType : undefined;
+  if (lp && rp && !states.has(lp) && !rp.includes(".") && !states.has(rp) && !catalog.observations[rp]
+    && leftType?.kind === "enum" && catalog.symbols.some(symbol => symbol.id.domain === leftType.value.domain && symbol.id.symbol === rp)) {
+    return { path: lp, literal: { kind: "enum", value: rp }, operator };
+  }
   return null;
 }
 function scalar(literal: Obj, type: DomainType): boolean | string | number | null {
@@ -190,11 +205,11 @@ function collect(predicate: unknown, catalog: DomainCatalogDocument, axes: Map<s
   if (predicate.kind === "not") { collect(predicate.value, catalog, axes, states, visiting, unresolved); return; }
   if (predicate.kind === "knownness" && obj(predicate.value)) {
     const path = pathOf(predicate.value.value);
-    if (path && addPath(catalog, axes, path) && (predicate.value.test === "known" || predicate.value.test === "unknown")) return;
+    if (path && !states.has(path) && addPath(catalog, axes, path) && (predicate.value.test === "known" || predicate.value.test === "unknown")) return;
     if (literalOf(predicate.value.value) && (predicate.value.test === "known" || predicate.value.test === "unknown")) return;
     unresolved.add("Knownness of a dynamic, inaccessible, or unsupported value"); return;
   }
-  const atom = atomOf(predicate);
+  const atom = atomOf(predicate, catalog, states);
   if (atom) {
     const axis = addPath(catalog, axes, atom.path);
     const v = axis && scalar(atom.literal, axis.type);
@@ -281,13 +296,13 @@ function condition(predicate: unknown, catalog: DomainCatalogDocument, values: R
   }
   if (predicate.kind === "knownness" && obj(predicate.value)) {
     const path = pathOf(predicate.value.value);
-    const value = path ? values[path] : undefined;
+    const value = path && !states.has(path) ? values[path] : undefined;
     const literal = literalOf(predicate.value.value);
     if ((!value && !literal) || (predicate.value.test !== "known" && predicate.value.test !== "unknown")) return "not_proven";
     const known = literal !== null || value?.kind !== "unknown";
     return (predicate.value.test === "known" ? known : !known) ? "true" : "false";
   }
-  const atom = atomOf(predicate);
+  const atom = atomOf(predicate, catalog, states);
   return atom ? compareAtom(atom, catalog, values) : "not_proven";
 }
 
@@ -343,6 +358,26 @@ function conflictPartitions(actions: readonly CoverageAction[], catalog: DomainC
   return results;
 }
 
+function obligations(actions: readonly CoverageAction[], profile: CoverageProfile | null): CoverageObligation[] {
+  const conditionStatus = actions.some(action => action.condition === "not_proven") ? "not_proven"
+    : actions.some(action => action.condition === "unknown") ? "unknown" : "proven";
+  const conditionExplanation = conditionStatus === "proven"
+    ? "Every condition has one truth value throughout this range, assuming type-valid observations and completed evaluation."
+    : conditionStatus === "unknown" ? "At least one condition evaluates to Unknown in this observation class."
+      : "A condition uses a state or expression whose class-wide value is not derived.";
+  return [
+    { id: "condition", status: conditionStatus, explanation: conditionExplanation },
+    { id: "subject", status: "not_proven", explanation: "Candidate actor, ownership, scope and arguments are hypotheses, not established facts for the selected subject." },
+    { id: "legality", status: "not_proven", explanation: "The resolver requires current KnownLegal evidence for each exact candidate, actor and Tick; no class-wide certificate is supplied." },
+    { id: "budget", status: "not_proven", explanation: "The execution request's allowed capabilities and available CU are not established for all represented states." },
+    { id: "ordering", status: "not_proven", explanation: "Conflict-key branches are hypotheses; final cross-capability and RulePlan selection are not established." },
+    { id: "profile_and_action", status: "not_proven", explanation: profile
+      ? "The supplied defaults-only Profile is limited to its Tick and roster; it does not certify a default candidate, no-op fallback, or final action for this class."
+      : "No class-wide resolved Profile, default candidate, or certified no-op fallback is supplied." },
+    { id: "reachability", status: "not_proven", explanation: "No reachability certificate is supplied for every represented state and possible path." },
+  ];
+}
+
 /**
  * Enumerate symbolic classes for direct, readable bool/enum and integer/fixed
  * threshold predicates. This is a static partition, not a VM or a combat
@@ -383,7 +418,7 @@ export function analyzeDecisionCoverage(input: DecisionCoverageInput): DecisionC
         const unknown = Object.values(value).some(item => item.kind === "unknown") || combination.some(item => item.condition === "unknown");
         const dynamic = combination.some(item => item.condition === "not_proven" || item.hypothesis === "unresolved");
         const explicit = combination.some(item => item.hypothesis === "applies_legal");
-        classes.push({ values: value, actions: combination, conflict, status: unknown ? "UNKNOWN" : "NOT_PROVEN",
+        classes.push({ values: value, actions: combination, conflict, obligations: obligations(combination, input.profile), status: unknown ? "UNKNOWN" : "NOT_PROVEN",
           disposition: dynamic || unknown ? "unresolved" : explicit ? "explicit_candidate" : "default_candidate",
           reasons: [pending, ...(dynamic ? ["An unsupported condition, actor, argument, or capability can represent further decision classes."] : []),
             ...(unknown ? ["Unknown is an observation class, not a substituted value."] : [])] });

@@ -61,6 +61,9 @@ export function DecisionCoverage(props: DecisionCoverageProps) {
           <code>{action.name}</code> · {action.capability} · condition {action.condition.replaceAll("_", " ")} · {hypothesisLabel[action.hypothesis]} · scope {action.actorScope}
         </li>)}</ul>}
         <small>{item.conflict}. {item.reasons.join(" ")}</small>
+        <ul aria-label="Proof obligations">{item.obligations.map(obligation => <li key={obligation.id}>
+          <strong>{obligation.id.replaceAll("_", " ")}: {obligation.status.replaceAll("_", " ")}</strong> · {obligation.explanation}
+        </li>)}</ul>
       </li>)}</ol>
     </details>}
     <details><summary>Analysis limits and unenumerated cases</summary><ul>{report.unresolved.map(reason => <li key={reason}>{reason}</li>)}</ul></details>

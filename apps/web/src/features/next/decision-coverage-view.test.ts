@@ -43,6 +43,8 @@ describe("DecisionCoverage", () => {
     expect(html).toContain("10…10");
     expect(html).toContain("Unknown");
     expect(html).toContain("legal (hypothesis)");
+    expect(html).toContain("condition: proven");
+    expect(html).toContain("legality: not proven");
     expect(html).toContain("total number of classes is not established");
   });
 
