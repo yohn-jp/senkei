@@ -10,7 +10,7 @@ use senkei_model::{
     SortDirection, TacticalDiagnostic, TacticalExecutionOutput, Truth,
 };
 use senritsu::catalog::{
-    AggregationPolicy, BehaviorOrderDeclaration, BehaviorProfileMetadata, BehaviorScope,
+    AggregationPolicy, BehaviorFieldId, BehaviorOrderDeclaration, BehaviorProfileMetadata, BehaviorScope,
     CapabilityDefinition, CatalogCompatibilityKey, DomainCatalog, MetadataStatus, ProfileLayer,
 };
 use serde::{Deserialize, Serialize};
@@ -255,9 +255,9 @@ impl BehaviorResolver {
     /// declare the field it writes in the validated Catalog.
     pub fn resolve_fields(
         &self, composition: &ProfileComposition, actor: &ProfileActor, tick: u32,
-        side: CombatantSide, fields: &BTreeMap<String, Vec<IntentCandidate>>,
-        fallbacks: &BTreeMap<String, NoOpFallbackCandidate>,
-    ) -> Result<BTreeMap<String, Decision>, BehaviorError> {
+        side: CombatantSide, fields: &BTreeMap<BehaviorFieldId, Vec<IntentCandidate>>,
+        fallbacks: &BTreeMap<BehaviorFieldId, NoOpFallbackCandidate>,
+    ) -> Result<BTreeMap<BehaviorFieldId, Decision>, BehaviorError> {
         if fields.len() > MAX_PROFILE_FIELDS || fallbacks.keys().any(|field| !fields.contains_key(field))
             || fields.values().try_fold(0_usize, |n, candidates| n.checked_add(candidates.len()))
                 .map_or(true, |n| n > MAX_CANDIDATES_PER_RESOLUTION) {
@@ -266,15 +266,16 @@ impl BehaviorResolver {
         self.validate_composition(composition, actor, tick, side)?;
         let mut decisions = BTreeMap::new();
         for (field, candidates) in fields {
-            if !self.profiles.fields.contains_key(field) || !self.field_applies(actor.scope, field) {
-                return Err(BehaviorError::UnknownProfileField(field.clone()));
+            let field_key = field.as_key();
+            if !self.profiles.fields.contains_key(&field_key) || !self.field_applies(actor.scope, &field_key) {
+                return Err(BehaviorError::UnknownProfileField(field_key));
             }
             if candidates.iter().any(|candidate| !self.capabilities.get(&candidate.intent.capability)
-                .is_some_and(|capability| capability.behavior_override_arguments.contains_key(field))) {
+                .is_some_and(|capability| capability.behavior_override_arguments.contains_key(&field_key))) {
                 return Err(BehaviorError::InvalidCandidateSet);
             }
             decisions.insert(field.clone(), self.resolve_candidates_inner(
-                composition, actor, tick, side, candidates, fallbacks.get(field), Some(field),
+                composition, actor, tick, side, candidates, fallbacks.get(field), Some(&field_key),
             )?);
         }
         Ok(decisions)

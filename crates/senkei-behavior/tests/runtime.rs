@@ -999,12 +999,12 @@ fn field_decisions_keep_independent_writes_and_use_field_order() {
     let movement = candidate(move_intent("z_move", "hero-one", "A.TOP.J"), CandidateSource::Explicit, 5, side, None, Legality::KnownLegal);
     let skill = candidate(Intent { action_id: ActionId::new("a_skill"), capability: CapabilityId::new("activate"), actor: Some(EntityId::new("hero-one")), target: Some(EntityId::new("hero-one")), arguments: vec![DomainValue::Entity(EntityId::new("hero-one")), DomainValue::String("f01_a_active".into()), DomainValue::Entity(EntityId::new("hero-one"))], priority: None }, CandidateSource::Explicit, 5, side, None, Legality::KnownLegal);
     let fields = BTreeMap::from([
-        ("navigation.destination".to_string(), vec![movement, skill.clone()]),
-        ("targeting.mode".to_string(), vec![skill]),
+        (BehaviorFieldId::parse("navigation.destination").unwrap(), vec![movement, skill.clone()]),
+        (BehaviorFieldId::parse("targeting.mode").unwrap(), vec![skill]),
     ]);
     let decisions = fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()).unwrap();
-    assert_eq!(decisions["navigation.destination"].selected.as_ref().unwrap().action_id.as_str(), "z_move");
-    assert_eq!(decisions["targeting.mode"].selected.as_ref().unwrap().action_id.as_str(), "a_skill");
+    assert_eq!(decisions[&BehaviorFieldId::parse("navigation.destination").unwrap()].selected.as_ref().unwrap().action_id.as_str(), "z_move");
+    assert_eq!(decisions[&BehaviorFieldId::parse("targeting.mode").unwrap()].selected.as_ref().unwrap().action_id.as_str(), "a_skill");
 }
 
 #[test]
@@ -1015,12 +1015,12 @@ fn field_decisions_preserve_unknown_fallback_and_reject_unbound_capabilities() {
     let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 5, side, &empty_execution(), &BTreeMap::new()).unwrap();
     let unknown = candidate(move_intent("unknown", "hero-one", "A.TOP.J"), CandidateSource::Explicit, 5, side, None, Legality::Unknown { reason: "unobserved".into() });
     let fallback = candidate(move_intent("default", "hero-one", "A.MID.J"), CandidateSource::Default, 5, side, Some(composition.digest.clone()), Legality::KnownLegal);
-    let field = "navigation.destination".to_string();
+    let field = BehaviorFieldId::parse("navigation.destination").unwrap();
     let fields = BTreeMap::from([(field.clone(), vec![unknown.clone(), fallback])]);
     let decisions = fixture.resolver.resolve_fields(&composition, &hero, 5, side, &fields, &BTreeMap::new()).unwrap();
     assert_eq!(decisions[&field].selected.as_ref().unwrap().action_id.as_str(), "default");
     assert!(decisions[&field].trace.iter().any(|entry| matches!(entry, DecisionTrace::CandidateUnknown { .. })));
-    let invalid = BTreeMap::from([("targeting.mode".to_string(), vec![unknown])]);
+    let invalid = BTreeMap::from([(BehaviorFieldId::parse("targeting.mode").unwrap(), vec![unknown])]);
     assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 5, side, &invalid, &BTreeMap::new()), Err(BehaviorError::InvalidCandidateSet));
 }
 
