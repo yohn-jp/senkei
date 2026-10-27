@@ -1,0 +1,55 @@
+Captured tool-session stdout, session 86418. Output chunks reproduced in order; shell command:
+SENKEI_CHROMIUM_EXECUTABLE=/usr/bin/chromium SENKEI_BROWSER_PORT=4188 npx playwright test --config tests/browser/playwright.config.ts experiment-import-safety.spec.ts --workers=1 --grep 'semantic incompatible'
+Exit code: 0
+
+[WebServer] (node:16339) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:16358) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+SENKEI_TIMING wasm_dispatch_ms next_ruleset 297.60000000009313 179438
+SENKEI_TIMING worker_parse_ms next_ruleset 1.099999999976717
+SENKEI_TIMING wasm_dispatch_ms editor_catalog 27.300000000046566 269580
+SENKEI_TIMING worker_parse_ms editor_catalog 0.6999999999534339
+SENKEI_TIMING wasm_dispatch_ms editor_compile 67.5 179224
+SENKEI_TIMING worker_parse_ms editor_compile 1
+SENKEI_TIMING wasm_dispatch_ms editor_compile 31.399999999906868 179224
+SENKEI_TIMING worker_parse_ms editor_compile 0.5999999999767169
+SENKEI_TIMING wasm_dispatch_ms new_match_context 23.20000000006985 1521
+SENKEI_TIMING worker_parse_ms new_match_context 0.09999999997671694
+SENKEI_TIMING wasm_dispatch_ms next_reproduction_assets 46.20000000006985 214948
+SENKEI_TIMING worker_parse_ms next_reproduction_assets 1.099999999976717
+SENKEI_TIMING wasm_dispatch_ms preflight_reproduction 77.40000000002328 113
+SENKEI_TIMING worker_parse_ms preflight_reproduction 0
+SENKEI_TIMING wasm_dispatch_ms reproduce 91972.50000000012 44888047
+SENKEI_TIMING worker_parse_ms reproduce 293.60000000009313
+SENKEI_TIMING wasm_dispatch_ms compile_text 72.29999999981374 178416
+SENKEI_TIMING worker_parse_ms compile_text 28.5999999998603
+SENKEI_TIMING clone_ms 1846.5
+SENKEI_TIMING structural_ms 1385.5999999998603
+SENKEI_TIMING idb_ms 3827.600000000093
+SENKEI_TIMING clone_ms 896.1000000000931
+SENKEI_TIMING structural_ms 667.5
+SENKEI_TIMING wasm_dispatch_ms next_ruleset 415.70000000018626 179438
+SENKEI_TIMING worker_parse_ms next_ruleset 2.1000000000931323
+SENKEI_TIMING wasm_dispatch_ms editor_catalog 295.5 269580
+SENKEI_TIMING worker_parse_ms editor_catalog 0.6000000000931323
+SENKEI_TIMING clone_ms 977.4000000001397
+SENKEI_TIMING structural_ms 711.3000000000466
+SENKEI_TIMING wasm_dispatch_ms reproduce 79121 44888047
+SENKEI_TIMING worker_parse_ms reproduce 484.9000000001397
+SENKEI_TIMING equality_ms 383.5999999998603
+SENKEI_TIMING clone_ms 1735.9000000001397
+SENKEI_TIMING structural_ms 1233.1000000000931
+SENKEI_TIMING idb_ms 950.5
+SENKEI_TIMING wasm_dispatch_ms compile_text 87 178416
+SENKEI_TIMING worker_parse_ms compile_text 21.199999999953434
+SENKEI_TIMING clone_ms 1023.1999999999534
+SENKEI_TIMING structural_ms 815.5999999998603
+SENKEI_TIMING idb_ms 2472.8000000000466
+SENKEI_TIMING clone_ms 841.6999999999534
+  ✓  1 [chromium] › tests/browser/specs/experiment-import-safety.spec.ts:65:1 › semantic incompatible experiment import preserves existing immutable records (1.8m)
+
+  1 passed (3.8m)
