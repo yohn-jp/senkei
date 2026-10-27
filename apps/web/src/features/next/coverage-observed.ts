@@ -179,6 +179,9 @@ export function scopedCoverageEvents(
       return (record.value.intent.actor !== null && rawIds.has(record.value.intent.actor))
         || (record.value.intent.target !== null && rawIds.has(record.value.intent.target));
     }
+    if (rawIds && record.kind === "runtime_notice" && record.value.code === "enbu.behavior_unknown_observation") {
+      return rawIds.has(record.value.details.actor ?? "");
+    }
     const order = committedCoverageOrder(verified, event);
     if (!order) return false;
     return orderMembers(order).some(member => member.kind === "record"
@@ -205,12 +208,16 @@ export function coverageDiagnosticText(event: DiagnosticEvent, verified?: Extrac
       const { intent } = record.value;
       const outcome = record.kind === "intent_rejected" ? `rejected (${record.value.reason})`
         : record.kind === "intent_accepted" ? "accepted" : "proposed";
-      return `${intent.capability} · ${outcome} · actor ${intent.actor ?? "not supplied"} · target ${intent.target ?? "not supplied"}`;
+      return `${intent.capability}(${intent.arguments.map(valueText).join(", ")}) · ${outcome} · actor ${intent.actor ?? "not supplied"} · target ${intent.target ?? "not supplied"}${intent.priority === null ? "" : ` · priority ${intent.priority}`}`;
     }
     case "cost_charged": return `${record.value.operation} · ${record.value.amount} CU`;
     case "memory_read": return `${record.value.state} · memory read`;
     case "memory_written": return `${record.value.state} · memory updated`;
     case "runtime_notice": {
+      if (record.value.code === "enbu.behavior_unknown_observation") {
+        const { actor, candidates } = record.value.details;
+        return `UNKNOWN observation · actor ${actor ?? "not supplied"} · candidates ${candidates ?? "not supplied"}`;
+      }
       if (record.value.code !== "enbu.behavior_order_committed") return record.value.code;
       const order = verified ? committedCoverageOrder(verified, event) : null;
       if (!order) return "Committed-order Replay reference unavailable";

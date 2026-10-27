@@ -138,4 +138,22 @@ describe("Coverage owner Run evidence", () => {
       status: "available", rawIdentityAvailable: false, events: [events[4]],
     });
   });
+
+  it("shows emitted preference arguments and scopes an Unknown notice only to the bound actor", async () => {
+    const verified = await verifyCoverageRun(await validRun(), catalog, true, "program");
+    if (verified.status !== "available") throw new Error(verified.reason);
+    const unknown: DiagnosticEvent = { tick: 3, side: "attacker", sequence: 10, action_id: null, entity_id: null,
+      record: { kind: "runtime_notice", value: { code: "enbu.behavior_unknown_observation", details: { actor: "hero-entity", candidates: "2" } } } };
+    const other = { ...unknown, sequence: 11, record: { kind: "runtime_notice" as const,
+      value: { code: "enbu.behavior_unknown_observation", details: { actor: "other", candidates: "9" } } } };
+    const preference: DiagnosticEvent = { tick: 3, side: "attacker", sequence: 12, action_id: "preference", entity_id: "hero-entity",
+      record: { kind: "intent_accepted", value: { intent: { action_id: "preference", capability: "behavior_preference",
+        actor: "hero-entity", target: null, arguments: [{ kind: "enum", value: "navigation" }, { kind: "integer", value: 0 }, { kind: "bool", value: false }], priority: 0 } } } };
+    const scoped = scopedCoverageEvents({ ...verified, events: [...verified.events, unknown, other, preference] }, "hero", [subject], 3);
+    if (scoped.status !== "available") throw new Error(scoped.reason);
+    expect(scoped.events.map(event => event.sequence)).toEqual([2, 3, 4, 10, 12]);
+    expect(coverageDiagnosticText(unknown)).toBe("UNKNOWN observation · actor hero-entity · candidates 2");
+    expect(coverageDiagnosticText(preference)).toContain("behavior_preference(navigation, 0, false) · accepted");
+    expect(coverageDiagnosticText(preference)).toContain("priority 0");
+  });
 });
