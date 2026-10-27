@@ -3225,3 +3225,46 @@ fn targeting_engagement_profile_is_individual_within_squad() {
     let result=enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&inputs).unwrap();
     assert!(result.traces_for_owner(CombatantSide::Attacker).iter().any(|t|t.actor==high && t.arbitration_accepted && t.selected.as_ref().is_some_and(|i|i.capability.as_str()=="select_target")));
 }
+
+#[test]
+fn eligible_explicit_skill_is_not_overridden_by_behavior_default_move() {
+    let rules = authored_order_rules(false);
+    let term = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1, policy_id: "explicit-skill-before-default".into(),
+        version: Version::new(1, 0, 0), ruleset_digest: rules.package_digest().clone(), test_only: true,
+        composition: test_behavior_composition(), hero_defaults: test_behavior_defaults(&rules),
+        domains: BehaviorDomains {
+            navigation: vec![term.clone()], engagement: vec![term.clone()], targeting: vec![term.clone()],
+            pursuit: vec![term.clone()], survival: vec![term.clone()], objective: vec![term],
+        },
+        candidates: vec![BehaviorCandidateDefinition {
+            kind: BehaviorCandidateKind::Move, capability: "move".into(),
+            arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode],
+        }],
+    };
+    let actor = hero_selector("slot-1");
+    let source = format!(
+        "senkei explicit_shield {{ action shield {{ when match.tick == 1, do activate({actor}, \"f01_a_active\", {actor}), }} }}"
+    );
+    let (mut attacker, defender, mut context) =
+        build_match(&rules, &[1, 1, 1, 1, 1], "explicit-skill-vs-default", 2, None, None);
+    set_catalog(&mut attacker, 0, "F01", &rules);
+    attacker.program = compile(&source, &rules).expect("real skill program compiles").program;
+    context.next_behavior = Some(NextBehaviorMatch {
+        policy,
+        inputs: NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() },
+    });
+    let artifact = simulate(&attacker, &defender, &rules, &context, &mut Vm::new(&rules))
+        .expect("real Enbu simulates legal activation with defaults");
+    assert!(artifact.diagnostics.events.iter().any(|event| {
+        event.tick == 1 && event.side == CombatantSide::Attacker
+            && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent }
+                if intent.action_id.as_str() == "shield" && intent.capability.as_str() == "activate")
+    }), "the owner's explicit skill is accepted");
+    let owner = &artifact.owner_replays[&CombatantSide::Attacker];
+    assert!(owner.frames.iter().filter(|frame| frame.tick == 1).flat_map(|frame| &frame.events)
+        .any(|event| event.event.as_str() == "next.skill"
+            && event.payload.get(&FieldId::from("skill")) == Some(&DomainValue::String("f01_a_active".into()))),
+        "the legal explicit skill executes, rather than being silently displaced by default movement");
+}
