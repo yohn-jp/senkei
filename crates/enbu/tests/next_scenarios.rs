@@ -2747,6 +2747,13 @@ fn next_behavior_target_health_changes_accepted_target() {
         traces.push(result.traces_for_owner(CombatantSide::Attacker));
     }
     assert!(traces[0].iter().zip(&traces[1]).any(|(a,b)| a.tick == b.tick && a.tick > 1 && a.arbitration_accepted && b.arbitration_accepted && a.selected.as_ref().and_then(|i| i.target.as_ref()) != b.selected.as_ref().and_then(|i| i.target.as_ref())));
+    p.domains.targeting[0].weight = 0;
+    let selected_hero = derive_projected_entity_id(&ContentDigest::new("0".repeat(64)), &ProjectionId::from("next.hero"), &TypeId::from("hero"), Some(CombatantSide::Attacker), &DomainValue::String("slot-2".into())).unwrap();
+    let mut individual = inputs.clone();
+    individual.heroes.insert(CombatantSide::Attacker, BTreeMap::from([(selected_hero.clone(), NextBehaviorProfile { targeting:Some(1000), ..Default::default() })]));
+    let policy = senritsu::validate_next_behavior_policy(p,&rules).unwrap();
+    let result = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut Vm::new(&rules),&policy,&individual).unwrap();
+    assert_eq!(result.traces_for_owner(CombatantSide::Attacker)[0].actor,selected_hero, "targeting profile remains per Hero");
 }
 
 #[test]
@@ -2780,3 +2787,45 @@ fn next_behavior_explicit_squad_conflicts_are_stable_across_declaration_order() 
 
 fn test_behavior_composition() -> BehaviorComposition { BehaviorComposition { hero_aggregation: BehaviorHeroAggregation::MeanFloor, override_order: BehaviorOverrideOrder::ArmyThenSquad } }
 fn test_behavior_defaults(rules: &VerifiedRulePlan) -> BTreeMap<String, NextBehaviorProfile> { rules.plan().next.as_ref().unwrap().heroes.iter().map(|h| (h.id.clone(), NextBehaviorProfile::default())).collect() }
+
+#[test]
+fn next_behavior_resolves_goal_conflicts_after_same_tick_merge() {
+    let rules = rules();
+    let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"merge-conflict-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition:test_behavior_composition(), hero_defaults:test_behavior_defaults(&rules), domains:BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] }, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let (mut a,b,mut context) = build_match(&rules,&[2,3],"merge-conflict",1,None,None);
+    context.next_behavior=Some(NextBehaviorMatch { policy, inputs:NextBehaviorExecutionInputs { schema_version:1, ..Default::default() } });
+    let first=hero_selector("slot-1"); let second=hero_selector("slot-3");
+    let destination=&rules.plan().next.as_ref().unwrap().map.defender_base;
+    let source=format!("senkei merge_conflict {{ action merge_teams {{ when match.tick == 1, do merge({first}, {second}), }}, action move_one {{ when match.tick == 1, do move({first}, \"{destination}\"), }}, action retreat_two {{ when match.tick == 1, do retreat({second}), }}, }}");
+    a.program=compile(&source,&rules).unwrap().program;
+    let result=simulate(&a,&b,&rules,&context,&mut Vm::new(&rules)).unwrap();
+    let diag=result.diagnostic_response(CombatantSide::Attacker).diagnostics.unwrap();
+    let move_status:Vec<_>=diag.events.iter().filter_map(|event| match &event.record { DiagnosticRecord::IntentAccepted { intent } | DiagnosticRecord::IntentRejected { intent,.. } if matches!(intent.capability.as_str(),"move"|"retreat") => Some(&event.record), _ => None }).collect();
+    assert_eq!(move_status.iter().filter(|r| matches!(r,DiagnosticRecord::IntentAccepted { .. })).count(),1);
+    assert_eq!(move_status.iter().filter(|r| matches!(r,DiagnosticRecord::IntentRejected { .. })).count(),1);
+    let events:Vec<_>=result.owner_replays[&CombatantSide::Attacker].frames[1].events.iter().filter(|event| event.event.as_str()=="next.behavior_order_committed").collect();
+    assert_eq!(events.len(),1);
+    assert_eq!(events[0].payload[&FieldId::from("action_id")],DomainValue::String("retreat_two".into()));
+    assert!(matches!(&events[0].payload[&FieldId::from("members")],DomainValue::List(members) if members.len()==5));
+}
+
+#[test]
+fn next_behavior_preserves_independent_goals_after_same_tick_split() {
+    let rules = rules();
+    let term = BehaviorScoreTerm { signal:BehaviorSignal::Constant, weight:1 };
+    let policy = NextBehaviorPolicy { schema_version:1, policy_id:"split-conflict-test".into(), version:Version::new(1,0,0), ruleset_digest:rules.package_digest().clone(), test_only:true, composition:test_behavior_composition(), hero_defaults:test_behavior_defaults(&rules), domains:BehaviorDomains { navigation:vec![term.clone()], engagement:vec![term.clone()], targeting:vec![term.clone()], pursuit:vec![term.clone()], survival:vec![term.clone()], objective:vec![term] }, candidates:vec![BehaviorCandidateDefinition { kind:BehaviorCandidateKind::Move, capability:"move".into(), arguments:vec![BehaviorArgument::Actor,BehaviorArgument::ObjectiveNode] }] };
+    let (mut a,b,mut context) = build_match(&rules,&[5],"split-conflict",1,None,None);
+    context.next_behavior=Some(NextBehaviorMatch { policy, inputs:NextBehaviorExecutionInputs { schema_version:1, ..Default::default() } });
+    let first=hero_selector("slot-1"); let second=hero_selector("slot-2");
+    let destination=&rules.plan().next.as_ref().unwrap().map.defender_base;
+    let source=format!("senkei split_conflict {{ action split_one {{ when match.tick == 1, do split({first}), }}, action move_one {{ when match.tick == 1, do move({first}, \"{destination}\"), }}, action retreat_two {{ when match.tick == 1, do retreat({second}), }}, }}");
+    a.program=compile(&source,&rules).unwrap().program;
+    let result=simulate(&a,&b,&rules,&context,&mut Vm::new(&rules)).unwrap();
+    let diag=result.diagnostic_response(CombatantSide::Attacker).diagnostics.unwrap();
+    assert_eq!(diag.events.iter().filter(|event| matches!(&event.record,DiagnosticRecord::IntentAccepted { intent } if matches!(intent.capability.as_str(),"move"|"retreat"))).count(),2);
+    let events:Vec<_>=result.owner_replays[&CombatantSide::Attacker].frames[1].events.iter().filter(|event| event.event.as_str()=="next.behavior_order_committed").collect();
+    assert_eq!(events.len(),2);
+    let sizes:Vec<_>=events.iter().map(|event| match &event.payload[&FieldId::from("members")] { DomainValue::List(members) => members.len(), _ => 0 }).collect();
+    assert!(sizes.contains(&1) && sizes.contains(&4));
+}
