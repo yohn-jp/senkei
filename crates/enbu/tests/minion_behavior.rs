@@ -94,15 +94,18 @@ fn real_match_scope_trace_and_reproduction_preserve_automatic_march() {
     assert!(attacker_traces.iter().any(|trace| trace.tick == 30 && trace.actor.as_str().contains(":30:")), "reinforcement waves keep automatic candidate evaluation");
     assert!(!serde_json::to_string(&selected.public_response()).unwrap().contains("test-lane-waypoint"));
     assert!(!selected.diagnostics_for_owner(CombatantSide::Attacker).diagnostics.events.iter().any(|event| event.side == CombatantSide::Defender));
+    let mut saw_center = false;
     for frame in &standard.owner_replays[&CombatantSide::Attacker].frames {
         if let Some(view) = &frame.visible_state {
             for entity in view.entities.values().filter(|entity| entity.owner == Some(CombatantSide::Attacker) && entity.entity_type.as_str() == "minion") {
                 if let Some(DomainValue::String(track)) = entity.fields.get(&"track".into()) {
                     assert!(track.is_empty() || track == "CENTER", "automatic minion movement must remain CENTER");
+                    saw_center |= track == "CENTER";
                 }
             }
         }
     }
+    assert!(saw_center, "the real match must exercise CENTER movement");
 }
 
 #[test]
