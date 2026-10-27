@@ -88,6 +88,40 @@ index 2d6112b..9834508 100644
    } catch (error) {
      throw new RequestFailure(
        "worker_error",
+diff --git a/apps/web/src/worker/wasm-runtime.ts b/apps/web/src/worker/wasm-runtime.ts
+index 7bec00b..4799b99 100644
+--- a/apps/web/src/worker/wasm-runtime.ts
++++ b/apps/web/src/worker/wasm-runtime.ts
+@@ -39,7 +39,9 @@ export class WasmRuntime {
+     let responseLength = 0;
+     try {
+       new Uint8Array(exports.memory.buffer, requestPointer, request.byteLength).set(request);
++      const coreStart = performance.now();
+       const response = exports.senkei_dispatch(requestPointer, request.byteLength);
++      console.log("SENKEI_TIMING wasm_core_ms", performance.now() - coreStart, "wasm_memory_bytes", exports.memory.buffer.byteLength);
+       responsePointer = Number(response & 0xffff_ffffn);
+       responseLength = Number((response >> 32n) & 0xffff_ffffn);
+ 
+@@ -54,13 +56,18 @@ export class WasmRuntime {
+         throw new WasmRuntimeError("The WASM adapter returned an invalid response buffer.");
+       }
+ 
++      const copyStart = performance.now();
+       const responseBytes = new Uint8Array(
+         exports.memory.buffer,
+         responsePointer,
+         responseLength,
+       ).slice();
++      console.log("SENKEI_TIMING wasm_copy_ms", performance.now() - copyStart, responseLength);
+       try {
+-        return new TextDecoder("utf-8", { fatal: true }).decode(responseBytes);
++        const decodeStart = performance.now();
++        const decoded = new TextDecoder("utf-8", { fatal: true }).decode(responseBytes);
++        console.log("SENKEI_TIMING wasm_decode_ms", performance.now() - decodeStart);
++        return decoded;
+       } catch (error) {
+         throw new WasmRuntimeError("The WASM adapter returned invalid UTF-8.", { cause: error });
+       }
 diff --git a/tests/browser/specs/experiment-import-safety.spec.ts b/tests/browser/specs/experiment-import-safety.spec.ts
 index 5504424..8c204ab 100644
 --- a/tests/browser/specs/experiment-import-safety.spec.ts
