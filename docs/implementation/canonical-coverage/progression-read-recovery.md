@@ -1,0 +1,32 @@
+# Progression read and recovery boundary audit
+
+Baseline: `8ac2fd84d41bbd148198e6f0bc253028bb922324`. This is an implementation audit, not a new schema or an assertion that the proposed UX has been adopted. The work request includes progression acceptance; underlying undecided contracts remain undecided.
+
+## Independently specified observations and boundaries
+
+| Observation / action | Authority | What a consumer can safely say or do |
+| --- | --- | --- |
+| Match outcome and progression settlement | `PROGRESSION-UX.md:31,37,93` | Present the match result independently from confirmed progression; revisiting cannot grant again. No reward amount or eligibility follows from the match result. |
+| Draw result unknown | `PROGRESSION-UX.md:38,94` | Inquire about the same request rather than issue another draw. No producer, request identity or inquiry endpoint currently exists. |
+| Inventory read | `EQUIPMENT.md:30-37`, `PROGRESSION-UX.md:39,45` | Duplicate assets are permitted, combat does not consume them, and empty, filtered-empty and read failure differ. The ownership record and available-quantity semantics are not defined. |
+| Equipment preview cancellation | `PROGRESSION-UX.md:40,49` | Cancel leaves Draft unchanged. Explicit application invalidates relevant Preflight; only capability/type effects require Compile compatibility validation (`EQUIPMENT.md:49-53`). There is no equipment schema or validated preview to apply. |
+| Orders and Libra | `PROGRESSION-UX.md:41-47`, `REWARDS-AND-LIBRA.md:17-21,33-35` | Separate connectivity from transaction state, pending listing from completed sale, result unknown from success, and issuance from transfer. An unavailable statistic is not zero. Cancellation details, identity and settlement authority are not specified. |
+| Relationship and episode reads | `HERO-RELATIONSHIPS.md:46-48,58,62-66`, `PROGRESSION-UX.md:68-76` | Viewing does not change formation or award progress; directed feelings, derived symmetric combat values and in-match maturity differ. Unauthorised enemy history and unrevealed dialogue are not disclosed. No relationship record, visibility policy or authorized producer exists. |
+| Frozen match identity | `EQUIPMENT.md:49-53`, `HERO-RELATIONSHIPS.md:62-66`, `RUNTIME-INTEGRATION-CONTRACTS.md:61-67,101-107` | Equipment and relationship combat inputs must bind to versioned definitions and immutable match input. Reject missing/mismatched identities; do not read current profile into past runs. A generic string reference is insufficient evidence of either identity or authorization. |
+
+## Existing recovery and integration path
+
+`apps/web/src/features/persistence/repository.ts:1375-1465` validates and reads the existing Next experiment envelope, verifies snapshot-to-retained RulePackage and World identity, and separately exposes bounded raw JSON for preservation if the current parser rejects it. `apps/web/src/features/next/NextWorkspace.tsx:662` performs further reproduction validation, and its restore path at `:887-897` preserves raw data on parse failure. Neither envelope contains progression records, nor does its validation authorize access to private progression data. The two-experiment limit is a comparison-store limit, not an inventory capacity.
+
+A future progression reader should use the same preservation pattern in a separately versioned repository record: read bounded raw bytes without overwriting them; parse the actual adopted producer schema; verify its complete retained ruleset/match references and requester's authorization through the adopted authority; expose only authorized fields; report unavailable, incompatible, denied and result-unknown distinctly; and offer export/retry only where those operations actually exist. Recovery must not call grant, draw or settlement. An imported record must not replace preserved data until all applicable validation succeeds. This is an integration proposal, not an adopted wire format or new authority. The current `loadNextExperimentPayload` cannot safely serve as a progression store.
+
+## Minimum dependencies, separately scoped
+
+- **Read-only outcome:** Existing validated `LocalNextExperiment` has match identity and result; it has no settlement or entitlement status. An honest existing-match reader may display that progression is unavailable, but cannot assert that a reward is pending, cancelled, denied or absent without a producer. Existing match UI already reads the experiment; a disconnected new wrapper adds no recovery behavior.
+- **Draw inquiry:** An adopted producer must supply a stable request reference and authoritative inquiry result, including unknown and final outcomes. Before that, even a `cancelled` state cannot distinguish a cancelled preview from an accepted draw. This does not require choosing odds or pools in the client.
+- **Inventory:** A versioned producer schema must define the ownership key/unit and definition identity; a reader can then distinguish empty from failed and aggregate duplicates without inventing grants or slot limits. Availability and transaction holds need their own adopted semantics.
+- **Match references:** The shared model and Senritsu must supply versioned equipment and relationship inputs, complete immutable identities and validation. Repository envelope validation alone cannot establish that an absent progression reference is valid, nor can it bind one into the Enbu identity.
+- **Authorization:** A producer must define principal, resource, purpose and authorized projection. A caller-supplied Boolean or client-side filter would not prove authorization. The existing Replay/diagnostics boundary remains the applicable mechanism until such a contract exists.
+- **Settlement/recovery:** An authority must define operation identity, durable commit and inquiry semantics. A local seen-ID set or a UI state union cannot make a remote or future settlement idempotent. The existing repository does not provide a progression transaction or atomic coupling with a settlement authority.
+
+These are separate `DECISION_REQUIRED` dependencies, not a claim that the specified UX distinctions are undecided. Representing those distinctions as unused TypeScript types would neither read real data nor implement recovery or authorization, and would fix an arbitrary wire vocabulary without a producer. No new domain module is claimed as implemented by this audit.
