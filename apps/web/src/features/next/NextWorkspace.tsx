@@ -1,3 +1,7 @@
+import { PostMatchProgression } from "../progression/PostMatchProgression";
+import { previewOwnedEquipment } from "./owned-equipment-preview";
+import { heroSelectionsForDraft, parseOwnedHeroSelection, type OwnedHeroSelection } from "../heroes/draft";
+import { equipmentForDraft, parseOwnedEquipmentDraft, type OwnedEquipmentDraft } from "../equipment/draft";
 import { CoreClientError } from "../../worker";
 import { OwnedAssetsPanel, readOwnedAssets, approvedEquipmentDefinitions, type OwnedAssetsState } from "../heroes/OwnedAssetsPanel";
 import { HeroRepository } from "../heroes/repository";
@@ -158,6 +162,8 @@ interface SavedNextSetup {
   readonly rival_source: string;
   /** Campaign selection is optional for setups saved before the Next campaign existed. */
   readonly campaign_scenario_id?: string | null;
+  readonly owned_equipment_draft?: OwnedEquipmentDraft;
+  readonly owned_hero_selection?: OwnedHeroSelection;
 }
 
 
@@ -239,6 +245,8 @@ export function setupRestoreDifferences(current: SavedNextSetup | null, restored
     if (differences.length === previousCount) differences.push(`${label} slot content changes.`);
   }
   if (changed(current.draft, restored.draft)) differences.push("Jinrei / Draft content, identity or revision changes.");
+  if (changed(current.owned_hero_selection ?? null, restored.owned_hero_selection ?? null)) differences.push("Owned Hero instance selections change.");
+  if (changed(current.owned_equipment_draft ?? null, restored.owned_equipment_draft ?? null)) differences.push("Draft equipment assignments change.");
   if (current.rival_source !== restored.rival_source) differences.push("Opponent Jinrei changes.");
   return differences;
 }
@@ -366,6 +374,9 @@ export function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
   const slots = parseFormationSlots(value.slots);
   const rivalSlots = parseFormationSlots(value.rival_slots);
   const draft = parseDraft(value.draft);
+  const equipmentDraft = value.owned_equipment_draft === undefined ? undefined : parseOwnedEquipmentDraft(value.owned_equipment_draft);
+  const heroSelection = value.owned_hero_selection === undefined ? undefined : parseOwnedHeroSelection(value.owned_hero_selection);
+  if (equipmentDraft === null || heroSelection === null) return null;
   const shape = value.formation_shape;
   if (!ruleset || !schemaVersion || !mechanicsVersion || !slots || !rivalSlots || !draft || typeof value.rival_source !== "string" ||
       (value.campaign_scenario_id !== undefined && value.campaign_scenario_id !== null && typeof value.campaign_scenario_id !== "string")) return null;
@@ -381,6 +392,8 @@ export function parseSavedNextSetup(value: unknown): SavedNextSetup | null {
     rival_slots: rivalSlots,
     draft,
     rival_source: value.rival_source,
+    ...(equipmentDraft ? { owned_equipment_draft: equipmentDraft } : {}),
+    ...(heroSelection ? { owned_hero_selection: heroSelection } : {}),
     ...(typeof value.campaign_scenario_id === "string" ? { campaign_scenario_id: value.campaign_scenario_id } : {}),
   };
 }
@@ -747,6 +760,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const [trialPending, setTrialPending] = useState(() => { try { return localStorage.getItem('senkei.local-trial-enabled.v1') === 'true'; } catch { return false; } });
   const packageValue = trialPending ? null : trialPackage ?? suppliedPackage;
   const [ownedAssets, setOwnedAssets] = useState<OwnedAssetsState | null>(null);
+  const [heroSelection, setHeroSelection] = useState<OwnedHeroSelection | null>(null);
+  const [equipmentDraft, setEquipmentDraft] = useState<OwnedEquipmentDraft | null>(null);
   const [trialTickLimit, setTrialTickLimit] = useState(20);
   const isTrial = packageValue?.next?.projection_policy?.test_only === true;
   const setupStorageKey = isTrial ? TRIAL_STORAGE_KEY : NEXT_STORAGE_KEY;
@@ -1190,6 +1205,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         setActiveSlot(0);
         draftRef.current = recovered.draft;
         setDraft(recovered.draft);
+        setEquipmentDraft(recovered.owned_equipment_draft ?? null);
+        setHeroSelection(recovered.owned_hero_selection ?? null);
         setCompilation(null);
         setRun(null);
         setBaselineRun(null);
@@ -1210,6 +1227,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       setActiveSlot(0);
       draftRef.current = initialDraft;
       setDraft(initialDraft);
+      setEquipmentDraft(null);
+      setHeroSelection(null);
       setCompilation(null);
       setRun(null);
       setBaselineRun(null);
@@ -1257,13 +1276,13 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
-  const runIsCurrent = Boolean(run && draft && (!isTrial || (run.ownedAssetKey === stableKey(ownedAssets) && run.snapshot.context.max_ticks === trialTickLimit && run.snapshot.attacker.ruleset.digest === packageValue?.ruleset.digest)) &&
+  const runIsCurrent = Boolean(run && draft && (!isTrial || (run.ownedAssetKey === stableKey({ownedAssets,equipmentDraft,heroSelection}) && run.snapshot.context.max_ticks === trialTickLimit && run.snapshot.attacker.ruleset.digest === packageValue?.ruleset.digest)) &&
     stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
       draft: run.setup.draft, slots: run.setup.slots, rivalSlots: run.setup.rival_slots,
       formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics,
     }) && (entryMode === "campaign" ? selectedScenarioId : null) === (run.setup.campaign_scenario_id ?? null));
   const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot,
-    entryMode, ownedAssets: isTrial && !exactRun ? ownedAssets : null, trialTickLimit: isTrial && !exactRun ? trialTickLimit : null, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
+    entryMode, heroSelection: isTrial && !exactRun ? heroSelection : null, equipmentDraft: isTrial && !exactRun ? equipmentDraft : null, ownedAssets: isTrial && !exactRun ? ownedAssets : null, trialTickLimit: isTrial && !exactRun ? trialTickLimit : null, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
   const launchKeyRef = useRef(launchKey);
   launchKeyRef.current = launchKey;
   const readySnapshot = prepared?.key === launchKey && (exactRun || activeCompilation) ? prepared.snapshot : null;
@@ -1428,10 +1447,12 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       slots,
       rival_slots: rivalSlots,
       draft: currentDraft,
+      ...(isTrial && equipmentDraft ? { owned_equipment_draft: equipmentDraft } : {}),
+      ...(isTrial && heroSelection ? { owned_hero_selection: heroSelection } : {}),
       rival_source: createStarterJinrei(packageValue, "defender", rivalSlots),
       ...(entryMode === "campaign" && selectedScenario ? { campaign_scenario_id: selectedScenario.id } : {}),
     };
-  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots, initializedSetupIdentity, setupIdentity]);
+  }, [entryMode, formationShape, nextRules, packageValue, rivalSlots, selectedScenario, slots, initializedSetupIdentity, setupIdentity, equipmentDraft, heroSelection, isTrial]);
 
   const currentSetup = buildSavedSetup();
   const restoreDifferences = {
@@ -1484,6 +1505,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     if (!savedSetup || savedSetupMismatchReason) return;
     draftRef.current = savedSetup.draft;
     setDraft(savedSetup.draft);
+    setEquipmentDraft(savedSetup.owned_equipment_draft ?? null);
+    setHeroSelection(savedSetup.owned_hero_selection ?? null);
     setSlots([...savedSetup.slots]);
     setRivalSlots([...savedSetup.rival_slots]);
     setFormationShape(savedSetup.formation_shape);
@@ -1572,6 +1595,8 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     if (!recoverySetup || recoveryMismatchReason) return;
     draftRef.current = recoverySetup.draft;
     setDraft(recoverySetup.draft);
+    setEquipmentDraft(recoverySetup.owned_equipment_draft ?? null);
+    setHeroSelection(recoverySetup.owned_hero_selection ?? null);
     setSlots([...recoverySetup.slots]);
     setRivalSlots([...recoverySetup.rival_slots]);
     setFormationShape(recoverySetup.formation_shape);
@@ -1757,11 +1782,16 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
     setError(null);
   }, [refreshStarterTactics, slots]);
 
-  const selectOwnedHero = useCallback((slotId: string, _instanceId: string, definitionId: string) => {
+  const selectOwnedHero = useCallback((slotId: string, instanceId: string, definitionId: string) => {
+    if (!ownedAssets) return;
+    const selections = {...(heroSelection?.playerId === ownedAssets.playerId ? heroSelection.slots : ownedAssets.slotSelections)};
+    if (instanceId) selections[slotId] = instanceId; else delete selections[slotId];
+    setHeroSelection({schemaVersion:1,playerId:ownedAssets.playerId,slots:selections});
+    setPrepared(null); setExactRun(null);
     const index = slots.findIndex(slot => slot.slot_id === slotId);
     const definition = nextRules?.heroes.find(hero => hero.id === definitionId);
     if (index >= 0 && definition) changeSlot(index, {catalog_id:definitionId, skill_path:Object.keys(definition.skill_paths)[0]});
-  }, [slots, nextRules, changeSlot]);
+  }, [slots, nextRules, changeSlot, ownedAssets, heroSelection]);
 
   const updateDraft = useCallback((next: SenkeiDraft | null): void => {
     const revised = next ? reviseDraft(draftRef.current, next) : null;
@@ -1908,7 +1938,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
       const npcHeroes = await repository.obtainTrialRoster({requestId:`npc:${npcPlayer}:${policy.hero_catalog_digest}`,playerId:npcPlayer,catalog:{id:policy.hero_catalog_id,version:`${policy.hero_catalog_version.major}.${policy.hero_catalog_version.minor}.${policy.hero_catalog_version.patch}`,digest:policy.hero_catalog_digest,heroes:nextRules.heroes}});
       const npcSnapshot = await repository.snapshot(npcPlayer);
       const projection = await buildMatchProjection({policy,rulesetDigest:packageValue.ruleset.digest,approvedRulesetDigest:packageValue.ruleset.digest,
-        attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:owned.equipment,relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:owned.slotSelections[slot.slot_id] ?? ''}))},
+        attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:equipmentForDraft(owned.equipment, owned.playerId, equipmentDraft),relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:heroSelectionsForDraft(owned.playerId, owned.slotSelections, heroSelection)[slot.slot_id] ?? ''}))},
         defender:{playerId:npcPlayer,heroSnapshot:npcSnapshot,equipment:[],relations:[],slots:opponentSlots.map(slot => ({slotId:slot.slot_id,heroInstanceId:npcHeroes.find(hero => hero.definition.id === slot.catalog_id)?.instanceId ?? ''}))}});
       for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new PreflightProblem('Owned Hero does not match the current formation definition. Reselect the owned Hero for this slot.', 'invalid');
       if (stableKey(await readOwnedAssets(owned.playerId, approved)) !== stableKey(owned)) throw new Error('Assets changed during projection; validate again.');
@@ -2011,7 +2041,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
         }) : previous);
       }
       setBaselineRun(run);
-      setRun({ ownedAssetKey: exactRun?.ownedAssetKey ?? (isTrial && !exactRun ? stableKey(ownedAssets) : undefined), campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
+      setRun({ ownedAssetKey: exactRun?.ownedAssetKey ?? (isTrial && !exactRun ? stableKey({ownedAssets,equipmentDraft,heroSelection}) : undefined), campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
         reproductionAssets, snapshotDigest, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
@@ -2553,7 +2583,15 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
                 <p role="status">Test-only six-domain runtime enabled</p>
                 <button type="button" onClick={() => { try { localStorage.removeItem('senkei.local-trial-enabled.v1'); setTrialPackage(null); setTrialPending(false); setOwnedAssets(null); } catch (cause) { setError(String(cause)); } }}>Return to ordinary local draft</button>
                 <label>Trial tick limit <input type="number" min={1} max={packageValue.termination.max_ticks} value={trialTickLimit} onChange={event => setTrialTickLimit(Number(event.target.value))}/></label>
-                <OwnedAssetsPanel ruleset={packageValue} slots={slots} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
+                <OwnedAssetsPanel equipmentBaseline={prepared?.key === launchKey ? prepared.initialState : null} previewEquipment={async candidate => {
+                  if (!core || !prepared || prepared.key !== launchKey || exactRun || !ownedAssets || !packageValue) throw new Error('Validate the current formation in Ready, then return here to compare equipment.');
+                  const key = launchKey;
+                  const fresh = await readOwnedAssets(ownedAssets.playerId, await approvedEquipmentDefinitions(packageValue));
+                  if (stableKey(fresh) !== stableKey(ownedAssets)) throw new Error('Owned assets changed. Refresh and validate again.');
+                  const state = await previewOwnedEquipment(core, prepared.snapshot, prepared.reproductionAssets, fresh, heroSelection, candidate);
+                  if (launchKeyRef.current !== key) throw new Error('The Draft changed during comparison. Review equipment again.');
+                  return state;
+                }} heroSelections={heroSelection} equipmentDraft={equipmentDraft} onEquipmentDraftChange={next => { setEquipmentDraft(structuredClone(next)); setPrepared(null); setExactRun(null); }} ruleset={packageValue} slots={slots.map(slot => ({...slot,squad_id:slot.squad}))} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
               </>}
             </details>
             {!isTrial && <LocalAssets />}
@@ -2575,7 +2613,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
           </section>
 
           <section aria-labelledby="next-tab-jinrei" className="next-panel next-jinrei-panel" hidden={tab !== "jinrei"} id="next-panel-jinrei" role="tabpanel">
-            <JinreiWorkbench analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
+            <JinreiWorkbench coverageRun={run} coverageRunCurrent={runIsCurrent} coverageTick={displayState?.tick ?? null} onCoverageReplayTick={tick => { player?.pause(); player?.seek(tick); setTab("battle"); }} analysisSource={analysisSource?.context.experimentId === run?.experimentId ? analysisSource : null} repairFocus={jinreiRepairFocus} onReturnToAnalysis={() => { if (analysisSource && analysisSource.context.experimentId === run?.experimentId) setAnalysisContext(analysisSource.context); setTab("analysis"); setScreen("workspace"); }} active={active && screen === "workspace" && tab === "jinrei"} core={core} ruleset={tacticsRuleset}
               catalog={editorCatalogMatchesRuleset(editorCatalog, packageValue) ? editorCatalog : null}
               catalogError={editorCatalogError} draft={draft} draftKey={compilerContextKey}
               compilation={activeCompilation} slots={slots} activeSlot={activeSlot}
@@ -2699,6 +2737,7 @@ export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, r
               </div>
               <details className="next-result-disclosure"><summary><span>Confirmed result · {formatId(runResult.outcome)}</span><small>{formatId(runResult.termination_reason)} · {runResult.final_tick} ticks · {run.graphicsReplay.timeline.length} public presentation events</small></summary><div className="next-result-detail"><span>YOUR CU <strong>{runResult.cu_spent.attacker}</strong></span><span>REPLAY VIEW <strong>{run.graphicsReplay.header.view === "attacker" ? "Owner" : "Public"}</strong></span><button className="next-result-analysis" onClick={openAnalysis} type="button">Analyze <b>↗</b></button></div></details>
               {run.campaignAssociation && !run.campaignAssociation.eligible && <p className="next-save-message" role="status">Reference Run · {run.campaignAssociation.reason} This result does not record Campaign completion.</p>}
+              <PostMatchProgression matchId={runResult.match_id} winner={formatId(runResult.outcome)} />
               {campaignRunActions && <CampaignRunActions {...campaignRunActions} />}
               <nav className="next-battle-mobile-tabs" aria-label="Battlefield console" data-testid="battle-mobile-console">
                 {([ ["battle", "Battle"], ["overview", "Overview"], ["follow", "Follow"], ["timeline", "Timeline"], ["details", "Details"] ] as const).map(([view, label]) => <button aria-label={`${label} view`} aria-pressed={battleMobileView === view} className={battleMobileView === view ? "is-active" : ""} key={view} onClick={() => setBattleView(view)} type="button"><span>{view === "battle" ? "⌖" : view === "overview" ? "◇" : view === "follow" ? "◎" : view === "timeline" ? "≋" : "◉"}</span>{label}</button>)}

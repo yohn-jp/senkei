@@ -52,4 +52,11 @@ describe("persisted setup restore differences", () => {
     expect(setupRestoreDifferences({ ...setup, slots: [slot, second] }, { ...setup, slots: [second, slot] }))
       .toEqual(["Own slot order changes."]);
   });
+
+  it("includes instance selections and equipment assignments in restore review", () => {
+    expect(setupRestoreDifferences(setup, { ...setup,
+      owned_hero_selection: { schemaVersion: 1, playerId: 'player', slots: { one: 'hero' } },
+      owned_equipment_draft: { schemaVersion: 1, playerId: 'player', assignments: { item: 'hero' } },
+    })).toEqual(['Owned Hero instance selections change.', 'Draft equipment assignments change.']);
+  });
 });
