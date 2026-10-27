@@ -149,7 +149,8 @@ impl Hook<'_> {
                 // Sort by stable action ID instead of program declaration order.
                 let mut explicit: Vec<_> = validated.iter().filter(|(s, intent)| {
                     *s == side && intent.actor.as_ref().is_some_and(|id| members.contains(id))
-                        && matches!(intent.capability.as_str(), "move" | "pursue" | "retreat" | "select_target")
+                        && (matches!(intent.capability.as_str(), "move" | "pursue" | "retreat" | "select_target")
+                            || intent.capability.as_str() == "activate" || intent.capability.as_str().ends_with(".activate"))
                 }).map(|(_, intent)| intent.clone()).collect();
                 explicit.sort_by(|a, b| a.action_id.cmp(&b.action_id));
                 let explicit_targets: BTreeSet<_> = explicit.iter().filter_map(|i| (i.capability.as_str() == "select_target").then(|| i.actor.clone()).flatten()).collect();
@@ -221,7 +222,8 @@ impl Hook<'_> {
                     self.traces.push(NextBehaviorTrace { tick, side, actor: actor.clone(), source: NextBehaviorSelectionSource::Explicit, policy_digest:self.policy.digest().clone(), observation_digest: observation_digest.clone(), composition: composition(&actor), eligible_candidates: explicit.len(), unknown_candidates: 0, selected: Some(intent.clone()), score: None, arbitration_accepted: false, transition_completed: false, committed_event: None });
                 }
                 // Explicit Jinrei goal orders take precedence for the entire current squad.
-                if explicit.iter().any(|i| matches!(i.capability.as_str(), "move"|"pursue"|"retreat")) { continue; }
+                if explicit.iter().any(|i| matches!(i.capability.as_str(), "move"|"pursue"|"retreat")
+                    || crate::next_combat::eligible_explicit_skill(i, side, world, next, tick)) { continue; }
                 for actor in &members {
                 let mut offsets = shared;
                 offsets[1] = member_profiles[actor][1];
