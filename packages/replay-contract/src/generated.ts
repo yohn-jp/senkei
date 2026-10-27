@@ -72,7 +72,7 @@ export type Event =
     };
 
 export interface PresentationReplay {
-  schemaVersion: "0.1" | "0.2" | "0.3" | "0.4";
+  schemaVersion: "0.1" | "0.2" | "0.3" | "0.4" | "0.5";
   header: {
     origin: "sample" | "official" | "local";
     title: string;
@@ -254,6 +254,10 @@ export interface BattlefieldState {
   bridgeState?: "normal" | "expanded" | "destroyed";
   buildRemaining?: number;
   captureProgress?: number;
+  /**
+   * Confirmed contest at the capture-resolution snapshot. Absent means unknown.
+   */
+  captureContested?: boolean;
   facilityOwner?: "azure" | "vermilion" | "neutral";
   captureSide?: "azure" | "vermilion" | "neutral";
 }

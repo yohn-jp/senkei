@@ -138,15 +138,9 @@ export class BattlefieldLandmarks {
       model.setIntegrity?.(facility ? battlefieldStructureDamageStage(facility) : "unknown");
     }
     const objective = Object.values(state?.entities ?? {}).find((entity) => entity.kind === "observation");
-    const observationSides = new Set(Object.values(state?.entities ?? {})
-      .filter((entity) => entity.kind === "unit"
-        && entity.hp > 0
-        && !entity.destroyed
-        && entity.battlefield?.node === "N.MID.OBS"
-        && !entity.battlefield.edgeTo
-        && (entity.side === "azure" || entity.side === "vermilion"))
-      .map((entity) => entity.side));
-    this.observation?.update(objective, observationSides.has("azure") && observationSides.has("vermilion"));
+    // Only the authorized capture-resolution fact can establish a contest;
+    // visible unit positions belong to a later snapshot and may differ.
+    this.observation?.update(objective, objective?.battlefield?.captureContested);
   }
 
   dispose() {

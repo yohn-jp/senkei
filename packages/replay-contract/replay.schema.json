@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://senkei.yohn.jp/replay/v0.4/schema.json",
+  "$id": "https://senkei.yohn.jp/replay/v0.5/schema.json",
   "title": "PresentationReplay",
   "type": "object",
   "additionalProperties": false,
@@ -10,7 +10,8 @@
         "0.1",
         "0.2",
         "0.3",
-        "0.4"
+        "0.4",
+        "0.5"
       ]
     },
     "header": {
@@ -950,6 +951,10 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1000000
+        },
+        "captureContested": {
+          "description": "Confirmed contest at the capture-resolution snapshot. Absent means unknown.",
+          "type": "boolean"
         },
         "facilityOwner": {
           "enum": [

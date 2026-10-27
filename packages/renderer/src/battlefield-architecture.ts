@@ -723,7 +723,7 @@ export function buildMidObservatory(
   );
   contestedRing.rotation.x = Math.PI / 2;
   contestedRing.visible = false;
-  const update = (entity: DisplayEntity | undefined, contested = false) => {
+  const update = (entity: DisplayEntity | undefined, contested?: boolean) => {
     const isVisible = entity !== undefined;
     if (entity) group.userData.entityId = entity.id;
     else delete group.userData.entityId;
@@ -738,9 +738,9 @@ export function buildMidObservatory(
     beacon.material.emissiveIntensity = !isVisible ? 0.04 : contested ? 0.8 : capture > 0 ? 0.5 : 0.3;
     ownerBanner.group.visible = isVisible && owner !== undefined && owner !== "neutral" && !contested;
     ownerBanner.flag.material.color.set(factionColor(owner ?? "neutral"));
-    contestedAzureStandard.group.visible = isVisible && contested;
-    contestedVermilionStandard.group.visible = isVisible && contested;
-    contestedRing.visible = isVisible && contested;
+    contestedAzureStandard.group.visible = isVisible && contested === true;
+    contestedVermilionStandard.group.visible = isVisible && contested === true;
+    contestedRing.visible = isVisible && contested === true;
     contestedRing.material.color.set(palette.captureAmber);
     contestedRing.material.emissive.set(palette.captureAmber);
     progressRing.visible = progress > 0;
@@ -751,8 +751,8 @@ export function buildMidObservatory(
     progressRing.geometry = new THREE.TorusGeometry(progressRingRadius, 0.075, 6, 40, Math.PI * 2 * progress);
     group.userData.captureRingRadius = progressRingRadius;
     group.userData.captureRingElevation = progressRingY;
-    group.userData.state = isVisible ? contested ? "contested" : capture > 0 ? "capturing" : "visible" : "unknown";
-    if (isVisible) group.userData.contested = contested;
+    group.userData.state = isVisible ? contested ? "contested" : capture > 0 ? "capture-progress" : "visible" : "unknown";
+    if (isVisible && contested !== undefined) group.userData.contested = contested;
     else delete group.userData.contested;
     if (isVisible && owner !== undefined) {
       group.userData.owner = owner;

@@ -227,7 +227,7 @@ describe("Battlefield architectural models", () => {
       archetype: "observation",
       battlefield: { facilityOwner: "neutral", captureSide: "azure", captureProgress: 7 },
     }));
-    expect(mid.group.userData.state).toBe("capturing");
+    expect(mid.group.userData.state).toBe("capture-progress");
     expect(mid.group.userData.owner).toBe("neutral");
     expect(mid.group.userData.captureSide).toBe("azure");
     expect(mid.group.userData.captureProgress).toBe(7);

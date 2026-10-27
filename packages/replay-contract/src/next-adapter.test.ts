@@ -9,6 +9,7 @@ import {
   presentationToGraphics,
 } from "./next-adapter";
 import { decodeReplay, type PresentationReplay } from "./index";
+import { stateAt } from "../../replay-player/src/index";
 import type { RulesetIdentity, WorldIdentityRef } from "./generated";
 
 const WORLD: WorldIdentityRef = {
@@ -99,13 +100,42 @@ function project(edges: readonly { from:string; to:string; length:number; region
     match_id: "match-1",
     outcome: "draw",
     termination_reason: "tick_limit",
-    final_tick: 1,
+    final_tick: Math.max(1, ...frames.map(frame => frame.tick)),
     statistics: {},
     cu_spent: { attacker: 0, defender: 0 },
     final_state_digest: "c".repeat(64),
   } as unknown as MatchResult;
   return presentationToGraphics(replay, ruleset, result, ruleset.minimum_engine_version);
 }
+
+it("projects only confirmed observation contest facts across seek and visibility loss", () => {
+  const observation = (contested?: DomainValue) => viewEntity("observation", {
+    node: value("string", "camp"),
+    capture_progress: value("integer", 2),
+    capture_owner: value("string", "neutral"),
+    capture_progress_side: value("string", "attacker"),
+    ...(contested === undefined ? {} : { capture_contested: contested }),
+  });
+  const frame = (tick: number, entities: Record<string, ReturnType<typeof viewEntity>>) =>
+    ({ tick, events: [], visible_state: { entities, global_fields: {} } }) as unknown as CoreReplay["frames"][number];
+  const replay = project(undefined, [
+    frame(0, { obs: observation() }),
+    frame(1, { obs: observation({ kind: "bool", value: true }) }),
+    frame(2, {}),
+    frame(3, { obs: observation({ kind: "bool", value: false }) }),
+    frame(4, { obs: observation() }),
+  ]);
+  const entityAt = (tick: number) => Object.values(stateAt(replay, tick).entities).find(entity => entity.kind === "observation");
+  expect(replay.schemaVersion).toBe("0.5");
+  expect(entityAt(0)?.battlefield?.captureContested).toBeUndefined();
+  expect(entityAt(1)?.battlefield?.captureContested).toBe(true);
+  expect(entityAt(2)).toBeUndefined();
+  expect(entityAt(3)?.battlefield?.captureContested).toBe(false);
+  expect(entityAt(4)?.battlefield?.captureContested).toBeUndefined();
+  expect(entityAt(1)?.battlefield?.captureContested).toBe(true);
+  expect(() => project(undefined, [frame(0, { obs: observation({ kind: "integer", value: 1 }) })]))
+    .toThrow("Invalid public capture_contested");
+});
 
 function testRiverPoints(edges: readonly { id?: string; from: string; to: string; bridge_site?: string; ford?: boolean }[], nodes: Record<string, { x:number; y:number; region:string }>, presentationNodes: Record<string,{x:number;y:number}>, world: TestPresentationWorld): {x:number;y:number}[] {
   const anchors = world.river.anchors.map(anchor => {

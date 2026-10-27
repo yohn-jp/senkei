@@ -8,7 +8,7 @@ import { BattlefieldLandmarks } from "./battlefield-landmarks";
 describe("canonical Battlefield landmarks", () => {
   it("renders fixed sites from the Replay graph and keeps hidden facilities unknown", () => {
     const source = structuredClone(basic) as unknown as PresentationReplay;
-    source.schemaVersion = "0.3";
+    source.schemaVersion = "0.5";
     source.scene.nodes = [
       { id: "A.TOP.BANK", allegiance: "A", position: { x: 0, y: 1 } },
       { id: "N.MID.OBS", allegiance: "N", position: { x: 1, y: 1 } },
@@ -25,10 +25,13 @@ describe("canonical Battlefield landmarks", () => {
       { id: "mid-unit-azure", side: "azure", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
       { id: "mid-unit-vermilion", side: "vermilion", kind: "unit", archetype: "hero", appearanceKey: "hero-vanguard", position: { x: 1, y: 1 }, hp: 1, maxHp: 1, battlefield: { node: "N.MID.OBS" } },
     );
-    source.result = { ...source.result, tick: 2 };
+    source.result = { ...source.result, tick: 3 };
     source.timeline = [
       { type: "facility-state", tick: 1, order: 0, entityId: "top-bridge", battlefield: { bridgeSite: "world.fixed-bridge.top", bridgeState: "destroyed", buildRemaining: 0 } },
-      { type: "match-end", tick: 2, order: 0, result: { ...source.result } },
+      { type: "move", tick: 1, order: 1, entityId: "mid-unit-vermilion", position: { x: 0, y: 1 }, logicalPosition: { node: "A.TOP.BANK" } },
+      { type: "facility-state", tick: 1, order: 2, entityId: "mid-observation", battlefield: { captureProgress: 4, captureSide: "vermilion", facilityOwner: "neutral", captureContested: true } },
+      { type: "facility-state", tick: 2, order: 0, entityId: "mid-observation", battlefield: { captureProgress: 4, captureSide: "vermilion", facilityOwner: "neutral", captureContested: false } },
+      { type: "match-end", tick: 3, order: 0, result: { ...source.result } },
     ];
     const replay = decodeReplay(source), scene = new THREE.Scene();
     const landmarks = new BattlefieldLandmarks(scene, replay);
@@ -63,7 +66,12 @@ describe("canonical Battlefield landmarks", () => {
     expect(brokenGap.visible).toBe(false);
     expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(true);
     expect(bridge.userData.buildRemaining).toBe(3);
-    expect(objective.userData.state).toBe("contested");
+    // Seeing opponents at the site does not confirm a contest: the Replay
+    // exposes capture progress, but no contest status for this Tick.
+    expect(objective.userData.state).toBe("capture-progress");
+    expect(objective.userData.contested).toBeUndefined();
+    expect(objective.getObjectByName("mid-observatory-contested-ring")?.visible).toBe(false);
+    expect(objective.getObjectByName("mid-observatory-capture-ring")?.visible).toBe(true);
     const damagedBridge = structuredClone(stateAt(replay, 0)) as {
       tick: number;
       entities: Record<string, Omit<DisplayEntity, "hp" | "maxHp"> & { hp: number; maxHp: number }>;
@@ -84,14 +92,28 @@ describe("canonical Battlefield landmarks", () => {
     };
     delete oneSided.entities["mid-unit-vermilion"];
     landmarks.update(oneSided as DisplayState);
-    expect(objective.userData.state).toBe("capturing");
+    expect(objective.userData.state).toBe("capture-progress");
+    // A hidden opponent could still be present; one visible side is not proof
+    // that the site is uncontested either.
+    expect(objective.userData.contested).toBeUndefined();
     landmarks.update(stateAt(replay, 1));
+    // The producer's resolution snapshot, not the later visible positions,
+    // controls the contest cue (the vermilion unit has already left).
+    expect(objective.userData.state).toBe("contested");
+    expect(objective.userData.contested).toBe(true);
+    expect(objective.getObjectByName("mid-observatory-contested-ring")?.visible).toBe(true);
     expect(bridge.userData.state).toBe("destroyed");
     expect(centerDeck.visible).toBe(false);
     expect(sideDeck.visible).toBe(false);
     expect(brokenGap.visible).toBe(true);
     expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(false);
     expect(bridge.userData.buildRemaining).toBeUndefined();
+    landmarks.update(stateAt(replay, 2));
+    expect(objective.userData.state).toBe("capture-progress");
+    expect(objective.userData.contested).toBe(false);
+    expect(objective.getObjectByName("mid-observatory-contested-ring")?.visible).toBe(false);
+    landmarks.update(stateAt(replay, 1));
+    expect(objective.userData.contested).toBe(true);
     landmarks.update({ tick: 1, entities: {}, cues: [], result: null });
     expect(bridge.userData.state).toBe("unknown");
     expect(bridge.getObjectByName(`${bridge.name}-work-scaffold`)?.visible).toBe(false);

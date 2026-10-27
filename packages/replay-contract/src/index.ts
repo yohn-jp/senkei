@@ -55,7 +55,7 @@ export function decodeReplay(input: unknown): Replay {
     fail("Sample must not claim an Enbu execution");
   if ((r.header.origin === "official" || r.header.origin === "local") && !r.header.enbuVersion)
     fail("Official replay requires an Enbu version");
-  const hasPairedWorldReplay = r.schemaVersion === "0.3" || r.schemaVersion === "0.4";
+  const hasPairedWorldReplay = r.schemaVersion === "0.3" || r.schemaVersion === "0.4" || r.schemaVersion === "0.5";
   if (hasPairedWorldReplay && r.header.origin !== "sample" && (!r.header.ruleset || !r.header.world))
     fail(`Replay ${r.schemaVersion} requires complete RulePackage and paired World identity`);
   if (r.header.ruleset && (r.header.ruleset.id !== r.header.senritsu.id ||
@@ -64,8 +64,8 @@ export function decodeReplay(input: unknown): Replay {
   if (r.header.world) {
     const world = r.header.world;
     const hasCompilerVersion = "compiler_version" in world;
-    if (r.schemaVersion === "0.4" && !hasCompilerVersion)
-      fail("Replay 0.4 requires an exact World Compiler version");
+    if ((r.schemaVersion === "0.4" || r.schemaVersion === "0.5") && !hasCompilerVersion)
+      fail(`Replay ${r.schemaVersion} requires an exact World Compiler version`);
     if (hasCompilerVersion && world.compiler_version.major === 0 && world.compiler_version.minor === 0 && world.compiler_version.patch === 0)
       fail("World compiler version cannot be zero");
     if ((world.validation_profile_id === null) !== (world.validation_profile_version === null))
@@ -161,8 +161,14 @@ export function decodeReplay(input: unknown): Replay {
   }
   const entities = new Map<string, Entity>();
   const seen = new Set<string>();
+  const checkCaptureContest = (kind: Entity["kind"], battlefield: Entity["battlefield"]) => {
+    if (battlefield?.captureContested === undefined) return;
+    if (r.schemaVersion !== "0.5") fail("Capture contest requires replay 0.5");
+    if (kind !== "observation") fail("Capture contest requires an observation facility");
+  };
   const add = (e: Entity) => {
     if (seen.has(e.id)) fail(`Entity ID reused: ${e.id}`);
+    checkCaptureContest(e.kind, e.battlefield);
     const persistentFacility = e.kind === "bridge" || e.kind === "observation";
     if ((e.hp <= 0 && !persistentFacility) || e.hp > e.maxHp) fail(`Invalid initial HP: ${e.id}`);
     point(e.position);
@@ -211,11 +217,13 @@ export function decodeReplay(input: unknown): Replay {
       if (current.hp === 0 && current.kind !== "bridge" && current.kind !== "observation")
         fail("Zero HP entity requires destroy or disappear");
       if (e.type === "move") {
+        if (e.logicalPosition?.captureContested !== undefined) fail("Capture contest requires a facility-state event");
         point(e.position);
         current.position = e.position;
         if (e.logicalPosition) current.battlefield = e.logicalPosition;
       }
       if (e.type === "facility-state") {
+        checkCaptureContest(current.kind, e.battlefield);
         current.battlefield = e.battlefield;
         if (e.battlefield.facilityOwner) current.side = e.battlefield.facilityOwner;
       }

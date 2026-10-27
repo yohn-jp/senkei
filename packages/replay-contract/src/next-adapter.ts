@@ -41,6 +41,12 @@ const maybeString = (e: EntityStateView, k: string): string | undefined => {
   const value = scalar(e.fields[k]);
   return typeof value === "string" && value ? value : undefined;
 };
+const maybeBool = (e: EntityStateView, k: string): boolean | undefined => {
+  const value = e.fields[k];
+  if (value === undefined) return undefined;
+  if (value.kind !== "bool" || typeof value.value !== "boolean") throw new ReplayError(`Invalid public ${k}`);
+  return value.value;
+};
 const publicSide = (value: string | undefined): Entity["side"] =>
   value === "attacker" || value === "azure" ? "azure" : value === "defender" || value === "vermilion" ? "vermilion" : "neutral";
 function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["side"], edges: readonly StaticEdge[]): Entity["battlefield"] {
@@ -68,11 +74,13 @@ function battlefieldState(raw: EntityStateView, kind: string, owner: Entity["sid
   };
   if (kind === "observation") {
     const captureOwner = maybeString(raw, "capture_owner");
+    const captureContested = maybeBool(raw, "capture_contested");
     return {
       ...(node ? { node } : {}),
       ...(captureProgress !== undefined ? { captureProgress } : {}),
       ...(captureSide ? { captureSide: publicSide(captureSide) } : {}),
       ...(captureOwner ? { facilityOwner: publicSide(captureOwner) } : {}),
+      ...(captureContested !== undefined ? { captureContested } : {}),
     };
   }
   if (!node) return undefined;
@@ -218,7 +226,10 @@ export function presentationToGraphics(
     }
   }
   emit({ type:"match-end", tick:result.tick, order:order++, result });
-  return decodeReplay({ schemaVersion:"0.4", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},ruleset:ruleset.ruleset,world:sourceWorld,view:source.perspective ?? "public" },
+  const hasContestFact = initialView.some(entity => entity.battlefield?.captureContested !== undefined)
+    || timeline.some(event => event.type === "spawn" ? event.entity.battlefield?.captureContested !== undefined
+      : event.type === "facility-state" && event.battlefield.captureContested !== undefined);
+  return decodeReplay({ schemaVersion:hasContestFact ? "0.5" : "0.4", header:{ origin:"local",title:"Local Next Senritsu",enbuVersion:`${engineVersion.major}.${engineVersion.minor}.${engineVersion.patch}`,senritsu:{ id:ruleset.ruleset.id,digest:`sha256:${ruleset.ruleset.digest}`},ruleset:ruleset.ruleset,world:sourceWorld,view:source.perspective ?? "public" },
     presentation:{coordinates:"x-right-y-down",assetCatalogVersion:"procedural-battlefield-2",tickDurationMs:next.parameters.tick_duration_ms ?? 100},
     ...(fogFrames.length ? { fog: { worldUnitsPerRenderUnit: scale, frames: fogFrames } } : {}),
     scene:{ bounds:{min:{x:Math.min(...extent.map(point=>point.x))-3,y:Math.min(...extent.map(point=>point.y))-3},max:{x:Math.max(...extent.map(point=>point.x))+3,y:Math.max(...extent.map(point=>point.y))+3}},

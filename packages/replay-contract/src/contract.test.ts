@@ -78,6 +78,27 @@ describe("JSON Schema 2020-12 and normative semantic validation", () => {
     r.header.ruleset.digest = "d".repeat(64);
     expect(() => decodeReplay(r)).toThrow("does not match the Senritsu reference");
   });
+  it("accepts capture contest only as an observation fact in Replay 0.5", () => {
+    const replay = structuredClone(basic) as PresentationReplay;
+    replay.schemaVersion = "0.5";
+    replay.scene.nodes = [{ id: "a", allegiance: "A", position: { x: 1, y: 1 } }];
+    replay.scene.routes = [{ id: "r", region: "lane", points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }];
+    replay.initialView.push({
+      id: "objective", side: "neutral", kind: "observation", archetype: "observation", appearanceKey: "observation",
+      position: { x: 0, y: 0 }, hp: 1, maxHp: 1,
+      battlefield: { captureContested: true },
+    });
+    expect(decodeReplay(replay).initialView.at(-1)?.battlefield?.captureContested).toBe(true);
+    const oldVersion = structuredClone(replay);
+    oldVersion.schemaVersion = "0.4";
+    expect(() => decodeReplay(oldVersion)).toThrow("Capture contest requires replay 0.5");
+    const wrongKind = structuredClone(replay);
+    wrongKind.initialView.at(-1)!.kind = "unit";
+    expect(() => decodeReplay(wrongKind)).toThrow("Capture contest requires an observation facility");
+    const wrongType = structuredClone(replay) as unknown as { initialView: { battlefield?: Record<string, unknown> }[] };
+    wrongType.initialView.at(-1)!.battlefield!.captureContested = "true";
+    expect(() => decodeReplay(wrongType)).toThrow("Schema");
+  });
   it("rejects noninteger, negative, beyond-end and out-of-bounds values", () => {
     invalid((r) => {
       r.timeline[0].tick = 0.5;
