@@ -48,9 +48,23 @@ it('keeps the original pending archive exportable after a concurrent relationshi
   expect(await reopened.pendingArchive()).toEqual(archive);
   await expect(reopened.resume()).rejects.toThrow('Conflicting relationship archive');
   expect(await reopened.pendingArchive()).toEqual(archive);
+  const activeEvidence = await reopened.exportRecoveryEvidence();
+  expect(activeEvidence?.status).toBe('active');
+  expect(activeEvidence?.original).toEqual(archive);
+  expect(activeEvidence?.current.relationships.events.map(event => event.eventId)).toEqual(['concurrent']);
   expect(await reopened.abandonPending()).toBe(true);
-  expect(await reopened.pendingArchive()).toBeNull();
-  const current = await reopened.export();
+  expect(await reopened.pendingRecovery()).toEqual({ archive, paused: true });
+  // New browser tab / reload must no longer trigger the failing restore, and may export both branches.
+  const reloaded = new OwnedAssetsRecovery('p', [], indexedDB, journalName, targetNames);
+  await reloaded.resume();
+  const current = await reloaded.export();
   expect(current.heroes).toEqual(archive.heroes);
   expect(current.relationships.events.map(event => event.eventId)).toEqual(['concurrent']);
+  expect(await reloaded.exportRecoveryEvidence()).toEqual({
+    schemaVersion: 1, playerId: 'p', status: 'paused', original: archive, current,
+  });
+  await expect(reloaded.begin(archive)).rejects.toThrow('Conflicting relationship archive');
+  expect(await reloaded.pendingRecovery()).toEqual({ archive, paused: true });
+  // No explicit recovery step may delete the other tab's relationship edit or the retained archive.
+  expect((await reloaded.export()).relationships.events.map(event => event.eventId)).toEqual(['concurrent']);
 });
