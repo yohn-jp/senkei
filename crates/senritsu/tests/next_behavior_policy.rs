@@ -48,3 +48,14 @@ fn behavior_match_round_trips_policy_and_profiles() {
     let json = serde_json::to_vec(&value).unwrap();
     assert_eq!(serde_json::from_slice::<NextBehaviorMatch>(&json).unwrap(), value);
 }
+
+#[test]
+fn trial_target_candidate_matches_other_side_capability() {
+    let mut package = senritsu::next_local_trial_package();
+    senritsu::add_trial_behavior_preferences(&mut package);
+    package.ruleset.digest = senritsu::canonical_digest(&package).unwrap();
+    let rules = validate(package, &next_engine_compatibility()).unwrap();
+    let mut p = policy(&rules);
+    p.candidates.push(BehaviorCandidateDefinition { kind: BehaviorCandidateKind::Target, capability: "select_target".into(), arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObservedTarget] });
+    assert!(validate_next_behavior_policy(p, &rules).is_ok());
+}
