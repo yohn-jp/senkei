@@ -263,6 +263,7 @@ impl BehaviorResolver {
                 .map_or(true, |n| n > MAX_CANDIDATES_PER_RESOLUTION) {
             return Err(BehaviorError::TraceLimitExceeded);
         }
+        self.validate_composition(composition, actor, tick, side)?;
         let mut decisions = BTreeMap::new();
         for (field, candidates) in fields {
             if !self.profiles.fields.contains_key(field) || !self.field_applies(actor.scope, field) {
@@ -287,27 +288,7 @@ impl BehaviorResolver {
         if candidates.len() > MAX_CANDIDATES_PER_RESOLUTION {
             return Err(BehaviorError::TraceLimitExceeded);
         }
-        let members = sorted_members(actor)?;
-        let member_ids = members.iter().map(|member| member.subject_id.clone()).collect::<Vec<_>>();
-        let expected_digest = profile_digest(
-            &self.identity,
-            actor,
-            &members,
-            &composition.values,
-            tick,
-            side,
-        )?;
-        if composition.catalog_identity != self.identity
-            || composition.actor_scope != actor.scope
-            || composition.actor_id != actor.subject_id
-            || composition.movement_authority != actor.movement_authority
-            || composition.tick != tick
-            || composition.side != side
-            || composition.squad_members != member_ids
-            || composition.digest != expected_digest
-        {
-            return Err(BehaviorError::StaleComposition);
-        }
+        self.validate_composition(composition, actor, tick, side)?;
         let mut trace = Vec::new();
         let explicit = self.collect_candidates(
             actor,
@@ -390,6 +371,34 @@ impl BehaviorResolver {
             fallback_kind: None,
             trace: bounded_trace(trace)?,
         })
+    }
+
+    fn validate_composition(
+        &self, composition: &ProfileComposition, actor: &ProfileActor, tick: u32,
+        side: CombatantSide,
+    ) -> Result<(), BehaviorError> {
+        let members = sorted_members(actor)?;
+        let member_ids = members.iter().map(|member| member.subject_id.clone()).collect::<Vec<_>>();
+        let expected_digest = profile_digest(
+            &self.identity,
+            actor,
+            &members,
+            &composition.values,
+            tick,
+            side,
+        )?;
+        if composition.catalog_identity != self.identity
+            || composition.actor_scope != actor.scope
+            || composition.actor_id != actor.subject_id
+            || composition.movement_authority != actor.movement_authority
+            || composition.tick != tick
+            || composition.side != side
+            || composition.squad_members != member_ids
+            || composition.digest != expected_digest
+        {
+            return Err(BehaviorError::StaleComposition);
+        }
+        Ok(())
     }
 
     fn apply_layer(

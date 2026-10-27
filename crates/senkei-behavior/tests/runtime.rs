@@ -1023,3 +1023,12 @@ fn field_decisions_preserve_unknown_fallback_and_reject_unbound_capabilities() {
     let invalid = BTreeMap::from([("targeting.mode".to_string(), vec![unknown])]);
     assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 5, side, &invalid, &BTreeMap::new()), Err(BehaviorError::InvalidCandidateSet));
 }
+
+#[test]
+fn empty_field_decisions_still_reject_stale_composition() {
+    let fixture = fixture();
+    let hero = actor(&fixture.hero_ids[0], "hero-one");
+    let side = CombatantSide::Attacker;
+    let composition = fixture.resolver.compose(&hero, &ProfilePreferences::default(), 5, side, &empty_execution(), &BTreeMap::new()).unwrap();
+    assert_eq!(fixture.resolver.resolve_fields(&composition, &hero, 6, side, &BTreeMap::new(), &BTreeMap::new()), Err(BehaviorError::StaleComposition));
+}
