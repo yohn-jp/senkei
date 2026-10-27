@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import typescript from "typescript";
 import { applyOfficialResponse, createOfficialTransaction, inquiryFor, officialProducer, type OfficialResponse } from "./official-transactions";
 
 const identity = { operationId: "op-1", requestId: "req-1", playerId: "player-1", authorityId: "authority-1" } as const;
@@ -35,16 +37,17 @@ describe("official transaction boundary", () => {
 });
 
 it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromium"))("persists evidence and detects concurrent writes in browser IndexedDB", async () => {
-  const { createServer } = await import("vite");
   const { chromium } = await import("@playwright/test");
-  const server = await createServer({ configFile: false, server: { middlewareMode: true } });
-  const transformed = await server.transformRequest("/apps/web/src/features/progression/official-transactions.ts");
-  if (!transformed) throw new Error("Could not transform transaction module");
+  // This standalone module has no imports; avoid starting Vite middleware for an IndexedDB-only contract test.
+  const source = await readFile(new URL("./official-transactions.ts", import.meta.url), "utf8");
+  const transformed = typescript.transpileModule(source, { compilerOptions: {
+    target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.ESNext,
+  }, fileName: "official-transactions.ts" }).outputText;
   const browser = await chromium.launch({ executablePath: process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromium", args: ["--no-sandbox", "--no-proxy-server"] });
   try {
     const page = await browser.newPage();
     await page.route("http://localhost/**", route => route.fulfill(route.request().url().endsWith(".ts")
-      ? { contentType: "text/javascript", body: transformed.code }
+      ? { contentType: "text/javascript", body: transformed }
       : { contentType: "text/html", body: "<!doctype html><title>Test</title>" }));
     await page.goto("http://localhost/");
     const result = await page.evaluate(async () => {
@@ -68,6 +71,5 @@ it.skipIf(!existsSync(process.env.SENKEI_CHROMIUM_EXECUTABLE || "/usr/bin/chromi
     expect(result.conflict).toBe(true);
   } finally {
     await browser.close();
-    await server.close();
   }
 }, 30000);
