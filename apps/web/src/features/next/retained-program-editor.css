@@ -1,0 +1,7 @@
+.retained-program-editor { margin-block: 1rem; overflow-wrap: anywhere; }
+.retained-program-editor > section { padding: .5rem; }
+.retained-program-editor summary { cursor: pointer; }
+.retained-program-editor label { display: grid; gap: .4rem; }
+.retained-program-editor textarea { width: 100%; min-height: 14rem; box-sizing: border-box; font-family: ui-monospace, monospace; }
+.retained-program-editor button { min-height: 44px; }
+.retained-program-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-block: .5rem; }
