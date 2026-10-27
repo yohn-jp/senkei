@@ -5,6 +5,8 @@
  */
 import type { ReproductionAssets, SimulationSnapshot } from "../../../apps/web/src/contracts/core";
 import type { MatchResult, PresentationReplay, WorldIdentityRef } from "../../../apps/web/src/contracts/core-model";
+export { ReproducingCoreClientAdapter } from "./core-client";
+export * from "./economy";
 
 export interface Principal {
   readonly playerId: string;
@@ -104,7 +106,7 @@ export interface OfficialCorePort {
    */
   verifyAndExecute(match: AdmittedMatch): Promise<ExecutionOutput>;
   /** Recompute the Rust core MatchResult digest; reject any result/digest mismatch. */
-  verifyResult(result: MatchResult, resultDigest: string): Promise<void>;
+  verifyResult(match: AdmittedMatch, execution: ExecutionOutput): Promise<void>;
   /**
    * Establish that this exact replay is the authorized public projection for the
    * retained match and result, with allowed fields/events only. It must not contain
@@ -317,7 +319,7 @@ function requireExecution(match: AdmittedMatch, execution: ExecutionOutput): voi
 }
 async function checkExecution(core: OfficialCorePort, match: AdmittedMatch, execution: ExecutionOutput): Promise<void> {
   requireExecution(match, execution);
-  await core.verifyResult(execution.result, execution.resultDigest);
+  await core.verifyResult(match, execution);
   await core.verifyPublicReplay(match, execution);
 }
 function checkedOutcome(outcome: SettlementOutcome, match: AdmittedMatch, resultDigest: string): SettlementOutcome {
