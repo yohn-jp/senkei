@@ -4,6 +4,7 @@
 //! bytecode is opaque and is executed only through `TacticalExecutionPort`.
 
 mod behavior;
+pub use senkei_behavior::BEHAVIOR_RUNTIME_VERSION;
 pub use behavior::{simulate_with_behavior, BehaviorBinding, BehaviorCandidateTemplate, BehaviorExecutionInputs, BehaviorSimulationArtifact, BehaviorOwnerDiagnostics, BehaviorTickTrace, BehaviorTraces};
 mod validation;
 mod world;

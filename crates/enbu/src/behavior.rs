@@ -64,13 +64,13 @@ impl BehaviorSimulationArtifact {
     pub fn reproduction(&self) -> (&ReproductionContext, &BehaviorExecutionInputs) { (&self.artifact.reproduction, &self.inputs) }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct BehaviorOwnerDiagnostics {
     pub behavior_run_digest: ContentDigest,
     pub diagnostics: RestrictedDiagnostics,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct BehaviorTickTrace {
     pub tick: u32,
     pub side: CombatantSide,

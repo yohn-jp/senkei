@@ -5,7 +5,8 @@ use senkei_model::{
     PreflightReproductionPayload, ReproducePayload, ReproductionAssets, RulesetRef,
     SimulatePayload, VerifiedRulePlan, Version, OP_NEXT_REPRODUCTION_ASSETS,
     OP_PREFLIGHT_REPRODUCTION, OP_REPRODUCE, REPRODUCTION_ASSETS_FORMAT_VERSION,
-    WASM_API_VERSION,
+    WASM_API_VERSION, OP_SIMULATE_BEHAVIOR, BEHAVIOR_SIMULATION_FORMAT_VERSION,
+    SimulateBehaviorPayload, BehaviorSimulationResponse, BehaviorOwnerResponse,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -175,6 +176,7 @@ fn handle_operation(operation: &str, payload: Value) -> Result<(Value, u64), Api
         "compile_ast" => compile_ast(payload),
         "preflight" => preflight(payload),
         "simulate" => simulate(payload),
+        OP_SIMULATE_BEHAVIOR => simulate_behavior(payload),
         _ => Err(api_error(
             ApiErrorCode::InvalidRequest,
             Some("operation"),
@@ -326,6 +328,36 @@ fn simulate(payload: Value) -> Result<(Value, u64), ApiError> {
         &mut vm,
     )?;
     let response = project_simulation_response(&artifact, diagnostics_side);
+    Ok((encode(&response, "result")?, max_output_bytes))
+}
+
+/// Execute the exact versioned Behavior inputs through the same Enbu tick as
+/// native. The generic package and extension are untrusted until verified.
+fn simulate_behavior(payload: Value) -> Result<(Value, u64), ApiError> {
+    let request: SimulateBehaviorPayload = decode_strict(payload, "payload")?;
+    if request.format_version != BEHAVIOR_SIMULATION_FORMAT_VERSION {
+        return Err(api_error(ApiErrorCode::InvalidVersion, Some("payload.format_version"), "unsupported Behavior simulation format"));
+    }
+    let side = requested_diagnostics_side(request.include_diagnostics, request.diagnostics_side)?;
+    let extension: senritsu::CatalogMetadataExtension = decode_strict(request.catalog_metadata_extension, "payload.catalog_metadata_extension")?;
+    let inputs: enbu::BehaviorExecutionInputs = decode_strict(request.behavior_inputs, "payload.behavior_inputs")?;
+    let rules = senritsu::validate_with_catalog_extension(request.rule_package, &senritsu::next_engine_compatibility(), extension.clone())
+        .map_err(|issues| {
+            let mut error = api_error(ApiErrorCode::ValidationFailed, Some("payload.rule_package"), "Behavior RulePackage and extension failed validation");
+            error.details.insert("issues".into(), serde_json::to_string(&issues).unwrap_or_else(|_| "[]".into()));
+            error
+        })?;
+    let catalog = senritsu::DomainCatalog::from_verified_plan_with_extension(&rules, extension)
+        .map_err(|_| api_error(ApiErrorCode::ValidationFailed, Some("payload.catalog_metadata_extension"), "Behavior Catalog failed validation"))?;
+    let max_output_bytes = reproduction_output_limit(&rules, &request.snapshot.context);
+    let mut vm = jinrei::Vm::new(&rules);
+    let artifact = enbu::simulate_with_behavior(&request.snapshot.attacker, &request.snapshot.defender, &rules, &request.snapshot.context, &mut vm, &catalog, &inputs)?;
+    let public = artifact.public_response();
+    let owner = if let Some(side) = side {
+        let diagnostics = artifact.diagnostics_for_owner(side);
+        Some(BehaviorOwnerResponse { authorized_side: side, behavior_run_digest: diagnostics.behavior_run_digest, diagnostics: diagnostics.diagnostics, trace: encode(&artifact.traces_for_owner(side), "result.owner.trace")? })
+    } else { None };
+    let response = BehaviorSimulationResponse { format_version: BEHAVIOR_SIMULATION_FORMAT_VERSION, behavior_runtime_version: enbu::BEHAVIOR_RUNTIME_VERSION, result: public.result, replay: public.replay, owner };
     Ok((encode(&response, "result")?, max_output_bytes))
 }
 
@@ -777,5 +809,18 @@ mod diagnostics_request_tests {
         assert!(matches!(requested_diagnostics_side(false, None), Ok(None)));
         assert!(requested_diagnostics_side(false, Some(CombatantSide::Attacker)).is_err());
         assert!(requested_diagnostics_side(false, Some(CombatantSide::Defender)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod behavior_wire_tests {
+    #[test]
+    fn behavior_operation_validates_its_versioned_payload() {
+        let response: serde_json::Value = serde_json::from_str(&super::dispatch_json(&serde_json::json!({
+            "api_version": {"major": 1, "minor": 0, "patch": 0}, "request_id": "behavior-invalid",
+            "operation": "simulate_behavior", "payload": {}
+        }).to_string())).unwrap();
+        assert_eq!(response["ok"], false);
+        assert!(response["error"]["message"].as_str().unwrap().contains("payload could not be deserialized"));
     }
 }

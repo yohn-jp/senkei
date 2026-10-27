@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+// Test-only single-field profile; no production Behavior policy is asserted.
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+
+const target = process.env.CARGO_TARGET_DIR ?? "target";
+const nativePath = process.env.SENKEI_NATIVE_DISPATCHER ?? resolve(target, "release/senkei-wasm-dispatch");
+const wasmPath = process.env.SENKEI_WASM_PATH ?? resolve(target, "wasm32-unknown-unknown/release/senkei_wasm.wasm");
+const fixture = JSON.parse(await readFile(new URL("./behavior-fixture.request.json", import.meta.url), "utf8"));
+const clone = () => structuredClone(fixture);
+const publicRequest = clone(); publicRequest.payload.include_diagnostics = false; delete publicRequest.payload.diagnostics_side;
+const defender = clone(); defender.payload.diagnostics_side = "defender";
+const missingSide = clone(); delete missingSide.payload.diagnostics_side;
+const extraSide = clone(); extraSide.payload.include_diagnostics = false;
+const different = clone(); different.payload.behavior_inputs.bindings.attacker.preferences["navigation.lane"] = { kind: "enum", value: "bot" };
+const badCatalog = clone(); badCatalog.payload.behavior_inputs.catalog_key.catalogDigest = "f".repeat(64);
+const badExtension = clone(); badExtension.payload.catalog_metadata_extension.behaviorProfiles.senritsuDefault["navigation.lane"].value = "bot";
+const badVersion = clone(); badVersion.payload.format_version = 2;
+const unknownField = clone(); unknownField.payload.behavior_inputs.unrecognized = true;
+const requests = [fixture, publicRequest, defender, missingSide, extraSide, different, badCatalog, badExtension, badVersion, unknownField, clone()];
+const native = spawnSync(nativePath, [], { input: requests.map(JSON.stringify).join("\n") + "\n", encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+assert.equal(native.status, 0, native.stderr);
+const nativeResponses = native.stdout.trim().split("\n").map(JSON.parse);
+const { instance } = await WebAssembly.instantiate(await readFile(wasmPath), {});
+const { memory, senkei_alloc: alloc, senkei_dispatch: dispatch, senkei_dealloc: free } = instance.exports;
+function runWasm(request) {
+  const data = new TextEncoder().encode(JSON.stringify(request));
+  const pointer = alloc(data.length); new Uint8Array(memory.buffer, pointer, data.length).set(data);
+  const result = BigInt(dispatch(pointer, data.length));
+  const outPointer = Number(result & 0xffffffffn), outLength = Number(result >> 32n);
+  const output = new Uint8Array(memory.buffer, outPointer, outLength).slice();
+  free(pointer, data.length); free(outPointer, outLength);
+  return JSON.parse(new TextDecoder().decode(output));
+}
+const wasmResponses = requests.map(runWasm);
+assert.deepEqual(wasmResponses, nativeResponses, "native dispatcher and real WASM must agree exactly");
+const [owner, publicResult, defenderResult, absent, extra, changed, key, extension, version, unknown, repeated] = wasmResponses;
+assert.equal(owner.ok, true);
+assert.deepEqual(owner.result.behavior_runtime_version, { major: 1, minor: 0, patch: 0 });
+assert.deepEqual(repeated, owner, "repeating the immutable inputs reproduces the full response");
+const canonical = value => Array.isArray(value) ? value.map(canonical) : value !== null && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+const digest = value => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+const snapshotDigest = digest(fixture.payload.snapshot);
+const runDigest = digest({ behavior_input_schema: 1, behavior_runtime_version: owner.result.behavior_runtime_version, simulation_snapshot_digest: snapshotDigest, inputs: fixture.payload.behavior_inputs });
+assert.equal(owner.result.owner.behavior_run_digest, runDigest);
+assert.equal(owner.result.owner.diagnostics.identity.snapshot_digest, runDigest);
+assert.equal(owner.result.owner.authorized_side, "attacker");
+assert.equal(owner.result.owner.diagnostics.identity.schema_version, 2);
+assert.equal(owner.result.owner.trace[0].arbitration_accepted, true);
+assert(owner.result.replay.frames.some(frame => frame.events.some(event => event.event === "lane_shifted")));
+assert(owner.result.owner.diagnostics.events.some(event => event.record.kind === "intent_proposed" && event.record.value.intent.action_id === "default"));
+assert(owner.result.owner.diagnostics.events.some(event => event.record.kind === "intent_accepted" && event.record.value.intent.action_id === "default"));
+assert.equal(publicResult.ok, true); assert.equal(Object.hasOwn(publicResult.result, "owner"), false);
+assert.equal(defenderResult.result.owner.authorized_side, "defender");
+assert.deepEqual(defenderResult.result.owner.trace, []);
+assert(defenderResult.result.owner.diagnostics.events.every(event => event.side === "defender"));
+assert.equal(changed.ok, true);
+assert.notEqual(owner.result.owner.behavior_run_digest, changed.result.owner.behavior_run_digest);
+for (const response of [absent, extra, key, extension, version, unknown]) assert.equal(response.ok, false);
+console.log(`PASS ${requests.length} Behavior requests: native and real WASM responses match`);

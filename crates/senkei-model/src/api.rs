@@ -13,6 +13,8 @@ pub const OP_PARSE_TEXT: &str = "parse_text";
 pub const OP_FORMAT_AST: &str = "format_ast";
 pub const OP_NEW_MATCH_CONTEXT: &str = "new_match_context";
 pub const OP_SIMULATE: &str = "simulate";
+pub const OP_SIMULATE_BEHAVIOR: &str = "simulate_behavior";
+pub const BEHAVIOR_SIMULATION_FORMAT_VERSION: u16 = 1;
 pub const OP_NEXT_REPRODUCTION_ASSETS: &str = "next_reproduction_assets";
 pub const OP_REPRODUCE: &str = "reproduce";
 pub const OP_PREFLIGHT_REPRODUCTION: &str = "preflight_reproduction";
@@ -130,6 +132,39 @@ pub struct SimulatePayload {
     /// Required when diagnostics are requested; authorizes one owner channel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostics_side: Option<crate::CombatantSide>,
+}
+
+/// Explicit local Behavior simulation. Catalog and Behavior input JSON are
+/// decoded by their owning crates, then validated against the RulePackage.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SimulateBehaviorPayload {
+    pub format_version: u16,
+    pub rule_package: crate::RulePackage,
+    pub catalog_metadata_extension: serde_json::Value,
+    pub snapshot: ReproductionSnapshot,
+    pub behavior_inputs: serde_json::Value,
+    pub include_diagnostics: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics_side: Option<crate::CombatantSide>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct BehaviorOwnerResponse {
+    pub authorized_side: crate::CombatantSide,
+    pub behavior_run_digest: crate::ContentDigest,
+    pub diagnostics: crate::RestrictedDiagnostics,
+    pub trace: serde_json::Value,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct BehaviorSimulationResponse {
+    pub format_version: u16,
+    pub behavior_runtime_version: Version,
+    pub result: crate::MatchResult,
+    pub replay: crate::PresentationReplay,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<BehaviorOwnerResponse>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
