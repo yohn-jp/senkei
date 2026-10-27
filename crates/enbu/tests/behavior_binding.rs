@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 fn default_profile_changes_world_through_real_tick() {
     let mut package = senritsu::initial_package();
     package.domain.capabilities.get_mut(&CapabilityId::new("shift_lane")).unwrap().preconditions.clear();
+    if let ArbitrationResolution::SelectOrdered { max_accepted, .. } = &mut package.arbitration.get_mut(&CapabilityId::new("shift_lane")).unwrap().resolution { *max_accepted = 1; }
     let ty = package.domain.capabilities[&CapabilityId::new("shift_lane")].arguments[1].value_type.clone();
     let field = "navigation.lane";
     let actor_caps = package.domain.capabilities.iter().filter_map(|(id, capability)| {
@@ -47,6 +48,9 @@ fn default_profile_changes_world_through_real_tick() {
     let mut vm = jinrei::Vm::new(&rules);
     let run = |vm: &mut jinrei::Vm, inputs: &BehaviorExecutionInputs| simulate_with_behavior(&snapshot("a"), &snapshot("b"), &rules, &context, vm, &catalog, inputs);
     let artifact = run(&mut vm, &inputs).unwrap();
+    let initial_diagnostics = artifact.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert_eq!(initial_diagnostics.events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentProposed { intent } if intent.action_id.as_str() == "default")).count(), 1);
+    assert_eq!(initial_diagnostics.events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentAccepted { intent } if intent.action_id.as_str() == "default")).count(), 1);
     assert!(artifact.traces_for_owner(CombatantSide::Defender).is_empty());
     let mut bad_key = inputs.clone(); bad_key.catalog_key["catalogDigest"] = serde_json::json!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     assert!(run(&mut vm, &bad_key).is_err());
@@ -59,6 +63,9 @@ fn default_profile_changes_world_through_real_tick() {
     rejected.candidates.get_mut(&1).unwrap().get_mut(&CombatantSide::Attacker).unwrap()[0].intent.target = Some(EntityId::new("hidden-enemy"));
     let rejected_artifact = run(&mut vm, &rejected).unwrap();
     assert!(rejected_artifact.traces_for_owner(CombatantSide::Attacker)[0].decision.selected.is_none());
+    let rejected_diagnostics = rejected_artifact.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    assert_eq!(rejected_diagnostics.events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentProposed { intent } if intent.action_id.as_str() == "default")).count(), 1);
+    assert_eq!(rejected_diagnostics.events.iter().filter(|event| matches!(&event.record, DiagnosticRecord::IntentRejected { intent, .. } if intent.action_id.as_str() == "default")).count(), 1);
     let mut mixed = inputs.clone();
     let mut bad_template = template.clone(); bad_template.intent.action_id = ActionId::new("bad"); bad_template.intent.target = Some(EntityId::new("hidden"));
     mixed.candidates.get_mut(&1).unwrap().get_mut(&CombatantSide::Attacker).unwrap().push(bad_template);
@@ -70,6 +77,24 @@ fn default_profile_changes_world_through_real_tick() {
     let different = run(&mut vm, &alternate).unwrap();
     assert_ne!(artifact.run_digest(), different.run_digest(), "preferences must affect diagnostic lineage");
     assert_ne!(artifact.run_digest(), rejected_artifact.run_digest(), "candidate plan must affect diagnostic lineage");
+    struct ExplicitPort { intents: Vec<Intent> }
+    impl TacticalExecutionPort for ExplicitPort {
+        fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
+            Ok(TacticalExecutionOutput { status: TacticalExecutionStatus::Completed, intents: if request.side == CombatantSide::Attacker { self.intents.clone() } else { vec![] }, next_memory: request.memory.clone(), charged_cu: LogicalCu::ZERO, required_cu: LogicalCu::ZERO, diagnostics: vec![] })
+        }
+    }
+    let mut first = template.intent.clone(); first.action_id = ActionId::new("first"); first.priority = Some(2);
+    let mut second = first.clone(); second.action_id = ActionId::new("second"); second.priority = Some(1);
+    let mut invalid = first.clone(); invalid.action_id = ActionId::new("invalid"); invalid.arguments.pop();
+    let mut explicit_port = ExplicitPort { intents: vec![first, second, invalid] };
+    let explicit = simulate_with_behavior(&snapshot("a"), &snapshot("b"), &rules, &context, &mut explicit_port, &catalog, &inputs).unwrap();
+    let diagnostics = explicit.diagnostics_for_owner(CombatantSide::Attacker).diagnostics;
+    for action in ["first", "second", "invalid", "default"] {
+        let relevant = diagnostics.events.iter().filter(|event| event.action_id.as_ref().is_some_and(|id| id.as_str() == action)).collect::<Vec<_>>();
+        assert_eq!(relevant.iter().filter(|event| matches!(event.record, DiagnosticRecord::IntentProposed { .. })).count(), 1, "{action} proposal");
+        assert_eq!(relevant.iter().filter(|event| matches!(event.record, DiagnosticRecord::IntentAccepted { .. } | DiagnosticRecord::IntentRejected { .. })).count(), 1, "{action} final status");
+    }
+    assert!(diagnostics.events.iter().any(|event| matches!(&event.record, DiagnosticRecord::IntentRejected { intent, .. } if intent.action_id.as_str() == "second")));
     let serialized = serde_json::to_vec(&inputs).unwrap();
     let restored: BehaviorExecutionInputs = serde_json::from_slice(&serialized).unwrap();
     let reproduced = artifact.reproduce(&rules, &mut vm).unwrap();

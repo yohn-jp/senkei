@@ -335,7 +335,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             }
         }
         if let Some(hook) = behavior.as_deref_mut() {
-            hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index)?;
+            hook.select(&mut validated, &outputs, &observations, &world, plan, tick, &projection_index, &mut diagnostics, &mut diagnostic_sequence)?;
         }
         let accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
         if let Some(hook) = behavior.as_deref_mut() { hook.record_arbitration(tick, &accepted); }

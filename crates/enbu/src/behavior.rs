@@ -142,7 +142,7 @@ pub fn simulate_with_behavior<P: TacticalExecutionPort>(
 }
 
 impl Hook<'_> {
-    pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], _observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex) -> Result<(), ApiError> {
+    pub fn select(&mut self, validated: &mut Vec<(CombatantSide, Intent)>, outputs: &[(CombatantSide, senkei_model::TacticalExecutionOutput); 2], _observations: &[ObservationSnapshot; 2], world: &WorldState, plan: &RulePlan, tick: u32, index: &world::ProjectionIndex, diagnostics: &mut Vec<DiagnosticEvent>, sequence: &mut u64) -> Result<(), ApiError> {
         for (side, binding) in &self.inputs.bindings {
             let actor = ProfileActor { subject_id: binding.actor.clone(), scope: BehaviorScope::Army, movement_authority: MovementAuthority::Army, hero_catalog_id: None, squad_members: Vec::new() };
             let actor = &actor;
@@ -168,6 +168,9 @@ impl Hook<'_> {
                 let accepted = validated.iter().any(|(s, i)| s == side && i == intent);
                 legal.insert(intent.action_id.clone(), if accepted && safe_shape(intent, actor, &field, self.catalog, plan) { Legality::KnownLegal } else { Legality::KnownRejected { reason: "unsupported or invalid candidate".into() } });
             }
+            // Only these previously validated proposals still need a final
+            // status here; validation already rejected all the others.
+            let pending_explicit = validated.iter().filter(|(s, i)| s == side && relevant(i)).map(|(_, i)| i.clone()).collect::<Vec<_>>();
             validated.retain(|(s, i)| *s != *side || !relevant(i));
             let composition = self.resolver.compose(actor, &preferences, tick, *side, &execution, &legal).map_err(behavior_error)?;
             let templates = self.inputs.candidates.get(&tick).and_then(|sides| sides.get(side));
@@ -186,6 +189,12 @@ impl Hook<'_> {
                 defaults.push(intent);
             }
             if defaults.len() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior candidate limit exceeded")); }
+            let mut candidate_ids = output.intents.iter().map(|intent| intent.action_id.clone()).collect::<BTreeSet<_>>();
+            for intent in &defaults {
+                if !candidate_ids.insert(intent.action_id.clone()) { return Err(api_error(ApiErrorCode::ValidationFailed, "duplicate Behavior action ID")); }
+                push_diagnostic(diagnostics, sequence, tick, *side, DiagnosticRecord::IntentProposed { intent: intent.clone() })?;
+            }
+            let pending_defaults = defaults.clone();
             let mut candidates: Vec<_> = execution.intents.into_iter().map(|intent| IntentCandidate { legality: legal.get(&intent.action_id).cloned().unwrap(), intent, source: CandidateSource::Explicit, tick, side: *side, profile_digest: None }).collect();
             for intent in defaults {
                 let legality = if validation::validate_intent(&intent, *side, world, plan, tick, index).is_ok() && safe_shape(&intent, actor, &field, self.catalog, plan) { Legality::KnownLegal } else { Legality::KnownRejected { reason: "unsupported or invalid candidate".into() } };
@@ -193,6 +202,11 @@ impl Hook<'_> {
             }
             let decisions = self.resolver.resolve_fields(&composition, actor, tick, *side, &BTreeMap::from([(field_id.clone(), candidates)]), &BTreeMap::new()).map_err(behavior_error)?;
             let decision = decisions.into_values().next().unwrap();
+            for intent in pending_explicit.into_iter().chain(pending_defaults) {
+                if decision.selected.as_ref() != Some(&intent) {
+                    push_diagnostic(diagnostics, sequence, tick, *side, DiagnosticRecord::IntentRejected { intent, reason: SymbolId::from("enbu.behavior_not_selected") })?;
+                }
+            }
             if let Some(intent) = &decision.selected { validated.push((*side, intent.clone())); }
             self.trace_records = self.trace_records.checked_add(1 + decision.trace.len() + composition.unknown_conditions.len() + composition.unknown_overrides.len() + composition.rejected_overrides.len()).ok_or_else(|| api_error(ApiErrorCode::ResourceLimit, "Behavior trace count overflow"))?;
             if self.trace_records > self.limit || validated.iter().filter(|(s, _)| s == side).count() > plan.limits.max_intents_per_side_per_tick as usize { return Err(api_error(ApiErrorCode::ResourceLimit, "Behavior trace or intent limit exceeded")); }
