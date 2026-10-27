@@ -1,4 +1,9 @@
 import { CoreClientError } from "../../worker";
+import { OwnedAssetsPanel, readOwnedAssets, approvedEquipmentDefinitions, type OwnedAssetsState } from "../heroes/OwnedAssetsPanel";
+import { HeroRepository } from "../heroes/repository";
+import { buildMatchProjection } from "../progression/match-projection";
+import { localTrialBehavior } from "../../contracts/next-production";
+import { FrozenAssetsPreview } from "../progression/FrozenAssetsPreview";
 import { LocalAssets } from "../progression/LocalAssets";
 import { JourneyScreens } from "./JourneyScreens";
 import { CampaignRunActions } from "./CampaignProgressViews";
@@ -122,6 +127,7 @@ interface FormationSlot {
 }
 
 interface BattleRun {
+  readonly ownedAssetKey?: string;
   readonly experimentId: string;
   readonly createdAt: string;
   readonly snapshot: SimulationSnapshot;
@@ -733,7 +739,18 @@ export async function prepareNextExperimentStore(
   return restored;
 }
 
-export function NextWorkspace({ active, entry, core, ruleset: packageValue, rulesetError, onRetryCore }: WorkspaceProps): ReactElement {
+export function NextWorkspace({ active, entry, core, ruleset: suppliedPackage, rulesetError, onRetryCore }: WorkspaceProps): ReactElement {
+  const [trialPackage, setTrialPackage] = useState<RulePackage | null>(null);
+  const packageValue = trialPackage ?? suppliedPackage;
+  const [ownedAssets, setOwnedAssets] = useState<OwnedAssetsState | null>(null);
+  const [trialTickLimit, setTrialTickLimit] = useState(20);
+  const isTrial = packageValue?.next?.projection_policy?.test_only === true;
+  const enableTrial = async () => {
+    if (!core) return;
+    try { const trial = await core.nextRuleset(true); localStorage.setItem('senkei.local-trial-enabled.v1', 'true'); setTrialPackage(trial); }
+    catch (cause) { setError(String(cause)); }
+  };
+  useEffect(() => { try { if (core && localStorage.getItem('senkei.local-trial-enabled.v1') === 'true') void core.nextRuleset(true).then(setTrialPackage).catch(() => undefined); } catch { /* The ordinary local workspace remains usable without this preference. */ } }, [core]);
   const nextRules = packageValue?.next ?? null;
   const campaignScenarios = useMemo(() => packageValue?.next ? createNextCampaignScenarios(packageValue) : [], [packageValue]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("first-march");
@@ -1064,7 +1081,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setEditorCatalog(null);
     setEditorCatalogError(null);
     setEditorCatalogLoading(true);
-    void core.editorCatalogJson()
+    void core.editorCatalogJson(isTrial)
       .then((canonicalJson) => loadDomainCatalog(canonicalJson, {
         rulesetId: packageValue.ruleset.id,
         rulesetVersion: packageValue.ruleset.version,
@@ -1173,7 +1190,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       }
       const playerSlots = defaultSlots(nextRules, "attacker", DEFAULT_HERO_IDS);
       const enemySlots = defaultSlots(nextRules, "defender", DEFAULT_RIVAL_IDS);
-      const initialDraft = createTacticDraft(packageValue, nextRules, "attacker");
+      const initialDraft = { ...createTacticDraft(packageValue, nextRules, "attacker"), ...(isTrial ? {program_input:{kind:"text" as const,source:"senkei local_trial { action inactive_order { when false, do retreat(argmin hero in allies.heroes by hero.level then hero.id), }, }"}} : {}) };
       setSlots(playerSlots);
       setRivalSlots(enemySlots);
       setFormationShape("single");
@@ -1225,16 +1242,32 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
   const savedSetupMismatchReason = savedSetup ? savedSetupMismatch(savedSetup, packageValue, nextRules) : null;
   const recoveryMismatchReason = recoverySetup ? savedSetupMismatch(recoverySetup, packageValue, nextRules) : null;
   const canRestoreSavedSetup = savedSetupLoaded && savedSetup !== null && savedSetupMismatchReason === null;
-  const runIsCurrent = Boolean(run && draft &&
+  const runIsCurrent = Boolean(run && draft && (!isTrial || (run.ownedAssetKey === stableKey(ownedAssets) && run.snapshot.context.max_ticks === trialTickLimit && run.snapshot.attacker.ruleset.digest === packageValue?.ruleset.digest)) &&
     stableKey({ draft, slots, rivalSlots, formationShape, includeDiagnostics }) === stableKey({
       draft: run.setup.draft, slots: run.setup.slots, rivalSlots: run.setup.rival_slots,
       formationShape: run.setup.formation_shape, includeDiagnostics: run.includeDiagnostics,
     }) && (entryMode === "campaign" ? selectedScenarioId : null) === (run.setup.campaign_scenario_id ?? null));
   const launchKey = stableKey({ compilerContextKey, slots, rivalSlots, includeDiagnostics, package: packageValue?.ruleset, exact: exactRun?.snapshot,
-    entryMode, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
+    entryMode, ownedAssets: isTrial && !exactRun ? ownedAssets : null, trialTickLimit: isTrial && !exactRun ? trialTickLimit : null, campaignScenario: entryMode === "campaign" ? selectedScenarioId : null });
   const launchKeyRef = useRef(launchKey);
   launchKeyRef.current = launchKey;
   const readySnapshot = prepared?.key === launchKey && (exactRun || activeCompilation) ? prepared.snapshot : null;
+  useEffect(() => {
+    if (!isTrial || screen !== 'ready' || exactRun || !ownedAssets || !packageValue) return;
+    let stopped = false; let checkingAssets = false;
+    const check = async () => {
+      if (checkingAssets || operationInFlight.current) return;
+      checkingAssets = true;
+      try {
+        const fresh = await readOwnedAssets(ownedAssets.playerId, await approvedEquipmentDefinitions(packageValue));
+        if (!stopped && !operationInFlight.current && stableKey(fresh) !== stableKey(ownedAssets)) { setOwnedAssets(fresh); setPrepared(null); }
+      } catch { if (!stopped && !operationInFlight.current) setPrepared(null); }
+      finally { checkingAssets = false; }
+    };
+    const timer = window.setInterval(() => void check(), 1500);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [isTrial, screen, exactRun, ownedAssets, packageValue]);
+
   const currentPreflightError = preflightFailure?.key === launchKey ? preflightFailure : null;
   const visibleCameraTargets = useMemo<VisibleBattleTarget[]>(() => Object.values(displayState?.entities ?? {})
     .filter((entity) => !entity.destroyed && (entity.hp > 0 || entity.kind === "bridge" || entity.kind === "observation"))
@@ -1709,6 +1742,12 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     setError(null);
   }, [refreshStarterTactics, slots]);
 
+  const selectOwnedHero = useCallback((slotId: string, _instanceId: string, definitionId: string) => {
+    const index = slots.findIndex(slot => slot.slot_id === slotId);
+    const definition = nextRules?.heroes.find(hero => hero.id === definitionId);
+    if (index >= 0 && definition) changeSlot(index, {catalog_id:definitionId, skill_path:Object.keys(definition.skill_paths)[0]});
+  }, [slots, nextRules, changeSlot]);
+
   const updateDraft = useCallback((next: SenkeiDraft | null): void => {
     const revised = next ? reviseDraft(draftRef.current, next) : null;
     draftRef.current = revised;
@@ -1841,10 +1880,29 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
     const opponentSlots = campaignScenario && nextRules ? scenarioFormation(campaignScenario, nextRules) : rivalSlots;
     const defender = makeSideSnapshot(rivalDraft, rivalProgram, opponentSlots);
     preflightStage.current = "context_creation";
-    const context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, scenario_id: campaignScenario?.id ?? null, attacker, defender }));
+    let context = await core.newMatchContext(packageValue.ruleset, stableMatchId({ ruleset: packageValue.ruleset, scenario_id: campaignScenario?.id ?? null, attacker, defender }));
+    if (isTrial) {
+      const policy = nextRules.projection_policy;
+      if (!policy || !ownedAssets) throw new Error('Obtain and select owned Heroes before trial preflight.');
+      if (!Number.isSafeInteger(trialTickLimit) || trialTickLimit < 1 || trialTickLimit > context.max_ticks) throw new Error('Invalid trial tick limit.');
+      const approved = await approvedEquipmentDefinitions(packageValue);
+      const owned = await readOwnedAssets(ownedAssets.playerId, approved);
+      if (stableKey(owned) !== stableKey(ownedAssets)) throw new Error('Owned assets changed; refresh the owned assets panel and validate again.');
+      const repository = new HeroRepository();
+      const npcPlayer = `${owned.playerId}:local-npc`;
+      const npcHeroes = await repository.obtainTrialRoster({requestId:`npc:${npcPlayer}:${policy.hero_catalog_digest}`,playerId:npcPlayer,catalog:{id:policy.hero_catalog_id,version:`${policy.hero_catalog_version.major}.${policy.hero_catalog_version.minor}.${policy.hero_catalog_version.patch}`,digest:policy.hero_catalog_digest,heroes:nextRules.heroes}});
+      const npcSnapshot = await repository.snapshot(npcPlayer);
+      const projection = await buildMatchProjection({policy,rulesetDigest:packageValue.ruleset.digest,approvedRulesetDigest:packageValue.ruleset.digest,
+        attacker:{playerId:owned.playerId,heroSnapshot:owned.heroes,equipment:owned.equipment,relations:owned.relationships.events,slots:slots.map(slot => ({slotId:slot.slot_id,heroInstanceId:owned.slotSelections[slot.slot_id] ?? ''}))},
+        defender:{playerId:npcPlayer,heroSnapshot:npcSnapshot,equipment:[],relations:[],slots:opponentSlots.map(slot => ({slotId:slot.slot_id,heroInstanceId:npcHeroes.find(hero => hero.definition.id === slot.catalog_id)?.instanceId ?? ''}))}});
+      for (const slot of slots) if (projection.sides.attacker.heroes.find(hero => hero.slot_id === slot.slot_id)?.catalog_id !== slot.catalog_id) throw new Error('Owned Hero does not match the current formation definition.');
+      if (stableKey(await readOwnedAssets(owned.playerId, approved)) !== stableKey(owned)) throw new Error('Assets changed during projection; validate again.');
+      const behavior = localTrialBehavior(packageValue.ruleset.digest, nextRules.heroes.map(hero => hero.id));
+      context = {...context,match_id:stableMatchId({ruleset:packageValue.ruleset,attacker,defender,projection,behavior,trialTickLimit}),max_ticks:trialTickLimit,match_projection:projection,next_behavior:behavior};
+    }
     const snapshot = { attacker, defender, context };
     preflightStage.current = "snapshot_preflight";
-    const reproductionAssets = await core.reproductionAssets();
+    const reproductionAssets = await core.reproductionAssets(isTrial);
     if (canonicalKey(reproductionAssets.rule_package.ruleset) !== canonicalKey(packageValue.ruleset)) {
       const message = "Core reproduction assets do not match the currently loaded Next RulePackage.";
       throw new PreflightProblem(message, "invalid", new PreflightLocalFailure(message, "invalid"));
@@ -1899,6 +1957,11 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
       const ready = prepared?.key === launchKey ? prepared : null;
       if (!ready) throw new Error("Run readiness changed. Validate the current snapshot again.");
       const snapshot = ready.snapshot;
+      if (isTrial && !exactRun) {
+        if (!ownedAssets || !packageValue) throw new Error('Owned assets unavailable. Validate again.');
+        const fresh = await readOwnedAssets(ownedAssets.playerId, await approvedEquipmentDefinitions(packageValue));
+        if (stableKey(fresh) !== stableKey(ownedAssets)) { setOwnedAssets(fresh); throw new Error('Owned assets changed after preflight. Validate the current assets again.'); }
+      }
       const setup = exactRun?.setup ?? buildSavedSetup();
       if (!setup) throw new Error("The launch draft is unavailable. Return to Ready and validate again.");
       const diagnosticsRequested = exactRun?.includeDiagnostics ?? includeDiagnostics;
@@ -1932,7 +1995,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         }) : previous);
       }
       setBaselineRun(run);
-      setRun({ campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
+      setRun({ ownedAssetKey: isTrial ? stableKey(ownedAssets) : undefined, campaignAssociation, experimentId: newExperimentId(snapshot.context.match_id), createdAt: new Date().toISOString(), snapshot,
         reproductionAssets, snapshotDigest, response, sourceReplay, graphicsReplay, setup, includeDiagnostics: diagnosticsRequested, estimatedCU });
       setExactRun(null);
       setSelectedEntityId(null);
@@ -2388,6 +2451,7 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
         <div className="next-heading-status"><span className="next-live-dot" />REAL LOCAL SIMULATION<span className="next-heading-mark" aria-hidden="true">兵</span></div>
       </header>
 
+      {isTrial && prepared?.key === launchKey && prepared.reproductionAssets && <FrozenAssetsPreview snapshot={prepared.snapshot} assets={prepared.reproductionAssets}/>}
       {error && <div className="next-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
       {campaignProgressError && <div className="next-error" role="alert" data-testid="campaign-storage-error"><div><p>{campaignProgressError}</p><p>Local PvE remains free to run. Existing completion history is not reset; the displayed session state is not a successful storage save.</p><button type="button" onClick={() => campaignProgressReadBlocked ? setCampaignProgressAttempt(attempt => attempt + 1) : setCampaignProgressError(null)}>{campaignProgressReadBlocked ? "Retry campaign storage" : "Retry progress save"}</button>{campaignProgressRaw.current !== null && <button type="button" onClick={() => exportCampaignProgress("current")}>Export preserved v2 progress</button>}{campaignProgressRaw.legacy !== null && <button type="button" onClick={() => exportCampaignProgress("legacy")}>Export preserved legacy progress</button>}</div></div>}
       {editorCatalogError && <div className="next-error" role="alert"><span>Catalogを読み込めません：{editorCatalogError}</span><button type="button" onClick={() => setCatalogAttempt(attempt => attempt + 1)}>Catalogを再試行</button><button type="button" onClick={() => openLibrary("recovery")}>保存・復旧へ</button></div>}
@@ -2467,7 +2531,15 @@ export function NextWorkspace({ active, entry, core, ruleset: packageValue, rule
 
         <div className="next-panel-wrap">
           <section aria-labelledby="next-tab-formation" className="next-panel" hidden={tab !== "formation"} id="next-panel-formation" role="tabpanel">
-            <LocalAssets />
+            <details><summary>Local ownership and runtime</summary>
+              <p>Test policies are unapproved for production. Enabling trial mode creates a separate ruleset digest and trial Draft. Official ownership is not configured.</p>
+              {!isTrial ? <button type="button" onClick={() => void enableTrial()}>Enable test-only owned runtime</button> : <>
+                <p role="status">Test-only six-domain runtime enabled</p>
+                <label>Trial tick limit <input type="number" min={1} max={packageValue.termination.max_ticks} value={trialTickLimit} onChange={event => setTrialTickLimit(Number(event.target.value))}/></label>
+                <OwnedAssetsPanel ruleset={packageValue} slots={slots} onSelectOwnedHero={selectOwnedHero} onAssetsChanged={setOwnedAssets}/>
+              </>}
+            </details>
+            {!isTrial && <LocalAssets />}
             <HeroAtelier active={active && screen === "workspace" && tab === "formation"} repairFocus={heroRepairFocus} nextRules={nextRules} slots={slots} activeSlot={activeSlot} screen={atelierScreen}
               skillRunContext={run && sameRulesetRef(run.snapshot.attacker.ruleset, packageValue.ruleset) ? {
                 experimentId: run.experimentId,

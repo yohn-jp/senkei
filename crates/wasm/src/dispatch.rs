@@ -193,9 +193,15 @@ fn initial_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
     Ok((encode(&package, "result")?, max_output_bytes))
 }
 
+#[derive(serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct NextSelection { #[serde(default)] local_trial: bool }
+fn selected_next(payload: Value) -> Result<senkei_model::RulePackage, ApiError> {
+    let selection: NextSelection = decode_strict(payload, "payload")?;
+    Ok(if selection.local_trial { senritsu::next_local_trial_package() } else { senritsu::next_package() })
+}
 fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
-    require_empty_object(&payload,"payload")?;
-    let package=senritsu::next_package();
+    let package=selected_next(payload)?;
     validate_package(&package)?;
     Ok((encode(&package,"result")?,package.limits.max_output_bytes))
 }
@@ -204,8 +210,7 @@ fn next_ruleset(payload: Value) -> Result<(Value, u64), ApiError> {
 /// World Definition. Keeping the source alongside the package lets a caller
 /// rebuild the exact sealed World artifact after the originating process exits.
 fn next_reproduction_assets(payload: Value) -> Result<(Value, u64), ApiError> {
-    require_empty_object(&payload, "payload")?;
-    let rule_package = senritsu::next_package();
+    let rule_package = selected_next(payload)?;
     validate_package(&rule_package)?;
     let world_definition = serde_json::to_value(senritsu::next_world::builtin_world_definition())
         .map_err(|error| api_error(
@@ -227,10 +232,12 @@ fn next_reproduction_assets(payload: Value) -> Result<(Value, u64), ApiError> {
 /// reserializing it. The Editor verifies the producer digest over these exact
 /// canonical bytes before accepting the Catalog.
 fn editor_catalog(payload: Value) -> Result<(Value, u64), ApiError> {
-    require_empty_object(&payload, "payload")?;
-    let catalog_json = senkei_editor_adapter::next_catalog_json()
-        .map_err(editor_adapter_error)?;
-    Ok((Value::String(catalog_json), MAX_RESPONSE_BYTES as u64))
+    let plan = validate_package(&selected_next(payload)?)?;
+    let catalog = senritsu::DomainCatalog::from_verified_plan(&plan)
+        .map_err(|e| api_error(ApiErrorCode::ValidationFailed, Some("ruleset"), e.to_string()))?;
+    let json = String::from_utf8(catalog.canonical_json().map_err(|e| api_error(ApiErrorCode::InternalError, None, e.to_string()))?)
+        .map_err(|e| api_error(ApiErrorCode::InternalError, None, e.to_string()))?;
+    Ok((Value::String(json), MAX_RESPONSE_BYTES as u64))
 }
 
 /// Compile a Catalog-stamped editor draft with the existing Jinrei compiler.
@@ -617,7 +624,8 @@ fn preflight(payload: Value) -> Result<(Value, u64), ApiError> {
 }
 
 fn resolve_ruleset(expected: &RulesetRef) -> Result<VerifiedRulePlan, ApiError> {
-    let package = if expected.id.as_str() == "senkei.next" { senritsu::next_package() } else { senritsu::initial_package() };
+    let trial = senritsu::next_local_trial_package();
+    let package = if expected == &trial.ruleset { trial } else if expected.id.as_str() == "senkei.next" { senritsu::next_package() } else { senritsu::initial_package() };
     if &package.ruleset != expected {
         return Err(api_error(
             ApiErrorCode::InvalidRuleset,

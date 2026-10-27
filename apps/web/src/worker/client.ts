@@ -85,16 +85,16 @@ export class WorkerCoreClient implements CoreClient {
     this.worker.addEventListener("messageerror", this.onMessageError);
   }
 
-  nextRuleset(): Promise<RulePackage> {
-    return this.request("next_ruleset", {}) as Promise<RulePackage>;
+  nextRuleset(localTrial = false): Promise<RulePackage> {
+    return this.request("next_ruleset", localTrial ? {local_trial:true} : {}) as Promise<RulePackage>;
   }
 
-  reproductionAssets(): Promise<ReproductionAssets> {
-    return this.request("next_reproduction_assets", {}) as Promise<ReproductionAssets>;
+  reproductionAssets(localTrial = false): Promise<ReproductionAssets> {
+    return this.request("next_reproduction_assets", localTrial ? {local_trial:true} : {}) as Promise<ReproductionAssets>;
   }
 
-  editorCatalogJson(): Promise<string> {
-    return this.request("editor_catalog", {}) as Promise<string>;
+  editorCatalogJson(localTrial = false): Promise<string> {
+    return this.request("editor_catalog", localTrial ? {local_trial:true} : {}) as Promise<string>;
   }
 
   editorCompile(request: EditorCompileRequest): Promise<EditorCompilerEnvelope> {

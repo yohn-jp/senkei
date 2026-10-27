@@ -952,3 +952,7 @@
 .next-facility-history ul { list-style: none; margin: 8px 0; padding: 0; }
 .next-facility-history li { display: grid; gap: 3px; padding: 6px 0; }
 .next-facility-history span, .next-facility-history small { color: #a8b6b9; }
+
+.frozen-assets-preview { max-width:100%; overflow-wrap:anywhere; padding:1rem; }
+.frozen-assets-preview pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+[aria-label="Owned Heroes and local assets"] select { max-width:100%; }
