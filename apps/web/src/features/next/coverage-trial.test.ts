@@ -21,7 +21,7 @@ async function fixture() {
       observation_digest: "b".repeat(64), decision_source: "default", eligible_candidates: "3", unknown_candidates: "1", selected_score: "0",
       profile_composition_json: JSON.stringify({ squad_id: "front", members: [{ actor: "raw-hero", catalog_id: "F01",
         values: [0, 1, 2, 3, 4, 5], sources: ["test_fallback_zero", "hero_catalog", "hero_instance", "army", "squad", "jinrei_conditional"] }],
-      shared: [0, 1, 2, 3, 4, 5], effective: [0, 1, 2, 3, 4, 5] }),
+      shared: [0, 1, 2, 3, 4, 5], baseline_effective: [0, 1, 2, 3, 4, 4], effective: [0, 1, 2, 3, 4, 5] }),
     } } } };
   const replay = { frames: [{ tick: 3, visible_state: { entities: { "visible-7": { entity_type: "hero", owner: "attacker", fields: {
     slot_id: field("slot-1"), catalog_id: field("F01"), squad: field("front"),
@@ -47,6 +47,8 @@ describe("Trial Behavior evidence", () => {
     expect(html).toContain("test_fallback_zero".replaceAll("_", " "));
     expect(html).toContain("Observation content was not retained");
     expect(html).toContain("NOT CHECKED");
+    expect(html).toContain("5 · changed");
+    expect(html).toContain("0 · unchanged");
   });
 
   it("rejects stale policy, owner, observation and roster identities", async () => {
@@ -86,5 +88,19 @@ describe("Trial Behavior evidence", () => {
     const score: DiagnosticEvent = { ...trace, record: { kind: "runtime_notice", value: { code: trace.record.value.code,
       details: { ...details, selected_score: " " } } } };
     expect(trialBehaviorEvidence({ ...verified, events: [verified.events[0], score] }, score)).toBeNull();
+  });
+
+  it("keeps an older Run's missing baseline unavailable", async () => {
+    const { verified, trace } = await fixture();
+    if (trace.record.kind !== "runtime_notice") throw new Error("fixture");
+    const composition = JSON.parse(trace.record.value.details.profile_composition_json);
+    delete composition.baseline_effective;
+    const legacy: DiagnosticEvent = { ...trace, record: { kind: "runtime_notice", value: { code: trace.record.value.code,
+      details: { ...trace.record.value.details, profile_composition_json: JSON.stringify(composition) } } } };
+    const evidence = trialBehaviorEvidence({ ...verified, events: [verified.events[0], legacy] }, legacy);
+    expect(evidence?.rows.every(row => row.baselineValue === null)).toBe(true);
+    const html = renderToStaticMarkup(createElement(TrialBehaviorDetails, { evidence: evidence! }));
+    expect(html).not.toContain("· changed");
+    expect(html).not.toContain("· unchanged");
   });
 });

@@ -25,7 +25,8 @@ export interface TrialBehaviorEvidence {
   readonly unknownCandidates: number;
   readonly selectedScore: number | null;
   readonly rows: readonly { readonly domain: BehaviorDomain; readonly catalogDefault: number | null;
-    readonly memberValue: number; readonly source: string; readonly sharedValue: number; readonly effectiveValue: number }[];
+    readonly memberValue: number; readonly source: string; readonly sharedValue: number;
+    readonly baselineValue: number | null; readonly effectiveValue: number }[];
 }
 
 /**
@@ -54,7 +55,9 @@ export function trialBehaviorEvidence(
   try { composition = JSON.parse(details.profile_composition_json ?? ""); } catch { return null; }
   if (!object(composition) || typeof composition.squad_id !== "string" || !Array.isArray(composition.members)
     || !composition.members.length || composition.members.length > 256 || !sixIntegers(composition.shared) || !sixIntegers(composition.effective)) return null;
+  if (composition.baseline_effective !== undefined && !sixIntegers(composition.baseline_effective)) return null;
   const shared = composition.shared, effective = composition.effective;
+  const baseline = composition.baseline_effective as number[] | undefined;
   const frames = verified.ownerReplay.frames.filter(frame => frame.tick === event.tick);
   const roster = verified.run.snapshot.attacker.configuration.heroes;
   if (frames.length !== 1 || !frames[0].visible_state || roster?.kind !== "list") return null;
@@ -83,7 +86,7 @@ export function trialBehaviorEvidence(
   const defaults = policy.hero_defaults[selected.catalogId];
   if (!defaults) return null;
   const rows = domains.map((domain, index) => ({ domain, catalogDefault: defaults[domain], memberValue: selected!.values[index],
-    source: selected!.sources[index], sharedValue: shared[index], effectiveValue: effective[index] }));
+    source: selected!.sources[index], sharedValue: shared[index], baselineValue: baseline?.[index] ?? null, effectiveValue: effective[index] }));
   if (rows.some(row => row.catalogDefault !== null && !Number.isSafeInteger(row.catalogDefault))) return null;
   return { slotId: selected.slotId, catalogId: selected.catalogId, policyId: policy.policy_id, policyDigest: verified.trialPolicyDigest,
     observationDigest: details.observation_digest, decisionSource: source as TrialBehaviorEvidence["decisionSource"], eligibleCandidates, unknownCandidates, selectedScore, rows };
