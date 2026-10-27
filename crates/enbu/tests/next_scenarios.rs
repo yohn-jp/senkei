@@ -2529,7 +2529,7 @@ fn next_behavior_runs_real_simulation_and_waits_for_nonpositive_scores() {
     assert_eq!(traces.len(),2);
     assert!(traces.iter().all(|t| t.selected.as_ref().is_some_and(|i| i.capability.as_str() == "move") && t.arbitration_accepted && t.transition_completed));
     let mut waiting = policy;
-    for domain in [&mut waiting.domains.navigation,&mut waiting.domains.engagement,&mut waiting.domains.targeting,&mut waiting.domains.pursuit,&mut waiting.domains.survival,&mut waiting.domains.objective] { domain[0].weight = -1; }
+    for domain in [&mut waiting.domains.navigation,&mut waiting.domains.engagement,&mut waiting.domains.targeting,&mut waiting.domains.pursuit,&mut waiting.domains.survival,&mut waiting.domains.objective] { domain[0].signal = BehaviorSignal::RouteCost; }
     let verified = senritsu::validate_next_behavior_policy(waiting, &rules).unwrap();
     let mut vm = Vm::new(&rules);
     let waiting = enbu::simulate_next_behavior(&a,&b,&rules,&context,&mut vm,&verified,&inputs).unwrap();
