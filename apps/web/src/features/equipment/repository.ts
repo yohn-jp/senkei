@@ -4,6 +4,8 @@ export interface EquipmentInstance { instanceId: string; playerId: string; defin
 export interface EquipmentBundle { schemaVersion: 1; playerId: string; instances: EquipmentInstance[]; requests: RequestRecord[] }
 export interface RequestRecord { requestId: string; playerId: string; operation: string; payload: string }
 export interface GrantRequest { requestId: string; playerId: string; instanceId: string; definition: EquipmentDefinitionRef }
+/** Synchronous immutable ownership snapshot supplied by an authorized Hero producer. */
+export interface HeroOwnershipAuthority { ownsHero(playerId: string, heroId: string): boolean }
 export interface EquipRequest { requestId: string; playerId: string; instanceId: string; heroId: string }
 export interface UnequipRequest { requestId: string; playerId: string; instanceId: string }
 interface State { schemaVersion: 1; instances: EquipmentInstance[]; requests: RequestRecord[] }
@@ -20,7 +22,7 @@ export class EquipmentError extends Error {
 /** Local trial assets only. Hero ownership and official grants require future authority contracts. */
 export class EquipmentRepository {
   private readonly approved: EquipmentDefinitionRef[];
-  constructor(private readonly factory: IDBFactory = indexedDB, private readonly name = "senkei-equipment", approved: readonly EquipmentDefinitionRef[] = []) {
+  constructor(private readonly factory: IDBFactory = indexedDB, private readonly name = "senkei-equipment", approved: readonly EquipmentDefinitionRef[] = [], private readonly heroAuthority?: HeroOwnershipAuthority) {
     if (!approved.every(defValid)) throw new EquipmentError("invalid_data", "Invalid approved definition");
     this.approved = clone([...approved]);
   }
@@ -73,7 +75,17 @@ export class EquipmentRepository {
       s.instances.push({ instanceId: input.instanceId, playerId: input.playerId, definition: clone(input.definition), authority: "local", heroId: null });
     });
   }
-  async equip(_input: EquipRequest): Promise<void> { throw new EquipmentError("unavailable", "Hero ownership authority is unavailable"); }
+  async equip(input: EquipRequest): Promise<void> {
+    if (!this.heroAuthority) throw new EquipmentError("unavailable", "Hero ownership authority is unavailable");
+    await this.transaction(true, s => {
+      if (!nonempty(input.instanceId) || !nonempty(input.heroId)) throw new EquipmentError("invalid_data", "Instance and Hero identity are required");
+      if (!this.heroAuthority!.ownsHero(input.playerId, input.heroId)) throw new EquipmentError("not_found", "Owned Hero not found");
+      if (!this.request(s, input.requestId, input.playerId, "equip", JSON.stringify([input.instanceId, input.heroId]))) return;
+      const item = s.instances.find(i => i.instanceId === input.instanceId && i.playerId === input.playerId);
+      if (!item) throw new EquipmentError("not_found", "Owned instance not found");
+      item.heroId = input.heroId;
+    });
+  }
   async unequip(input: UnequipRequest): Promise<void> {
     await this.transaction(true, s => {
       if (!nonempty(input.instanceId)) throw new EquipmentError("invalid_data", "Instance identity is required");
@@ -91,9 +103,12 @@ export class EquipmentRepository {
     const bundle = input as EquipmentBundle;
     if (!nonempty(playerId) || !bundle || bundle.playerId !== playerId) throw new EquipmentError("invalid_data", "Player identity mismatch");
     this.validate(bundle);
-    if (bundle.instances.some(i => i.playerId !== playerId || i.heroId !== null || !this.approved.some(d => sameDef(d, i.definition))) || bundle.requests.some(r => r.playerId !== playerId)) throw new EquipmentError("invalid_data", "Unapproved recovery data");
+    if (bundle.instances.some(i => i.playerId !== playerId || (i.heroId !== null && (!this.heroAuthority || !this.heroAuthority.ownsHero(playerId, i.heroId))) || !this.approved.some(d => sameDef(d, i.definition))) || bundle.requests.some(r => r.playerId !== playerId)) throw new EquipmentError("invalid_data", "Unapproved recovery data");
     for (const request of bundle.requests) {
+      let equipPayload: unknown;
+      try { equipPayload = JSON.parse(request.payload); } catch { /* invalid payload */ }
       const valid = bundle.instances.some(i => i.playerId === request.playerId && (
+        (request.operation === "equip" && Array.isArray(equipPayload) && equipPayload.length === 2 && equipPayload[0] === i.instanceId && nonempty(equipPayload[1]) && !!this.heroAuthority?.ownsHero(playerId, equipPayload[1])) ||
         (request.operation === "grant" && request.payload === JSON.stringify([i.instanceId, i.definition.id, i.definition.version, i.definition.digest, i.definition.effectRef])) ||
         (request.operation === "unequip" && request.payload === JSON.stringify([i.instanceId]))
       ));

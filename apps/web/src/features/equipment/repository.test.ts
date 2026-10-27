@@ -60,3 +60,41 @@ it("rejects forged request history that would make a grant appear successful wit
   await repo.grant({ requestId: "r", playerId: "p", instanceId: "i", definition });
   expect(await repo.list("p")).toHaveLength(1);
 });
+it("atomically equips and unequips only an owned Hero and preserves retries and failures", async () => {
+  const authority = { ownsHero: (playerId: string, heroId: string) => playerId === "p" && heroId === "h" };
+  const owned = new EquipmentRepository(indexedDB, `owned-${crypto.randomUUID()}`, [definition], authority);
+  await owned.grant({ requestId: "g", playerId: "p", instanceId: "i", definition });
+  const equip = { requestId: "e", playerId: "p", instanceId: "i", heroId: "h" };
+  await owned.equip(equip); await owned.equip(equip);
+  const before = await owned.export("p");
+  await expect(owned.equip({ ...equip, heroId: "other" })).rejects.toThrow();
+  await expect(owned.equip({ ...equip, requestId: "e2", heroId: "other" })).rejects.toThrow();
+  await expect(owned.equip({ ...equip, requestId: "e3", playerId: "other" })).rejects.toThrow();
+  expect(await owned.export("p")).toEqual(before);
+  await owned.unequip({ requestId: "u", playerId: "p", instanceId: "i" });
+  await owned.unequip({ requestId: "u", playerId: "p", instanceId: "i" });
+  expect((await owned.list("p"))[0].heroId).toBeNull();
+});
+it("requires Hero authority to recover equipped instances", async () => {
+  const authority = { ownsHero: (p: string, h: string) => p === "p" && h === "h" };
+  const equipped = new EquipmentRepository(indexedDB, `equipped-${crypto.randomUUID()}`, [definition], authority);
+  await equipped.grant({ requestId: "g", playerId: "p", instanceId: "i", definition });
+  await equipped.equip({ requestId: "e", playerId: "p", instanceId: "i", heroId: "h" });
+  const backup = await equipped.export("p");
+  await expect(repo.import("p", backup)).rejects.toThrow();
+  const recovery = new EquipmentRepository(indexedDB, `recovery-${crypto.randomUUID()}`, [definition], authority);
+  await recovery.import("p", backup);
+  expect((await recovery.list("p"))[0].heroId).toBe("h");
+});
+it("rolls back an equipment assignment and request if its write fails", async () => {
+  const owned = new EquipmentRepository(indexedDB, `failure-${crypto.randomUUID()}`, [definition], { ownsHero: () => true });
+  await owned.grant({ requestId: "g", playerId: "p", instanceId: "i", definition });
+  const before = await owned.export("p");
+  const { IDBObjectStore } = await import("fake-indexeddb"); const original = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function () { throw new Error("write failed"); };
+  try { await expect(owned.equip({ requestId: "e", playerId: "p", instanceId: "i", heroId: "h" })).rejects.toThrow("write failed"); }
+  finally { IDBObjectStore.prototype.put = original; }
+  expect(await owned.export("p")).toEqual(before);
+  await owned.equip({ requestId: "e", playerId: "p", instanceId: "i", heroId: "h" });
+  expect((await owned.list("p"))[0].heroId).toBe("h");
+});
