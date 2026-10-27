@@ -1,4 +1,5 @@
-import { canonicalJson, reproductionSnapshotDigest } from "../../worker/input-identity";
+import { reproductionSnapshotDigest } from "../../worker/input-identity";
+import { sameJsonResponse } from "../../worker/json-response-equality";
 export { reproductionSnapshotDigest } from "../../worker/input-identity";
 import type { DomainValue, MatchResult, PresentationReplay, SimulationResponse, SimulationSnapshot } from "../../contracts";
 import { simulationAuthorizationError } from "../../worker/simulation-authorization";
@@ -131,7 +132,7 @@ export async function validateNextExperimentReproduction(
     if (includeDiagnostics) await validateNextExperimentDiagnostics(response, snapshot);
   }
 
-  if (canonicalJson(reproductionResponseView(actualResponse)) !== canonicalJson(reproductionResponseView(storedResponse))) {
+  if (!sameJsonResponse(reproductionResponseView(actualResponse), reproductionResponseView(storedResponse))) {
     throw new Error("Reproduced Enbu result, replay, or authorized local projection differs from the stored Run.");
   }
 }
