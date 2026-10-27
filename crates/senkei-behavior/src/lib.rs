@@ -247,6 +247,43 @@ impl BehaviorResolver {
         candidates: &[IntentCandidate],
         fallback: Option<&NoOpFallbackCandidate>,
     ) -> Result<Decision, BehaviorError> {
+        self.resolve_candidates_inner(composition, actor, tick, side, candidates, fallback, None)
+    }
+
+    /// Resolve independently authored profile fields without collapsing unrelated
+    /// decisions into one actor-wide selection. Each capability must actually
+    /// declare the field it writes in the validated Catalog.
+    pub fn resolve_fields(
+        &self, composition: &ProfileComposition, actor: &ProfileActor, tick: u32,
+        side: CombatantSide, fields: &BTreeMap<String, Vec<IntentCandidate>>,
+        fallbacks: &BTreeMap<String, NoOpFallbackCandidate>,
+    ) -> Result<BTreeMap<String, Decision>, BehaviorError> {
+        if fields.len() > MAX_PROFILE_FIELDS || fallbacks.keys().any(|field| !fields.contains_key(field))
+            || fields.values().try_fold(0_usize, |n, candidates| n.checked_add(candidates.len()))
+                .map_or(true, |n| n > MAX_CANDIDATES_PER_RESOLUTION) {
+            return Err(BehaviorError::TraceLimitExceeded);
+        }
+        let mut decisions = BTreeMap::new();
+        for (field, candidates) in fields {
+            if !self.profiles.fields.contains_key(field) || !self.field_applies(actor.scope, field) {
+                return Err(BehaviorError::UnknownProfileField(field.clone()));
+            }
+            if candidates.iter().any(|candidate| !self.capabilities.get(&candidate.intent.capability)
+                .is_some_and(|capability| capability.behavior_override_arguments.contains_key(field))) {
+                return Err(BehaviorError::InvalidCandidateSet);
+            }
+            decisions.insert(field.clone(), self.resolve_candidates_inner(
+                composition, actor, tick, side, candidates, fallbacks.get(field), Some(field),
+            )?);
+        }
+        Ok(decisions)
+    }
+
+    fn resolve_candidates_inner(
+        &self, composition: &ProfileComposition, actor: &ProfileActor, tick: u32,
+        side: CombatantSide, candidates: &[IntentCandidate], fallback: Option<&NoOpFallbackCandidate>,
+        field: Option<&str>,
+    ) -> Result<Decision, BehaviorError> {
         if candidates.len() > MAX_CANDIDATES_PER_RESOLUTION {
             return Err(BehaviorError::TraceLimitExceeded);
         }
@@ -283,7 +320,7 @@ impl BehaviorResolver {
             actor, side,
             explicit,
             CandidateSource::Explicit,
-            &mut trace,
+            &mut trace, field,
         )?;
         if let Some(intent) = selected_explicit {
             return Ok(Decision {
@@ -308,7 +345,7 @@ impl BehaviorResolver {
                 actor, side,
                 defaults,
                 CandidateSource::Default,
-                &mut trace,
+                &mut trace, field,
             )?;
             if let Some(intent) = selected_default {
                 return Ok(Decision {
@@ -692,6 +729,7 @@ impl BehaviorResolver {
         candidates: Vec<Intent>,
         source: CandidateSource,
         trace: &mut Vec<DecisionTrace>,
+        field: Option<&str>,
     ) -> Result<(Option<Intent>, bool), BehaviorError> {
         if candidates.is_empty() {
             return Ok((None, false));
@@ -700,7 +738,11 @@ impl BehaviorResolver {
         let mut accepted = arbitrate_by_ruleset(&candidates, side, &self.arbitration, self.profiles.cross_capability_order.is_some())?;
         if accepted.selected.len() > 1 {
             if let Some(contract) = &self.profiles.cross_capability_order {
-                let ordered = self.authored_order(actor, side, accepted.selected, &contract.intent_selection)?;
+                let declarations = match field {
+                    Some(field) => contract.field_writers.get(field).ok_or(BehaviorError::UnresolvedCandidateConflict)?,
+                    None => &contract.intent_selection,
+                };
+                let ordered = self.authored_order(actor, side, accepted.selected, declarations)?;
                 accepted.selected = ordered.selected;
                 accepted.rejected.extend(ordered.rejected);
             }
