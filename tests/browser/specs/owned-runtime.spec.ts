@@ -11,9 +11,14 @@ async function openOwned(page: Page) {
   await expect(panel).toBeVisible();
   return panel;
 }
+async function returnToFormation(page: Page, width: number) {
+  if (width === 390) await page.getByRole('button', { name: /5 Hero.*設定済み/ }).click();
+  else await page.getByRole('button', { name: 'Heroを変更', exact: true }).click();
+}
 for (const width of [1440, 390]) {
   test(`owned trial assets survive recovery and enter real preflight at ${width}px`, async ({ page }, info) => {
     test.setTimeout(300_000);
+    page.setDefaultTimeout(15_000);
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.goto('/');
     const panel = await openOwned(page);
@@ -40,7 +45,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: '準備確認へ', exact: true }).click();
     await page.getByRole('button', { name: '検証・コンパイル', exact: true }).click();
     await expect(page.getByTestId('preflight-status')).toHaveText('開始可能', { timeout: 60_000 });
-    await page.getByRole('button', { name: /5 Hero.*設定済み/ }).click();
+    await returnToFormation(page, width);
     await equipment.getByRole('button', { name: 'Review equipment change' }).click();
     await review.getByRole('button', { name: 'Compare Enbu initial state' }).click();
     await expect(review.getByText(/Current: attack:/)).toBeVisible({ timeout: 60_000 });
@@ -63,11 +68,13 @@ for (const width of [1440, 390]) {
     await graph.getByText('Inspect any owned pair', { exact: true }).click();
     await graph.locator('details').getByRole('button').filter({ hasText: selected[0] }).filter({ hasText: selected[1] }).click();
     await expect(pair).toContainText(selected[0]); await expect(pair).toContainText(selected[1]);
+    const originalSquad = (await pair.innerText()).match(/Both are planned in Squad ([^.]+)\./)?.[1];
+    expect(originalSquad).toBeTruthy();
     for (let n = 1; n <= 5; n++) await expect(panel.getByRole('combobox', { name: `Slot slot-0${n}`, exact: true })).toHaveValue(selected[n-1]);
     await page.getByRole('button', { name: '準備確認へ', exact: true }).click();
     await page.getByRole('button', { name: '検証・コンパイル', exact: true }).click();
     await expect(page.getByTestId('preflight-status')).toHaveText('開始可能', { timeout: 60_000 });
-    await page.getByRole('button', { name: /5 Hero.*設定済み/ }).click();
+    await returnToFormation(page, width);
     await edge.focus(); await page.keyboard.press('Enter');
     const formation = panel.getByRole('region', { name: 'Review relationship formation' });
     await formation.getByRole('combobox', { name: "Second Hero's proposed Squad" }).selectOption('squad-2');
@@ -81,7 +88,7 @@ for (const width of [1440, 390]) {
     await formation.getByRole('button', { name: 'Review Squad change', exact: true }).click();
     await squadReview.getByRole('button', { name: 'Apply Squad change to Draft' }).click();
     await expect(pair).toContainText('separate Squads');
-    await formation.getByRole('combobox', { name: "Second Hero's proposed Squad" }).selectOption('squad-1');
+    await formation.getByRole('combobox', { name: "Second Hero's proposed Squad" }).selectOption(originalSquad!);
     await formation.getByRole('button', { name: 'Review Squad change', exact: true }).click();
     await squadReview.getByRole('button', { name: 'Apply Squad change to Draft' }).click();
     await expect(pair).toContainText('Both are planned in Squad');
@@ -116,7 +123,7 @@ for (const width of [1440, 390]) {
       await page.getByTestId('battle-analysis').getByRole('button', { name: '同条件で再戦 · Run Snapshot', exact: true }).click();
       await page.getByRole('button', { name: '検証・コンパイル', exact: true }).click();
       await expect(page.getByTestId('preflight-status')).toHaveText('開始可能', { timeout: 60_000 });
-      const rerunPreview = page.getByRole('region', { name: 'Frozen asset preview' }); await expect(rerunPreview).toBeVisible(); await rerunPreview.getByText('Frozen asset preview', { exact: true }).click(); await expect(rerunPreview).toHaveText(frozenText);
+      const rerunPreview = page.getByRole('region', { name: 'Frozen asset preview' }); await expect(rerunPreview).toBeVisible(); await rerunPreview.getByText('Frozen asset preview', { exact: true }).click(); await expect(rerunPreview).toHaveText(frozenText, { useInnerText: true });
     }
   });
 }
