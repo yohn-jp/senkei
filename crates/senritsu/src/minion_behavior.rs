@@ -46,7 +46,10 @@ pub fn validate_next_minion_behavior_policy(
             }
         }
     }
-    let bytes = serde_json::to_vec(&policy).map_err(|error| error.to_string())?;
+    // Hash the same recursively sorted JSON object that clients serialize.
+    let mut canonical = serde_json::to_value(&policy).map_err(|error| error.to_string())?;
+    canonical.sort_all_objects();
+    let bytes = serde_json::to_vec(&canonical).map_err(|error| error.to_string())?;
     let digest = ContentDigest::new(format!("{:x}", Sha256::digest(bytes)));
     Ok(VerifiedNextMinionBehaviorPolicy { policy, digest })
 }
