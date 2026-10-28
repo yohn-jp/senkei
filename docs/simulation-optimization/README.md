@@ -64,3 +64,5 @@ G(X[t], Δ) = F_{t+Δ-1} ∘ ... ∘ F_t (X[t]) // 候補実行計画
 - [RUN-20261028-001: 4方式の初回実測](measurements/2026-10-28-minimal.md) — 独立主体の合成モデル（**本番Enbuではない**）。[実験コード](../../tools/senrei-bench/README.md)。
 
 - [RUN-20261029-002: 14ケース・7方式の拡張実測](measurements/2026-10-29-extended.md) — 共有ターゲット、周期視認、全攻撃列生成の比較。合成モデルのみ。
+
+- [Portfolio dispatch / selector cost research](PORTFOLIO-DISPATCH.md) — 11 synthetic algorithms, per-target decision gates, plan-overhead measurement, exactness conditions and measured regressions. This is not production Enbu/WASM acceptance.

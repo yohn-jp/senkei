@@ -1,24 +1,39 @@
-import { METHODS, SCENARIOS, RUNNERS, fixture, clone, canon, differential, fuzz } from './core.mjs';
+import { METHODS, SCENARIOS, RUNNERS, fixture, clone, canon, differential, fuzz, buildPlan } from './core.mjs';
 
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
 function percentile(numbers,p){const sorted=[...numbers].sort((a,b)=>a-b);return sorted[Math.max(0,Math.ceil(sorted.length*p)-1)];}
 function median(numbers){return percentile(numbers,.5);}
 function runMeasured(method,source,ticks,capture,options){
- const pilot=clone(source);
- const pilotAt=performance.now();
- RUNNERS[method](pilot,ticks,capture);
- const pilotMs=Math.max(.01,performance.now()-pilotAt);
- const batchSize=Math.max(1,Math.min(32,Math.ceil(3/pilotMs)));
- const elapsed=[];
+ const pilot=clone(source);const pilotAt=performance.now();RUNNERS[method](pilot,ticks,capture);
+ const pilotMs=Math.max(.001,performance.now()-pilotAt);
+ // Adapt to coarse browser clocks; cap cloned workload memory independently
+ // of the number of waves, so mobile browsers can complete all 11 strategies.
+ const maxBatch=Math.max(1,Math.min(512,Math.floor(65536/source.actors.length)));
+ const batchSize=Math.max(1,Math.min(maxBatch,Math.ceil(3/pilotMs)));
+ const elapsed=[];const observations=[];
  for(let i=0;i<options.warmups+options.samples;i++){
-   // Cloning/serialization intentionally excluded from timed region.
+  let duration=0,runs=0,waves=0;
+  do{
+   // Cloning/serialization intentionally excluded from the timed region.
    const workloads=Array.from({length:batchSize},()=>clone(source));
-   const t0=performance.now();
-   for(const work of workloads)RUNNERS[method](work,ticks,capture);
-   const duration=(performance.now()-t0)/batchSize;
-   if(i>=options.warmups)elapsed.push(duration);
+   const t0=performance.now();for(const work of workloads)RUNNERS[method](work,ticks,capture);
+   duration+=Math.max(0,performance.now()-t0);
+   runs+=batchSize;waves++;
+  }while(duration<8&&waves<32);
+  if(i>=options.warmups){elapsed.push(duration/runs);observations.push({duration_ms:duration,runs,waves});}
  }
- return {median_ms:median(elapsed),p95_ms:percentile(elapsed,.95),min_ms:Math.min(...elapsed),max_ms:Math.max(...elapsed),samples_ms:elapsed,batch_size:batchSize};
+ return {median_ms:median(elapsed),p95_ms:percentile(elapsed,.95),min_ms:Math.min(...elapsed),max_ms:Math.max(...elapsed),samples_ms:elapsed,batch_size:batchSize,batch_observations:observations,timer_limited:elapsed.some(ms=>ms===0)};
+}
+function benchmarkPlanning(source,ticks){
+ const plan=buildPlan(source,ticks);
+ for(let i=0;i<32;i++)buildPlan(source,ticks);
+ let elapsed=0,iterations=0;
+ // This is the general planning cost, *not* the cost of the specialized fast guards.
+ while(elapsed<12&&iterations<16384){
+  const batch=128,started=performance.now();for(let i=0;i<batch;i++)buildPlan(source,ticks);
+  elapsed+=performance.now()-started;iterations+=batch;
+ }
+ return {counts:plan.counts,targets_scanned:plan.decisions,actors_scanned:plan.inspected,actors_assigned:plan.assignments,general_plan_us:elapsed/iterations*1000,plan_samples:iterations};
 }
 function mix(ids,seed){const arr=[...ids];let x=seed>>>0;for(let i=arr.length-1;i>0;i--){x=(Math.imul(x,1664525)+1013904223)>>>0;const j=x%(i+1);[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 const yieldFrame=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -40,7 +55,7 @@ self.addEventListener('message',async ({data})=>{
    for(const name of names){
      const source=fixture(name,actors);
      const baseline=canon(RUNNERS.tick(clone(source),ticks,capture),capture);
-     const summary={scenario:name,methods:{},stats:{actors,ticks,capture}};
+     const summary={scenario:name,methods:{},stats:{actors,ticks,capture},planner:benchmarkPlanning(source,ticks)};
      const seed=name.split('').reduce((v,c)=>Math.imul(v^c.charCodeAt(0),16777619)>>>0,2166136261);
      const order=mix(METHODS,seed);
      for(const method of order){
@@ -52,8 +67,10 @@ self.addEventListener('message',async ({data})=>{
        await yieldFrame();
      }
      const reference=summary.methods.tick.median_ms;
-     for(const method of METHODS)summary.methods[method].speedup_vs_tick=reference/summary.methods[method].median_ms;
+     for(const method of METHODS)summary.methods[method].speedup_vs_tick=summary.methods[method].median_ms>0?reference/summary.methods[method].median_ms:null;
      summary.winner=METHODS.reduce((best,m)=>summary.methods[m].median_ms<summary.methods[best].median_ms?m:best,'tick');
+     summary.timing_precision_warning=METHODS.some(method=>summary.methods[method].timer_limited);
+     if(summary.timing_precision_warning)summary.winner='unresolved';
      self.postMessage({type:'row',row:summary});
    }
    self.postMessage({type:'complete'});

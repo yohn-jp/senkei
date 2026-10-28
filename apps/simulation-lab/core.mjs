@@ -1,5 +1,5 @@
 // Browser-safe synthetic kernel, derived from tools/senrei-bench/extended.mjs. Not Enbu.
-const METHODS=['tick','active','heap','bucket','periodic','hybrid','adaptive'];
+const METHODS=['tick','active','heap','bucket','periodic','hybrid','adaptive','arithmetic','scan','phase_cache','planned'];
 const SCENARIOS={
   sparse:{density:.08,groups:16,stop:200,hp:40,period:1,on:1,interval:9},
   bounded:{density:1,groups:32,stop:80,hp:120,period:1,on:1,interval:7},
@@ -197,7 +197,171 @@ function adaptiveRun(s,T,capture=false){
  if(noFog&&smallTargets&&enabled.length>s.actors.length/4)return heapRun(s,T,capture);
  return hybridRun(s,T,capture);
 }
-const RUNNERS={tick:tickRun,active:activeRun,heap:heapRun,bucket:bucketRun,periodic:periodicRun,hybrid:hybridRun,adaptive:adaptiveRun};
+// Arithmetic inversion for unrestricted visibility: no event queue, no phase schedule.
+// A monotone cumulative damage function lets us find the exact lethal Tick.
+function arithmeticGroup(s,actors,gid,T,capture=false){
+ const target=s.targets[gid];if(target.hp<=0||!actors.length)return;
+ const arrivals=actors.map(firstAttack);
+ function damageBy(end){let damage=0;for(let i=0;i<actors.length;i++){
+  const first=arrivals[i];if(first<=end)damage+=(1+Math.floor((end-first)/actors[i].interval))*actors[i].damage;
+ }return damage;}
+ let end=T;
+ if(damageBy(T)>=target.hp){let lo=1,hi=T;while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);if(damageBy(mid)>=target.hp)hi=mid;else lo=mid+1;}end=lo;}
+ target.hp=Math.max(0,target.hp-damageBy(end));
+ for(let i=0;i<actors.length;i++){
+  const a=actors[i],first=arrivals[i];if(first>end)continue;
+  const n=1+Math.floor((end-first)/a.interval),last=first+(n-1)*a.interval;
+  a.hits=n;a.tickSum=n*first+a.interval*n*(n-1)/2;a.ready=last+a.interval;
+  if(capture)for(let h=0;h<n;h++)a.events.push(first+h*a.interval);
+ }
+}
+function arithmeticRun(s,T,capture=false){
+ const groups=Array.from({length:s.targets.length},()=>[]);
+ for(const a of s.actors)if(a.enabled)groups[a.g].push(a);
+ for(let g=0;g<groups.length;g++){
+  const target=s.targets[g];if(target.on===target.period)arithmeticGroup(s,groups[g],g,T,capture);
+  else periodicGroup(s,groups[g],g,T,capture); // Exact fog fallback, not an approximation.
+ }
+ finalizePosition(s,T);return s;
+}
+// Priority selection by linear scan is cheaper than heap bookkeeping for tiny groups.
+// A single Tick's simultaneous attacks are committed only after all contenders fire.
+function scanGroup(s,actors,gid,T,capture=false){
+ const target=s.targets[gid];if(target.hp<=0||!actors.length)return;
+ const due=actors.map(a=>firstVisible(target,firstAttack(a)));
+ while(true){let time=Infinity;for(const t of due)if(t<time)time=t;
+  if(time>T)return;
+  let damage=0;
+  for(let i=0;i<actors.length;i++)if(due[i]===time){const a=actors[i];addHit(a,time,capture);damage+=a.damage;}
+  target.hp=Math.max(0,target.hp-damage);
+  if(target.hp<=0)return;
+  for(let i=0;i<actors.length;i++)if(due[i]===time){const a=actors[i];due[i]=firstVisible(target,a.ready);}
+ }
+}
+function scanRun(s,T,capture=false){
+ const groups=Array.from({length:s.targets.length},()=>[]);
+ for(const a of s.actors)if(a.enabled)groups[a.g].push(a);
+ for(let g=0;g<groups.length;g++)scanGroup(s,groups[g],g,T,capture);
+ finalizePosition(s,T);return s;
+}
+// An interval and visibility phase identify the same schedule shape, up to a
+// multiple of the visibility period. Cache one shape rather than recompiling
+// the cycle for every actor in a shared-target group.
+function phaseCachedGroup(s,actors,gid,T,capture=false){
+ const target=s.targets[gid];if(target.hp<=0||!actors.length)return;
+ const cache=new Map();let cacheHits=0;
+ const schedules=actors.map(a=>{
+  const start=firstVisible(target,firstAttack(a));
+  const key=a.interval+':'+(start%target.period);
+  const entry=cache.get(key);
+  if(entry){cacheHits++;return {schedule:entry.schedule,shift:start-entry.start};}
+  const schedule=makeSchedule(a,target);cache.set(key,{schedule,start});return {schedule,shift:0};
+ });
+ function prefix(i,end){const {schedule,shift}=schedules[i];const p=schedulePrefix(schedule,end-shift);return {count:p.count,sum:p.sum+p.count*shift,last:p.count?p.last+shift:0};}
+ function damageBy(end){let damage=0;for(let i=0;i<actors.length;i++)damage+=prefix(i,end).count*actors[i].damage;return damage;}
+ let end=T;
+ if(damageBy(T)>=target.hp){let lo=1,hi=T;while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);if(damageBy(mid)>=target.hp)hi=mid;else lo=mid+1;}end=lo;}
+ target.hp=Math.max(0,target.hp-damageBy(end));
+ for(let i=0;i<actors.length;i++){
+  const a=actors[i],p=prefix(i,end);a.hits=p.count;a.tickSum=p.sum;
+  if(p.count)a.ready=p.last+a.interval;
+  if(capture&&p.count){let time=firstVisible(target,firstAttack(a));for(let h=0;h<p.count;h++){
+   a.events.push(time);time=firstVisible(target,time+a.interval);
+  }}
+ }
+ return cacheHits;
+}
+function phaseCacheRun(s,T,capture=false){
+ const groups=Array.from({length:s.targets.length},()=>[]);
+ for(const a of s.actors)if(a.enabled)groups[a.g].push(a);
+ for(let g=0;g<groups.length;g++)phaseCachedGroup(s,groups[g],g,T,capture);
+ finalizePosition(s,T);return s;
+}
+function singleGroup(s,a,gid,T,capture){
+ const g=s.targets[gid],first=firstVisible(g,firstAttack(a));if(first>T||g.hp<=0)return;
+ if(g.on!==g.period){phaseCachedGroup(s,[a],gid,T,capture);return;}
+ const available=1+Math.floor((T-first)/a.interval);
+ const n=Math.min(available,Math.ceil(g.hp/a.damage));
+ const last=first+(n-1)*a.interval;
+ g.hp=Math.max(0,g.hp-n*a.damage);a.hits=n;a.tickSum=n*first+a.interval*n*(n-1)/2;a.ready=last+a.interval;
+ if(capture)for(let i=0;i<n;i++)a.events.push(first+i*a.interval);
+}
+// A *single* O(actors + targets) planning pass; no tick-by-tick reclassification.
+// Every group uses its own causal domain (a shared target). Group independence
+// is a property of this synthetic kernel, NOT an assumption for real Enbu.
+function buildPlan(s,T){
+ const groups=Array.from({length:s.targets.length},()=>[]);
+ const due=Array.from({length:s.targets.length},()=>({first:Infinity,firstDamage:0,eventsUpper:0}));
+ let inspected=0;
+ for(let index=0;index<s.actors.length;index++){const a=s.actors[index];inspected++;
+  if(!a.enabled)continue;
+  const target=s.targets[a.g];if(target.hp<=0)continue;
+  const first=firstVisible(target,firstAttack(a));if(first>T)continue;
+  groups[a.g].push(index);
+  const stat=due[a.g];
+  if(first<stat.first){stat.first=first;stat.firstDamage=a.damage;}
+  else if(first===stat.first)stat.firstDamage+=a.damage;
+  // Ignore visibility to get a conservative upper bound on event count.
+  stat.eventsUpper+=1+Math.floor((T-first)/a.interval);
+ }
+ const plans=[];let assignments=0;const counts={idle:0,first_volley:0,single:0,scan:0,arithmetic:0,phase_cache:0};
+ for(let g=0;g<groups.length;g++){
+  const actors=groups[g],target=s.targets[g],stat=due[g];let mode;
+  if(!actors.length)mode='idle';
+  else if(stat.firstDamage>=target.hp)mode='first_volley';
+  else if(actors.length===1)mode='single';
+  // Small absolute event count, not merely a low per-actor event count.
+  else if(stat.eventsUpper<=12&&actors.length<=8)mode='scan';
+  else if(target.on===target.period)mode='arithmetic';
+  else mode='phase_cache';
+  counts[mode]++;if(actors.length){assignments+=actors.length;plans.push({gid:g,actors,mode,first:stat.first});}
+ }
+ return {groups:plans,counts,inspected,decisions:groups.length,assignments};
+}
+function executePlan(s,plan,T,capture=false){
+ for(const p of plan.groups){
+  const {gid,mode,first}=p;const target=s.targets[gid];
+  if(mode==='first_volley'){
+   for(const id of p.actors){const a=s.actors[id];if(firstVisible(target,firstAttack(a))===first)addHit(a,first,capture);}
+   target.hp=0;continue;
+  }
+  if(mode==='single'){singleGroup(s,s.actors[p.actors[0]],gid,T,capture);continue;}
+  // Materialize actor objects only for algorithms that need group traversal.
+  const actors=p.actors.map(index=>s.actors[index]);
+  switch(mode){
+   case 'scan':scanGroup(s,actors,gid,T,capture);break;
+   case 'arithmetic':arithmeticGroup(s,actors,gid,T,capture);break;
+   case 'phase_cache':phaseCachedGroup(s,actors,gid,T,capture);break;
+   default:throw Error('Unknown plan: '+mode);
+  }
+ }
+ finalizePosition(s,T);return s;
+}
+// Constant-shape guards before the general portfolio planner: no per-target
+// allocation when actor->target is a proven bijection, and no group partition
+// for a low-HP single shared target that dies in the first volley.
+function tryShapeSpecialization(s,T,capture){
+ if(s.actors.length===s.targets.length){
+  let bijective=true;for(let i=0;i<s.actors.length;i++)if(s.actors[i].g!==i){bijective=false;break;}
+  if(bijective){for(const a of s.actors)if(a.enabled)singleGroup(s,a,a.g,T,capture);finalizePosition(s,T);return true;}
+ }
+ if(s.targets.length===1&&s.targets[0].hp>0&&s.targets[0].hp<=3){
+  const target=s.targets[0];let first=Infinity,damage=0;
+  for(const a of s.actors)if(a.enabled&&a.g===0){const due=firstVisible(target,firstAttack(a));
+   if(due<first){first=due;damage=a.damage;}else if(due===first)damage+=a.damage;
+  }
+  if(first<=T&&damage>=target.hp){
+   for(const a of s.actors)if(a.enabled&&a.g===0&&firstVisible(target,firstAttack(a))===first)addHit(a,first,capture);
+   target.hp=0;finalizePosition(s,T);return true;
+  }
+ }
+ return false;
+}
+function plannedRun(s,T,capture=false){
+ if(tryShapeSpecialization(s,T,capture))return s;
+ return executePlan(s,buildPlan(s,T),T,capture);
+}
+const RUNNERS={tick:tickRun,active:activeRun,heap:heapRun,bucket:bucketRun,periodic:periodicRun,hybrid:hybridRun,adaptive:adaptiveRun,arithmetic:arithmeticRun,scan:scanRun,phase_cache:phaseCacheRun,planned:plannedRun};
 function canon(s,capture){return {targets:s.targets.map(t=>t.hp),actors:s.actors.map(a=>[a.x,a.ready,a.hits,a.tickSum,...(capture?[a.events]:[])])};}
 function differential(){
  let cases=0;
@@ -229,4 +393,4 @@ function fuzz(seedCount){
  return seedCount;
 }
 
-export { METHODS, SCENARIOS, RUNNERS, fixture, clone, canon, differential, fuzz };
+export { METHODS, SCENARIOS, RUNNERS, fixture, clone, canon, differential, fuzz, buildPlan, executePlan };

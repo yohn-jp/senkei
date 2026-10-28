@@ -1,10 +1,8 @@
 # Senkei Simulation Lab
 
-A static, client-side **synthetic** strategy benchmark. GitHub Pages URL (once Pages deploy is enabled): `https://yohn-jp.github.io/senkei/simulation-lab/`.
+Static client-side **synthetic** algorithm research benchmark: https://yohn-jp.github.io/senkei/simulation-lab/ . All computation runs in a Web Worker. No telemetry, server execution, or production WASM is involved.
 
-The entire test runs on the visiting browser in a module Web Worker, without a server or telemetry. The page measures the seven algorithms and fourteen scenarios from `tools/senrei-bench/extended.mjs`. See `core.mjs` (browser-safe snapshot of the same synthetic model). The measurements **do not benchmark production Rust Enbu, Jinrei, logical CU, or WASM**. Never label the values as real game performance.
-
-## Local use
+This lab currently evaluates **11 execution strategies** (original seven plus `arithmetic`, `scan`, `phase_cache`, and `planned`) on **14 synthetic scenarios**. The planner classifies **independent shared-target groups**, not scenario-name labels, and provides a separate estimate of generic classification overhead. See [portfolio dispatch research](../../docs/simulation-optimization/PORTFOLIO-DISPATCH.md) for algorithm design, cost models, performance counterexamples, and proof boundaries.
 
 Run a local HTTP server from the repository root (module Workers require an HTTP origin):
 
@@ -13,23 +11,23 @@ python3 -m http.server 8000
 # Open http://localhost:8000/apps/simulation-lab/
 ```
 
-Quick regression test (Node.js 22+):
+Node.js 22+ smoke and reproducible exploratory timing:
 
 ```bash
 node --test apps/simulation-lab/core.test.mjs
+LAB_ACTORS=256 LAB_TICKS=2000 node apps/simulation-lab/portfolio-bench.mjs
 ```
 
-The site's start action first runs 560 deterministic fixtures and 200 seeded fuzz fixtures against the naive Tick algorithm (unless preflight is disabled). For every measured workload, each method is checked against the Tick reference again. With full event output enabled, the attack Tick arrays are part of this equality check. Workload cloning and result comparison happen outside the timed section. Measurements include raw sample times and median / p95, with a short warmup and batch timing for very fast operations. Runs can be interrupted by terminating the Worker; partial results are tagged `complete: false` in JSON. Both CSV and JSON are generated locally. No results are uploaded automatically.
+Before each browser benchmark, 560 deterministic and 200 seeded fuzz fixtures check equivalence against a Tick reference, unless preflight is explicitly disabled. Every measured workload is independently compared against the Tick reference as well. With attack output enabled, full per-actor attack Tick arrays are part of equality checking. The benchmark uses bounded multi-batch timing to mitigate coarse mobile clocks, reports median and p95, and flags timer-limited cases rather than presenting `Infinityx` as a valid speedup. Each result contains general plan build costs, algorithm choice counts, environment and settings. JSON, CSV, and copyable text reports are local to the browser; there is no automatic upload.
 
-## GitHub Pages deployment
+### Pages deployment
 
-`.github/workflows/simulation-lab-pages.yml` deploys only the contents of this directory (not the heavy production game build) to the repository Pages site, under `/simulation-lab/`. `simulation-lab/build.json` is generated during build with the exact revision. The workflow runs a Node differential test and validates the exported static files before uploading.
+`.github/workflows/simulation-lab-pages.yml` assembles the static `apps/simulation-lab` directory at `/simulation-lab/` on the repository's GitHub Pages site and adds `build.json` with the exact Git revision. GitHub Pages Settings must use `Build and deployment → Source: GitHub Actions`. The workflow runs Node differential regression tests and checks the static artifacts. It does not deploy the game production build.
 
-GitHub repo **Settings → Pages → Build and deployment → Source: GitHub Actions** must be selected once by a repository administrator if it is not already enabled. The workflow requires `pages: write` / `id-token: write`. Normal PR checks and the existing CI are not modified. GitHub-hosted Pages URLs may take time to propagate after a successful deployment.
+### Research constraints
 
-## Constraints and next extension
-
-- Model: independent movement, fixed destinations, periodic synthetic visibility, simultaneous damage per shared target, independent target groups. No cross-group causal interaction, Jinrei evaluation, CU, real Fog, obstacles, Replay, or dynamic orders.
-- `core.mjs` should remain traceable to `tools/senrei-bench/extended.mjs`. Sync changes deliberately and require differential verification before updating.
-- For production-valid benchmarks, add a separate **Enbu WASM mode** and compare actual Enbu outputs/semantics without reusing synthetic speedup results.
-- Browser measurements vary with CPU throttling, JIT warmup, GC, tab visibility, battery state and mobile thermal limits. Export environment/settings; run multiple independent trials for decisions.
+- Synthetic model: fixed movement, deterministic attack cadence, periodic synthetic visibility, simultaneous damage to independent shared target groups. **No cross-group causal coupling**. Not an Enbu, Jinrei, Senritsu, CU, real Fog, Replay or WASM performance benchmark.
+- `core.mjs` originates in `tools/senrei-bench/extended.mjs`; new variants are explicitly **Lab research extensions** and should only be promoted upstream after independent evaluation. Do not silently treat this Lab fork as the production algorithm authority.
+- General plan decisions are valid only for the state and window whose relevant values were analyzed. In production, cache reuse must be protected by dependency versions and invalidation at exact causal boundaries.
+- `capture=false` is final-state-only; `capture=true` allocates every attack event and incurs an output lower bound. The copyable report includes the mode; comparisons across output modes are not directly interchangeable.
+- Mobile CPU throttling, JIT warmup, GC, tab visibility, battery state, and timer resolution influence results. Run independent trials; no scenario winner is a universal guarantee. Production acceptance needs native Rust/WASM and actual world/observation/CU/replay equality.
