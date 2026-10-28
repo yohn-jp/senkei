@@ -1,0 +1,53 @@
+name: Simulation Lab Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/simulation-lab/**'
+      - '.github/workflows/simulation-lab-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: simulation-lab-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Validate and publish synthetic benchmark
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate browser-safe simulation algorithms
+        run: node --test apps/simulation-lab/core.test.mjs
+      - name: Assemble static GitHub Pages site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site/simulation-lab
+          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs} _site/simulation-lab/
+          printf '{"revision":"%s","published_utc":"%s","engine":"synthetic-js"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/simulation-lab/build.json
+          test -s _site/simulation-lab/index.html
+          test -s _site/simulation-lab/core.mjs
+          test -s _site/simulation-lab/worker.mjs
+          test -s _site/simulation-lab/build.json
+          echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
