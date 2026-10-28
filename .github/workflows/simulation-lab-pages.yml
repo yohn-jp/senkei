@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: '24'
       - name: Validate browser-safe simulation algorithms
-        run: node --test apps/simulation-lab/core.test.mjs
+        run: node --test apps/simulation-lab/*.test.mjs
       - name: Assemble static GitHub Pages site
         shell: bash
         run: |

@@ -30,7 +30,7 @@ const batch=Number(process.env.LAB_BATCH||24);
 const capture=process.env.LAB_CAPTURE==='1';
 if(!Number.isInteger(actors)||actors<1||!Number.isInteger(ticks)||ticks<0||samples<1||batch<1)throw Error('Invalid parameters');
 console.log(`Synthetic JavaScript portfolio benchmark (Node ${process.version}, actors=${actors}, ticks=${ticks}, capture=${capture}, samples=${samples}, batch=${batch})`);
-console.log('scenario\tplan_us\tplanned_us\thybrid_us\tarithmetic_us\tphase_cache_us\tselected\tplan_modes');
+console.log('scenario\tplan_us\tplanned_us\thybrid_us\tarithmetic_us\tphase_cache_us\tplan_modes');
 const chosen=['planned','hybrid','arithmetic','phase_cache'];
 for(const name of Object.keys(SCENARIOS)){
  const source=fixture(name,actors),plan=buildPlan(source,ticks),order=[...chosen];
