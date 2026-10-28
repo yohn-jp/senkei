@@ -58,3 +58,7 @@ G(X[t], Δ) = F_{t+Δ-1} ∘ ... ∘ F_t (X[t]) // 候補実行計画
 現行 `crates/enbu/src/lib.rs` は`for tick in 1..=max_ticks`で逐次解決し、`next_navigation`、`next_combat`、`next_battlefield`、`next_squads`、`next_vision`などを呼ぶ。Jinreiコンパイラの`CompileOptions.optimize`は確認した実装で利用されていない。これらは**探索開始時点のコード観察**であり、将来のmainでも永続的に真とは限らない。性能改善・全Read/Write抽出・テスト成功は未実施。
 
 本書の`Senrei`は検討テーマ名。新しい独立プロダクトやSenritsu/Enbuの権限変更を意味しない。
+
+## 実測の開始
+
+- [RUN-20261028-001: 4方式の初回実測](measurements/2026-10-28-minimal.md) — 独立主体の合成モデル（**本番Enbuではない**）。[実験コード](../../tools/senrei-bench/README.md)。

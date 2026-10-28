@@ -1,0 +1,134 @@
+{
+  "kind": "synthetic-isolated-semantic-kernel",
+  "semantics": "independent actors; move to fixed stop then periodic attacks on private targets; integer tick; result-only; no Jinrei/CU/visibility",
+  "verified_cases": 135,
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpu_count": 5
+  },
+  "options": {
+    "count": 1024,
+    "ticks": 10000,
+    "warmups": 4,
+    "samples": 11,
+    "json": true,
+    "test": false
+  },
+  "timestamp_utc": "2026-10-28T13:24:38.077Z",
+  "results": [
+    {
+      "scenario": "sparse",
+      "methods": {
+        "tick": {
+          "batch_size": 2,
+          "median_ms": 16.34587350000004,
+          "p95_ms": 18.872469500000022,
+          "min_ms": 14.52463449999999,
+          "max_ms": 18.872469500000022,
+          "speedup_vs_tick": 1
+        },
+        "active": {
+          "batch_size": 39,
+          "median_ms": 0.20003825641025777,
+          "p95_ms": 0.27105446153846,
+          "min_ms": 0.19021810256410496,
+          "max_ms": 0.27105446153846,
+          "speedup_vs_tick": 81.71373712874373
+        },
+        "event": {
+          "batch_size": 12,
+          "median_ms": 0.10405675000000277,
+          "p95_ms": 0.2418046666666669,
+          "min_ms": 0.06872433333332613,
+          "max_ms": 0.2418046666666669,
+          "speedup_vs_tick": 157.08614289798214
+        },
+        "analytic": {
+          "batch_size": 128,
+          "median_ms": 0.008481296875000766,
+          "p95_ms": 0.022946132812499798,
+          "min_ms": 0.0071996718750000355,
+          "max_ms": 0.022946132812499798,
+          "speedup_vs_tick": 1927.2846760240973
+        }
+      }
+    },
+    {
+      "scenario": "bounded",
+      "methods": {
+        "tick": {
+          "batch_size": 1,
+          "median_ms": 16.56520300000011,
+          "p95_ms": 18.5834040000002,
+          "min_ms": 15.551656999999977,
+          "max_ms": 18.5834040000002,
+          "speedup_vs_tick": 1
+        },
+        "active": {
+          "batch_size": 3,
+          "median_ms": 1.9509923333333365,
+          "p95_ms": 2.045267666666632,
+          "min_ms": 1.8592409999999593,
+          "max_ms": 2.045267666666632,
+          "speedup_vs_tick": 8.490655097397486
+        },
+        "event": {
+          "batch_size": 3,
+          "median_ms": 1.6465169999999791,
+          "p95_ms": 3.7949833333332967,
+          "min_ms": 1.3823426666666971,
+          "max_ms": 3.7949833333332967,
+          "speedup_vs_tick": 10.060754307426112
+        },
+        "analytic": {
+          "batch_size": 128,
+          "median_ms": 0.026184679687499823,
+          "p95_ms": 0.030795609375001476,
+          "min_ms": 0.02110194531250187,
+          "max_ms": 0.030795609375001476,
+          "speedup_vs_tick": 632.6295833173049
+        }
+      }
+    },
+    {
+      "scenario": "dense",
+      "methods": {
+        "tick": {
+          "batch_size": 1,
+          "median_ms": 30.178477000000385,
+          "p95_ms": 31.804841000000124,
+          "min_ms": 28.488314000000173,
+          "max_ms": 31.804841000000124,
+          "speedup_vs_tick": 1
+        },
+        "active": {
+          "batch_size": 1,
+          "median_ms": 54.73481200000015,
+          "p95_ms": 68.8350889999997,
+          "min_ms": 50.84175800000003,
+          "max_ms": 68.8350889999997,
+          "speedup_vs_tick": 0.5513580095972614
+        },
+        "event": {
+          "batch_size": 128,
+          "median_ms": 0.031611296874999084,
+          "p95_ms": 0.4731817812499983,
+          "min_ms": 0.01700475781250077,
+          "max_ms": 0.4731817812499983,
+          "speedup_vs_tick": 954.673802828637
+        },
+        "analytic": {
+          "batch_size": 128,
+          "median_ms": 0.008712656249997508,
+          "p95_ms": 0.009879960937499987,
+          "min_ms": 0.0073783828125009165,
+          "max_ms": 0.009879960937499987,
+          "speedup_vs_tick": 3463.7515969953497
+        }
+      }
+    }
+  ]
+}
