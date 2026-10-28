@@ -52,6 +52,7 @@
 | [JINREI-EDITOR.md](JINREI-EDITOR.md) | **Jinrei編集UX正本**：Domain探索、Hero別Coverage、Default/Effective/Observed、Trace |
 | [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
+| [simulation-optimization/README.md](simulation-optimization/README.md) | **研究候補**：Senrei計算の数理的圧縮・混成実行・物理最適化・実測計画。既存の意味論は変更しない |
 | [ONLINE.md](ONLINE.md) | 将来の非同期PvP、公式戦、ランキング、Cloudflare |
 | [DELIVERY.md](DELIVERY.md) | 実装順・各段階の完了条件・未決定事項 |
 | [implementation/WEB-API.md](implementation/WEB-API.md) | React shell・Web Worker・WASM間の型付き境界 |
