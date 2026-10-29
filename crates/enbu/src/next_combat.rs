@@ -171,6 +171,14 @@ pub fn prepare_actions(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) {
+    // No activation intent can reserve a skill: avoid cloning and traversing
+    // the entire world merely to project same-tick skill unlocks.
+    if !accepted.iter().any(|(_, intent)| {
+        let capability = intent.capability.as_str();
+        intent.actor.is_some() && (capability == "activate" || capability.ends_with(".activate"))
+    }) {
+        return;
+    }
     // The combat phase learns eligible path skills before resolving activations.
     // Project that same-tick unlock for pre-navigation reservations, without mutating
     // the live world or consuming the one-and-only skill-acquired replay event.
@@ -211,6 +219,12 @@ pub(crate) fn eligible_explicit_skill(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
+    // Match active_skill_target's capability guard before the expensive
+    // projection. Movement, WAIT and other orders never require a clone.
+    let capability = intent.capability.as_str();
+    if capability != "activate" && !capability.ends_with(".activate") {
+        return false;
+    }
     let Some(actor_id) = intent.actor.as_ref() else { return false };
     let mut eligible_snapshot = snapshot.clone();
     learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
