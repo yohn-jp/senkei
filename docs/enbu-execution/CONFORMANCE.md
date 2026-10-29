@@ -4,9 +4,9 @@
 
 ## 1. 合格の定義
 
-Hybridの各Strategyは \`Reference Tick Executor\` に対して、同じ入力/バージョン/出力契約で**厳密に同じ結果を返す**こと。
+Hybridの各Strategyは `Reference Tick Executor` に対して、同じ入力/バージョン/出力契約で**厳密に同じ結果を返す**こと。
 
-\`\`\`text
+```text
 Reference = canonical Enbu full Tick execution
 Candidate = identical rules, inputs and outputs; only physical execution differs
 Pass iff
@@ -14,7 +14,7 @@ Pass iff
   AND execution errors/resource limits occur identically
   AND no unproven shortcut is selected
   AND native/WASM candidate outputs agree
-\`\`\`
+```
 
 最終HPや勝敗のみの同一、またはTS syntheticとの一致だけでは合格にしない。
 
@@ -36,15 +36,15 @@ L1の内部計測を外部の公開ABIへ強制追加しない。L2-L5の最終�
 
 現行リポジトリには次の実測可能な仕組みがある（追加HybridのPASSを意味しない）。
 
-- \`apps/simulation-lab/enbu-conformance.mjs\`: 12種類の実Enbu WASMとNative Rustの7 golden fixturesについて、完全応答digest/bytes/出力順を検証。計測用WASM JSON ABIにはRust parse/serializeが入る。
-- \`apps/simulation-lab/enbu-worker.mjs\`: BrowserでWASMを読み、同一revision/digestを検証してから計測。WASM全構成に同じNative goldenを使用。
-- \`crates/wasm/tests/preflight_dispatch.rs\`: 本番dispatch経由でNative fixtureをexport。
-- \`tests/conformance/compare-adapters.mjs\`: Native/real WASM適合性と既存goldenの検査。
-- \`crates/enbu/tests/next_scenarios.rs\` および \`crates/enbu/src/next_*.rs\`: Next実動作と局所差分テスト。
-- \`.github/workflows/simulation-lab-pages.yml\`: real WASM構成をビルドし、Native黄金応答一致を出版条件にする。
-- \`.github/workflows/ci.yml\`: Rust/ブラウザ/ABIを横断検証。
+- `apps/simulation-lab/enbu-conformance.mjs`: 12種類の実Enbu WASMとNative Rustの7 golden fixturesについて、完全応答digest/bytes/出力順を検証。計測用WASM JSON ABIにはRust parse/serializeが入る。
+- `apps/simulation-lab/enbu-worker.mjs`: BrowserでWASMを読み、同一revision/digestを検証してから計測。WASM全構成に同じNative goldenを使用。
+- `crates/wasm/tests/preflight_dispatch.rs`: 本番dispatch経由でNative fixtureをexport。
+- `tests/conformance/compare-adapters.mjs`: Native/real WASM適合性と既存goldenの検査。
+- `crates/enbu/tests/next_scenarios.rs` および `crates/enbu/src/next_*.rs`: Next実動作と局所差分テスト。
+- `.github/workflows/simulation-lab-pages.yml`: real WASM構成をビルドし、Native黄金応答一致を出版条件にする。
+- `.github/workflows/ci.yml`: Rust/ブラウザ/ABIを横断検証。
 
-基準の \`000\`、R/V等の比較は、全Tick構造内の局所最適化であり**Hybrid Strategy導入の完了**ではない。PRやbranchの変更はマージ/公開/CI成功を別途確認する。
+基準の `000`、R/V等の比較は、全Tick構造内の局所最適化であり**Hybrid Strategy導入の完了**ではない。PRやbranchの変更はマージ/公開/CI成功を別途確認する。
 
 ## 4. 必須のテスト集合
 
@@ -69,7 +69,7 @@ L1の内部計測を外部の公開ABIへ強制追加しない。L2-L5の最終�
 
 ## 5. 差分ハーネスとOracle
 
-\`\`\`text
+```text
 fixture = immutable inputs + native source SHA + RulePlan/World/Program IDs
 golden = Reference Tick native full canonical response JSON
 candidate = Hybrid native response + Hybrid WASM response
@@ -82,7 +82,7 @@ for each candidate and case:
     report earliest differing Tick/phase/field/event/CU
   record eligibility, chosen strategy, fallback and proof invalidations
   reject candidate from production promotion
-\`\`\`
+```
 
 同じSerialized完全応答のSHA256は強い検査だが、文字列生成/順序に差がある場合の原因解析にはL1-L4の構造比較が必要。正本のJSONシリアライズを変更してHashを合わせるような修正は禁止。goldenは独立したReferenceから生成し、Candidateが生成した値で自己証明しない。
 
@@ -90,26 +90,26 @@ for each candidate and case:
 
 ## 6. ベンチマークの測定契約
 
-\`\`\`text
+```text
 Total =
   input_validation + preflight + classify + plan
   + scheduler + kernel_execute + invalidate + replan + switch
   + canonical_transition + observe/project + replay_materialize
   + serialize + WASM host_input/host_output
-\`\`\`
+```
 
 同じ入力・出力・CPU状態でRef/候補を交互/順序入替して計測する。WASM取得・compile・instantiateは**別**フェーズとして報告し、毎戦闘dispatch時間と混ぜない。JIT/GC/cache/ページ負荷を記録する。
 
 | 指標 | 目的 |
 | --- | --- |
-| \`total_wall_ms\`, median/p95/MAD | 利用者が実際に待つ時間の改善・分散 |
-| \`plan/build/validate/execute/commit/materialize/serialize_ms\` | 内訳と律速 |
-| \`executed_ticks / certified_skipped_ticks\` | 何を本当に省略したか |
-| \`visited_actors / target_checks / visibility_queries / path_queries\` | Active/経路・視界再評価の計算量 |
-| \`scheduled/popped/stale_events\`, \`cache_hit/miss\` | Scheduler/Periodicの実効コスト |
-| \`plan_invalidation_count / fallback_count / switch_count\` | 計画の現実的な維持費 |
-| \`peak_linear_memory / output_bytes / wasm_bytes\` | 資源・転送・ビルドサイズ |
-| \`full_json_sha256\` と \`source_revision\` | 同値性と来歴 |
+| `total_wall_ms`, median/p95/MAD | 利用者が実際に待つ時間の改善・分散 |
+| `plan/build/validate/execute/commit/materialize/serialize_ms` | 内訳と律速 |
+| `executed_ticks / certified_skipped_ticks` | 何を本当に省略したか |
+| `visited_actors / target_checks / visibility_queries / path_queries` | Active/経路・視界再評価の計算量 |
+| `scheduled/popped/stale_events`, `cache_hit/miss` | Scheduler/Periodicの実効コスト |
+| `plan_invalidation_count / fallback_count / switch_count` | 計画の現実的な維持費 |
+| `peak_linear_memory / output_bytes / wasm_bytes` | 資源・転送・ビルドサイズ |
+| `full_json_sha256` と `source_revision` | 同値性と来歴 |
 
 全候補を完走させる必要がある完了検証と、途中結果を保存できる反復研究を区別する。サンプル数/測定閾値を少なくして高速化と称しない。長いシナリオを含む複数Tick horizonの完走能力自体を追う。
 
