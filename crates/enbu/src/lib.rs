@@ -660,8 +660,13 @@ fn simulate_inner<P: TacticalExecutionPort>(
             let skill_start = world.clone();
             next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
             let adjudication_start = world.clone();
-            if let Some(runtime) = route_runtime.as_mut() { next_navigation::advance_with_routes(&mut world, next, tick, runtime); }
-            else { next_navigation::advance(&mut world, next, tick); }
+            // Reuse the exact post-reservation freeze already required by
+            // combat. Navigation previously deep-cloned the same World again.
+            if let Some(runtime) = route_runtime.as_mut() {
+                next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
+            } else {
+                next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
+            }
             next_events = if let Some(collector) = actor_collector.as_deref_mut() {
                 next_combat::resolve_from_snapshot_with_actor_decisions(&mut world, &adjudication_start, next, &accepted_by_side, tick, collector)
             } else {
