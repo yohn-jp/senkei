@@ -19,4 +19,8 @@ senkei-world = { path = "../senkei-world" }
 
 [features]
 # Physical execution changes only. Off in production by default.
-lab-optimizations = []
+lab-opt-termination = []
+lab-opt-cohort = []
+lab-opt-shields = []
+# Historical all-on feature remains an explicit alias, not a separate implementation.
+lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

@@ -65,12 +65,24 @@ jobs:
           cargo test --locked --release -p enbu --features lab-optimizations --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
       - name: Compile production Enbu WASM from the same revision
         run: bash scripts/wasm/build.sh
-      - name: Compile experimental Enbu optimizer from the same Rust sources
+      - name: Build all eight production-Enbu optimizer feature combinations
+        shell: bash
         run: |
+          set -euo pipefail
           export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-          cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features lab-optimizations
-          cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm target/simulation-lab/senkei_wasm_optimized.wasm
-          test -s target/simulation-lab/senkei_wasm_optimized.wasm
+          cp apps/web/public/wasm/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
+          for mask in 001 010 011 100 101 110 111; do
+            value=$((2#$mask))
+            features=()
+            if (( value & 4 )); then features+=(lab-opt-termination); fi
+            if (( value & 2 )); then features+=(lab-opt-cohort); fi
+            if (( value & 1 )); then features+=(lab-opt-shields); fi
+            feature_csv=$(IFS=,; echo "${features[*]}")
+            echo "Build Enbu ${mask}: ${feature_csv}"
+            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "${feature_csv}"
+            cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${mask}.wasm"
+            test -s "target/simulation-lab/senkei_wasm_${mask}.wasm"
+          done
       - name: Stamp immutable fixture provenance
         env:
           REVISION: ${{ github.sha }}
@@ -90,16 +102,41 @@ jobs:
           data['revision'] = os.environ['REVISION']
           path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
           PY
+      - name: Stamp all eight immutable WASM hashes and sizes
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+          variants=[]
+          for i in range(8):
+              mask=f'{i:03b}'
+              file=Path(f'target/simulation-lab/senkei_wasm_{mask}.wasm')
+              data=file.read_bytes()
+              assert data.startswith(b'\\0asm') and len(data)>1000, file
+              features=[]
+              if i & 4: features.append('lab-opt-termination')
+              if i & 2: features.append('lab-opt-cohort')
+              if i & 1: features.append('lab-opt-shields')
+              variants.append({
+                  'id':mask,'features':features, 'wasm':f'wasm/senkei_wasm_{mask}.wasm',
+                  'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),
+              })
+          manifest={'schema':'senkei-enbu-matrix/v1','revision':os.environ['REVISION'],
+                    'variants':variants}
+          Path('target/simulation-lab/enbu-variants.json').write_text(
+              json.dumps(manifest, separators=(',',':'),ensure_ascii=False))
+          PY
       - name: Assemble static GitHub Pages site
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _site/simulation-lab
-          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs,timeline.mjs,inspector-ui.mjs,inspector-worker.mjs,enbu-ui.mjs,enbu-worker.mjs,enbu-wasm-abi.mjs} _site/simulation-lab/
+          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs,timeline.mjs,inspector-ui.mjs,inspector-worker.mjs,enbu-ui.mjs,enbu-worker.mjs,enbu-wasm-abi.mjs,enbu-matrix-stats.mjs} _site/simulation-lab/
           mkdir -p _site/simulation-lab/wasm
-          cp apps/web/public/wasm/senkei_wasm.wasm _site/simulation-lab/wasm/
-          cp target/simulation-lab/senkei_wasm_optimized.wasm _site/simulation-lab/wasm/
-          cp target/simulation-lab/enbu-fixtures.json _site/simulation-lab/
+          cp target/simulation-lab/senkei_wasm_???.wasm _site/simulation-lab/wasm/
+          cp target/simulation-lab/{enbu-fixtures.json,enbu-variants.json} _site/simulation-lab/
           printf '{"revision":"%s","published_utc":"%s","engine":"synthetic-js+production-enbu-wasm"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/simulation-lab/build.json
           test -s _site/simulation-lab/index.html
           test -s _site/simulation-lab/core.mjs
@@ -108,8 +145,8 @@ jobs:
           test -s _site/simulation-lab/inspector-worker.mjs
           test -s _site/simulation-lab/build.json
           test -s _site/simulation-lab/enbu-fixtures.json
-          test -s _site/simulation-lab/wasm/senkei_wasm.wasm
-          test -s _site/simulation-lab/wasm/senkei_wasm_optimized.wasm
+          test -s _site/simulation-lab/enbu-variants.json
+          test "$(find _site/simulation-lab/wasm -maxdepth 1 -name 'senkei_wasm_???.wasm' | wc -l)" -eq 8
           echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
           touch _site/.nojekyll
       - name: Gate publication on exact Native/WASM Enbu responses

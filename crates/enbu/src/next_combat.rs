@@ -465,7 +465,7 @@ fn collect_basic_attacks(
     mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
-    #[cfg(feature = "lab-optimizations")]
+    #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
         let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
         for (member_id, member) in &start.entities {
@@ -494,7 +494,7 @@ fn collect_basic_attacks(
             .and_then(|kind| collector.as_deref_mut().and_then(|collector| collector.begin(tick, source_id, kind, source.owner)));
         // Persistent movement goals do not consume a tick. Only movement
         // selected by navigation for any cohort member excludes an attack.
-        #[cfg(feature = "lab-optimizations")]
+        #[cfg(feature = "lab-opt-cohort")]
         let (moved_this_tick, current_action_lock) = {
             let squad = support::string(source, "squad");
             if source.entity_type.as_str() == "hero" && !squad.is_empty() {
@@ -507,9 +507,9 @@ fn collect_basic_attacks(
                  cohort_action_lock_until(world, start, source_id))
             }
         };
-        #[cfg(not(feature = "lab-optimizations"))]
+        #[cfg(not(feature = "lab-opt-cohort"))]
         let moved_this_tick = cohort_moved_this_tick(world, start, source_id, tick);
-        #[cfg(not(feature = "lab-optimizations"))]
+        #[cfg(not(feature = "lab-opt-cohort"))]
         let current_action_lock = cohort_action_lock_until(world, start, source_id);
         if moved_this_tick {
             if let Some(collector) = collector.as_deref_mut() {
@@ -1127,14 +1127,14 @@ fn regenerate_energy(world: &mut WorldState, rules: &NextRules, _tick: u32) {
 }
 
 fn apply_mature_squad_shields(world: &mut WorldState, rules: &NextRules) {
-    #[cfg(feature = "lab-optimizations")]
+    #[cfg(feature = "lab-opt-shields")]
     { apply_mature_squad_shields_grouped(world, rules); }
-    #[cfg(not(feature = "lab-optimizations"))]
+    #[cfg(not(feature = "lab-opt-shields"))]
     { apply_mature_squad_shields_reference(world, rules); }
 }
 
 // Keep the original quadratic implementation for the production baseline.
-#[cfg(not(feature = "lab-optimizations"))]
+#[cfg(not(feature = "lab-opt-shields"))]
 fn apply_mature_squad_shields_reference(world: &mut WorldState, rules: &NextRules) {
     let base = support::param(rules, "squad_shield_per_ally", 0).max(0);
     let maturity_cap = support::param(rules, "squad_maturation_ticks", 0).max(0);
@@ -1190,7 +1190,7 @@ fn apply_mature_squad_shields_reference(world: &mut WorldState, rules: &NextRule
 /// Algebraically identical per-member contributions, grouped by owner/squad.
 /// Nonnegative additions commute. On i128 overflow, fall back to the exact
 /// original saturating fold for that group's recipient, preserving semantics.
-#[cfg(feature = "lab-optimizations")]
+#[cfg(feature = "lab-opt-shields")]
 fn apply_mature_squad_shields_grouped(world: &mut WorldState, rules: &NextRules) {
     let base = support::param(rules, "squad_shield_per_ally", 0).max(0);
     let maturity_cap = support::param(rules, "squad_maturation_ticks", 0).max(0);

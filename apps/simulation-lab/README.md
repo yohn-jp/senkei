@@ -1,6 +1,6 @@
 # Senkei Simulation Lab
 
-Static client-side **synthetic** algorithm research benchmark: https://yohn-jp.github.io/senkei/simulation-lab/ . All computation runs in a Web Worker. No telemetry, server execution, or production WASM is involved.
+Client-side research and real Enbu WASM benchmark: https://yohn-jp.github.io/senkei/simulation-lab/ . All computation runs in a Web Worker. The original synthetic algorithms and the production Rust/WASM lane remain separate; no telemetry or server simulation is involved.
 
 This lab currently evaluates **11 execution strategies** (original seven plus `arithmetic`, `scan`, `phase_cache`, and `planned`) on **14 synthetic scenarios**. The planner classifies **independent shared-target groups**, not scenario-name labels, and provides a separate estimate of generic classification overhead. See [portfolio dispatch research](../../docs/simulation-optimization/PORTFOLIO-DISPATCH.md) for algorithm design, cost models, performance counterexamples, and proof boundaries.
 
@@ -45,53 +45,73 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu (Rust/WASM) lane
+### Production Enbu matrix: eight real Rust/WASM builds
 
-The existing 11-method, 14-scenario synthetic benchmark and synthetic Tick
-Inspector remain independent. A second UI section executes the real
-`senkei-wasm` JSON adapter, calling `enbu::simulate` with valid Next snapshots
-and tactical programs. It is **not a port of the 11 synthetic methods**.
+The existing **11 strategy / 14 scenario synthetic** benchmark and independent
+synthetic Tick Inspector remain unchanged and are never used to claim production
+speedups. The production lane compiles **eight** distinct binaries from the
+**same production Enbu Rust source** and JSON ABI, toggling these independent
+Cargo features:
 
-The Pages build exports three deterministic production fixtures (1, 4, 16
-ticks) from native Rust, builds the **same revision** of the production WASM,
-and rejects publication if the complete native/WASM JSON response SHA-256
-differs for any fixture. The browser Worker checks the same golden digest on
-**every timed iteration**, discarding timings if any run fails.
+| Bit | Feature | Work eliminated |
+| --- | --- | --- |
+| T (4) | `lab-opt-termination` | Repeated termination sort and compact trace mode computation |
+| C (2) | `lab-opt-cohort` | Repeated per-hero squad membership/lock/movement scans during basic attack selection |
+| S (1) | `lab-opt-shields` | Repeated per-recipient shield contribution sums |
 
-This is production-core conformance and baseline measurement, not yet a
-benchmark of new Enbu optimization strategies. The distinct semantics of the
-synthetic JS kernel cannot be automatically transferred to actual Enbu/Jinrei
-without proving state, CU, diagnostics, and replay equivalence.
+`000` is the production reference. `111` is the historical
+`lab-optimizations` all-on alias; all other six subsets are actual compiled
+Enbu, not synthetic stand-ins. No optimization is enabled by default in the
+game. Any promoted combination is the **same Rust code and feature set**,
+not a second JS implementation.
 
-To generate fixtures locally:
+The Pages workflow builds the production WASM and all seven other variants
+from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
+publication unless **every variant** reproduces **all native Rust golden JSON
+responses** (the full response, including replay, CU, diagnostics, and output
+ordering). Browser measurements repeat this exact check on **every timing
+sample** and fail closed. Five Next fixtures cover 1, 4, 16, 64, and 128 Tick,
+and the workflow runs additional real-Jinrei native behavioral regressions.
+The five fixtures are a baseline, **not exhaustive gameplay equivalence**.
+
+#### Measurements and ranking
+
+The Worker can run all eight variants or the baseline against one selected
+variant, for all fixtures or one Tick count. Each variant is instantiated once,
+then run in alternating, rotating order with two warmups. Median/p95,
+input-transfer, WASM dispatch, output-transfer, WebAssembly linear memory,
+binary size, module fetch/compile/instantiation times, and each complete
+response digest are included in the downloadable JSON.
+
+**WASM dispatch** still includes Rust-side JSON parse and result serialization:
+it is *not* an isolated pure-Enbu timing. The host-side input and output phases
+are measured separately from dispatch, but internal Rust phases require
+additional authoritative instrumentation to distinguish. Statistics are
+descriptive: aggregate ranking uses the equal-case geometric mean of
+per-case median baseline/candidate time ratios, with the worst-case ratio
+and number of regressions visible. Small changes require repeated experiments
+on a controlled device before adoption. Relative ratios are only meaningful
+for **identical native-authored fixtures and output contracts**.
+
+The Node CI gate performs a smaller interleaved timing pass, and stores its
+machine-specific `enbu-ci-report.json` with all binary hashes, verified cases,
+and performance results in the Pages artifact; it must never infer browser
+speedups from CI measurements. The browser suite may be cancelled without
+publishing or showing partial statistics.
+
+#### Local workflow
 
 ```sh
+node --test apps/simulation-lab/*.test.mjs
 SENKEI_LAB_FIXTURE_OUT=/tmp/enbu-fixtures.json cargo test --locked --release \
   -p senkei-wasm --test preflight_dispatch export_enbu_lab_fixtures -- --exact
-scripts/wasm/build.sh
+bash scripts/wasm/build.sh
+# Each feature set is a separate WASM binary:
+cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm \
+  --lib --features lab-opt-termination,lab-opt-cohort
 ```
 
-The published GitHub Pages release is built by the dedicated
-`simulation-lab-pages.yml` workflow; serving `apps/simulation-lab/` directly
-without the build's `enbu-fixtures.json` and `wasm/` leaves the production lane
-unavailable (the synthetic lane still works).
-
-### Controlled Rust optimizer experiment (stacked change)
-
-The production lane compares **two WASM modules built from one Enbu source**:
-the default production reference and `--features lab-optimizations`.
-The experimental feature implements (1) immutable RulePlan/termination ordering
-hoisting, (2) one-per-Tick Squad movement/action-lock aggregate instead of
-repeated hero scans, and (3) grouped shield contributions instead of quadratic
-per-recipient accumulation, with an overflow fallback matching the original.
-
-The native Rust golden response hash is checked for **both** modules on every
-measurement. No optimization is enabled by default in the game. The browser
-reports end-to-end per-dispatch timings for both and their ratio; scores are
-descriptive, not proof of global superiority. Do not merge an experiment
-showing incorrect state, CU, diagnostics, or replay.
-
-Extended acceptance: 1/4/16/64/128 Tick Native/dual-WASM golden fixtures,
-plus optimized native real-Jinrei canonical battlefield and individual combat
-regression tests. The Pages gate prints interleaved 7-sample performance data
-for both WASM builds, without treating noisy CI timing as an optimization pass.
+Local direct file serving of `apps/simulation-lab/` **cannot** load the real
+WASM suite because its fixture/manifest/revisioned WASM artifacts are generated
+by the Pages workflow. Synthetic algorithms still run independently. Use the
+published page, or serve the complete assembled `_site/` build output.

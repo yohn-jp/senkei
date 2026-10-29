@@ -1,60 +1,122 @@
-// Independent production Enbu lane. The 11-method synthetic lab remains unchanged.
+// Separate production-Rust/WASM matrix. Synthetic research UI remains untouched.
 const byId = id => document.getElementById(id);
-let worker;
-let report;
-function message(text) { byId('enbu-status').textContent = text; }
+const labels = { '000':'参照', '100':'T', '010':'C', '001':'S',
+  '110':'T+C', '101':'T+S', '011':'C+S', '111':'T+C+S' };
+let worker = null;
+let report = null;
+
+function status(message) { byId('enbu-status').textContent = message; }
+function setRunning(running) {
+  byId('enbu-run').disabled = running;
+  byId('enbu-cancel').disabled = !running;
+  byId('enbu-export').disabled = running || !report;
+  byId('enbu-download').disabled = running || !report;
+}
+function resetResults() {
+  report = null;
+  byId('enbu-results').replaceChildren();
+  byId('enbu-ranking').replaceChildren();
+  byId('enbu-report').value = '';
+  byId('enbu-ranking-note').textContent =
+    '各ケースの中央値を参照版と比較し、すべてのケースを確認した構成だけ順位付けします。';
+}
+function addRow(row) {
+  const values = [
+    row.ticks, row.variant + ' · ' + labels[row.variant],
+    row.stats.median_ms.toFixed(2), row.wasm_dispatch_ms.toFixed(2),
+    row.stats.p95_ms.toFixed(2), row.speedup.median_ratio.toFixed(3) + '×',
+    (row.wasm_bytes / 1024).toFixed(0), (row.memory_bytes / 1048576).toFixed(1),
+    row.verified ? 'PASS' : 'FAIL',
+  ];
+  const tr = document.createElement('tr');
+  for (const value of values) {
+    const td = document.createElement('td');
+    td.textContent = String(value);
+    tr.append(td);
+  }
+  byId('enbu-results').append(tr);
+}
+function showRanking(ranking, cases) {
+  const list = byId('enbu-ranking');
+  list.replaceChildren();
+  for (const ranked of ranking) {
+    const li = document.createElement('li');
+    const ratio = ranked.aggregate_ratio.toFixed(3);
+    const worst = ranked.worst_ratio.toFixed(3);
+    li.textContent = ranked.id + ' (' + labels[ranked.id] + ') · ' + ratio +
+      '× 幾何平均 · 最悪ケース ' + worst + '× · 悪化 ' +
+      ranked.regressed_cases + '/' + ranked.cases + '件 · ' +
+      (ranked.bytes / 1024).toFixed(0) + ' KiB';
+    list.append(li);
+  }
+  byId('enbu-ranking-note').textContent =
+    cases.length + '条件の同重み幾何平均。速度比1.000×が参照。順位は測定ノイズの影響を受け、数%差なら別端末・別実行で再検証が必要です。';
+}
+function finish(message) {
+  if (worker) {
+    worker.terminate();
+    worker = null;
+  }
+  setRunning(false);
+  status(message);
+}
 function run(event) {
   event.preventDefault();
   if (worker) return;
-  byId('enbu-results').replaceChildren();
-  byId('enbu-report').value = '';
-  byId('enbu-export').disabled = true;
-  byId('enbu-run').disabled = true;
-  message('本番WASMを準備しています…');
-  worker = new Worker(new URL('./enbu-worker.mjs', import.meta.url), {type: 'module'});
-  function finish(text) {
-    message(text);
-    byId('enbu-run').disabled = false;
-    worker?.terminate();
-    worker = null;
-  }
-  worker.addEventListener('error', event => finish('WASM Workerエラー: ' + event.message));
+  resetResults();
+  setRunning(true);
+  status('本番Enbu WASMを準備しています');
+  worker = new Worker(new URL('./enbu-worker.mjs', import.meta.url), {type:'module'});
+  worker.addEventListener('error', event => {
+    resetResults();
+    finish('WASM Workerでエラー: ' + event.message);
+  });
   worker.addEventListener('message', ({data}) => {
-    if (data.type === 'status') message(data.text);
-    if (data.type === 'row') {
-      const tr = document.createElement('tr');
-      for (const value of [data.row.ticks, data.row.reference.median_ms.toFixed(3),
-        data.row.optimized.median_ms.toFixed(3), data.row.speedup.toFixed(2) + '×', 'PASS']) {
-        const td = document.createElement('td'); td.textContent = String(value); tr.appendChild(td);
-      }
-      byId('enbu-results').appendChild(tr);
-      message(`本番Enbu: ${data.row.ticks} Tick の参照/最適化WASM一致を確認`);
-    }
+    if (data.type === 'status') status(data.text);
+    if (data.type === 'row') addRow(data.row);
     if (data.type === 'complete') {
       report = data.report;
       byId('enbu-report').value = JSON.stringify(report, null, 2);
-      byId('enbu-export').disabled = false;
-      finish('完了: 全ケースのネイティブRust / WASM出力が完全一致しました');
+      showRanking(report.ranking, report.cases);
+      finish('検証成功: ' + report.cases.length +
+        '条件・' + Object.keys(report.loads).length +
+        '構成がNative Rustの応答全文と一致しました');
     }
     if (data.type === 'error') {
-      report = null;
-      byId('enbu-results').replaceChildren();
-      finish('検証失敗（計測値は不採用）: ' + data.message);
+      resetResults();
+      finish('検証失敗。計測値は無効です: ' + data.message);
     }
   });
-  worker.postMessage({type: 'run', caseId: byId('enbu-case').value,
-    samples: Number(byId('enbu-samples').value)});
+  worker.postMessage({
+    type:'run', caseId: byId('enbu-case').value,
+    variantId: byId('enbu-variant').value,
+    samples: Number(byId('enbu-samples').value),
+  });
 }
 byId('enbu-form').addEventListener('submit', run);
+byId('enbu-cancel').addEventListener('click', () => {
+  if (!worker) return;
+  resetResults();
+  finish('中止しました。途中結果を採用していません。');
+});
 byId('enbu-export').addEventListener('click', async () => {
   if (!report) return;
-  const content = JSON.stringify(report, null, 2);
   try {
-    await navigator.clipboard.writeText(content);
-    message('WASM測定レポートをコピーしました');
+    await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+    status('比較レポートをコピーしました');
   } catch {
     byId('enbu-report').focus();
     byId('enbu-report').select();
-    message('コピーが拒否されました。レポートを選択しています');
+    status('コピーが拒否されました。レポートを選択しています');
   }
+});
+byId('enbu-download').addEventListener('click', () => {
+  if (!report) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)],
+    {type:'application/json'}));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'senkei-enbu-wasm-matrix-' + report.source_revision.slice(0, 8) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
