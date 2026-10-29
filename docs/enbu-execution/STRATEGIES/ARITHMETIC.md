@@ -4,33 +4,33 @@
 
 ## 1. 目的と数学モデル
 
-一定周期で一定の有効ダメージ \`d_i\` を同じ対象へ与える主体 \`i\` が、時刻 \`f_i\` から間隔 \`Δ_i > 0\` で攻撃するとする。時刻 \`t\` までの**候補攻撃数**は
+一定周期で一定の有効ダメージ `d_i` を同じ対象へ与える主体 `i` が、時刻 `f_i` から間隔 `Δ_i > 0` で攻撃するとする。時刻 `t` までの**候補攻撃数**は
 
-\`\`\`text
+```text
 H_i(t) = 0                          (t < f_i)
        = 1 + floor((t-f_i)/Δ_i)      (t >= f_i)
 
 D(t) = Σ_i d_i H_i(t)
 τ = min { t <= horizon | D(t) >= HP_initial }
-\`\`\`
+```
 
 となる。これは**固定Target・永続可視・非減少の正味ダメージ・割込なし・完全に独立な群**に限った式である。自動的にNextCombat一般に適用できる式ではない。Damageに防御/Shield/最低ダメージ/ford倍率などがある場合、それらを正規整数規則により**一定と証明された最終damage**へ変換しなければならない。
 
-\`τ\` を求めるとき、\`D(t)\` が単調であることを証明してから二分探索できる。初回/終了Tickは参照と同じ**包括境界**で評価する。\`HP <= 0\` の初期状態、\`d_i <= 0\`、\`Δ_i = 0\`、overflow等を前提通り明示的に処理する。
+`τ` を求めるとき、`D(t)` が単調であることを証明してから二分探索できる。初回/終了Tickは参照と同じ**包括境界**で評価する。`HP <= 0` の初期状態、`d_i <= 0`、`Δ_i = 0`、overflow等を前提通り明示的に処理する。
 
 ## 2. 同時攻撃と致死境界
 
-同じTick \`τ\` に攻撃可能な**全主体**が、参照ルール上の凍結フェーズで選択済みなら、その全攻撃を出力/状態へ反映する。最初の一撃でHPが0になっても残りをキャンセルしない。
+同じTick `τ` に攻撃可能な**全主体**が、参照ルール上の凍結フェーズで選択済みなら、その全攻撃を出力/状態へ反映する。最初の一撃でHPが0になっても残りをキャンセルしない。
 
-\`\`\`text
+```text
 first_lethal_tick = binary_search(D(t) >= initial_HP)
 active_at_tau = all eligible attackers whose due Tick is tau
 stage EVERY hit from frozen precombat state
 apply all simultaneous damage with canonical shield/defense order
 resolve deaths, rewards, cooldowns, XP and events in reference order
-\`\`\`
+```
 
-重要: \`D(τ)\` の数値一致だけではReplay/XP/攻撃元の行動ロック/target候補診断まで一致しない。攻撃者ごとに出力・内部clockを復元できる証明が必要。実Enbuは同時選択後のSkill適用→攻撃値/防御値→Shield/HP→Death/XPなどの順序を持つ。式で簡略化するときにも同じ効果順を保持する。
+重要: `D(τ)` の数値一致だけではReplay/XP/攻撃元の行動ロック/target候補診断まで一致しない。攻撃者ごとに出力・内部clockを復元できる証明が必要。実Enbuは同時選択後のSkill適用→攻撃値/防御値→Shield/HP→Death/XPなどの順序を持つ。式で簡略化するときにも同じ効果順を保持する。
 
 ## 3. 安全にEligibleとなる必要条件
 
@@ -44,19 +44,19 @@ resolve deaths, rewards, cooldowns, XP and events in reference order
 
 ### First-volley specialization
 
-最初に攻撃可能となるTick \`f\` での**全員の合計**が確実に致死なら、次の時刻を繰り返し探索する必要はない。ただしそのTick前の全ての他の書込み/観測/出力と、命中/ダメージ/死後効果を検証する。単に「低HPの敵がいる」ことだけではfast pathに入れない。
+最初に攻撃可能となるTick `f` での**全員の合計**が確実に致死なら、次の時刻を繰り返し探索する必要はない。ただしそのTick前の全ての他の書込み/観測/出力と、命中/ダメージ/死後効果を検証する。単に「低HPの敵がいる」ことだけではfast pathに入れない。
 
 ### Singleton specialization
 
-独立した一人のactorに対象・周期が固定されているとき、\`H(t)\` を直接計算できる。複数actorへ共通の前処理を行う必要がなく、Plannedの分類も省ける場合がある。Subject/Targetの一対一関係をID重複のない**全単射として証明**すること。
+独立した一人のactorに対象・周期が固定されているとき、`H(t)` を直接計算できる。複数actorへ共通の前処理を行う必要がなく、Plannedの分類も省ける場合がある。Subject/Targetの一対一関係をID重複のない**全単射として証明**すること。
 
 ## 4. Periodicとの差・計算量
 
 Arithmeticは単調な累積関数から**任意Tickの集約値と致死境界**を直接求める。Periodicは周期的な候補列/可視位相を扱い、必ずしも単調ダメージモデルとは限らない。
 
-固定独立群を前提にした致死探索の計算量は概ね \`O(A log T + K)\`。\`A\` は群内actor数、\`T\` はTick窓、\`K\` は出力として実体化すべき攻撃/イベント/Replay。出力Kの下限を消せない。Plan構築、Eligibility/Dependencyの検証、全Tick観測の必要費用は別途加算する。
+固定独立群を前提にした致死探索の計算量は概ね `O(A log T + K)`。`A` は群内actor数、`T` はTick窓、`K` は出力として実体化すべき攻撃/イベント/Replay。出力Kの下限を消せない。Plan構築、Eligibility/Dependencyの検証、全Tick観測の必要費用は別途加算する。
 
-整数演算は \`i64/i128\` の表現と参照のchecked/saturating semanticsを維持する。合成モデルの演算を浮動小数点へ置き換え、僅差の致死Tickを誤らない。
+整数演算は `i64/i128` の表現と参照のchecked/saturating semanticsを維持する。合成モデルの演算を浮動小数点へ置き換え、僅差の致死Tickを誤らない。
 
 ## 5. 禁止する短絡の例
 
@@ -72,7 +72,7 @@ Arithmeticは単調な累積関数から**任意Tickの集約値と致死境界*
 
 ## 6. 設計API
 
-\`\`\`text
+```text
 ArithmeticPlan {
   group_and_bijection_proof, [a,b], immutable_attack_clocks,
   damage_and_defense_proof, all_external_dependency_versions,
@@ -84,7 +84,7 @@ arithmetic_execute(plan):
   reconstruct per-actor attack_ready/action locks, death/XP/events
   stage canonical ordered effects and intermediary output obligations
   validate & commit or abort-to-reference
-\`\`\`
+```
 
 全体状態に影響するReward/Skill/respawnまで式で閉じていない場合は**そこを境界として止める**。続きは別のStrategyかReferenceで計算する。
 
