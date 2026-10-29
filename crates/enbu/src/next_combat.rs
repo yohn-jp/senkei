@@ -590,7 +590,7 @@ fn collect_basic_attacks_with_planner(
             };
             nearest_basic_attack(
                 source_id, source, start, rules, tick,
-                collector.as_deref_mut(), decision_index, planned,
+                collector.as_deref_mut(), decision_index, planned.as_deref(),
             )
         });
         let Some((target_id, _)) = selected else {
