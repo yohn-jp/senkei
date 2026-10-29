@@ -57,7 +57,7 @@ jobs:
           SENKEI_LAB_FIXTURE_OUT: ${{ github.workspace }}/target/simulation-lab/enbu-fixtures.json
         run: |
           mkdir -p target/simulation-lab
-          cargo test --locked --release -p senkei-wasm --test preflight_dispatch export_enbu_lab_fixtures -- --exact
+          cargo test --locked --release -p senkei-wasm --no-default-features --test preflight_dispatch export_enbu_lab_fixtures -- --exact
           test -s target/simulation-lab/enbu-fixtures.json
       - name: Real Jinrei Enbu optimized behavioral regression
         run: |
@@ -74,7 +74,10 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-          cp apps/web/public/wasm/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
+          # 000 is always the original unoptimized Enbu comparator.
+          # Production game WASM (built above) enables R+V by default.
+          cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --no-default-features
+          cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
           for mask in 001 010 011 100 101 110 111; do
             value=$((2#$mask))
             features=()
@@ -83,7 +86,7 @@ jobs:
             if (( value & 1 )); then features+=(lab-opt-shields); fi
             feature_csv=$(IFS=,; echo "${features[*]}")
             echo "Build Enbu ${mask}: ${feature_csv}"
-            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "${feature_csv}"
+            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --no-default-features --features "${feature_csv}"
             cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${mask}.wasm"
             test -s "target/simulation-lab/senkei_wasm_${mask}.wasm"
           done
@@ -96,7 +99,7 @@ jobs:
               RV) flags=lab-opt-route,lab-opt-visibility ;;
               TCSRV) flags=lab-optimizations,lab-opt-route,lab-opt-visibility ;;
             esac
-            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "$flags"
+            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --no-default-features --features "$flags"
             cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
