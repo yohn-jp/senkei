@@ -1,6 +1,6 @@
 # Senkei Simulation Lab
 
-Client-side research and real Enbu WASM benchmark: https://yohn-jp.github.io/senkei/simulation-lab/ . All computation runs in a Web Worker. The original synthetic algorithms and the production Rust/WASM lane remain separate; no telemetry or server simulation is involved.
+Client-side research and real Enbu WASM benchmark: https://yohn-jp.github.io/senkei/simulation-lab/ . All computation runs in a Web Worker. The original synthetic algorithms and the production Rust/WASM lane remain separate; no telemetry or server simulation is involved. The production `senkei-wasm` default now enables indexed route planning (R) and batched visibility (V), while the Lab explicitly builds variant `000` with `--no-default-features` as an unoptimized baseline. The Lab's `R`, `V`, `RV`, and `TCSRV` variants remain independent feature-comparison binaries.
 
 This lab currently evaluates **11 execution strategies** (original seven plus `arithmetic`, `scan`, `phase_cache`, and `planned`) on **14 synthetic scenarios**. The planner classifies **independent shared-target groups**, not scenario-name labels, and provides a separate estimate of generic classification overhead. See [portfolio dispatch research](../../docs/simulation-optimization/PORTFOLIO-DISPATCH.md) for algorithm design, cost models, performance counterexamples, and proof boundaries.
 
