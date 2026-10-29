@@ -7,6 +7,7 @@ use senkei_model::{
     WorldState,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::cell::OnceCell;
 
 const RATE_SCALE: i128 = 1_000;
 // Four per-mille modifiers are combined before terrain is applied:
@@ -69,6 +70,10 @@ fn advance_inner(
     ids.sort();
     let mut bridge_reservations = BTreeSet::<(String, String)>::new();
     let mut cross_reservations = BTreeSet::<(String, i64, String)>::new();
+    // All movement decisions observe this same frozen world. Defer the index
+    // until attack-hold evaluation actually needs it, then reuse it for every
+    // moving cohort rather than rebuilding visibility per candidate.
+    let visibility_index = OnceCell::<crate::next_combat::CombatVisibilityIndex>::new();
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
@@ -92,6 +97,7 @@ fn advance_inner(
             rules,
             &movement,
             &snapshot,
+            &visibility_index,
             &mut bridge_reservations,
             &mut cross_reservations,
             tick,
@@ -156,6 +162,7 @@ fn advance_entity(
     rules: &NextRules,
     movement: &MovementIntent,
     snapshot: &WorldState,
+    visibility_index: &OnceCell<crate::next_combat::CombatVisibilityIndex>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
@@ -234,7 +241,10 @@ fn advance_entity(
     if !explicit_move
         && !forced_transit
         && int(entity, "retreating") == 0
-        && should_hold_for_attack(actor_id, entity, snapshot, rules, tick)
+        && should_hold_for_attack_indexed(
+            actor_id, entity, snapshot, rules, tick,
+            Some(visibility_index.get_or_init(|| crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules))),
+        )
     {
         return;
     }
@@ -596,12 +606,24 @@ fn clear_track(entity: &mut EntityState) {
     set_string(entity, "track", "");
 }
 
+#[cfg(test)]
 fn should_hold_for_attack(
     actor_id: &EntityId,
     entity: &EntityState,
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
+) -> bool {
+    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None)
+}
+
+fn should_hold_for_attack_indexed(
+    actor_id: &EntityId,
+    entity: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    visibility: Option<&crate::next_combat::CombatVisibilityIndex>,
 ) -> bool {
     let actors = if entity.entity_type.as_str() == "hero" {
         hero_cohort(actor_id, entity, snapshot)
@@ -613,8 +635,8 @@ fn should_hold_for_attack(
             target.owner.is_some()
                 && target.owner != source.owner
                 && alive(target)
-                && crate::next_combat::can_basic_attack(
-                    source_id, source, target_id, target, snapshot, rules, tick,
+                && crate::next_combat::can_basic_attack_with_visibility(
+                    source_id, source, target_id, target, snapshot, rules, tick, visibility,
                 )
         })
     })
