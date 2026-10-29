@@ -159,6 +159,16 @@ pub(crate) fn resolve_from_snapshot_with_actor_decisions(
     resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), Some(collector))
 }
 
+/// Avoid snapshot allocation when the accepted action set contains no
+/// possible activation. This guard has the same capability/actor test as
+/// active_skill_target; it does not infer success or mutate the world.
+pub(crate) fn has_skill_activation_intents(accepted: &[(CombatantSide, Intent)]) -> bool {
+    accepted.iter().any(|(_, intent)| {
+        let capability = intent.capability.as_str();
+        intent.actor.is_some() && (capability == "activate" || capability.ends_with(".activate"))
+    })
+}
+
 /// Reserve a legal active skill as this Hero's action before movement runs.
 /// Explicit movement/track/bridge actions take precedence when both intent
 /// kinds target the same actor in one arbitration batch; the skill remains
@@ -173,10 +183,7 @@ pub fn prepare_actions(
 ) {
     // No activation intent can reserve a skill: avoid cloning and traversing
     // the entire world merely to project same-tick skill unlocks.
-    if !accepted.iter().any(|(_, intent)| {
-        let capability = intent.capability.as_str();
-        intent.actor.is_some() && (capability == "activate" || capability.ends_with(".activate"))
-    }) {
+    if !has_skill_activation_intents(accepted) {
         return;
     }
     // The combat phase learns eligible path skills before resolving activations.
