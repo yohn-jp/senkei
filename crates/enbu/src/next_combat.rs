@@ -352,10 +352,18 @@ fn resolve_snapshot_with_events(
     // prerequisite conditions are met. Initial level-one heroes are handled
     // here as well as after XP below.
     learn_path_skills(world, rules, &mut events);
-    // Preserve the existing same-tick passive unlock semantics while keeping
-    // the supplied graph positions frozen before movement.
-    let mut combat_start = start.clone();
-    learn_path_skills(&mut combat_start, rules, &mut Vec::new());
+    // Preserve same-Tick passive unlocks in the frozen attack snapshot.
+    // Most Ticks cannot unlock anything. A conservative read-only proof lets
+    // us borrow the existing snapshot rather than deep-cloning every entity
+    // on each of those Ticks. Unlockable path skills still take exactly the
+    // original owned clone + canonical learning path.
+    let combat_start = if path_skill_may_unlock(start, rules) {
+        let mut frozen = start.clone();
+        learn_path_skills(&mut frozen, rules, &mut Vec::new());
+        std::borrow::Cow::Owned(frozen)
+    } else {
+        std::borrow::Cow::Borrowed(start)
+    };
 
     // Mature squads offer a capped, member-to-member protective shield. It is
     // a support effect with quadratic group contribution, not a blanket stat
@@ -1095,6 +1103,28 @@ fn progress_levels(
         events.push(event("next.level_up", Some(hero_id.clone()), payload));
     }
     learn_path_skills(world, rules, events);
+}
+
+// Conservative candidate check: prerequisites may further reject a skill,
+// but an unlearned, level-eligible path entry is necessary for any mutation.
+// Using it before cloning preserves every passive unlock and event.
+fn path_skill_may_unlock(world: &WorldState, rules: &NextRules) -> bool {
+    world.entities.values().any(|hero| {
+        if hero.entity_type.as_str() != "hero" { return false; }
+        let Some(definition) = rules.heroes.iter().find(|def| {
+            def.id == support::string(hero, "catalog_id")
+        }) else { return false };
+        let path_id = support::string(hero, "skill_path");
+        let Some(path) = definition.skill_paths.get(&path_id) else { return false };
+        let level = support::int(hero, "level").max(1);
+        let learned = skill_ids(hero);
+        path.iter().any(|id| {
+            !learned.contains(id)
+                && definition.skills.iter().any(|skill| {
+                    &skill.id == id && skill.unlock_level <= level
+                })
+        })
+    })
 }
 
 fn learn_path_skills(world: &mut WorldState, rules: &NextRules, events: &mut Vec<PresentationEvent>) {
