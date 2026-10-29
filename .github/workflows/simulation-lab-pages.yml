@@ -5,6 +5,24 @@ on:
     branches: [main]
     paths:
       - 'apps/simulation-lab/**'
+      - 'crates/enbu/**'
+      - 'crates/wasm/**'
+      - 'crates/jinrei/**'
+      - 'crates/senritsu/**'
+      - 'crates/senkei-model/**'
+      - 'crates/senkei-world/**'
+      - 'crates/senkei-behavior/**'
+      - 'crates/senkei-editor-adapter/**'
+      - 'scripts/wasm/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/simulation-lab-pages.yml'
+  pull_request:
+    paths:
+      - 'apps/simulation-lab/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - '.github/workflows/simulation-lab-pages.yml'
   workflow_dispatch:
 
@@ -14,38 +32,97 @@ permissions:
   id-token: write
 
 concurrency:
-  group: simulation-lab-pages
+  group: simulation-lab-pages-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Validate and publish synthetic benchmark
+  validate:
+    name: Validate synthetic and real Enbu WASM benchmarks
     runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install WebAssembly linker
+        run: sudo apt-get update && sudo apt-get install --yes lld
       - name: Validate browser-safe simulation algorithms
         run: node --test apps/simulation-lab/*.test.mjs
+      - name: Export exact real Enbu Native golden fixtures
+        env:
+          SENKEI_LAB_FIXTURE_OUT: ${{ github.workspace }}/target/simulation-lab/enbu-fixtures.json
+        run: |
+          mkdir -p target/simulation-lab
+          cargo test --locked --release -p senkei-wasm --test preflight_dispatch export_enbu_lab_fixtures -- --exact
+          test -s target/simulation-lab/enbu-fixtures.json
+      - name: Compile production Enbu WASM from the same revision
+        run: bash scripts/wasm/build.sh
+      - name: Stamp immutable fixture provenance
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          path = Path('target/simulation-lab/enbu-fixtures.json')
+          data = json.loads(path.read_text())
+          assert data['schema'] == 'senkei-enbu-wasm/v1'
+          assert len(data['cases']) == 3
+          for case in data['cases']:
+              response = case.pop('native_response')
+              case['response_sha256'] = hashlib.sha256(response.encode('utf-8')).hexdigest()
+          data['revision'] = os.environ['REVISION']
+          path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
+          PY
       - name: Assemble static GitHub Pages site
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _site/simulation-lab
-          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs,timeline.mjs,inspector-ui.mjs,inspector-worker.mjs} _site/simulation-lab/
-          printf '{"revision":"%s","published_utc":"%s","engine":"synthetic-js"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/simulation-lab/build.json
+          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs,timeline.mjs,inspector-ui.mjs,inspector-worker.mjs,enbu-ui.mjs,enbu-worker.mjs,enbu-wasm-abi.mjs} _site/simulation-lab/
+          mkdir -p _site/simulation-lab/wasm
+          cp apps/web/public/wasm/senkei_wasm.wasm _site/simulation-lab/wasm/
+          cp target/simulation-lab/enbu-fixtures.json _site/simulation-lab/
+          printf '{"revision":"%s","published_utc":"%s","engine":"synthetic-js+production-enbu-wasm"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/simulation-lab/build.json
           test -s _site/simulation-lab/index.html
           test -s _site/simulation-lab/core.mjs
           test -s _site/simulation-lab/worker.mjs
           test -s _site/simulation-lab/timeline.mjs
           test -s _site/simulation-lab/inspector-worker.mjs
           test -s _site/simulation-lab/build.json
+          test -s _site/simulation-lab/enbu-fixtures.json
+          test -s _site/simulation-lab/wasm/senkei_wasm.wasm
           echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
           touch _site/.nojekyll
+      - name: Gate publication on exact Native/WASM Enbu responses
+        run: node apps/simulation-lab/enbu-conformance.mjs
+      - name: Retain validated release site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-lab-validated-site
+          path: _site
+          retention-days: 2
+
+  publish:
+    name: Publish validated Simulation Lab
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: simulation-lab-validated-site
+          path: _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
   <script type="module" src="./inspector-ui.mjs"></script>
+  <script type="module" src="./enbu-ui.mjs"></script>
 </head>
 <body>
   <a href="#main" class="skip-link">本文へ移動</a>
@@ -56,6 +57,20 @@
           <div class="panel inspector-panel"><div class="panel-overline">ATTACK GATE · SYNTHETIC</div><h3 id="inspect-gate">—</h3><p id="inspect-gate-detail"></p><pre id="inspect-states" class="inspector-data">Tickを指定すると状態が表示されます。</pre><p id="inspect-measure" class="inspector-foot"></p></div>
           <div class="panel inspector-panel"><div class="panel-overline">COMPACT RESULT · DISPLAY ONLY</div><h3>重要イベント要約</h3><p id="inspect-summary">計算後に表示します。</p><ol id="inspect-events" class="inspector-event-list"></ol></div>
         </div>
+      </section>
+
+      <section class="workspace enbu-workspace" aria-labelledby="enbu-title">
+        <div class="section-header"><div><div class="section-kicker">04 / PRODUCTION ENGINE</div><h2 id="enbu-title">Enbu · Rust / WASM</h2></div><span class="section-note">同一RustコアのNative / WASM完全一致を検証</span></div>
+        <p class="inspector-intro">上の11方式は独立した合成JavaScript研究ベンチです。このレーンは<strong>本番Enbuの既存Rust/WASMアダプター</strong>を使用し、同一ソースのネイティブRustで生成した結果全文のSHA-256と照合します。合成11方式を本番移植したものではありません。</p>
+        <form id="enbu-form" class="control-layout">
+          <div class="control-block"><label for="enbu-case">実戦入力 <small>VERIFIED FIXTURE</small></label><select id="enbu-case"><option value="all" selected>全3条件</option><option value="next-1">Next · 1 Tick</option><option value="next-4">Next · 4 Tick</option><option value="next-16">Next · 16 Tick</option></select></div>
+          <div class="control-block"><label for="enbu-samples">計測回数 <small>SAMPLES</small></label><select id="enbu-samples"><option value="3">3</option><option value="5">5</option><option value="9" selected>9</option><option value="21">21</option></select></div>
+          <div class="control-actions"><button id="enbu-run" class="primary" type="submit">本番WASMを検証・計測</button><button id="enbu-export" class="secondary" type="button" disabled>レポートをコピー</button></div>
+        </form>
+        <p class="inspector-intro" id="enbu-status" role="status" aria-live="polite">実行時に本番WASMを読み込みます。初期ロード時間は計時に含めません。</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">最大Tick</th><th scope="col">中央値 ms</th><th scope="col">p95 ms</th><th scope="col">Native同値</th></tr></thead><tbody id="enbu-results"></tbody></table></div>
+        <div class="report-preview"><div class="report-preview-head"><label for="enbu-report">本番WASM 計測レポート</label></div><textarea id="enbu-report" readonly spellcheck="false" placeholder="結果と全出力の同値性検証が完了すると表示します。"></textarea></div>
+        <p class="inspector-intro">計測範囲：JSONのUTF-8入力転送、WASM内の本番simulate、応答コピー・デコード・解放。合成JSと異なるモデルなので、両レーンの速度比は算出しません。</p>
       </section>
       <footer class="footer"><div><strong>SENKEI / SIMULATION LAB</strong><p>独立研究用の合成ベンチマーク · Jinrei / Senritsu / Enbu本番の意味論は未検証</p></div><div><button class="footer-link" id="share-settings" type="button">設定URLをコピー <span aria-hidden="true">↗</span></button><a href="https://github.com/yohn-jp/senkei/blob/main/tools/senrei-bench/EXTENDED.md" target="_blank" rel="noopener noreferrer">計算モデルについて ↗</a></div></footer>
     </main>

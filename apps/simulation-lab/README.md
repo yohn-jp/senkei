@@ -44,3 +44,34 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 **Semantics:** Every Tick has a uniquely defined state even when its computation is skipped in the fast final-state path. Arbitrary-Tick reconstruction is presently on-demand re-execution from the initial fixture, not O(1), not an optimized checkpoint system, and not a production Enbu guarantee. First engagement/defeat are deliberately limited to the independent-target attack model; no decisions, CU, cross-group causal effects or production observation semantics are invented.
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
+
+### Production Enbu (Rust/WASM) lane
+
+The existing 11-method, 14-scenario synthetic benchmark and synthetic Tick
+Inspector remain independent. A second UI section executes the real
+`senkei-wasm` JSON adapter, calling `enbu::simulate` with valid Next snapshots
+and tactical programs. It is **not a port of the 11 synthetic methods**.
+
+The Pages build exports three deterministic production fixtures (1, 4, 16
+ticks) from native Rust, builds the **same revision** of the production WASM,
+and rejects publication if the complete native/WASM JSON response SHA-256
+differs for any fixture. The browser Worker checks the same golden digest on
+**every timed iteration**, discarding timings if any run fails.
+
+This is production-core conformance and baseline measurement, not yet a
+benchmark of new Enbu optimization strategies. The distinct semantics of the
+synthetic JS kernel cannot be automatically transferred to actual Enbu/Jinrei
+without proving state, CU, diagnostics, and replay equivalence.
+
+To generate fixtures locally:
+
+```sh
+SENKEI_LAB_FIXTURE_OUT=/tmp/enbu-fixtures.json cargo test --locked --release \
+  -p senkei-wasm --test preflight_dispatch export_enbu_lab_fixtures -- --exact
+scripts/wasm/build.sh
+```
+
+The published GitHub Pages release is built by the dedicated
+`simulation-lab-pages.yml` workflow; serving `apps/simulation-lab/` directly
+without the build's `enbu-fixtures.json` and `wasm/` leaves the production lane
+unavailable (the synthetic lane still works).
