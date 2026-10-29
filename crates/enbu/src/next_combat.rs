@@ -13,6 +13,7 @@
 //! killed during this phase still completes its already-selected attack.
 
 use crate::next_support as support;
+use crate::execution::strategies::planned::PlannedCombatCandidates;
 use crate::actor_decisions::{ActorDecisionCollector, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
 use senkei_model::{
     CombatantSide, DomainValue, EntityId, EntityState, FieldId, Intent,
@@ -484,9 +485,26 @@ fn collect_basic_attacks(
     start: &WorldState,
     rules: &NextRules,
     tick: u32,
+    collector: Option<&mut ActorDecisionCollector>,
+) -> Vec<Hit> {
+    // Reference remains an available, executable path for every input. The
+    // Planned kernel is opt-in until its complete Native/WASM parity is proven.
+    collect_basic_attacks_with_planner(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"))
+}
+
+fn collect_basic_attacks_with_planner(
+    world: &mut WorldState,
+    start: &WorldState,
+    rules: &NextRules,
+    tick: u32,
     mut collector: Option<&mut ActorDecisionCollector>,
+    use_planned: bool,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
+    // Compiled only on the first actual fallback to nearest-target search.
+    // Requested-target hits and idle/moving/locked/unready actors never pay
+    // its classification overhead.
+    let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
         let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
@@ -565,20 +583,15 @@ fn collect_basic_attacks(
             if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
         }
         let selected = selected.or_else(|| {
-            start.entities.iter()
-                .filter(|(target_id, target)| {
-                    let eligible = can_basic_attack(source_id, source, target_id, target, start, rules, tick);
-                    if eligible {
-                        if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
-                    }
-                    eligible
-                })
-                .min_by(|(a_id, a), (b_id, b)| {
-                    support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
-                        .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
-                        .then_with(|| a_id.cmp(b_id))
-                })
-                .map(|(id, entity)| (id.clone(), entity))
+            let planned = if use_planned {
+                Some(planned_candidates.get_or_insert_with(|| PlannedCombatCandidates::build(start, rules)))
+            } else {
+                None
+            };
+            nearest_basic_attack(
+                source_id, source, start, rules, tick,
+                collector.as_deref_mut(), decision_index, planned,
+            )
         });
         let Some((target_id, _)) = selected else {
             if let Some(collector) = collector.as_deref_mut() {
@@ -614,6 +627,47 @@ fn collect_basic_attacks(
     attacks
 }
 
+/// Select from a single frozen combat snapshot. Planned execution filters
+/// only structurally impossible candidates; the exact reference predicate,
+/// canonical distance and EntityId tie breaker remain unchanged. A separate
+/// reference branch scans the original full BTreeMap for conformance tests.
+fn nearest_basic_attack<'a>(
+    source_id: &EntityId,
+    source: &EntityState,
+    start: &'a WorldState,
+    rules: &NextRules,
+    tick: u32,
+    mut collector: Option<&mut ActorDecisionCollector>,
+    decision_index: Option<usize>,
+    planned: Option<&PlannedCombatCandidates<'a>>,
+) -> Option<(EntityId, &'a EntityState)> {
+    let vision = source.owner.and_then(|side| planned.map(|plan| plan.vision_sources(side)));
+    let candidates: Box<dyn Iterator<Item = (&'a EntityId, &'a EntityState)> + 'a> =
+        if let Some(plan) = planned {
+            Box::new(plan.candidates(source).iter().copied())
+        } else {
+            Box::new(start.entities.iter())
+        };
+    candidates
+        .filter(|(target_id, target)| {
+            let eligible = can_basic_attack_with_sources(
+                source_id, source, target_id, target, start, rules, tick, vision,
+            );
+            if eligible {
+                if let Some(collector) = collector.as_deref_mut() {
+                    collector.candidate(decision_index, target_id);
+                }
+            }
+            eligible
+        })
+        .min_by(|(a_id, a), (b_id, b)| {
+            support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
+                .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
+                .then_with(|| a_id.cmp(b_id))
+        })
+        .map(|(id, entity)| (id.clone(), entity))
+}
+
 /// Shared target predicate used by navigation's stop-and-attack decision and
 /// combat resolution. It reads only the supplied snapshot.
 pub fn can_basic_attack(
@@ -624,6 +678,30 @@ pub fn can_basic_attack(
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
+) -> bool {
+    if source_id == target_id
+        || !support::alive(source)
+        || !support::alive(target)
+        || !is_targetable(target)
+        || support::int(source, "attack") <= 0
+        || support::int(source, "range") < 0
+    {
+        return false;
+    }
+    can_basic_attack_with_sources(source_id, source, target_id, target, snapshot, rules, tick, None)
+}
+
+/// Optional precompiled vision sources are valid only for the same immutable
+/// snapshot. Both routes perform the same eligibility checks in the same order.
+fn can_basic_attack_with_sources(
+    source_id: &EntityId,
+    source: &EntityState,
+    target_id: &EntityId,
+    target: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    vision_sources: Option<&[&EntityState]>,
 ) -> bool {
     if source_id == target_id
         || !support::alive(source)
@@ -654,7 +732,11 @@ pub fn can_basic_attack(
         return false;
     }
     if let Some(source_side) = source_side {
-        if !crate::next_vision::visible(snapshot, rules, source_side, target) {
+        let observed = match vision_sources {
+            Some(sources) => crate::next_vision::visible_from_sources(sources, rules, source_side, target),
+            None => crate::next_vision::visible(snapshot, rules, source_side, target),
+        };
+        if !observed {
             return false;
         }
     }
