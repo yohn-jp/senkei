@@ -23,6 +23,3 @@ senkei-world = { path = "../senkei-world" }
 jinrei = { path = "../jinrei" }
 enbu = { path = "../enbu" }
 senkei-editor-adapter = { path = "../senkei-editor-adapter" }
-
-[dev-dependencies]
-sha2.workspace = true

@@ -66,6 +66,7 @@ jobs:
           REVISION: ${{ github.sha }}
         run: |
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           from pathlib import Path
@@ -73,6 +74,9 @@ jobs:
           data = json.loads(path.read_text())
           assert data['schema'] == 'senkei-enbu-wasm/v1'
           assert len(data['cases']) == 3
+          for case in data['cases']:
+              response = case.pop('native_response')
+              case['response_sha256'] = hashlib.sha256(response.encode('utf-8')).hexdigest()
           data['revision'] = os.environ['REVISION']
           path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
           PY

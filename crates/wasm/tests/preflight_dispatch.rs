@@ -168,7 +168,6 @@ fn preflight_failure_targets_are_structured_and_side_specific() {
 /// approximation of combat, and the Pages gate runs the same inputs in WASM.
 #[test]
 fn export_enbu_lab_fixtures() {
-    use sha2::{Digest, Sha256};
     let rules = senritsu::validate(
         senritsu::next_package(),
         &senritsu::next_engine_compatibility(),
@@ -194,12 +193,11 @@ fn export_enbu_lab_fixtures() {
         let response = senkei_wasm::dispatch_json(&request.to_string());
         let parsed: Value = serde_json::from_str(&response).expect("valid response JSON");
         assert_eq!(parsed["ok"], true, "real Enbu fixture failed: {parsed:#}");
-        let digest = format!("{:x}", Sha256::digest(response.as_bytes()));
         cases.push(json!({
             "id": format!("next-{ticks}"),
             "ticks": ticks,
             "request": request,
-            "response_sha256": digest,
+            "native_response": response,
         }));
     }
     if let Ok(path) = std::env::var("SENKEI_LAB_FIXTURE_OUT") {
