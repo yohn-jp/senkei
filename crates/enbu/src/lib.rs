@@ -656,8 +656,10 @@ fn simulate_inner<P: TacticalExecutionPort>(
             // Preparation reserves an exclusive action without moving anyone.
             let action_start = world.clone();
             next_battlefield::prepare(&mut world, &action_start, next, &accepted_by_side, tick);
-            let skill_start = world.clone();
-            next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            if next_combat::has_skill_activation_intents(&accepted_by_side) {
+                let skill_start = world.clone();
+                next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            }
             let adjudication_start = world.clone();
             // Movement reads exactly the frozen adjudication state above.
             // Passing it directly avoids a redundant full WorldState clone
