@@ -70,9 +70,9 @@ from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
 publication unless **every variant** reproduces **all native Rust golden JSON
 responses** (the full response, including replay, CU, diagnostics, and output
 ordering). Browser measurements repeat this exact check on **every timing
-sample** and fail closed. Five Next fixtures cover 1, 4, 16, 64, and 128 Tick,
+sample** and fail closed. Seven native Next fixtures cover 1, 4, 16, 64, and 128 Tick, plus an assembled Quintet at 64 Tick and a same-node combat clash at 16 Tick,
 and the workflow runs additional real-Jinrei native behavioral regressions.
-The five fixtures are a baseline, **not exhaustive gameplay equivalence**.
+These fixtures are a baseline, **not exhaustive gameplay equivalence**.
 
 #### Measurements and ranking
 

@@ -95,7 +95,7 @@ jobs:
           path = Path('target/simulation-lab/enbu-fixtures.json')
           data = json.loads(path.read_text())
           assert data['schema'] == 'senkei-enbu-wasm/v1'
-          assert len(data['cases']) == 5
+          assert len(data['cases']) == 7
           for case in data['cases']:
               response = case.pop('native_response')
               case['response_sha256'] = hashlib.sha256(response.encode('utf-8')).hexdigest()
