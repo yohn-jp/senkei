@@ -936,6 +936,33 @@ mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
 
+    #[cfg(feature = "lab-opt-visibility")]
+    #[test]
+    fn deduplicated_vision_sources_match_original_predicate() {
+        let rules = test_rules();
+        let mut world = WorldState::default();
+        let mut ally = hero(CombatantSide::Attacker, 0, 10);
+        support::set_string(&mut ally, "node", "a0");
+        support::set_string(&mut ally, "edge_to", "");
+        let duplicate = ally.clone();
+        let mut enemy = hero(CombatantSide::Defender, 20, 10);
+        support::set_string(&mut enemy, "node", "d0");
+        support::set_string(&mut enemy, "edge_to", "");
+        world.entities.insert(EntityId::from("ally"), ally);
+        world.entities.insert(EntityId::from("duplicate"), duplicate);
+        world.entities.insert(EntityId::from("enemy"), enemy);
+        for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+            let sources = vision_sources(&world, &rules, side);
+            for entity in world.entities.values() {
+                assert_eq!(
+                    visible(&world, &rules, side, entity),
+                    visible_from_sources(&sources, &rules, side, entity),
+                    "batching must not change authorization",
+                );
+            }
+        }
+    }
+
     fn test_rules() -> NextRules {
         let nodes = BTreeMap::from([
             (

@@ -1921,6 +1921,71 @@ mod tests {
         EntityId::from(value)
     }
 
+    #[cfg(feature = "lab-opt-route")]
+    #[test]
+    fn indexed_travel_time_matches_legacy_across_dynamic_graph_cases() {
+        // Directly compare both actual navigation algorithms on the same
+        // snapshots, including blocked edges, alternate routes and squads.
+        for layout in 0_u32..64 {
+            let mut edges = vec![
+                edge("a", "b", 4, "lane", layout & 1 != 0),
+                edge("b", "c", 4, "jungle", layout & 2 != 0),
+                edge("a", "d", 4, "forest", layout & 4 != 0),
+                edge("d", "c", 4, "lane", layout & 8 != 0),
+                edge("b", "d", 2, "river_ford", layout & 16 != 0),
+                edge("a", "c", 0, "lane", layout & 32 != 0),
+            ];
+            if layout % 2 == 0 { edges.reverse(); }
+            let config = rules(test_map(edges));
+            let mut world = WorldState::default();
+            let mut actor = entity("hero", Some(CombatantSide::Attacker), 100, "a", "c");
+            set_string(&mut actor, "squad", "squad");
+            world.entities.insert(id("h"), actor.clone());
+            let mut companion = entity("hero", Some(CombatantSide::Attacker), 70, "a", "c");
+            set_string(&mut companion, "squad", "squad");
+            world.entities.insert(id("ally"), companion);
+            for kind in ["hero", "monster"] {
+                let actual_actor = if kind == "hero" {
+                    actor.clone()
+                } else {
+                    entity("monster", None, 70, "a", "c")
+                };
+                if kind == "monster" {
+                    world.entities.insert(id("monster"), actual_actor.clone());
+                }
+                let movement = MovementIntent {
+                    goal: "c".into(), track: "LEFT".into(),
+                    terrain_milli: None, budget: 100,
+                };
+                let mut legal = config.map.clone();
+                for edge in &mut legal.edges {
+                    let next = if edge.from == "a" {
+                        Some(edge.to.as_str())
+                    } else if edge.to == "a" {
+                        Some(edge.from.as_str())
+                    } else { None };
+                    if next.map(|next| known_enemy_blocks_exit(
+                        &actual_actor, "a", next, &world, &config, &config.map
+                    )).unwrap_or(false) {
+                        edge.blocked = true;
+                    }
+                    if is_bridge(edge) && actual_actor.entity_type.as_str() == "hero"
+                        && !edge_allows_track(&actual_actor, &movement, edge, &world) {
+                        edge.blocked = true;
+                    }
+                }
+                let expected = path_by_travel_time(
+                    &legal, &actual_actor, "a", "c", &world, &config, 1
+                );
+                let actual = route_for_entity(
+                    &actual_actor, &config.map, "a", "c", &world,
+                    &movement, &config, 1,
+                );
+                assert_eq!(actual, expected, "layout={layout}, actor={kind}");
+            }
+        }
+    }
+
     #[test]
     fn path_is_undirected_shortest_and_lexically_stable() {
         let edges = vec![
