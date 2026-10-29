@@ -24,5 +24,8 @@ lab-opt-cohort = []
 lab-opt-shields = []
 lab-opt-route = []
 lab-opt-visibility = []
+# First proof-scoped Hybrid strategy: snapshot-local Planned combat candidate index.
+# Reference scan remains the default and is used for all unsupported scopes.
+lab-opt-planned = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

@@ -13,6 +13,7 @@
 //! killed during this phase still completes its already-selected attack.
 
 use crate::next_support as support;
+use crate::execution::strategies::planned::PlannedCombatCandidates;
 use crate::actor_decisions::{ActorDecisionCollector, AutonomousActorKind, AutonomousCombatAction, AutonomousNoAttackReason, AutonomousTargetSelection};
 use senkei_model::{
     CombatantSide, DomainValue, EntityId, EntityState, FieldId, Intent,
@@ -484,9 +485,26 @@ fn collect_basic_attacks(
     start: &WorldState,
     rules: &NextRules,
     tick: u32,
+    collector: Option<&mut ActorDecisionCollector>,
+) -> Vec<Hit> {
+    // Reference remains an available, executable path for every input. The
+    // Planned kernel is opt-in until its complete Native/WASM parity is proven.
+    collect_basic_attacks_with_planner(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"))
+}
+
+fn collect_basic_attacks_with_planner(
+    world: &mut WorldState,
+    start: &WorldState,
+    rules: &NextRules,
+    tick: u32,
     mut collector: Option<&mut ActorDecisionCollector>,
+    use_planned: bool,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
+    // Compiled only on the first actual fallback to nearest-target search.
+    // Requested-target hits and idle/moving/locked/unready actors never pay
+    // its classification overhead.
+    let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
         let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
@@ -565,20 +583,15 @@ fn collect_basic_attacks(
             if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
         }
         let selected = selected.or_else(|| {
-            start.entities.iter()
-                .filter(|(target_id, target)| {
-                    let eligible = can_basic_attack(source_id, source, target_id, target, start, rules, tick);
-                    if eligible {
-                        if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
-                    }
-                    eligible
-                })
-                .min_by(|(a_id, a), (b_id, b)| {
-                    support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
-                        .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
-                        .then_with(|| a_id.cmp(b_id))
-                })
-                .map(|(id, entity)| (id.clone(), entity))
+            let planned = if use_planned {
+                Some(planned_candidates.get_or_insert_with(|| PlannedCombatCandidates::build(start, rules)))
+            } else {
+                None
+            };
+            nearest_basic_attack(
+                source_id, source, start, rules, tick,
+                collector.as_deref_mut(), decision_index, planned.as_deref(),
+            )
         });
         let Some((target_id, _)) = selected else {
             if let Some(collector) = collector.as_deref_mut() {
@@ -614,6 +627,66 @@ fn collect_basic_attacks(
     attacks
 }
 
+/// Select from a single frozen combat snapshot. Planned execution filters
+/// only structurally impossible candidates; the exact reference predicate,
+/// canonical distance and EntityId tie breaker remain unchanged. A separate
+/// reference branch scans the original full BTreeMap for conformance tests.
+fn nearest_basic_attack<'a>(
+    source_id: &EntityId,
+    source: &EntityState,
+    start: &'a WorldState,
+    rules: &NextRules,
+    tick: u32,
+    collector: Option<&mut ActorDecisionCollector>,
+    decision_index: Option<usize>,
+    planned: Option<&PlannedCombatCandidates<'a>>,
+) -> Option<(EntityId, &'a EntityState)> {
+    let vision = source.owner.and_then(|side| planned.map(|plan| plan.vision_sources(side)));
+    if let Some(plan) = planned {
+        nearest_in_candidates(
+            plan.candidates(source).iter().copied(), source_id, source, start,
+            rules, tick, collector, decision_index, vision,
+        )
+    } else {
+        nearest_in_candidates(
+            start.entities.iter(), source_id, source, start,
+            rules, tick, collector, decision_index, None,
+        )
+    }
+}
+
+/// Monomorphized iterator — no per-attacker Box allocation or virtual dispatch.
+fn nearest_in_candidates<'a>(
+    candidates: impl Iterator<Item = (&'a EntityId, &'a EntityState)>,
+    source_id: &EntityId,
+    source: &EntityState,
+    start: &'a WorldState,
+    rules: &NextRules,
+    tick: u32,
+    mut collector: Option<&mut ActorDecisionCollector>,
+    decision_index: Option<usize>,
+    vision: Option<&[&EntityState]>,
+) -> Option<(EntityId, &'a EntityState)> {
+    candidates
+        .filter(|(target_id, target)| {
+            let eligible = can_basic_attack_with_sources(
+                source_id, source, target_id, target, start, rules, tick, vision,
+            );
+            if eligible {
+                if let Some(collector) = collector.as_deref_mut() {
+                    collector.candidate(decision_index, target_id);
+                }
+            }
+            eligible
+        })
+        .min_by(|(a_id, a), (b_id, b)| {
+            support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
+                .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
+                .then_with(|| a_id.cmp(b_id))
+        })
+        .map(|(id, entity)| (id.clone(), entity))
+}
+
 /// Shared target predicate used by navigation's stop-and-attack decision and
 /// combat resolution. It reads only the supplied snapshot.
 pub fn can_basic_attack(
@@ -624,6 +697,21 @@ pub fn can_basic_attack(
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
+) -> bool {
+    can_basic_attack_with_sources(source_id, source, target_id, target, snapshot, rules, tick, None)
+}
+
+/// Optional precompiled vision sources are valid only for the same immutable
+/// snapshot. Both routes perform the same eligibility checks in the same order.
+fn can_basic_attack_with_sources(
+    source_id: &EntityId,
+    source: &EntityState,
+    target_id: &EntityId,
+    target: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    vision_sources: Option<&[&EntityState]>,
 ) -> bool {
     if source_id == target_id
         || !support::alive(source)
@@ -654,7 +742,11 @@ pub fn can_basic_attack(
         return false;
     }
     if let Some(source_side) = source_side {
-        if !crate::next_vision::visible(snapshot, rules, source_side, target) {
+        let observed = match vision_sources {
+            Some(sources) => crate::next_vision::visible_from_sources(sources, rules, source_side, target),
+            None => crate::next_vision::visible(snapshot, rules, source_side, target),
+        };
+        if !observed {
             return false;
         }
     }
@@ -1595,6 +1687,72 @@ mod tests {
 
     fn insert(world: &mut WorldState, id: &str, entity: EntityState) {
         world.entities.insert(EntityId::from(id), entity);
+    }
+
+    #[test]
+    fn planned_candidates_are_reference_equivalent_for_combat_and_actor_traces() {
+        let rules = rules();
+        for actor_count in [0_usize, 1, 4, 16, 32] {
+            for tick in [1_u32, 3, 9] {
+                let mut start = WorldState::default();
+                for id in 0..actor_count {
+                    let (kind, owner) = match id % 5 {
+                        0 => ("hero", Some(CombatantSide::Attacker)),
+                        1 => ("minion", Some(CombatantSide::Defender)),
+                        2 => ("monster", None),
+                        3 => ("tower", Some(CombatantSide::Attacker)),
+                        _ => ("base", Some(CombatantSide::Defender)),
+                    };
+                    let mut actor = entity(kind, owner, (id % 10) as i64, if id % 7 == 0 { 0 } else { 100 }, 10, 100);
+                    support::set_int(&mut actor, "vision", if id % 6 == 0 { 0 } else { 100 });
+                    support::set_int(&mut actor, "attack_ready", if id % 4 == 0 { i64::from(tick) + 2 } else { 0 });
+                    if id % 6 == 1 { support::set_int(&mut actor, "reveal_attacker_until", 2); }
+                    if id % 5 == 0 { support::set_string(&mut actor, "target", format!("actor-{:03}", (id + 1) % actor_count)); }
+                    insert(&mut start, &format!("actor-{id:03}"), actor);
+                }
+                // Mix noncombatant live entities with combat candidates. The
+                // planner must never mistakenly prune a legal target or
+                // expose an unknown target through an actor decision trace.
+                insert(&mut start, "observation", entity("observation", None, 10, 100, 0, 0));
+                let mut reference = start.clone();
+                let mut planned = start.clone();
+                let mut reference_trace = ActorDecisionCollector::new(10_000);
+                let mut planned_trace = ActorDecisionCollector::new(10_000);
+                let ref_hits = collect_basic_attacks_with_planner(
+                    &mut reference, &start, &rules, tick, Some(&mut reference_trace), false,
+                );
+                let opt_hits = collect_basic_attacks_with_planner(
+                    &mut planned, &start, &rules, tick, Some(&mut planned_trace), true,
+                );
+                let signature = |hits: Vec<Hit>| hits.into_iter().map(|hit| {
+                    (hit.source, hit.target, hit.raw_power, hit.event,
+                     hit.uses_basic_attack, hit.decision_index)
+                }).collect::<Vec<_>>();
+                assert_eq!(signature(ref_hits), signature(opt_hits), "hit order/count mismatch {actor_count}/{tick}");
+                assert_eq!(reference, planned, "combat side effects mismatch {actor_count}/{tick}");
+                assert_eq!(reference_trace.used(), planned_trace.used());
+                assert_eq!(reference_trace.overflowed(), planned_trace.overflowed());
+                let ref_records = reference_trace.records.iter().map(|r| &r.trace).collect::<Vec<_>>();
+                let opt_records = planned_trace.records.iter().map(|r| &r.trace).collect::<Vec<_>>();
+                assert_eq!(ref_records, opt_records, "candidate order/decision mismatch {actor_count}/{tick}");
+            }
+        }
+    }
+
+    #[test]
+    fn planned_combat_index_certifies_single_snapshot_only_and_prunes_candidates() {
+        let rules = rules();
+        let mut snapshot = WorldState::default();
+        let attacker = entity("tower", Some(CombatantSide::Attacker), 0, 100, 10, 100);
+        insert(&mut snapshot, "tower", attacker);
+        insert(&mut snapshot, "own-hero", entity("hero", Some(CombatantSide::Attacker), 0, 100, 0, 0));
+        insert(&mut snapshot, "enemy-hero", entity("hero", Some(CombatantSide::Defender), 0, 100, 0, 0));
+        insert(&mut snapshot, "neutral", entity("monster", None, 0, 100, 0, 0));
+        let plan = PlannedCombatCandidates::build(&snapshot, &rules);
+        let tower = snapshot.entities.get(&EntityId::from("tower")).unwrap();
+        let names = plan.candidates(tower).iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
+        assert_eq!(names, vec!["enemy-hero"]);
+        assert!(plan.candidates(tower).len() < snapshot.entities.len());
     }
 
     #[test]
