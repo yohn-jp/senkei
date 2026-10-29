@@ -1627,6 +1627,68 @@ mod tests {
         world.entities.insert(EntityId::from(id), entity);
     }
 
+    #[cfg(feature = "lab-opt-arithmetic")]
+    #[test]
+    fn arithmetic_dispatch_is_exactly_equivalent_to_reference_basic_attacks() {
+        let rules = rules();
+        for actors in [0_usize, 1, 4, 16, 32, 64] {
+            for tick in [1_u32, 3, 9] {
+                let mut start = WorldState::default();
+                for id in 0..actors {
+                    let (kind, side) = match id % 5 {
+                        0 => ("hero", Some(CombatantSide::Attacker)),
+                        1 => ("minion", Some(CombatantSide::Defender)),
+                        2 => ("monster", None),
+                        3 => ("tower", Some(CombatantSide::Attacker)),
+                        _ => ("base", Some(CombatantSide::Defender)),
+                    };
+                    let mut unit = entity(kind, side, i64::try_from(id % 20).unwrap(), if id % 11 == 0 { 0 } else { 100 }, 15, 100);
+                    support::set_int(&mut unit, "attack_ready",
+                        if id % 9 == 0 { i64::from(tick) + 5 } else if id % 9 == 1 { 0 } else { i64::from(tick) + 1 });
+                    support::set_int(&mut unit, "attack",
+                        if id % 8 == 0 { 0 } else { 15 });
+                    support::set_int(&mut unit, "vision", if id % 7 == 0 { 0 } else { 100 });
+                    if id % 6 == 1 {
+                        support::set_int(&mut unit, "action_lock_until", i64::from(tick) + 1);
+                    }
+                    if id % 9 == 1 && actors > 1 {
+                        support::set_string(&mut unit, "target",
+                            format!("source-{:03}", (id + 1) % actors));
+                    }
+                    insert(&mut start, &format!("source-{id:03}"), unit);
+                }
+                insert(&mut start, "irrelevant", entity("observation", None, 0, 100, 0, 0));
+
+                for trace in [false, true] {
+                    let mut reference = start.clone();
+                    let mut optimized = start.clone();
+                    let mut ref_trace = ActorDecisionCollector::new(20_000);
+                    let mut opt_trace = ActorDecisionCollector::new(20_000);
+                    let ref_hits = collect_basic_attacks_with_dispatch(
+                        &mut reference, &start, &rules, tick,
+                        if trace { Some(&mut ref_trace) } else { None }, false);
+                    let opt_hits = collect_basic_attacks_with_dispatch(
+                        &mut optimized, &start, &rules, tick,
+                        if trace { Some(&mut opt_trace) } else { None }, true);
+                    let signature = |hits: Vec<Hit>| hits.into_iter().map(|hit| {
+                        (hit.source, hit.target, hit.raw_power, hit.event,
+                         hit.uses_basic_attack, hit.decision_index)
+                    }).collect::<Vec<_>>();
+                    assert_eq!(signature(ref_hits), signature(opt_hits),
+                        "hit mismatch actor-count={actors} tick={tick} trace={trace}");
+                    assert_eq!(reference, optimized,
+                        "world mismatch actor-count={actors} tick={tick} trace={trace}");
+                    let canonical = ref_trace.records.iter().map(|d| &d.trace).collect::<Vec<_>>();
+                    let candidate = opt_trace.records.iter().map(|d| &d.trace).collect::<Vec<_>>();
+                    assert_eq!(canonical, candidate,
+                        "trace mismatch actor-count={actors} tick={tick} trace={trace}");
+                    assert_eq!(ref_trace.used(), opt_trace.used());
+                    assert_eq!(ref_trace.overflowed(), opt_trace.overflowed());
+                }
+            }
+        }
+    }
+
     #[test]
     fn autonomous_trace_is_taken_from_real_selection_and_attack_event() {
         let rules = rules();
