@@ -75,3 +75,23 @@ The published GitHub Pages release is built by the dedicated
 `simulation-lab-pages.yml` workflow; serving `apps/simulation-lab/` directly
 without the build's `enbu-fixtures.json` and `wasm/` leaves the production lane
 unavailable (the synthetic lane still works).
+
+### Controlled Rust optimizer experiment (stacked change)
+
+The production lane compares **two WASM modules built from one Enbu source**:
+the default production reference and `--features lab-optimizations`.
+The experimental feature implements (1) immutable RulePlan/termination ordering
+hoisting, (2) one-per-Tick Squad movement/action-lock aggregate instead of
+repeated hero scans, and (3) grouped shield contributions instead of quadratic
+per-recipient accumulation, with an overflow fallback matching the original.
+
+The native Rust golden response hash is checked for **both** modules on every
+measurement. No optimization is enabled by default in the game. The browser
+reports end-to-end per-dispatch timings for both and their ratio; scores are
+descriptive, not proof of global superiority. Do not merge an experiment
+showing incorrect state, CU, diagnostics, or replay.
+
+Extended acceptance: 1/4/16/64/128 Tick Native/dual-WASM golden fixtures,
+plus optimized native real-Jinrei canonical battlefield and individual combat
+regression tests. The Pages gate prints interleaved 7-sample performance data
+for both WASM builds, without treating noisy CI timing as an optimization pass.

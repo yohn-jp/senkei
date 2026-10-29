@@ -23,12 +23,12 @@ function run(event) {
     if (data.type === 'status') message(data.text);
     if (data.type === 'row') {
       const tr = document.createElement('tr');
-      for (const value of [data.row.ticks, data.row.median_ms.toFixed(3),
-        data.row.p95_ms.toFixed(3), 'PASS']) {
+      for (const value of [data.row.ticks, data.row.reference.median_ms.toFixed(3),
+        data.row.optimized.median_ms.toFixed(3), data.row.speedup.toFixed(2) + '×', 'PASS']) {
         const td = document.createElement('td'); td.textContent = String(value); tr.appendChild(td);
       }
       byId('enbu-results').appendChild(tr);
-      message(`本番Enbu: ${data.row.ticks} Tick のRust/WASM一致を確認`);
+      message(`本番Enbu: ${data.row.ticks} Tick の参照/最適化WASM一致を確認`);
     }
     if (data.type === 'complete') {
       report = data.report;

@@ -175,7 +175,7 @@ fn export_enbu_lab_fixtures() {
     let attacker = valid_snapshot(&rules, CombatantSide::Attacker);
     let defender = valid_snapshot(&rules, CombatantSide::Defender);
     let mut cases = Vec::new();
-    for ticks in [1_u32, 4, 16] {
+    for ticks in [1_u32, 4, 16, 64, 128] {
         let mut context = new_match_context(&rules, MatchId::new("lab-enbu-wasm"));
         context.max_ticks = ticks;
         let request = json!({
