@@ -172,6 +172,16 @@ pub fn prepare_actions(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) {
+    // Skill reservation has no work unless a selected intent can be an
+    // activation. Do not clone the entire world and replay every hero's
+    // path merely to confirm that an all-movement/idle Tick has no skill.
+    // Match the canonical capability predicate in active_skill_target.
+    if !accepted.iter().any(|(_, intent)| {
+        let cap = intent.capability.as_str();
+        cap == "activate" || cap.ends_with(".activate")
+    }) {
+        return;
+    }
     // The combat phase learns eligible path skills before resolving activations.
     // Project that same-tick unlock for pre-navigation reservations, without mutating
     // the live world or consuming the one-and-only skill-acquired replay event.
