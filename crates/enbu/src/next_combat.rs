@@ -520,7 +520,7 @@ fn collect_basic_attacks(
         }
         grouped
     };
-    for (source_id, source) in &start.entities {
+    for (source_id, source) in sources {
         if !support::alive(source) || !is_combatant(source) {
             continue;
         }
