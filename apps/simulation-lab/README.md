@@ -45,13 +45,14 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu matrix: eight real Rust/WASM builds
+### Production Enbu matrix: twelve real Rust/WASM builds
 
 The existing **11 strategy / 14 scenario synthetic** benchmark and independent
 synthetic Tick Inspector remain unchanged and are never used to claim production
-speedups. The production lane compiles **eight** distinct binaries from the
-**same production Enbu Rust source** and JSON ABI, toggling these independent
-Cargo features:
+speedups. The production lane compiles **twelve** distinct WASM binaries from the
+**same production Enbu Rust source** and JSON ABI: the original eight T/C/S
+factorial configurations plus R, V, R+V and T+C+S+R+V. The original T/C/S
+factorial varies these independent Cargo features:
 
 | Bit | Feature | Work eliminated |
 | --- | --- | --- |
@@ -65,7 +66,7 @@ Enbu, not synthetic stand-ins. No optimization is enabled by default in the
 game. Any promoted combination is the **same Rust code and feature set**,
 not a second JS implementation.
 
-The Pages workflow builds the production WASM and all seven other variants
+The Pages workflow builds the production WASM and all twelve benchmark variants
 from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
 publication unless **every variant** reproduces **all native Rust golden JSON
 responses** (the full response, including replay, CU, diagnostics, and output
@@ -76,7 +77,7 @@ These fixtures are a baseline, **not exhaustive gameplay equivalence**.
 
 #### Measurements and ranking
 
-The Worker can run all eight variants or the baseline against one selected
+The Worker can run all twelve variants or the baseline against one selected
 variant, for all fixtures or one Tick count. Each variant is instantiated once,
 then run in alternating, rotating order with two warmups. Median/p95,
 input-transfer, WASM dispatch, output-transfer, WebAssembly linear memory,
@@ -125,6 +126,12 @@ statistics, not causal attribution to isolated instructions or confidence
 intervals; rerun on a quiet device before promoting a marginal advantage.
 
 ### Production Rust algorithm reductions (R / V)
+
+The architecture for migrating beyond all-Tick execution into a proof-gated
+Hybrid Execution Engine is documented separately in
+[Enbu Hybrid execution contracts](../../docs/enbu-execution/README.md).
+R/V reduce work inside the existing Tick engine; they do **not** implement
+Active Set / Event Scheduler / Planned / Arithmetic production execution.
 
 Unlike disabling output paths or measuring synthetic simulations, these flags
 change the computation in the authoritative Enbu Tick engine:
