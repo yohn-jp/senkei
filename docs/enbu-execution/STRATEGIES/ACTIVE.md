@@ -1,16 +1,16 @@
 # Active Set — 依存関係に基づく増分実行
 
-> 状態: 設計対象。TS \`active\` は別の合成モデルであり、EnbuのEntityをそのまま眠らせられる証拠ではない。
+> 状態: 設計対象。TS `active` は別の合成モデルであり、EnbuのEntityをそのまま眠らせられる証拠ではない。
 
 ## 1. 目的と最適化対象
 
-現行Enbuでは、\`crates/enbu/src/next_combat.rs::collect_basic_attacks\`、\`next_navigation.rs::advance_inner\`、\`next_vision.rs\` 等が多くの候補Entity/Worldを逐次調べる。**ある作用主体に影響する入力が変わっていない**ことが証明できる場合にのみ、その主体の判定を次の必要時刻まで省略する。
+現行Enbuでは、`crates/enbu/src/next_combat.rs::collect_basic_attacks`、`next_navigation.rs::advance_inner`、`next_vision.rs` 等が多くの候補Entity/Worldを逐次調べる。**ある作用主体に影響する入力が変わっていない**ことが証明できる場合にのみ、その主体の判定を次の必要時刻まで省略する。
 
-\`\`\`text
+```text
 ActiveSet[phase, tick] = {
   dependency node | required evaluation is due now or a relevant write invalidated it
 }
-\`\`\`
+```
 
 「active」は生存と同義ではない。死亡していてもRespawn条件がdueなら対象になる。現在HPが不変でも、JinreiやFog出力が必要なら対象になり得る。
 
@@ -18,18 +18,18 @@ ActiveSet[phase, tick] = {
 
 最低限の追跡粒度：
 
-- \`EntityField(entityId, field)\`: HP、attack_ready、position、skill/lock、vision、goal、owner等。
-- \`EntityMembership(type/side/collection)\`: 生死、spawn、塔/Minion構造変化、観測集合。
-- \`Spatial/GraphRegion(node/edge)\`: 接近・射程・視界・地形・橋・占有・track。
-- \`SquadGroup(side,squad)\`: 成熟、同時移動、連携、発動/攻撃ロック。
-- \`GlobalRule/Timeline/Memory/Output\`: RulePlan、Tick、Program、TacticalMemory、CU、Replay/Owner Fog。
-- \`UnknownGlobal\`: 影響が限定できないとき、関連領域すべてをactiveへ戻す。
+- `EntityField(entityId, field)`: HP、attack_ready、position、skill/lock、vision、goal、owner等。
+- `EntityMembership(type/side/collection)`: 生死、spawn、塔/Minion構造変化、観測集合。
+- `Spatial/GraphRegion(node/edge)`: 接近・射程・視界・地形・橋・占有・track。
+- `SquadGroup(side,squad)`: 成熟、同時移動、連携、発動/攻撃ロック。
+- `GlobalRule/Timeline/Memory/Output`: RulePlan、Tick、Program、TacticalMemory、CU、Replay/Owner Fog。
+- `UnknownGlobal`: 影響が限定できないとき、関連領域すべてをactiveへ戻す。
 
 現実のRead/Write情報は [Planner](../PLANNER.md) が所有する。Activeカーネルが独自推論で依存を減らしてはならない。
 
 ## 3. 実行擬似コード
 
-\`\`\`text
+```text
 compile_dependencies(plan, world) -> reverse_index
 for each canonical Tick boundary:
   active += due_events(tick)
@@ -44,13 +44,13 @@ for each canonical Tick boundary:
     active[future_phases_or_ticks] += reverse_index(changed_keys)
     if unknown dependency: expand to reference/full set
   emit materialized outputs and check limits
-\`\`\`
+```
 
 最初に高価な全World依存グラフを構築すると、少数Tickでは逆効果になり得る。初期分類/再利用/invalidated再構築の費用を含めてDispatcherが採否を決める。
 
 ## 4. 省略可能となる条件
 
-対象actor \`a\` に対して現在のphaseの処理を省略できるのは、次が**すべて**成立するときに限る。
+対象actor `a` に対して現在のphaseの処理を省略できるのは、次が**すべて**成立するときに限る。
 
 - 当該phaseが読み込む全キーの版が直前に証明したものと同じ。
 - 時計/expiration/ready/goal進捗など、Tick経過だけで変化する要素の期限が先にない。
@@ -74,7 +74,7 @@ for each canonical Tick boundary:
 
 ## 6. 計算量
 
-活性割合が低いとき、あるPhaseの判定を \`O(A)\` から \`O(|Active| + |invalidated_dependencies|)\` へ近づける。ただし前処理 \`O(A+D)\`、安定順序化、RulePlanのglobal barriers、Replay出力が含まれる。\`A\` 全体に依存する戦術や観測があれば全件へ戻る。これは正しい動作であり性能不具合とは限らない。
+活性割合が低いとき、あるPhaseの判定を `O(A)` から `O(|Active| + |invalidated_dependencies|)` へ近づける。ただし前処理 `O(A+D)`、安定順序化、RulePlanのglobal barriers、Replay出力が含まれる。`A` 全体に依存する戦術や観測があれば全件へ戻る。これは正しい動作であり性能不具合とは限らない。
 
 ## 7. 実装ゲート
 
