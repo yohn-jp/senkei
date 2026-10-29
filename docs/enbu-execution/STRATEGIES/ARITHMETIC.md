@@ -92,7 +92,9 @@ arithmetic_execute(plan):
 
 `crates/enbu/src/execution/arithmetic.rs` に、固定周期・正の一定ダメージのための整数カーネルを追加した。実装済みの関数は `hit_count`、`hit_stats`、`cumulative_damage`、`first_lethal_tick`、`due_actor_indices`。包括境界、同Tickの全攻撃者、無効なinterval、`u32::MAX` の境界をテストする。
 
-**重要: これは本番Tickスキップの有効化ではない。** この段階で正本の `simulate_inner` はArithmeticをdispatchしない。独立Domain・固定ターゲット/可視性・攻撃力/防御/Shield・Jinrei/CU・Fog/Replayの証明書とStateAt(t)の復元が未実装であるため。TS合成モデルの数式をRustで検証した基礎部品であり、総時間の改善を主張しない。
+**実装段階: 部分Dispatchに接続（全Tickスキップは未実装）。** `lab-opt-arithmetic` により、`next_combat::collect_basic_attacks` の直前で `execution::dispatcher` が現在の凍結スナップショットを検査する。全攻撃者が未準備・攻撃不可なら基本攻撃処理を省略し、候補が最大8主体かつ全主体の1/4以下ならその主体だけを正規のtarget選択関数へ流す。密な群、diagnosticsのactor決定トレースが必要な場合、計画費用が重い少数群はReferenceへfallbackする。攻撃の権威・Tick相互作用・同時Damage・Replayは既存処理を利用する。これは**確実に実行可能な同Tick局所最適化**であり、TSで研究した長窓のfirst-lethal算術集約そのものとは区別する。
+
+`simulate_inner` は各TickでJinreiを評価し、CU・Fog・ReplayをMaterializeする。したがってArithmetic数式を実装しても、未証明の長い窓をそのまま飛ばさない。長窓Arithmeticを実際に選択するには、依存証明と中間出力の復元を追加する必要がある。
 
 次段階の本番接続ゲートは、(1) causal read/write certificate、(2) 正規のfirst lethal Tickまでの状態遷移のstaging、(3) 同Tick全攻撃の原子的commit、(4) 全TickのJinrei/CU/Owner Replay復元、(5) Reference/HybridのNative/WASM完全JSON一致、(6) fallbackを含む総時間の実測、の順である。
 
