@@ -1707,7 +1707,7 @@ mod tests {
                     support::set_int(&mut actor, "vision", if id % 6 == 0 { 0 } else { 100 });
                     support::set_int(&mut actor, "attack_ready", if id % 4 == 0 { i64::from(tick) + 2 } else { 0 });
                     if id % 6 == 1 { support::set_int(&mut actor, "reveal_attacker_until", 2); }
-                    if id % 5 == 0 { support::set_string(&mut actor, "target", format!("actor-{}", (id + 1) % actor_count)); }
+                    if id % 5 == 0 { support::set_string(&mut actor, "target", format!("actor-{:03}", (id + 1) % actor_count)); }
                     insert(&mut start, &format!("actor-{id:03}"), actor);
                 }
                 // Mix noncombatant live entities with combat candidates. The
