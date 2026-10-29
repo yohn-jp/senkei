@@ -31,7 +31,8 @@ struct MovementIntent {
 /// world-unit result floors fractional progress. Arrival discards surplus
 /// movement, and another edge cannot be entered until a later tick.
 pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
-    advance_inner(world, rules, tick, None);
+    let snapshot = world.clone();
+    advance_inner(world, &snapshot, rules, tick, None);
 }
 
 /// Apply frozen, committed route choices through the same movement engine.
@@ -41,16 +42,30 @@ pub(crate) fn advance_with_routes(
     tick: u32,
     routes: &mut crate::next_route::Runtime,
 ) {
-    advance_inner(world, rules, tick, Some(routes));
+    let snapshot = world.clone();
+    advance_inner(world, &snapshot, rules, tick, Some(routes));
+}
+
+/// The match runner already owns the immutable adjudication snapshot.
+/// Reuse it instead of cloning the entire world for navigation a second time.
+/// The caller must supply the world state immediately before movement.
+pub(crate) fn advance_from_snapshot(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    routes: Option<&mut crate::next_route::Runtime>,
+) {
+    advance_inner(world, snapshot, rules, tick, routes);
 }
 
 fn advance_inner(
     world: &mut WorldState,
+    snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
     mut routes: Option<&mut crate::next_route::Runtime>,
 ) {
-    let snapshot = world.clone();
     let mut ids = snapshot
         .entities
         .iter()
@@ -79,7 +94,7 @@ fn advance_inner(
             continue;
         };
         if start.entity_type.as_str() == "hero"
-            && hero_cohort(&id, start, &snapshot)
+            && hero_cohort(&id, start, snapshot)
                 .iter()
                 .any(|(_, member)| int(member, "action_lock_until") > i64::from(tick))
         {
@@ -90,13 +105,13 @@ fn advance_inner(
         };
         let mut next = start.clone();
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
-        let movement = movement_intent_for(&id, start, &snapshot, rules, tick, waypoint.as_deref());
+        let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
         advance_entity(
             &id,
             &mut next,
             rules,
             &movement,
-            &snapshot,
+            snapshot,
             &visibility_index,
             &mut bridge_reservations,
             &mut cross_reservations,
