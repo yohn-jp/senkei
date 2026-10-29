@@ -19,13 +19,27 @@ pub fn team_view_with_fog(
     tick: u32,
     history: &mut FogHistory,
 ) -> WorldStateView {
-    let mut view = team_view(world, rules, side);
-    view.global_fields
-        .insert(
+    #[cfg(feature = "lab-opt-visibility")]
+    {
+        // Both owner projection and Fog use the *same* S[t] visibility
+        // sources. Rebuilding them or rescanning each target is unnecessary.
+        let sources = vision_sources(world, rules, side);
+        let mut view = team_view_indexed(world, rules, side, &sources);
+        view.global_fields.insert(
+            crate::next_fog::FOG_GLOBAL_FIELD.into(),
+            history.observe_with_sources(world, rules, side, tick, &sources).as_domain_value(),
+        );
+        view
+    }
+    #[cfg(not(feature = "lab-opt-visibility"))]
+    {
+        let mut view = team_view(world, rules, side);
+        view.global_fields.insert(
             crate::next_fog::FOG_GLOBAL_FIELD.into(),
             history.observe(world, rules, side, tick).as_domain_value(),
         );
-    view
+        view
+    }
 }
 
 const HERO: &str = "hero";
@@ -331,33 +345,51 @@ pub(crate) fn public_view_with_policy(
 /// absent from the view.
 pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> WorldStateView {
     #[cfg(feature = "lab-opt-visibility")]
-    let sources = vision_sources(world, rules, side);
-    let entities = world
-        .entities
-        .iter()
-        .filter_map(|(id, entity)| {
-            ({
-                #[cfg(feature = "lab-opt-visibility")]
-                { visible_from_sources(&sources, rules, side, entity) }
-                #[cfg(not(feature = "lab-opt-visibility"))]
-                { visible(world, rules, side, entity) }
-            }).then(|| {
-                let fields = projected_fields(entity, entity.owner == Some(side), rules);
-                (
-                    id.clone(),
-                    EntityStateView {
-                        entity_type: entity.entity_type.clone(),
-                        owner: entity.owner,
-                        fields,
-                    },
-                )
-            })
-        })
-        .collect();
-    WorldStateView {
-        entities,
-        global_fields: BTreeMap::new(),
+    {
+        let sources = vision_sources(world, rules, side);
+        team_view_indexed(world, rules, side, &sources)
     }
+    #[cfg(not(feature = "lab-opt-visibility"))]
+    {
+        let entities = world
+            .entities
+            .iter()
+            .filter_map(|(id, entity)| {
+                visible(world, rules, side, entity).then(|| {
+                    let fields = projected_fields(entity, entity.owner == Some(side), rules);
+                    (
+                        id.clone(),
+                        EntityStateView {
+                            entity_type: entity.entity_type.clone(),
+                            owner: entity.owner,
+                            fields,
+                        },
+                    )
+                })
+            })
+            .collect();
+        WorldStateView { entities, global_fields: BTreeMap::new() }
+    }
+}
+
+#[cfg(feature = "lab-opt-visibility")]
+fn team_view_indexed(
+    world: &WorldState,
+    rules: &NextRules,
+    side: CombatantSide,
+    sources: &[&EntityState],
+) -> WorldStateView {
+    let entities = world.entities.iter()
+        .filter_map(|(id, entity)| {
+            visible_from_sources(sources, rules, side, entity).then(|| {
+                let fields = projected_fields(entity, entity.owner == Some(side), rules);
+                (id.clone(), EntityStateView {
+                    entity_type: entity.entity_type.clone(),
+                    owner: entity.owner, fields,
+                })
+            })
+        }).collect();
+    WorldStateView { entities, global_fields: BTreeMap::new() }
 }
 
 fn projected_fields(

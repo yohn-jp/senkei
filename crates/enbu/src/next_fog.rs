@@ -132,6 +132,19 @@ impl FogHistory {
         tick: u32,
     ) -> FogReplayState {
         let vision_sources = next_vision::vision_sources(world, rules, side);
+        self.observe_with_sources(world, rules, side, tick, &vision_sources)
+    }
+
+    /// Consume the caller's same-snapshot visibility index. No visibility or
+    /// Fog history is skipped; only redundant source collection is eliminated.
+    pub(crate) fn observe_with_sources(
+        &mut self,
+        world: &WorldState,
+        rules: &NextRules,
+        side: CombatantSide,
+        tick: u32,
+        vision_sources: &[&EntityState],
+    ) -> FogReplayState {
         // Route endpoint samples coincide with node probes. Reuse only the
         // boolean probe result; history remains tracked independently for each
         // node and edge sample below.
