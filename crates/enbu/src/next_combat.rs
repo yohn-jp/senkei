@@ -484,10 +484,28 @@ fn collect_basic_attacks(
     start: &WorldState,
     rules: &NextRules,
     tick: u32,
+    collector: Option<&mut ActorDecisionCollector>,
+) -> Vec<Hit> {
+    collect_basic_attacks_with_dispatch(world, start, rules, tick, collector, cfg!(feature = "lab-opt-arithmetic"))
+}
+
+#[cfg_attr(not(feature = "lab-opt-arithmetic"), allow(unused_variables))]
+fn collect_basic_attacks_with_dispatch(
+    world: &mut WorldState,
+    start: &WorldState,
+    rules: &NextRules,
+    tick: u32,
     mut collector: Option<&mut ActorDecisionCollector>,
+    use_dispatch: bool,
 ) -> Vec<Hit> {
     #[cfg(feature = "lab-opt-arithmetic")]
-    let dispatch = crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some());
+    let dispatch = if use_dispatch {
+        crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some())
+    } else {
+        crate::execution::dispatcher::BasicAttackPlan::Reference(
+            crate::execution::dispatcher::FallbackReason::ShortOrDenseWorkload,
+        )
+    };
     #[cfg(feature = "lab-opt-arithmetic")]
     if matches!(dispatch, crate::execution::dispatcher::BasicAttackPlan::ArithmeticIdle) {
         // Full Tick (including Jinrei, Fog, replay and skills) is still
