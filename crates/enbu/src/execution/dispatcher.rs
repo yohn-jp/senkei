@@ -168,7 +168,7 @@ mod tests {
         let due = plan_basic_attacks(&world, 3, false).sources(&world)
             .map(|(id, _)| id.as_str().to_owned()).collect::<Vec<_>>();
         assert_eq!(due, vec!["hero-00", "hero-13", "hero-26"]);
-        world.entities.get_mut(&"hero-01".into()).unwrap()
+        world.entities.get_mut(&EntityId::from("hero-01")).unwrap()
             .fields.insert(FieldId::from("attack_ready"), DomainValue::Integer(1));
         let updated = plan_basic_attacks(&world, 3, false).sources(&world)
             .map(|(id, _)| id.as_str().to_owned()).collect::<Vec<_>>();
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(plan_basic_attacks(&world, 3, false).strategy(), Strategy::ArithmeticIdle);
         // Attack power or readiness can be altered by the next canonical
         // Tick; rebuilding the plan sees the change immediately.
-        world.entities.get_mut(&"a".into()).unwrap()
+        world.entities.get_mut(&EntityId::from("a")).unwrap()
             .fields.insert(FieldId::from("attack"), DomainValue::Integer(1));
         assert_eq!(plan_basic_attacks(&world, 3, false).strategy(),
             Strategy::Reference(FallbackReason::ShortOrDenseWorkload));
