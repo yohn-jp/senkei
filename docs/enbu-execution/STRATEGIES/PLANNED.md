@@ -1,10 +1,10 @@
 # Planned — 有限窓の先読みと直接特殊化
 
-> 状態: 実装予定。TSの \`plannedRun\` / \`buildPlan\` で検証した「群の特徴を一度だけ調べて適切なカーネルへ送る」思想を、因果証明付きのEnbu有限窓へ適用する。
+> 状態: 実装予定。TSの `plannedRun` / `buildPlan` で検証した「群の特徴を一度だけ調べて適切なカーネルへ送る」思想を、因果証明付きのEnbu有限窓へ適用する。
 
 ## 1. 役割
 
-\`Planned\` は一つの攻撃実行式というより、**独立Domainの閉じた窓に対して正しい直接カーネルを構成するStrategyファミリ**である。全体のStrategy選択・切替権限は [Execution Dispatcher](../DISPATCHER.md) にある。
+`Planned` は一つの攻撃実行式というより、**独立Domainの閉じた窓に対して正しい直接カーネルを構成するStrategyファミリ**である。全体のStrategy選択・切替権限は [Execution Dispatcher](../DISPATCHER.md) にある。
 
 事前に双方の命令が確定していても、途中のJinrei判断・Memory・Fog・Bridge・戦闘結果は固定とは限らない。**確定した入力**と**確定した未来の状態**を混同しない。
 
@@ -25,7 +25,7 @@
 
 ## 3. 一回走査の計画
 
-\`\`\`text
+```text
 build_domain_plan(world, dependencies, [a,b], outputs):
   if cheap_guards_prove_no_work(): return IdlePlan
   scan eligible actors ONCE:
@@ -38,20 +38,20 @@ build_domain_plan(world, dependencies, [a,b], outputs):
     try direct_singleton_or_first_volley
     else emit candidate strategy constraints for Dispatcher
   never publish plan if unresolved dependencies remain
-\`\`\`
+```
 
-既存TS研究の \`O(A+G)\` 分類を目標とするが、実EnbuではRead/Writeグラフと各種グローバル判断の費用が追加される。単にactorをID順に束ねただけでは因果独立の証明にはならない。
+既存TS研究の `O(A+G)` 分類を目標とするが、実EnbuではRead/Writeグラフと各種グローバル判断の費用が追加される。単にactorをID順に束ねただけでは因果独立の証明にはならない。
 
 ### 特別な直接経路
 
-- \`bijective\`（actorとtargetの一対一関係が厳密に成立）なら一般的なshared-target group配列の構築を避ける。
+- `bijective`（actorとtargetの一対一関係が厳密に成立）なら一般的なshared-target group配列の構築を避ける。
 - 何も発火しないと証明できる群はExecutorとMutable Actor Objectを作らない。
 - 最初の一斉攻撃で終わる群は次期予定Queueを作らず、単発の正規同時効果/出力へ接続。
 - 出力Captureが必要なら、結果だけ出す式に切り替えない。必要なイベント実体化の費用を選択時に含める。
 
 ## 4. 計画と実行状態を分離
 
-\`\`\`text
+```text
 ImmutablePlan {
   source_rule_and_world_identity, read_write_certificate,
   stable_actor_indices, target_groups, output_contract, horizon
@@ -60,13 +60,13 @@ MutableExecution {
   current_tick, actor_clocks, staged_effects,
   materialization_cursor, dirty_dependency_versions
 }
-\`\`\`
+```
 
 計画は不変で再利用できても、**異なるWorldや異なる時刻のMutableExecutionへそのまま転用できるわけではない**。境界で必ずvalidityを検査する。オリジナル入力のクローン間で共有する場合も内容versionとoutput modeが同じか確認する。
 
 ## 5. 先読み可能な範囲の決め方
 
-\`window_end\` は現時点で確定した次のFrontier以下に制限する。
+`window_end` は現時点で確定した次のFrontier以下に制限する。
 
 - Next Wave/Respawn、status期限、HP変化/攻撃、Bridge state、capture contest、Squad maturity。
 - 双方Jinrei/Behaviorの次の意味的評価（CU/Memory/traceを含む）。
@@ -77,7 +77,7 @@ MutableExecution {
 
 ## 6. 無効化と実体化
 
-\`\`\`text
+```text
 plan.execute_window(snapshot):
   require dependency versions unchanged
   prepare staging without committing external effects
@@ -89,7 +89,7 @@ plan.execute_window(snapshot):
   if unproved change:
     discard unpublished work
     resume Reference Tick from last committed checkpoint
-\`\`\`
+```
 
 リプレイが全Tick必要であれば、各TickのOwner Fogやpublic viewを物理生成する必要があることを明示する。予定が同じでもJinreiの評価を省くとは限らない。
 
@@ -107,8 +107,8 @@ plan.execute_window(snapshot):
 ## 8. 合格条件
 
 - TS syntheticとは独立した**Reference Enbu**比較で、No-work/First-volley/Singleton/Generic fallback全経路を検査。
-- \`plan\` を異なるWorldへ使ったら必ずrejectする。相手命令が同じでもWorld版が違えば有効とみなさない。
-- \`classification + execute + materialize + switch + serialize\` の総コストで優位性を判断。
+- `plan` を異なるWorldへ使ったら必ずrejectする。相手命令が同じでもWorld版が違えば有効とみなさない。
+- `classification + execute + materialize + switch + serialize` の総コストで優位性を判断。
 - 終局Tickと同Tickイベント、Owner/公開Replay、CU/診断/host limits、native/WASMが一致。
 - 選択理由、証明証跡、失効時刻、skipした物理処理数を内部計測できる。
 
