@@ -542,6 +542,19 @@ fn collect_basic_attacks_with_dispatch(
         if !support::alive(source) || !is_combatant(source) {
             continue;
         }
+        // Even if the whole-phase strategy fell back for a dense ready set,
+        // do not force every provably unready/disabled actor through costly
+        // cohort/lock and target eligibility checks. Without a decision trace
+        // these early guards have no observable side effects; canonical
+        // Reference order still applies to every actor that can attack.
+        #[cfg(feature = "lab-opt-arithmetic")]
+        if use_dispatch && collector.is_none()
+            && (support::int(source, "attack_ready") > i64::from(tick)
+                || support::int(source, "attack") <= 0
+                || support::int(source, "range") < 0)
+        {
+            continue;
+        }
         let mut decision_index = AutonomousActorKind::from_type(source.entity_type.as_str())
             .and_then(|kind| collector.as_deref_mut().and_then(|collector| collector.begin(tick, source_id, kind, source.owner)));
         // Persistent movement goals do not consume a tick. Only movement
