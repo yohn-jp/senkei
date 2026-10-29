@@ -637,17 +637,36 @@ fn nearest_basic_attack<'a>(
     start: &'a WorldState,
     rules: &NextRules,
     tick: u32,
-    mut collector: Option<&mut ActorDecisionCollector>,
+    collector: Option<&mut ActorDecisionCollector>,
     decision_index: Option<usize>,
     planned: Option<&PlannedCombatCandidates<'a>>,
 ) -> Option<(EntityId, &'a EntityState)> {
     let vision = source.owner.and_then(|side| planned.map(|plan| plan.vision_sources(side)));
-    let candidates: Box<dyn Iterator<Item = (&'a EntityId, &'a EntityState)> + 'a> =
-        if let Some(plan) = planned {
-            Box::new(plan.candidates(source).iter().copied())
-        } else {
-            Box::new(start.entities.iter())
-        };
+    if let Some(plan) = planned {
+        nearest_in_candidates(
+            plan.candidates(source).iter().copied(), source_id, source, start,
+            rules, tick, collector, decision_index, vision,
+        )
+    } else {
+        nearest_in_candidates(
+            start.entities.iter(), source_id, source, start,
+            rules, tick, collector, decision_index, None,
+        )
+    }
+}
+
+/// Monomorphized iterator — no per-attacker Box allocation or virtual dispatch.
+fn nearest_in_candidates<'a>(
+    candidates: impl Iterator<Item = (&'a EntityId, &'a EntityState)>,
+    source_id: &EntityId,
+    source: &EntityState,
+    start: &'a WorldState,
+    rules: &NextRules,
+    tick: u32,
+    mut collector: Option<&mut ActorDecisionCollector>,
+    decision_index: Option<usize>,
+    vision: Option<&[&EntityState]>,
+) -> Option<(EntityId, &'a EntityState)> {
     candidates
         .filter(|(target_id, target)| {
             let eligible = can_basic_attack_with_sources(
@@ -679,15 +698,6 @@ pub fn can_basic_attack(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
-    if source_id == target_id
-        || !support::alive(source)
-        || !support::alive(target)
-        || !is_targetable(target)
-        || support::int(source, "attack") <= 0
-        || support::int(source, "range") < 0
-    {
-        return false;
-    }
     can_basic_attack_with_sources(source_id, source, target_id, target, snapshot, rules, tick, None)
 }
 
