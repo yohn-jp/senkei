@@ -161,3 +161,50 @@ fn preflight_failure_targets_are_structured_and_side_specific() {
     }
     assert_eq!(dispatch("preflight", valid)["ok"], true);
 }
+
+
+/// Export real, versioned Enbu inputs and native Rust golden digests for the
+/// public Simulation Lab. This calls the production dispatcher, not a test
+/// approximation of combat, and the Pages gate runs the same inputs in WASM.
+#[test]
+fn export_enbu_lab_fixtures() {
+    use sha2::{Digest, Sha256};
+    let rules = senritsu::validate(
+        senritsu::next_package(),
+        &senritsu::next_engine_compatibility(),
+    ).expect("published Next package must validate");
+    let attacker = valid_snapshot(&rules, CombatantSide::Attacker);
+    let defender = valid_snapshot(&rules, CombatantSide::Defender);
+    let mut cases = Vec::new();
+    for ticks in [1_u32, 4, 16] {
+        let mut context = new_match_context(&rules, MatchId::new("lab-enbu-wasm"));
+        context.max_ticks = ticks;
+        let request = json!({
+            "api_version": WASM_API_VERSION,
+            "request_id": format!("lab-enbu-{ticks}"),
+            "operation": "simulate",
+            "payload": {
+                "attacker": attacker.clone(),
+                "defender": defender.clone(),
+                "context": context,
+                "include_diagnostics": true,
+                "diagnostics_side": "attacker",
+            }
+        });
+        let response = senkei_wasm::dispatch_json(&request.to_string());
+        let parsed: Value = serde_json::from_str(&response).expect("valid response JSON");
+        assert_eq!(parsed["ok"], true, "real Enbu fixture failed: {parsed:#}");
+        let digest = format!("{:x}", Sha256::digest(response.as_bytes()));
+        cases.push(json!({
+            "id": format!("next-{ticks}"),
+            "ticks": ticks,
+            "request": request,
+            "response_sha256": digest,
+        }));
+    }
+    if let Ok(path) = std::env::var("SENKEI_LAB_FIXTURE_OUT") {
+        let fixture = json!({"schema": "senkei-enbu-wasm/v1", "cases": cases});
+        std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap())
+            .expect("write exact native Enbu fixture");
+    }
+}
