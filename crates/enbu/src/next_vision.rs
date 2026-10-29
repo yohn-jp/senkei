@@ -270,12 +270,22 @@ pub fn observation(
 /// Projects the public replay view visible to both teams at once. Owner-only
 /// setup and tactical state such as XP and cooldowns is never projected.
 pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
+    #[cfg(feature = "lab-opt-visibility")]
+    let attacker_sources = vision_sources(world, rules, CombatantSide::Attacker);
+    #[cfg(feature = "lab-opt-visibility")]
+    let defender_sources = vision_sources(world, rules, CombatantSide::Defender);
     let entities = world
         .entities
         .iter()
         .filter_map(|(id, entity)| {
-            (visible(world, rules, CombatantSide::Attacker, entity)
-                && visible(world, rules, CombatantSide::Defender, entity))
+            ({
+                #[cfg(feature = "lab-opt-visibility")]
+                { visible_from_sources(&attacker_sources, rules, CombatantSide::Attacker, entity)
+                    && visible_from_sources(&defender_sources, rules, CombatantSide::Defender, entity) }
+                #[cfg(not(feature = "lab-opt-visibility"))]
+                { visible(world, rules, CombatantSide::Attacker, entity)
+                    && visible(world, rules, CombatantSide::Defender, entity) }
+            })
             .then(|| {
                 let fields = projected_fields(entity, false, rules);
                 (
@@ -320,11 +330,18 @@ pub(crate) fn public_view_with_policy(
 /// fields are added only for that side's own entities; hidden enemies remain
 /// absent from the view.
 pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> WorldStateView {
+    #[cfg(feature = "lab-opt-visibility")]
+    let sources = vision_sources(world, rules, side);
     let entities = world
         .entities
         .iter()
         .filter_map(|(id, entity)| {
-            visible(world, rules, side, entity).then(|| {
+            ({
+                #[cfg(feature = "lab-opt-visibility")]
+                { visible_from_sources(&sources, rules, side, entity) }
+                #[cfg(not(feature = "lab-opt-visibility"))]
+                { visible(world, rules, side, entity) }
+            }).then(|| {
                 let fields = projected_fields(entity, entity.owner == Some(side), rules);
                 (
                     id.clone(),
