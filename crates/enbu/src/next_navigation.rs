@@ -30,7 +30,8 @@ struct MovementIntent {
 /// world-unit result floors fractional progress. Arrival discards surplus
 /// movement, and another edge cannot be entered until a later tick.
 pub fn advance(world: &mut WorldState, rules: &NextRules, tick: u32) {
-    advance_inner(world, rules, tick, None);
+    let snapshot = world.clone();
+    advance_inner(world, &snapshot, rules, tick, None);
 }
 
 /// Apply frozen, committed route choices through the same movement engine.
@@ -40,16 +41,40 @@ pub(crate) fn advance_with_routes(
     tick: u32,
     routes: &mut crate::next_route::Runtime,
 ) {
-    advance_inner(world, rules, tick, Some(routes));
+    let snapshot = world.clone();
+    advance_inner(world, &snapshot, rules, tick, Some(routes));
+}
+
+/// The Enbu Tick already owns an immutable post-reservation snapshot. Reuse it
+/// as the canonical movement freeze instead of cloning the entire World a
+/// second time. The caller must not modify `world` between snapshot creation
+/// and this call; movement decisions read only `snapshot`.
+pub(crate) fn advance_from_snapshot(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+) {
+    advance_inner(world, snapshot, rules, tick, None);
+}
+
+pub(crate) fn advance_with_routes_from_snapshot(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    routes: &mut crate::next_route::Runtime,
+) {
+    advance_inner(world, snapshot, rules, tick, Some(routes));
 }
 
 fn advance_inner(
     world: &mut WorldState,
+    snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
     mut routes: Option<&mut crate::next_route::Runtime>,
 ) {
-    let snapshot = world.clone();
     let mut ids = snapshot
         .entities
         .iter()
