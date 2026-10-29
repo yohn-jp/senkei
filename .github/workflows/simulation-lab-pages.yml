@@ -114,7 +114,7 @@ jobs:
               mask=f'{i:03b}'
               file=Path(f'target/simulation-lab/senkei_wasm_{mask}.wasm')
               data=file.read_bytes()
-              assert data.startswith(b'\\0asm') and len(data)>1000, file
+              assert data[:4] == bytes.fromhex('0061736d') and len(data)>1000, file
               features=[]
               if i & 4: features.append('lab-opt-termination')
               if i & 2: features.append('lab-opt-cohort')
