@@ -36,12 +36,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Validate and publish synthetic + real Enbu WASM benchmarks
+  validate:
+    name: Validate synthetic and real Enbu WASM benchmarks
     runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -101,13 +98,31 @@ jobs:
           touch _site/.nojekyll
       - name: Gate publication on exact Native/WASM Enbu responses
         run: node apps/simulation-lab/enbu-conformance.mjs
+      - name: Retain validated release site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-lab-validated-site
+          path: _site
+          retention-days: 2
+
+  publish:
+    name: Publish validated Simulation Lab
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: simulation-lab-validated-site
+          path: _site
       - uses: actions/configure-pages@v5
-        if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
         with:
           path: _site
       - name: Deploy GitHub Pages
-        if: github.event_name != 'pull_request'
         id: deployment
         uses: actions/deploy-pages@v4
