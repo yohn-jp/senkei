@@ -1128,6 +1128,11 @@ fn path_skill_may_unlock(world: &WorldState, rules: &NextRules) -> bool {
 }
 
 fn learn_path_skills(world: &mut WorldState, rules: &NextRules, events: &mut Vec<PresentationEvent>) {
+    if !path_skill_may_unlock(world, rules) {
+        // Do not clone every Hero or allocate a Skill event buffer when the
+        // verified path+level cannot produce any new acquisition.
+        return;
+    }
     let hero_ids: Vec<_> = world.entities.iter()
         .filter(|(_, entity)| entity.entity_type.as_str() == "hero")
         .map(|(id, _)| id.clone())
