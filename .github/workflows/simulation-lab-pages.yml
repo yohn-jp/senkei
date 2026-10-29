@@ -36,11 +36,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _site/simulation-lab
-          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs} _site/simulation-lab/
+          cp apps/simulation-lab/{index.html,styles.css,app.mjs,worker.mjs,core.mjs,timeline.mjs,inspector-ui.mjs,inspector-worker.mjs} _site/simulation-lab/
           printf '{"revision":"%s","published_utc":"%s","engine":"synthetic-js"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/simulation-lab/build.json
           test -s _site/simulation-lab/index.html
           test -s _site/simulation-lab/core.mjs
           test -s _site/simulation-lab/worker.mjs
+          test -s _site/simulation-lab/timeline.mjs
+          test -s _site/simulation-lab/inspector-worker.mjs
           test -s _site/simulation-lab/build.json
           echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
           touch _site/.nojekyll

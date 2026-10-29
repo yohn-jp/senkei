@@ -3,3 +3,18 @@
 
 /* Eleven strategies remain horizontally scrollable on narrow browsers. */
 #matrix{min-width:1280px}#matrix th,#matrix td{white-space:nowrap}
+
+/* On-demand state queries are separated from timed strategy benchmarks. */
+.inspector{margin-top:44px}
+.inspector-intro{color:var(--muted,#a4b1bf);max-width:78ch;line-height:1.7}
+.inspector-controls{display:flex;gap:16px;flex-wrap:wrap;align-items:end;margin:20px 0}
+.inspector-controls .control-block{flex:1 1 150px;max-width:240px}
+.inspector-controls input{display:block;width:100%;min-height:44px;padding:9px 12px;border:1px solid #52616e;border-radius:8px;background:#15212c;color:#edf6f8;font:inherit}
+.inspector-controls button{min-height:44px}
+.inspector-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.inspector-panel{padding:22px;min-width:0}
+.inspector-panel h3{margin:8px 0}
+.inspector-data{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;overflow-x:auto}
+.inspector-foot{font-size:12px;opacity:.8}
+.inspector-event-list{max-height:280px;overflow:auto;padding-left:25px;line-height:1.7}
+@media(max-width:700px){.inspector-grid{grid-template-columns:minmax(0,1fr)}.inspector-controls .control-block{max-width:none}.inspector-panel{padding:16px}}

@@ -31,3 +31,16 @@ Before each browser benchmark, 560 deterministic and 200 seeded fuzz fixtures ch
 - General plan decisions are valid only for the state and window whose relevant values were analyzed. In production, cache reuse must be protected by dependency versions and invalidation at exact causal boundaries.
 - `capture=false` is final-state-only; `capture=true` allocates every attack event and incurs an output lower bound. The copyable report includes the mode; comparisons across output modes are not directly interchangeable.
 - Mobile CPU throttling, JIT warmup, GC, tab visibility, battery state, and timer resolution influence results. Run independent trials; no scenario winner is a universal guarantee. Production acceptance needs native Rust/WASM and actual world/observation/CU/replay equality.
+### Deterministic Tick projection and compact battle result (research extension)
+
+`timeline.mjs` adds three separate operations without changing any of the 11 simulation strategies:
+
+- `stateAt(initial,tick,method)`: recompute the one canonical state at any nonnegative Tick, without retaining a full Tick history. The same source and Tick must return the same state for all methods; `timeline.test.mjs` checks this against the Tick oracle at multiple horizons.
+- `inspectTick(initial,tick,actorId)`: compare adjacent canonical states, explain the **synthetic attack gate** (disabled, not spawned, moving, dead target, cooldown, synthetic visibility, or attacked), and expose both before/after values. This is **not Jinrei rule evaluation**; the synthetic kernel has no Jinrei.
+- `summarizeResult(initial,horizon)` / `streamResult(summary)`: produce a compact ordered projection containing each target's first engagement and exact defeat Tick, and aggregate results. Individual attacks are intentionally omitted from this **display** projection but remain in the underlying deterministic model.
+
+The browser's independent Tick Inspector uses a Worker and reports a measured random-access query cost, serialized snapshot size, and summary size. The benchmark's 11-method timing path is unchanged; do **not** compare these inspector timings with isolated strategy timings as though they were one end-to-end workload. Summary creation can require repeated state queries (binary search for exact defeat Tick) and its cost is not included in the single-Tick query metric.
+
+**Semantics:** Every Tick has a uniquely defined state even when its computation is skipped in the fast final-state path. Arbitrary-Tick reconstruction is presently on-demand re-execution from the initial fixture, not O(1), not an optimized checkpoint system, and not a production Enbu guarantee. First engagement/defeat are deliberately limited to the independent-target attack model; no decisions, CU, cross-group causal effects or production observation semantics are invented.
+
+The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.

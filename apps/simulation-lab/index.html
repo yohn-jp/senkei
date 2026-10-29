@@ -10,6 +10,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230d141b'/%3E%3Cpath d='M13 44L26 20l12 23 13-18' stroke='%235ee4bd' stroke-width='5' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
+  <script type="module" src="./inspector-ui.mjs"></script>
 </head>
 <body>
   <a href="#main" class="skip-link">本文へ移動</a>
@@ -40,6 +41,21 @@
         <div class="report-preview"><div class="report-preview-head"><label for="report-text">共有用テキストレポート</label><span id="copy-feedback" role="status" aria-live="polite">計測後に生成されます</span></div><textarea id="report-text" readonly spellcheck="false" placeholder="測定条件、環境、検証結果、全方式の中央値・p95・速度比をここに表示します。"></textarea></div><div class="metrics"><div class="metric"><span class="metric-label">実測ケース <small>SCENARIOS</small></span><div class="metric-value" id="metric-cases">—</div><div class="metric-foot">完了したケース数</div></div><div class="metric"><span class="metric-label">最良の速度比 <small>BEST SPEEDUP</small></span><div class="metric-value" id="metric-speedup">—</div><div class="metric-foot">同一ケースの全Tick比</div></div><div class="metric"><span class="metric-label">正当性 <small>DIFFERENTIAL</small></span><div class="metric-value metric-verification" id="metric-check">未実施</div><div class="metric-foot" id="metric-check-detail">一致した結果のみ採用</div></div><div class="metric"><span class="metric-label">環境 <small>RUNTIME</small></span><div class="metric-runtime" id="metric-device">取得中</div><div class="metric-foot" id="metric-revision">Revision: local / unknown</div></div></div>
         <div class="result-grid"><div class="panel chart-panel"><div class="panel-heading"><div><span class="panel-overline">EXECUTION TIME</span><h3 id="chart-title">方式ごとの実行時間</h3></div><select aria-label="詳細表示するシナリオ" id="chart-scenario" disabled><option value="">計測後に選択</option></select></div><div id="chart" class="chart-empty"><span class="empty-icon" aria-hidden="true">▥</span><p>ここに11方式の実測結果を表示します。</p><small>棒の長さは各方式の中央値。短いほど高速。</small></div><div id="chart-note" class="panel-note">中央値・p95を比較します。測定中のUI描画は計測時間に含みません。</div></div><div class="panel notes-panel"><div class="panel-heading"><div><span class="panel-overline">METHODOLOGY</span><h3>測定の読み方</h3></div></div><div class="fact"><span class="fact-number">01</span><div><strong>Worker内で測定</strong><p>UIとは別スレッドで実行。初期状態の複製と結果比較は計時対象から除外します。</p></div></div><div class="fact"><span class="fact-number">02</span><div><strong>一致を確認して記録</strong><p>全Tickを基準に全方式の状態を比較。イベント列生成時は攻撃Tick列も照合します。</p></div></div><div class="fact"><span class="fact-number">03</span><div><strong>実機依存の数値</strong><p>JIT、CPU負荷、GC、端末の温度で変動します。中央値だけでなくp95も確認してください。</p></div></div><div class="method-tag">NO SERVER · NO TELEMETRY · LOCAL EXPORT</div></div></div>
         <div class="panel matrix-panel"><div class="panel-heading"><div><span class="panel-overline">SCENARIO MATRIX</span><h3>全ケース比較</h3></div><span class="table-hint">単位：ms / 中央値、各行の最小値を強調</span></div><div class="table-scroll"><table id="matrix"><thead><tr><th scope="col">シナリオ</th><th scope="col">全Tick</th><th scope="col">Active</th><th scope="col">Heap</th><th scope="col">Bucket</th><th scope="col">周期式</th><th scope="col">Hybrid</th><th scope="col">Adaptive</th><th scope="col">最速方式</th></tr></thead><tbody id="matrix-body"><tr><td class="table-placeholder" colspan="13">計測を開始すると、完了したシナリオから順に表示されます。</td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="inspector" aria-labelledby="inspector-title">
+        <div class="section-header"><div><div class="section-kicker">03 / STATE QUERY</div><h2 id="inspector-title">Tick Inspector</h2></div><span class="section-note">最終状態を高速計算し、任意Tickをオンデマンド取得</span></div>
+        <p class="inspector-intro">同一の決定的シミュレーションを対象に、Tickごとの状態と「攻撃が発生しなかった条件」を確認します。これは合成モデルの攻撃ゲートであり、Jinreiの判断履歴ではありません。</p>
+        <form id="inspect-form" class="inspector-controls">
+          <div class="control-block"><label for="inspect-tick">調査Tick</label><input id="inspect-tick" type="number" min="0" value="100" required></div>
+          <div class="control-block"><label for="inspect-actor">Actor ID</label><input id="inspect-actor" type="number" min="0" value="0" required></div>
+          <button id="inspect-run" class="primary" type="submit">状態を取得</button>
+        </form>
+        <p id="inspect-status" role="status" aria-live="polite">上の実験条件からシナリオと主体数を選択して実行します。</p>
+        <div class="inspector-grid">
+          <div class="panel inspector-panel"><div class="panel-overline">ATTACK GATE · SYNTHETIC</div><h3 id="inspect-gate">—</h3><p id="inspect-gate-detail"></p><pre id="inspect-states" class="inspector-data">Tickを指定すると状態が表示されます。</pre><p id="inspect-measure" class="inspector-foot"></p></div>
+          <div class="panel inspector-panel"><div class="panel-overline">COMPACT RESULT · DISPLAY ONLY</div><h3>重要イベント要約</h3><p id="inspect-summary">計算後に表示します。</p><ol id="inspect-events" class="inspector-event-list"></ol></div>
+        </div>
       </section>
       <footer class="footer"><div><strong>SENKEI / SIMULATION LAB</strong><p>独立研究用の合成ベンチマーク · Jinrei / Senritsu / Enbu本番の意味論は未検証</p></div><div><button class="footer-link" id="share-settings" type="button">設定URLをコピー <span aria-hidden="true">↗</span></button><a href="https://github.com/yohn-jp/senkei/blob/main/tools/senrei-bench/EXTENDED.md" target="_blank" rel="noopener noreferrer">計算モデルについて ↗</a></div></footer>
     </main>
