@@ -4,7 +4,7 @@
 
 ## 1. ゴール
 
-現行の \`crates/enbu/src/lib.rs::simulate_inner\` にある全Tick逐次処理を**Reference Tick Executor**として安全に残し、同じRustソース・既存の戦闘規則で、適格な有限因果領域だけをActive Set / Event Queue / Periodic / Arithmetic / Plannedカーネルで進める。
+現行の `crates/enbu/src/lib.rs::simulate_inner` にある全Tick逐次処理を**Reference Tick Executor**として安全に残し、同じRustソース・既存の戦闘規則で、適格な有限因果領域だけをActive Set / Event Queue / Periodic / Arithmetic / Plannedカーネルで進める。
 
 **最終合格**は、主に以下を同時に達成すること。
 
@@ -41,7 +41,7 @@
 | **6: Materialization** | Replay/Fog/CU/diagnostics/任意Tickの実体化 | 段階的にWaves 2–5と並行、[OBSERVABILITY](OBSERVABILITY.md) | 全出力一致でしかfast pathを認可しない |
 | **7: Promotion** | Production Rust/WASM設定、CI gate、revert | 全Wave、[CONFORMANCE](CONFORMANCE.md) | 本番とLab両方で実測/同値を満たす |
 
-3a/3b/3cは共通インターフェースが固定された後に**独立した変更経路で並列実装可能**。ただし同じ \`simulate_inner\` を複数変更で競合させず、各カーネルを新たなprivate moduleとして作り、統合境界を一本化する。
+3a/3b/3cは共通インターフェースが固定された後に**独立した変更経路で並列実装可能**。ただし同じ `simulate_inner` を複数変更で競合させず、各カーネルを新たなprivate moduleとして作り、統合境界を一本化する。
 
 Wave 6の出力契約は最後に付け足すのではなく、Wave 0のOracle設計から常に受入条件とする。新しいfast pathがFull Replayで一致しないならWave 3の段階で不合格。
 
@@ -49,7 +49,7 @@ Wave 6の出力契約は最後に付け足すのではなく、Wave 0のOracle�
 
 これは**候補ファイル構成**であって現在存在するものではない。
 
-\`\`\`text
+```text
 crates/enbu/src/
   execution/
     mod.rs               # mode selection / canonical boundary
@@ -67,10 +67,10 @@ crates/enbu/src/
       periodic.rs
       arithmetic.rs
       planned.rs
-\`\`\`
+```
 
-- RulePlanが所有する遷移は同じ\`next_*\`系と現行\`apply_transitions\`を再利用し、ゲームルールをコピーして別実装を並立させない。
-- 状態はcommit境界で\`WorldState\`を正本へ反映。高速なSoA/typed indexは非権威の内部表現として使ってよい。
+- RulePlanが所有する遷移は同じ`next_*`系と現行`apply_transitions`を再利用し、ゲームルールをコピーして別実装を並立させない。
+- 状態はcommit境界で`WorldState`を正本へ反映。高速なSoA/typed indexは非権威の内部表現として使ってよい。
 - 参照実行が将来のAPI改修で変化する場合は、ReferenceとHybridの両方の検証を同時に更新する。
 - ルールに応じたEligibilityはRulePlanと実状態から導出。ゲーム固有のscenario-name switchを作らない。
 - Strategyの追加は共通Trait、検証ケース、計測を伴う。新しいものを追加しても既存を無理に削除しない。
@@ -92,7 +92,7 @@ crates/enbu/src/
 ## 6. デプロイ、比較、rollback
 
 - Build provenance: Native dispatcher / WASMのSource SHA、Feature set、RulePlan/World/Program identity、golden digest、版を明示する。
-- 同版のA/Bで \`Reference\` と \`Hybrid\` を選べる**内部検証用の切替**を用意する。公開APIを変更しない形が優先。
+- 同版のA/Bで `Reference` と `Hybrid` を選べる**内部検証用の切替**を用意する。公開APIを変更しない形が優先。
 - 受入: [Conformance](CONFORMANCE.md) の同値性が全対象でPASSし、フル出力条件で実戦的な計測が改善し、悪化条件は適切にfallbackする。
 - 不一致/エラー/新RulePlan依存の未対応時はReferenceで再実行し、結果やCUを修正して辻褄を合わせない。
 - 既に試合内の観測/診断を発行した場合はcheckpointの整合性を確認し、重複発行しない。
