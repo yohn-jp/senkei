@@ -285,9 +285,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
     let plan = rules.plan();
     // Invariant hoisting: the verified plan is immutable for the whole match.
     // Keep the normal Tick path as the control build.
-    #[cfg(feature = "lab-optimizations")]
+    #[cfg(feature = "lab-opt-termination")]
     let compact_cost_trace_precomputed = compact_cost_trace_for_plan(plan);
-    #[cfg(feature = "lab-optimizations")]
+    #[cfg(feature = "lab-opt-termination")]
     let ordered_termination_indices = {
         let mut indices = (0..plan.termination.conditions.len()).collect::<Vec<_>>();
         // Stable sort matches evaluate_termination's existing tie semantics.
@@ -349,9 +349,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
         }
     }
     let mut final_outcome = None;
-    #[cfg(feature = "lab-optimizations")]
+    #[cfg(feature = "lab-opt-termination")]
     let initial_termination = evaluate_termination_indexed(plan, &world, 0, &projection_index, &ordered_termination_indices)?;
-    #[cfg(not(feature = "lab-optimizations"))]
+    #[cfg(not(feature = "lab-opt-termination"))]
     let initial_termination = evaluate_termination(plan, &world, 0, &projection_index)?;
     if let Some((outcome, reason)) = initial_termination {
         final_outcome = Some((outcome, reason, 0));
@@ -428,9 +428,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
             output.status == senkei_model::TacticalExecutionStatus::BudgetExceeded
         });
         let diagnostic_bound = context.host_limits.max_diagnostic_events as usize;
-        #[cfg(feature = "lab-optimizations")]
+        #[cfg(feature = "lab-opt-termination")]
         let compact_cost_trace = compact_cost_trace_precomputed;
-        #[cfg(not(feature = "lab-optimizations"))]
+        #[cfg(not(feature = "lab-opt-termination"))]
         let compact_cost_trace = compact_cost_trace_for_plan(plan);
         let proposed_output_trace_size = outputs.iter().try_fold(0_usize, |total, (_, output)| {
             let diagnostics = projected_tactical_diagnostic_count(&output.diagnostics, compact_cost_trace)?;
@@ -767,9 +767,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
             transition_outcome
         } else {
             {
-                #[cfg(feature = "lab-optimizations")]
+                #[cfg(feature = "lab-opt-termination")]
                 { evaluate_termination_indexed(plan, &world, tick, &projection_index, &ordered_termination_indices)? }
-                #[cfg(not(feature = "lab-optimizations"))]
+                #[cfg(not(feature = "lab-opt-termination"))]
                 { evaluate_termination(plan, &world, tick, &projection_index)? }
             }
         };
@@ -1500,7 +1500,7 @@ fn clamp_integer(base: i128, delta: i128, min: Option<i64>, max: Option<i64>) ->
     Ok(value)
 }
 
-#[cfg(feature = "lab-optimizations")]
+#[cfg(feature = "lab-opt-termination")]
 fn evaluate_termination_indexed(
     plan: &RulePlan,
     world: &WorldState,

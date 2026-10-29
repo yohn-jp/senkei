@@ -200,6 +200,48 @@ fn export_enbu_lab_fixtures() {
             "native_response": response,
         }));
     }
+    // Real Enbu fixture variants exercise the work the optimizers intend to
+    // eliminate. The ordinary five cases remain a stable tick-scaling baseline.
+    // Quintet forces multiple Heroes through shared cohort and maturation logic;
+    // a middle-node clash exercises simultaneous selection and combat.
+    let next = rules.plan().next.as_ref().unwrap();
+    assert!(next.map.nodes.contains_key("N.MID.OBS"));
+    for (id, ticks, clash) in [("quintet-64", 64_u32, false), ("clash-16", 16, true)] {
+        let mut a = valid_snapshot(&rules, CombatantSide::Attacker);
+        let mut d = valid_snapshot(&rules, CombatantSide::Defender);
+        for snapshot in [&mut a, &mut d] {
+            let heroes = match snapshot.configuration.get_mut(&FieldId::new("heroes")) {
+                Some(DomainValue::List(heroes)) => heroes,
+                _ => panic!("Next fixture has no hero list"),
+            };
+            for hero in heroes {
+                let fields = match hero {
+                    DomainValue::Record(fields) => fields,
+                    _ => panic!("Next hero fixture must be a record"),
+                };
+                fields.insert(FieldId::new("squad"), DomainValue::String("quintet".into()));
+                if clash {
+                    fields.insert(FieldId::new("node"), DomainValue::String("N.MID.OBS".into()));
+                }
+            }
+        }
+        let mut context = new_match_context(&rules, MatchId::new(format!("lab-{id}")));
+        context.max_ticks = ticks;
+        let request = json!({
+            "api_version": WASM_API_VERSION, "request_id": format!("lab-enbu-{id}"),
+            "operation": "simulate",
+            "payload": {
+                "attacker": a, "defender": d, "context": context,
+                "include_diagnostics": true, "diagnostics_side": "attacker",
+            }
+        });
+        let response = senkei_wasm::dispatch_json(&request.to_string());
+        let parsed: Value = serde_json::from_str(&response).expect("valid Enbu result");
+        assert_eq!(parsed["ok"], true, "{id} should execute real Enbu: {parsed:#}");
+        cases.push(json!({
+            "id": id, "ticks": ticks, "request": request, "native_response": response,
+        }));
+    }
     if let Ok(path) = std::env::var("SENKEI_LAB_FIXTURE_OUT") {
         let fixture = json!({"schema": "senkei-enbu-wasm/v1", "cases": cases});
         std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap())

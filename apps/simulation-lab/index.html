@@ -60,19 +60,27 @@
       </section>
 
       <section class="workspace enbu-workspace" aria-labelledby="enbu-title">
-        <div class="section-header"><div><div class="section-kicker">04 / PRODUCTION ENGINE</div><h2 id="enbu-title">Enbu · Rust / WASM</h2></div><span class="section-note">同一Rustコアの参照版・最適化版WASMを比較</span></div>
-        <p class="inspector-intro">上の11方式は独立した合成JavaScript研究ベンチです。このレーンは<strong>本番Enbuの既存Rust/WASMアダプター</strong>を使用し、同一ソースのネイティブRustで生成した結果全文のSHA-256と照合します。両WASMは同じEnbu Rustコードをビルド機能フラグで切り替えます。合成11方式を本番移植したものではありません。最適化ビルドには、終了条件の不変情報の事前計算、Squad行動ゲートの集約、シールド寄与の集約を適用します。</p>
+        <div class="section-header"><div><div class="section-kicker">04 / PRODUCTION ENGINE</div><h2 id="enbu-title">Enbu · 8構成WASM比較</h2></div><span class="section-note">同一Rustコア · 3つの独立最適化</span></div>
+        <p class="inspector-intro">上の11方式は独立した合成JavaScript研究ベンチです。このレーンでは<strong>本番EnbuのRust/WASMを8種類のCargo feature構成でコンパイル</strong>して比較します。各サンプルの結果全文をネイティブRustのSHA-256正解と照合し、不一致なら計測結果を破棄します。合成JSと本番WASMの速度比は算出しません。</p>
+        <p class="inspector-intro"><strong>ビット順：T / C / S</strong>　T=終了条件ソート・診断判定の不変計算化、C=Squadの移動・ロック状態集約、S=シールド寄与の集約。000が本番参照版、111が全3件の組合せです。</p>
         <form id="enbu-form" class="control-layout">
-          <div class="control-block"><label for="enbu-case">実戦入力 <small>VERIFIED FIXTURE</small></label><select id="enbu-case"><option value="all" selected>全5条件</option><option value="next-1">Next · 1 Tick</option><option value="next-4">Next · 4 Tick</option><option value="next-16">Next · 16 Tick</option><option value="next-64">Next · 64 Tick</option><option value="next-128">Next · 128 Tick</option></select></div>
-          <div class="control-block"><label for="enbu-samples">計測回数 <small>SAMPLES</small></label><select id="enbu-samples"><option value="3">3</option><option value="5">5</option><option value="9" selected>9</option><option value="21">21</option></select></div>
-          <div class="control-actions"><button id="enbu-run" class="primary" type="submit">本番WASMを検証・計測</button><button id="enbu-export" class="secondary" type="button" disabled>レポートをコピー</button></div>
+          <div class="control-block"><label for="enbu-case">実戦入力 <small>VERIFIED FIXTURE</small></label><select id="enbu-case"><option value="all" selected>全7条件</option><option value="next-1">Next · 1 Tick</option><option value="next-4">Next · 4 Tick</option><option value="next-16">Next · 16 Tick</option><option value="next-64">Next · 64 Tick</option><option value="next-128">Next · 128 Tick</option><option value="quintet-64">Quintet · 64 Tick</option><option value="clash-16">接近戦 · 16 Tick</option></select></div>
+          <div class="control-block"><label for="enbu-variant">比較対象 <small>CARGO FEATURES</small></label><select id="enbu-variant"><option value="all" selected>全8構成（完全比較）</option><option value="111">111 · T+C+S</option><option value="100">100 · T</option><option value="010">010 · C</option><option value="001">001 · S</option><option value="110">110 · T+C</option><option value="101">101 · T+S</option><option value="011">011 · C+S</option></select></div>
+          <div class="control-block"><label for="enbu-samples">計測回数 <small>PER VARIANT / CASE</small></label><select id="enbu-samples"><option value="3">3</option><option value="5" selected>5</option><option value="9">9</option><option value="21">21</option></select></div>
+          <div class="control-actions"><button id="enbu-run" class="primary" type="submit">WASMを検証・比較</button><button id="enbu-cancel" class="secondary" type="button" disabled>中止</button><button id="enbu-export" class="secondary" type="button" disabled>JSONをコピー</button><button id="enbu-download" class="secondary" type="button" disabled>JSONを保存</button></div>
         </form>
-        <p class="inspector-intro" id="enbu-status" role="status" aria-live="polite">実行時に本番WASMを読み込みます。初期ロード時間は計時に含めません。</p>
-        <div class="table-scroll"><table><thead><tr><th scope="col">最大Tick</th><th scope="col">参照 ms</th><th scope="col">最適化 ms</th><th scope="col">速度比</th><th scope="col">完全一致</th></tr></thead><tbody id="enbu-results"></tbody></table></div>
-        <div class="report-preview"><div class="report-preview-head"><label for="enbu-report">本番WASM 計測レポート</label></div><textarea id="enbu-report" readonly spellcheck="false" placeholder="結果と全出力の同値性検証が完了すると表示します。"></textarea></div>
-        <p class="inspector-intro">計測範囲：JSONのUTF-8入力転送、WASM内の本番simulate、応答コピー・デコード・解放。合成JSと異なるモデルなので、両レーンの速度比は算出しません。</p>
+        <p class="inspector-intro" id="enbu-status" role="status" aria-live="polite">WASMは測定時に読み込みます。初期化時間は独立して記録します。全8構成・全5条件は時間がかかります。</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">最大Tick</th><th scope="col">構成 TCS</th><th scope="col">合計 ms</th><th scope="col">WASM dispatch ms</th><th scope="col">p95 ms</th><th scope="col">基準比</th><th scope="col">KiB</th><th scope="col">メモリ MiB</th><th scope="col">一致</th></tr></thead><tbody id="enbu-results"></tbody></table></div>
+        <h3>最適化構成の順位</h3>
+        <p class="inspector-intro" id="enbu-ranking-note">完了後、選択した実戦ケースにおける中央値速度比の幾何平均で順位を表示します。小差・測定ノイズは優劣未確定として扱ってください。</p>
+        <ol id="enbu-ranking"></ol>
+        <h3>最適化ごとの平均寄与</h3>
+        <p class="inspector-intro">T・C・Sの各項目について、ほかの2項目の全4組合せで「ON/OFF」を比較します。すべての選択ケースを同重みで集計します。</p>
+        <ul id="enbu-effects"></ul>
+        <div class="report-preview"><div class="report-preview-head"><label for="enbu-report">完全一致証明・計測内訳・WASMサイズ・起動時間を含むJSON</label></div><textarea id="enbu-report" readonly spellcheck="false" placeholder="全構成と全ケースの検証が完了すると表示します。"></textarea></div>
+        <p class="inspector-intro">dispatchはRustによるJSON解析・Enbu計算・結果生成を含みます。JavaScript側の入力転送・出力デコードは別計測します。順位は測定条件に依存する参考値で、全ゲーム状態・全端末での優位性を証明するものではありません。</p>
       </section>
-      <footer class="footer"><div><strong>SENKEI / SIMULATION LAB</strong><p>独立研究用の合成ベンチマーク · Jinrei / Senritsu / Enbu本番の意味論は未検証</p></div><div><button class="footer-link" id="share-settings" type="button">設定URLをコピー <span aria-hidden="true">↗</span></button><a href="https://github.com/yohn-jp/senkei/blob/main/tools/senrei-bench/EXTENDED.md" target="_blank" rel="noopener noreferrer">計算モデルについて ↗</a></div></footer>
+      <footer class="footer"><div><strong>SENKEI / SIMULATION LAB</strong><p>合成ベンチは独立研究用 · Enbuは実際のRust/WASMと5実戦条件で検証</p></div><div><button class="footer-link" id="share-settings" type="button">設定URLをコピー <span aria-hidden="true">↗</span></button><a href="https://github.com/yohn-jp/senkei/blob/main/tools/senrei-bench/EXTENDED.md" target="_blank" rel="noopener noreferrer">計算モデルについて ↗</a></div></footer>
     </main>
   </div>
 </body>
