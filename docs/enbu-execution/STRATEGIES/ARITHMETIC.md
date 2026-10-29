@@ -88,6 +88,14 @@ arithmetic_execute(plan):
 
 全体状態に影響するReward/Skill/respawnまで式で閉じていない場合は**そこを境界として止める**。続きは別のStrategyかReferenceで計算する。
 
+## 実装進捗（Arithmetic Solver / Stage 1）
+
+`crates/enbu/src/execution/arithmetic.rs` に、固定周期・正の一定ダメージのための整数カーネルを追加した。実装済みの関数は `hit_count`、`hit_stats`、`cumulative_damage`、`first_lethal_tick`、`due_actor_indices`。包括境界、同Tickの全攻撃者、無効なinterval、`u32::MAX` の境界をテストする。
+
+**重要: これは本番Tickスキップの有効化ではない。** この段階で正本の `simulate_inner` はArithmeticをdispatchしない。独立Domain・固定ターゲット/可視性・攻撃力/防御/Shield・Jinrei/CU・Fog/Replayの証明書とStateAt(t)の復元が未実装であるため。TS合成モデルの数式をRustで検証した基礎部品であり、総時間の改善を主張しない。
+
+次段階の本番接続ゲートは、(1) causal read/write certificate、(2) 正規のfirst lethal Tickまでの状態遷移のstaging、(3) 同Tick全攻撃の原子的commit、(4) 全TickのJinrei/CU/Owner Replay復元、(5) Reference/HybridのNative/WASM完全JSON一致、(6) fallbackを含む総時間の実測、の順である。
+
 ## 7. Differentialゲート
 
 - 0/1/複数actor、先頭Tick/最終Tick/致死Tick直前・同時致死。
