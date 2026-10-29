@@ -2024,6 +2024,19 @@ mod tests {
     }
 
     #[test]
+    fn caller_frozen_snapshot_matches_existing_movement_entrypoint() {
+        let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
+        let mut before = WorldState::default();
+        before.entities.insert(id("mover"), entity("hero", Some(CombatantSide::Attacker), 10, "a", "b"));
+        before.entities.insert(id("target"), entity("hero", Some(CombatantSide::Defender), 0, "b", "a"));
+        let mut copied_internally = before.clone();
+        let mut reused_snapshot = before.clone();
+        advance(&mut copied_internally, &config, 1);
+        advance_from_snapshot(&mut reused_snapshot, &before, &config, 1, None);
+        assert_eq!(reused_snapshot, copied_internally);
+    }
+
+    #[test]
     fn path_is_undirected_shortest_and_lexically_stable() {
         let edges = vec![
             edge("a", "b", 4, "lane", false),
