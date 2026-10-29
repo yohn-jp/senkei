@@ -1690,6 +1690,72 @@ mod tests {
     }
 
     #[test]
+    fn planned_candidates_are_reference_equivalent_for_combat_and_actor_traces() {
+        let rules = rules();
+        for actor_count in [0_usize, 1, 4, 16, 32] {
+            for tick in [1_u32, 3, 9] {
+                let mut start = WorldState::default();
+                for id in 0..actor_count {
+                    let (kind, owner) = match id % 5 {
+                        0 => ("hero", Some(CombatantSide::Attacker)),
+                        1 => ("minion", Some(CombatantSide::Defender)),
+                        2 => ("monster", None),
+                        3 => ("tower", Some(CombatantSide::Attacker)),
+                        _ => ("base", Some(CombatantSide::Defender)),
+                    };
+                    let mut actor = entity(kind, owner, (id % 10) as i64, if id % 7 == 0 { 0 } else { 100 }, 10, 100);
+                    support::set_int(&mut actor, "vision", if id % 6 == 0 { 0 } else { 100 });
+                    support::set_int(&mut actor, "attack_ready", if id % 4 == 0 { i64::from(tick) + 2 } else { 0 });
+                    if id % 6 == 1 { support::set_int(&mut actor, "reveal_attacker_until", 2); }
+                    if id % 5 == 0 { support::set_string(&mut actor, "target", format!("actor-{}", (id + 1) % actor_count)); }
+                    insert(&mut start, &format!("actor-{id:03}"), actor);
+                }
+                // Mix noncombatant live entities with combat candidates. The
+                // planner must never mistakenly prune a legal target or
+                // expose an unknown target through an actor decision trace.
+                insert(&mut start, "observation", entity("observation", None, 10, 100, 0, 0));
+                let mut reference = start.clone();
+                let mut planned = start.clone();
+                let mut reference_trace = ActorDecisionCollector::new(10_000);
+                let mut planned_trace = ActorDecisionCollector::new(10_000);
+                let ref_hits = collect_basic_attacks_with_planner(
+                    &mut reference, &start, &rules, tick, Some(&mut reference_trace), false,
+                );
+                let opt_hits = collect_basic_attacks_with_planner(
+                    &mut planned, &start, &rules, tick, Some(&mut planned_trace), true,
+                );
+                let signature = |hits: Vec<Hit>| hits.into_iter().map(|hit| {
+                    (hit.source, hit.target, hit.raw_power, hit.event,
+                     hit.uses_basic_attack, hit.decision_index)
+                }).collect::<Vec<_>>();
+                assert_eq!(signature(ref_hits), signature(opt_hits), "hit order/count mismatch {actor_count}/{tick}");
+                assert_eq!(reference, planned, "combat side effects mismatch {actor_count}/{tick}");
+                assert_eq!(reference_trace.used(), planned_trace.used());
+                assert_eq!(reference_trace.overflowed(), planned_trace.overflowed());
+                let ref_records = reference_trace.records.iter().map(|r| &r.trace).collect::<Vec<_>>();
+                let opt_records = planned_trace.records.iter().map(|r| &r.trace).collect::<Vec<_>>();
+                assert_eq!(ref_records, opt_records, "candidate order/decision mismatch {actor_count}/{tick}");
+            }
+        }
+    }
+
+    #[test]
+    fn planned_combat_index_certifies_single_snapshot_only_and_prunes_candidates() {
+        let rules = rules();
+        let mut snapshot = WorldState::default();
+        let attacker = entity("tower", Some(CombatantSide::Attacker), 0, 100, 10, 100);
+        insert(&mut snapshot, "tower", attacker);
+        insert(&mut snapshot, "own-hero", entity("hero", Some(CombatantSide::Attacker), 0, 100, 0, 0));
+        insert(&mut snapshot, "enemy-hero", entity("hero", Some(CombatantSide::Defender), 0, 100, 0, 0));
+        insert(&mut snapshot, "neutral", entity("monster", None, 0, 100, 0, 0));
+        let plan = PlannedCombatCandidates::build(&snapshot, &rules);
+        let tower = snapshot.entities.get(&EntityId::from("tower")).unwrap();
+        let names = plan.candidates(tower).iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
+        assert_eq!(names, vec!["enemy-hero"]);
+        assert!(plan.candidates(tower).len() < snapshot.entities.len());
+    }
+
+    #[test]
     fn autonomous_trace_is_taken_from_real_selection_and_attack_event() {
         let rules = rules();
         for (kind, owner) in [
