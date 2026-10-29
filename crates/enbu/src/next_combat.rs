@@ -486,6 +486,18 @@ fn collect_basic_attacks(
     tick: u32,
     mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
+    #[cfg(feature = "lab-opt-arithmetic")]
+    let dispatch = crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some());
+    #[cfg(feature = "lab-opt-arithmetic")]
+    if matches!(dispatch, crate::execution::dispatcher::BasicAttackPlan::ArithmeticIdle) {
+        // Full Tick (including Jinrei, Fog, replay and skills) is still
+        // materialized. Only provably absent basic attacks are omitted.
+        return Vec::new();
+    }
+    #[cfg(feature = "lab-opt-arithmetic")]
+    let sources = dispatch.sources(start);
+    #[cfg(not(feature = "lab-opt-arithmetic"))]
+    let sources = start.entities.iter();
     let mut attacks = Vec::new();
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
