@@ -22,5 +22,6 @@ senkei-world = { path = "../senkei-world" }
 lab-opt-termination = []
 lab-opt-cohort = []
 lab-opt-shields = []
+lab-opt-next-view = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

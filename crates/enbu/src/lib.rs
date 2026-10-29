@@ -609,6 +609,11 @@ fn simulate_inner<P: TacticalExecutionPort>(
             &context.match_id,
             &projection_index,
         )?;
+        // The public pre-transition view is used only for Next event projection.
+        // The generic engine has no Next events, so skip its unused snapshot.
+        #[cfg(feature = "lab-opt-next-view")]
+        let before_next = plan.next.as_ref().map(|_| presentation_view(&world, plan));
+        #[cfg(not(feature = "lab-opt-next-view"))]
         let before_next = presentation_view(&world, plan);
         let before_owner: BTreeMap<CombatantSide, senkei_model::WorldStateView> = plan.next.as_ref().map(|next| {
             sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
@@ -754,7 +759,11 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 owner_frames.get_mut(&side).unwrap().push(frame);
             }
             public_events.extend(next_events.into_iter().filter_map(|event| {
-                project_next_public_event(event, &plan.presentation, &before_next, &replay_view)
+                #[cfg(feature = "lab-opt-next-view")]
+                let prior = before_next.as_ref().expect("Next view must exist");
+                #[cfg(not(feature = "lab-opt-next-view"))]
+                let prior = &before_next;
+                project_next_public_event(event, &plan.presentation, prior, &replay_view)
             }));
         }
         replay_frames.push(ReplayFrame {
