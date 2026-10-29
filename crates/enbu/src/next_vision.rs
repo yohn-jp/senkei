@@ -19,13 +19,27 @@ pub fn team_view_with_fog(
     tick: u32,
     history: &mut FogHistory,
 ) -> WorldStateView {
-    let mut view = team_view(world, rules, side);
-    view.global_fields
-        .insert(
+    #[cfg(feature = "lab-opt-visibility")]
+    {
+        // Both owner projection and Fog use the *same* S[t] visibility
+        // sources. Rebuilding them or rescanning each target is unnecessary.
+        let sources = vision_sources(world, rules, side);
+        let mut view = team_view_indexed(world, rules, side, &sources);
+        view.global_fields.insert(
+            crate::next_fog::FOG_GLOBAL_FIELD.into(),
+            history.observe_with_sources(world, rules, side, tick, &sources).as_domain_value(),
+        );
+        view
+    }
+    #[cfg(not(feature = "lab-opt-visibility"))]
+    {
+        let mut view = team_view(world, rules, side);
+        view.global_fields.insert(
             crate::next_fog::FOG_GLOBAL_FIELD.into(),
             history.observe(world, rules, side, tick).as_domain_value(),
         );
-    view
+        view
+    }
 }
 
 const HERO: &str = "hero";
@@ -270,12 +284,22 @@ pub fn observation(
 /// Projects the public replay view visible to both teams at once. Owner-only
 /// setup and tactical state such as XP and cooldowns is never projected.
 pub fn public_view(world: &WorldState, rules: &NextRules) -> WorldStateView {
+    #[cfg(feature = "lab-opt-visibility")]
+    let attacker_sources = vision_sources(world, rules, CombatantSide::Attacker);
+    #[cfg(feature = "lab-opt-visibility")]
+    let defender_sources = vision_sources(world, rules, CombatantSide::Defender);
     let entities = world
         .entities
         .iter()
         .filter_map(|(id, entity)| {
-            (visible(world, rules, CombatantSide::Attacker, entity)
-                && visible(world, rules, CombatantSide::Defender, entity))
+            ({
+                #[cfg(feature = "lab-opt-visibility")]
+                { visible_from_sources(&attacker_sources, rules, CombatantSide::Attacker, entity)
+                    && visible_from_sources(&defender_sources, rules, CombatantSide::Defender, entity) }
+                #[cfg(not(feature = "lab-opt-visibility"))]
+                { visible(world, rules, CombatantSide::Attacker, entity)
+                    && visible(world, rules, CombatantSide::Defender, entity) }
+            })
             .then(|| {
                 let fields = projected_fields(entity, false, rules);
                 (
@@ -320,27 +344,52 @@ pub(crate) fn public_view_with_policy(
 /// fields are added only for that side's own entities; hidden enemies remain
 /// absent from the view.
 pub fn team_view(world: &WorldState, rules: &NextRules, side: CombatantSide) -> WorldStateView {
-    let entities = world
-        .entities
-        .iter()
-        .filter_map(|(id, entity)| {
-            visible(world, rules, side, entity).then(|| {
-                let fields = projected_fields(entity, entity.owner == Some(side), rules);
-                (
-                    id.clone(),
-                    EntityStateView {
-                        entity_type: entity.entity_type.clone(),
-                        owner: entity.owner,
-                        fields,
-                    },
-                )
-            })
-        })
-        .collect();
-    WorldStateView {
-        entities,
-        global_fields: BTreeMap::new(),
+    #[cfg(feature = "lab-opt-visibility")]
+    {
+        let sources = vision_sources(world, rules, side);
+        team_view_indexed(world, rules, side, &sources)
     }
+    #[cfg(not(feature = "lab-opt-visibility"))]
+    {
+        let entities = world
+            .entities
+            .iter()
+            .filter_map(|(id, entity)| {
+                visible(world, rules, side, entity).then(|| {
+                    let fields = projected_fields(entity, entity.owner == Some(side), rules);
+                    (
+                        id.clone(),
+                        EntityStateView {
+                            entity_type: entity.entity_type.clone(),
+                            owner: entity.owner,
+                            fields,
+                        },
+                    )
+                })
+            })
+            .collect();
+        WorldStateView { entities, global_fields: BTreeMap::new() }
+    }
+}
+
+#[cfg(feature = "lab-opt-visibility")]
+fn team_view_indexed(
+    world: &WorldState,
+    rules: &NextRules,
+    side: CombatantSide,
+    sources: &[&EntityState],
+) -> WorldStateView {
+    let entities = world.entities.iter()
+        .filter_map(|(id, entity)| {
+            visible_from_sources(sources, rules, side, entity).then(|| {
+                let fields = projected_fields(entity, entity.owner == Some(side), rules);
+                (id.clone(), EntityStateView {
+                    entity_type: entity.entity_type.clone(),
+                    owner: entity.owner, fields,
+                })
+            })
+        }).collect();
+    WorldStateView { entities, global_fields: BTreeMap::new() }
 }
 
 fn projected_fields(
@@ -918,6 +967,33 @@ fn compare_entities(
 mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[cfg(feature = "lab-opt-visibility")]
+    #[test]
+    fn deduplicated_vision_sources_match_original_predicate() {
+        let rules = test_rules();
+        let mut world = WorldState::default();
+        let mut ally = hero(CombatantSide::Attacker, 0, 10);
+        support::set_string(&mut ally, "node", "a0");
+        support::set_string(&mut ally, "edge_to", "");
+        let duplicate = ally.clone();
+        let mut enemy = hero(CombatantSide::Defender, 20, 10);
+        support::set_string(&mut enemy, "node", "d0");
+        support::set_string(&mut enemy, "edge_to", "");
+        world.entities.insert(EntityId::from("ally"), ally);
+        world.entities.insert(EntityId::from("duplicate"), duplicate);
+        world.entities.insert(EntityId::from("enemy"), enemy);
+        for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+            let sources = vision_sources(&world, &rules, side);
+            for entity in world.entities.values() {
+                assert_eq!(
+                    visible(&world, &rules, side, entity),
+                    visible_from_sources(&sources, &rules, side, entity),
+                    "batching must not change authorization",
+                );
+            }
+        }
+    }
 
     fn test_rules() -> NextRules {
         let nodes = BTreeMap::from([

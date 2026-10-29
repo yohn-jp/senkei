@@ -1,7 +1,8 @@
 // Separate production-Rust/WASM matrix. Synthetic research UI remains untouched.
 const byId = id => document.getElementById(id);
 const labels = { '000':'参照', '100':'T', '010':'C', '001':'S',
-  '110':'T+C', '101':'T+S', '011':'C+S', '111':'T+C+S' };
+  '110':'T+C', '101':'T+S', '011':'C+S', '111':'T+C+S',
+  R:'Route', V:'Visibility', RV:'Route+Visibility', TCSRV:'T+C+S+Route+Visibility' };
 let worker = null;
 let report = null;
 

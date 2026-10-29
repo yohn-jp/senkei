@@ -16,19 +16,28 @@ if (fixture.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu
   throw Error('Production Enbu artifacts are not from the same immutable revision');
 }
 if (!Array.isArray(fixture.cases) || fixture.cases.length !== 7 ||
-    !Array.isArray(manifest.variants) || manifest.variants.length !== 8) {
-  throw Error('Expected seven native golden fixtures and all eight optimizer masks');
+    !Array.isArray(manifest.variants) || manifest.variants.length !== 12) {
+  throw Error('Expected seven native golden fixtures and all twelve optimizer masks');
 }
 const variants = [];
-for (let n = 0; n < 8; n++) {
-  const expected = n.toString(2).padStart(3, '0');
+const expectedVariants = Array.from({length:8}, (_, n) => ({
+  id:n.toString(2).padStart(3,'0'),
+  features:[n & 4 ? 'lab-opt-termination' : null, n & 2 ? 'lab-opt-cohort' : null,
+    n & 1 ? 'lab-opt-shields' : null].filter(Boolean),
+})).concat([
+  {id:'R',features:['lab-opt-route']},
+  {id:'V',features:['lab-opt-visibility']},
+  {id:'RV',features:['lab-opt-route','lab-opt-visibility']},
+  {id:'TCSRV',features:['lab-optimizations','lab-opt-route','lab-opt-visibility']},
+]);
+for (let n = 0; n < expectedVariants.length; n++) {
+  const expected = expectedVariants[n].id;
   const descriptor = manifest.variants[n];
   if (descriptor.id !== expected ||
       descriptor.wasm !== `wasm/senkei_wasm_${expected}.wasm` ||
-      !Array.isArray(descriptor.features) || descriptor.features.join(',') !==
-      [n & 4 ? 'lab-opt-termination' : null, n & 2 ? 'lab-opt-cohort' : null,
-        n & 1 ? 'lab-opt-shields' : null].filter(Boolean).join(',')) {
-    throw Error(`Invalid feature mask provenance: ${expected}`);
+      !Array.isArray(descriptor.features) ||
+      descriptor.features.join(',') !== expectedVariants[n].features.join(',')) {
+    throw Error(`Invalid feature provenance: ${expected}`);
   }
   const bytes = await readFile(new URL(descriptor.wasm, root));
   if (bytes.length !== descriptor.bytes || sha256(bytes) !== descriptor.sha256) {
@@ -37,7 +46,7 @@ for (let n = 0; n < 8; n++) {
   const {instance} = await WebAssembly.instantiate(bytes, {});
   variants.push({id: descriptor.id, dispatch: createEnbuDispatcher(instance.exports)});
 }
-console.log('PASS: all 8 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
+console.log('PASS: all 12 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
 
 const cases = [];
 const rows = [];
@@ -98,7 +107,7 @@ for (const current of fixture.cases) {
 }
 const ranking = rankVariants(rows, manifest);
 const effects = factorialEffects(rows);
-if (ranking.length !== 8 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
+if (ranking.length !== 12 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +

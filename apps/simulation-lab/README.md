@@ -123,3 +123,24 @@ The geometric mean of those paired *configuration* ratios is shown beside
 best/worst and regressed comparisons. These are descriptive cross-build
 statistics, not causal attribution to isolated instructions or confidence
 intervals; rerun on a quiet device before promoting a marginal advantage.
+
+### Production Rust algorithm reductions (R / V)
+
+Unlike disabling output paths or measuring synthetic simulations, these flags
+change the computation in the authoritative Enbu Tick engine:
+
+- `R` / `lab-opt-route`: per-search adjacency index instead of scanning and
+  re-sorting every map edge on every graph vertex; one actor/cohort speed
+  derivation per search; one cached travel cost per traversed edge; a dynamic
+  blocked-edge overlay rather than cloning the BattleMap per route. Tie ordering,
+  dynamic bridge legality, and saturating arithmetic are retained.
+- `V` / `lab-opt-visibility`: batch and deduplicate the actual authorized
+  vision sources before each public/owner replay projection; all required
+  views are still produced.
+
+The 12 published real-WASM candidates include the prior 8-way T/C/S matrix,
+R, V, R+V and the combined T+C+S+R+V build. Each must reproduce the
+complete native Rust SHA-256 across all 7 fixture scenarios to publish. The
+3-factor T/C/S marginal-effect study continues to use only the original eight
+combinations; R/V are compared directly by case, since extrapolating a full
+five-factor experiment from only twelve builds would be invalid.

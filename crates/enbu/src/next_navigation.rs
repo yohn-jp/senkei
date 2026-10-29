@@ -1168,29 +1168,52 @@ fn route_for_entity(
     // Tactical route evaluation uses only the actor's authorized observation
     // for enemy blockers and bridge status. Full S[t] is used separately for
     // the mandatory exit legality check at the instant of leaving a node.
-    let mut legal_map = map.clone();
-    for edge in &mut legal_map.edges {
-        let next = if edge.from == from {
-            Some(edge.to.as_str())
-        } else if edge.to == from {
-            Some(edge.from.as_str())
-        } else {
-            None
-        };
-        if next
-            .map(|next| known_enemy_blocks_exit(entity, from, next, snapshot, rules, map))
-            .unwrap_or(false)
-        {
-            edge.blocked = true;
-        }
-        if is_bridge(edge)
-            && entity.entity_type.as_str() == "hero"
-            && !edge_allows_track(entity, movement, edge, snapshot)
-        {
-            edge.blocked = true;
-        }
+    #[cfg(feature = "lab-opt-route")]
+    {
+        // Reuse immutable validated map, overlaying only the dynamic edge gates.
+        // No full map clone is necessary per hero, per Tick.
+        let blocked = map.edges.iter().map(|edge| {
+            let next = if edge.from == from {
+                Some(edge.to.as_str())
+            } else if edge.to == from {
+                Some(edge.from.as_str())
+            } else {
+                None
+            };
+            edge.blocked
+                || next.map(|next| known_enemy_blocks_exit(entity, from, next, snapshot, rules, map))
+                    .unwrap_or(false)
+                || (is_bridge(edge) && entity.entity_type.as_str() == "hero"
+                    && !edge_allows_track(entity, movement, edge, snapshot))
+        }).collect::<Vec<_>>();
+        return path_by_travel_time_indexed(map, entity, from, to, snapshot, rules, tick, &blocked);
     }
-    path_by_travel_time(&legal_map, entity, from, to, snapshot, rules, tick)
+    #[cfg(not(feature = "lab-opt-route"))]
+    {
+        let mut legal_map = map.clone();
+        for edge in &mut legal_map.edges {
+            let next = if edge.from == from {
+                Some(edge.to.as_str())
+            } else if edge.to == from {
+                Some(edge.from.as_str())
+            } else {
+                None
+            };
+            if next
+                .map(|next| known_enemy_blocks_exit(entity, from, next, snapshot, rules, map))
+                .unwrap_or(false)
+            {
+                edge.blocked = true;
+            }
+            if is_bridge(edge)
+                && entity.entity_type.as_str() == "hero"
+                && !edge_allows_track(entity, movement, edge, snapshot)
+            {
+                edge.blocked = true;
+            }
+        }
+        path_by_travel_time(&legal_map, entity, from, to, snapshot, rules, tick)
+    }
 }
 
 const ROUTE_TIME_SCALE: i128 = 1_000;
@@ -1252,6 +1275,118 @@ fn path_by_travel_time(
                 .map(|known| candidate < *known)
                 .unwrap_or(true)
             {
+                best.insert(next.clone(), candidate);
+                queue.insert((candidate_cost, candidate_route, next.clone()));
+            }
+        }
+    }
+    None
+}
+
+// Same deterministic shortest-path semantics as path_by_travel_time, with
+// adjacency, actor/cohort derivations and edge costs computed once per query.
+// This is a physical algorithm change: O(V*E) edge rescans and repeated
+// O(world-size) Squad discovery inside each edge relaxation are eliminated.
+#[cfg(feature = "lab-opt-route")]
+fn path_by_travel_time_indexed(
+    map: &BattleMap,
+    actor: &EntityState,
+    from: &str,
+    to: &str,
+    world: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    blocked: &[bool],
+) -> Option<Vec<String>> {
+    if !map.nodes.contains_key(from) || !map.nodes.contains_key(to) {
+        return None;
+    }
+    if from == to {
+        return Some(vec![from.to_owned()]);
+    }
+    debug_assert_eq!(blocked.len(), map.edges.len());
+    let mut adjacency = BTreeMap::<&str, Vec<(usize, &MapEdge)>>::new();
+    for (index, edge) in map.edges.iter().enumerate() {
+        if blocked[index] || edge.length <= 0 || edge.from == edge.to
+            || !map.nodes.contains_key(&edge.from) || !map.nodes.contains_key(&edge.to) {
+            continue;
+        }
+        adjacency.entry(&edge.from).or_default().push((index, edge));
+        adjacency.entry(&edge.to).or_default().push((index, edge));
+    }
+    // Preserve the stable tie order of the reference per-node sort.
+    for outgoing in adjacency.values_mut() {
+        outgoing.sort_by_key(|(_, edge)| (edge.id.as_str(), edge.from.as_str(), edge.to.as_str()));
+    }
+
+    // Actor and squad properties do not change during a single route query.
+    let base_speed = route_speed(actor, world, rules, tick).max(1);
+    let members = if actor.entity_type.as_str() == "hero" {
+        let actor_id = world.entities.iter()
+            .find(|(_, value)| *value == actor)
+            .map(|(id, _)| id.clone());
+        actor_id.as_ref().map(|id| hero_cohort(id, actor, world)).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let generic_squad = members.iter()
+        .any(|(_, member)| has_skill_effect(member, rules, SkillEffect::TerrainAdaptation));
+    let mut terrain_by_region = BTreeMap::<&str, i64>::new();
+    let mut edge_costs = vec![None::<i128>; map.edges.len()];
+    let mut best = BTreeMap::<String, (i128, Vec<String>)>::new();
+    let mut queue = BTreeSet::<(i128, Vec<String>, String)>::new();
+    let initial = vec![from.to_owned()];
+    best.insert(from.to_owned(), (0, initial.clone()));
+    queue.insert((0, initial, from.to_owned()));
+    while let Some((cost, route, node)) = queue.pop_first() {
+        if best.get(&node) != Some(&(cost, route.clone())) {
+            continue;
+        }
+        if node == to {
+            return Some(route);
+        }
+        let Some(outgoing) = adjacency.get(node.as_str()) else { continue };
+        for &(index, edge) in outgoing {
+            let next = if edge.from == node { &edge.to } else { &edge.from };
+            let edge_cost = if let Some(cached) = edge_costs[index] {
+                cached
+            } else {
+                let terrain = *terrain_by_region.entry(edge.region.as_str()).or_insert_with(|| {
+                    (if actor.entity_type.as_str() == "hero" {
+                        members.iter()
+                            .map(|(_, member)| hero_terrain_factor(member, rules, &edge.region, generic_squad))
+                            .min()
+                            .unwrap_or_else(|| default_terrain_milli(&edge.region, rules))
+                    } else {
+                        default_terrain_milli(&edge.region, rules)
+                    }).max(1)
+                });
+                let distance_cost = i128::from(edge.length)
+                    .saturating_mul(ROUTE_TIME_SCALE)
+                    .saturating_mul(1_000)
+                    .checked_div(i128::from(base_speed).saturating_mul(i128::from(terrain)))
+                    .unwrap_or(i128::MAX);
+                let state = if is_bridge(edge) {
+                    observed_bridge_state(actor.owner, &edge.bridge_site, world, rules)
+                } else {
+                    String::new()
+                };
+                let ford = edge.ford || (is_bridge(edge) && state == "destroyed");
+                let ford_delay = if ford {
+                    i128::from(param(rules, "ford_extra_ticks", 24).max(0)).saturating_mul(ROUTE_TIME_SCALE)
+                } else { 0 };
+                let queue_delay = if is_bridge(edge) {
+                    known_bridge_queue(actor, edge, world, rules).saturating_mul(ROUTE_TIME_SCALE)
+                } else { 0 };
+                let computed = distance_cost.saturating_add(ford_delay).saturating_add(queue_delay);
+                edge_costs[index] = Some(computed);
+                computed
+            };
+            let Some(candidate_cost) = cost.checked_add(edge_cost) else { return None };
+            let mut candidate_route = route.clone();
+            candidate_route.push(next.clone());
+            let candidate = (candidate_cost, candidate_route.clone());
+            if best.get(next).map(|known| candidate < *known).unwrap_or(true) {
                 best.insert(next.clone(), candidate);
                 queue.insert((candidate_cost, candidate_route, next.clone()));
             }
@@ -1784,6 +1919,71 @@ mod tests {
 
     fn id(value: &str) -> EntityId {
         EntityId::from(value)
+    }
+
+    #[cfg(feature = "lab-opt-route")]
+    #[test]
+    fn indexed_travel_time_matches_legacy_across_dynamic_graph_cases() {
+        // Directly compare both actual navigation algorithms on the same
+        // snapshots, including blocked edges, alternate routes and squads.
+        for layout in 0_u32..64 {
+            let mut edges = vec![
+                edge("a", "b", 4, "lane", layout & 1 != 0),
+                edge("b", "c", 4, "jungle", layout & 2 != 0),
+                edge("a", "d", 4, "forest", layout & 4 != 0),
+                edge("d", "c", 4, "lane", layout & 8 != 0),
+                edge("b", "d", 2, "river_ford", layout & 16 != 0),
+                edge("a", "c", 0, "lane", layout & 32 != 0),
+            ];
+            if layout % 2 == 0 { edges.reverse(); }
+            let config = rules(test_map(edges));
+            let mut world = WorldState::default();
+            let mut actor = entity("hero", Some(CombatantSide::Attacker), 100, "a", "c");
+            set_string(&mut actor, "squad", "squad");
+            world.entities.insert(id("h"), actor.clone());
+            let mut companion = entity("hero", Some(CombatantSide::Attacker), 70, "a", "c");
+            set_string(&mut companion, "squad", "squad");
+            world.entities.insert(id("ally"), companion);
+            for kind in ["hero", "monster"] {
+                let actual_actor = if kind == "hero" {
+                    actor.clone()
+                } else {
+                    entity("monster", None, 70, "a", "c")
+                };
+                if kind == "monster" {
+                    world.entities.insert(id("monster"), actual_actor.clone());
+                }
+                let movement = MovementIntent {
+                    goal: "c".into(), track: "LEFT".into(),
+                    terrain_milli: None, budget: 100,
+                };
+                let mut legal = config.map.clone();
+                for edge in &mut legal.edges {
+                    let next = if edge.from == "a" {
+                        Some(edge.to.as_str())
+                    } else if edge.to == "a" {
+                        Some(edge.from.as_str())
+                    } else { None };
+                    if next.map(|next| known_enemy_blocks_exit(
+                        &actual_actor, "a", next, &world, &config, &config.map
+                    )).unwrap_or(false) {
+                        edge.blocked = true;
+                    }
+                    if is_bridge(edge) && actual_actor.entity_type.as_str() == "hero"
+                        && !edge_allows_track(&actual_actor, &movement, edge, &world) {
+                        edge.blocked = true;
+                    }
+                }
+                let expected = path_by_travel_time(
+                    &legal, &actual_actor, "a", "c", &world, &config, 1
+                );
+                let actual = route_for_entity(
+                    &actual_actor, &config.map, "a", "c", &world,
+                    &movement, &config, 1,
+                );
+                assert_eq!(actual, expected, "layout={layout}, actor={kind}");
+            }
+        }
     }
 
     #[test]
