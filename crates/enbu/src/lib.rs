@@ -27,6 +27,7 @@ pub(crate) mod next_fog;
 mod next_combat;
 mod next_tactics;
 mod next_battlefield;
+mod execution;
 
 pub use validation::ENGINE_VERSION;
 
