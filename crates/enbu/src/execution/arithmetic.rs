@@ -225,6 +225,77 @@ mod tests {
     }
 
     #[test]
+    fn complete_windows_match_tick_oracle_with_nonzero_start_and_full_batches() {
+        for seed in 0_u32..128 {
+            let clocks = (0..seed % 11).map(|i| AttackClock {
+                first_tick: (seed.wrapping_mul(7).wrapping_add(i * 13)) % 47,
+                interval: 1 + (seed.wrapping_add(i * 3)) % 17,
+                damage: u64::from(1 + (seed.wrapping_add(i * 7)) % 19),
+            }).collect::<Vec<_>>();
+            for start in [0_u32, 4, 17, 49] {
+                for end in [63_u32, 127] {
+                    for hp in [1_u128, 4, 50, 100, 1000] {
+                        let mut ref_counts = vec![0_u64; clocks.len()];
+                        let mut ref_sums = vec![0_u128; clocks.len()];
+                        let mut ref_batches = Vec::new();
+                        let mut remaining = hp;
+                        let mut lethal = None;
+                        for tick in start..=end {
+                            let actors = due_actor_indices(&clocks, tick).unwrap();
+                            if actors.is_empty() { continue; }
+                            let mut damage = 0_u128;
+                            for &i in &actors {
+                                damage += u128::from(clocks[i].damage);
+                                ref_counts[i] += 1;
+                                ref_sums[i] += u128::from(tick);
+                            }
+                            ref_batches.push(DueBatch { tick, actor_indices: actors });
+                            if damage >= remaining {
+                                lethal = Some(tick);
+                                break;
+                            }
+                            remaining -= damage;
+                        }
+                        let expected_hits = ref_counts.iter().map(|&n| u128::from(n)).sum::<u128>();
+                        let actual = execute_certified_window(
+                            &clocks, start, end, hp, true, 100_000,
+                        ).unwrap();
+                        assert_eq!(actual.first_lethal_tick, lethal,
+                            "lethal seed={seed} range={start}..{end} hp={hp}");
+                        assert_eq!(actual.last_tick, lethal.unwrap_or(end));
+                        assert_eq!(actual.hit_counts, ref_counts);
+                        assert_eq!(actual.hit_tick_sums, ref_sums);
+                        assert_eq!(actual.total_hits, expected_hits);
+                        assert_eq!(actual.batches, Some(ref_batches));
+                        let aggregate = execute_certified_window(
+                            &clocks, start, end, hp, false, 100_000,
+                        ).unwrap();
+                        assert_eq!(aggregate.batches, None);
+                        assert_eq!(aggregate.hit_counts, actual.hit_counts);
+                        assert_eq!(aggregate.hit_tick_sums, actual.hit_tick_sums);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn nonzero_window_does_not_count_prior_hits_and_caps_materialization() {
+        let clocks = [AttackClock { first_tick: 0, interval: 3, damage: 4 }];
+        assert_eq!(first_lethal_tick(&clocks, 10, 20, 5), Some(Some(15)));
+        assert_eq!(execute_certified_window(&clocks, 10, 20, 5, true, 1), None);
+        let result = execute_certified_window(&clocks, 10, 20, 5, true, 2).unwrap();
+        assert_eq!(result.hit_counts, vec![2]);
+        assert_eq!(result.hit_tick_sums, vec![12 + 15]);
+        assert_eq!(result.batches, Some(vec![
+            DueBatch { tick: 12, actor_indices: vec![0] },
+            DueBatch { tick: 15, actor_indices: vec![0] },
+        ]));
+        assert_eq!(execute_certified_window(&clocks, 10, 20, 0, true, 0).unwrap().total_hits, 0);
+        assert_eq!(execute_certified_window(&clocks, 10, 20, 1, false, 0), None);
+    }
+
+    #[test]
     fn lethal_tick_preserves_all_simultaneous_attacks() {
         let clocks = [
             AttackClock { first_tick: 3, interval: 4, damage: 5 },
