@@ -130,8 +130,8 @@ ReadyToLaunch =
 
 ## 7. 現行実装との比較（開発者向け事実・規範ではない）
 
-- 現行シェルは **Tactics / Next / Battle lab / Library**、G1サンプルの別導線を持つ。Nextの内部は **Formation / Jinrei / Battle / Analysis** で、Formation内にCollection / Detail / Skill Tree / Squad Assemblyを持つ。ユーザー目的に沿う一続きの入口とReady画面は未整備。
-- Nextは実Catalogから5スロットと各Skill Planを初期生成し、Squad分割と共有開始Node、Jinreiの実コンパイル、固定の相手側Starter戦術、保存／復旧、Enbu実行を提供する。**シナリオ・NPCの選択と開始条件の一括表示は現在専用画面ではない**。
+- 現行シェルは **Tactics / Next / Battle lab / Library**、G1サンプルの別導線を持つ。Nextの内部は **Formation / Jinrei / Battle / Analysis** で、Formation内にCollection / Detail / Skill Tree / Squad Assemblyを持つ。S02条件選択／S10 Ready画面とWorkspaceへの接続はソース上実装されている。ただし一続きの導線についてDesktop／Mobile実操作の受入は別に必要。
+- Nextは実Catalogから5スロットと各Skill Planを初期生成し、Squad分割と共有開始Node、Jinreiの実コンパイル、相手側Starter戦術、保存／復旧、Enbu実行を提供する。シナリオ・NPCと開始条件の専用画面は実装されているが、全遷移・入力保持・失敗復旧・実ブラウザの受入完了は意味しない。
 - 旧Tacticsは初期Rulesetの初心者Preset・Campaign scenarioを提供するが、これをG2 Nextの対戦相手UIが完成した証拠にしない。
 - Nextの明示保存先はブラウザStorageの専用領域、旧Libraryは別のIndexedDB上の旧戦型ドキュメント。本書の統一UXは**明示的な互換変換なしに既存データを統合済みとは扱わない**。
 

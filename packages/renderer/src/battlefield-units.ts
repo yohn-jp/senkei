@@ -160,6 +160,14 @@ function createUnitMaterials(): UnitMaterials {
   return SHARED_UNIT_MATERIALS;
 }
 
+/** Material.clone omits shader callbacks; Follow transparency must retain baked LOD surface responses. */
+export function cloneBattlefieldFollowMaterial(material: THREE.Material): THREE.Material {
+  const clone = material.clone();
+  clone.onBeforeCompile = material.onBeforeCompile;
+  clone.customProgramCacheKey = material.customProgramCacheKey;
+  return clone;
+}
+
 export function isSharedUnitMaterial(material: THREE.Material): boolean {
   return material === BAKED_UNIT_MATERIAL || Object.values(SHARED_UNIT_MATERIALS).includes(material as THREE.MeshStandardMaterial);
 }

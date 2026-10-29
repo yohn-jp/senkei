@@ -8,7 +8,7 @@ import { buildBattlefieldLaneGuides } from "./battlefield-lane-guides";
 import { applyBattlefieldInformationLayers, type BattlefieldInformationLayers } from "./battlefield-information-layers";
 import { buildWorldPresentation, buildWorldCamp } from "./world-presentation";
 import { buildBattlefieldTower } from "./battlefield-architecture";
-import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
+import { applyBattlefieldUnitLodMotion, buildBattlefieldHero, buildBattlefieldMinion, buildBattlefieldMonster, cloneBattlefieldFollowMaterial, isSharedUnitMaterial, type BattlefieldUnitRig } from "./battlefield-units";
 import { BattlefieldReplayLayoutIndex } from "./battlefield-replay-layout";
 import { BattlefieldUnitMotionIndex, battlefieldUnitPose, effectiveTrackPoint } from "./battlefield-unit-motion";
 import { BattlefieldUnitOrientationIndex } from "./battlefield-unit-orientation";
@@ -2456,7 +2456,7 @@ export class Battlefield {
             const baseMaterials = g.userData.focusBaseMaterials as THREE.Material[];
             let clones = g.userData.focusOpacityMaterials as Map<THREE.Material, THREE.Material> | undefined;
             if (companion && !clones) {
-              clones = new Map(baseMaterials.map(material => [material, material.clone()]));
+              clones = new Map(baseMaterials.map(material => [material, cloneBattlefieldFollowMaterial(material)]));
               const replacements = new Map([...clones].map(([source, clone]) => [source, clone]));
               g.traverse(object => {
                 if (!(object instanceof THREE.Mesh)) return;

@@ -9,6 +9,7 @@ import {
   compareDocumentRevisions,
   deleteDocument,
   exportDocumentJson,
+  exportOriginalDocumentRecords,
   importDocumentFile,
   listDocumentHistory,
   listDocuments,
@@ -42,11 +43,13 @@ export function LegacyRecoveryFeature() {
 
   const refreshDocuments = async (): Promise<void> => setDocuments(await listDocuments());
   const loadSelected = async (documentId: string): Promise<void> => {
+    // Selecting a stored record must not depend on interpreting an unsupported legacy schema.
+    setSelectedDocumentId(documentId);
+    setActiveDocument(null); setHistory([]); setDiff(null);
     const [snapshot, revisions] = await Promise.all([
       loadDocumentRevision(documentId),
       listDocumentHistory(documentId),
     ]);
-    setSelectedDocumentId(documentId);
     setActiveDocument(snapshot.document);
     setHistory(revisions);
     setDiff(null);
@@ -98,6 +101,17 @@ export function LegacyRecoveryFeature() {
       link.href = url;
       link.download = `senkei-${selectedDocumentId}.json`;
       link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+  };
+
+  const handleExportRaw = (): void => {
+    if (!selectedDocumentId) return;
+    void perform("Original stored records were exported without schema conversion.", async () => {
+      const json = await exportOriginalDocumentRecords(selectedDocumentId);
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const link = window.document.createElement("a");
+      link.href = url; link.download = `senkei-${selectedDocumentId}-raw-records.json`; link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
     });
   };
@@ -172,16 +186,19 @@ export function LegacyRecoveryFeature() {
         <div className="persistence-detail-panel">
           <section className="persistence-card persistence-current-card">
             <div className="persistence-card-header">
-              <div><div className="feature-eyebrow">PRESERVED DOCUMENT</div><h3>{activeDocument?.name ?? "Select or import a document"}</h3></div>
+              <div><div className="feature-eyebrow">PRESERVED DOCUMENT</div><h3>{activeDocument?.name ?? documents.find(item => item.id === selectedDocumentId)?.name ?? "Select or import a document"}</h3></div>
               {activeDocument && <span className="persistence-revision-chip">REV {activeDocument.revision}</span>}
             </div>
-            {activeDocument ? <>
-              <p className="persistence-document-id">{activeDocument.id}</p>
-              <p>This format is not runnable in the Next workspace. Export keeps its payload and every saved revision intact.</p>
+            {selectedDocumentId ? <>
+              <p className="persistence-document-id">{selectedDocumentId}</p>
+              <p>{activeDocument ? "This format is not runnable in the Next workspace. Export keeps its payload and every saved revision intact."
+                : "This stored record cannot be interpreted by the current application. You can still export the original records before considering deletion."}</p>
               <div className="persistence-action-row">
-                <button className="persistence-button" disabled={busy} onClick={handleExport} type="button">Export complete history</button>
+                {activeDocument && <button className="persistence-button" disabled={busy} onClick={handleExport} type="button">Export complete history</button>}
+                <button className="persistence-button persistence-button-secondary" disabled={busy} onClick={handleExportRaw} type="button">Export original records (recovery only)</button>
                 <button className="persistence-button persistence-button-danger" disabled={busy} onClick={handleDelete} type="button">Delete local data</button>
               </div>
+              <p>Original-record exports preserve IndexedDB JSON values, are not converted, and cannot be imported as a standard workspace bundle.</p>
             </> : <p className="persistence-empty">Choose a saved document or import a legacy JSON export.</p>}
           </section>
 

@@ -16,7 +16,7 @@
       "id": "preset-beginner-march",
       "revision": "1",
       "ruleset": {
-        "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2",
+        "digest": "09ce7aafe0f084844f009673dd0a4c219859c1fce71e1a175ca9202198f96175",
         "id": "senkei.initial",
         "version": {
           "major": 1,
@@ -1795,7 +1795,7 @@
           "patch": 0
         },
         "ruleset": {
-          "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2",
+          "digest": "09ce7aafe0f084844f009673dd0a4c219859c1fce71e1a175ca9202198f96175",
           "id": "senkei.initial",
           "version": {
             "major": 1,
@@ -1815,7 +1815,7 @@
       "id": "npc-intercept-visible",
       "revision": "1",
       "ruleset": {
-        "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2",
+        "digest": "09ce7aafe0f084844f009673dd0a4c219859c1fce71e1a175ca9202198f96175",
         "id": "senkei.initial",
         "version": {
           "major": 1,
@@ -15718,7 +15718,7 @@
           "patch": 0
         },
         "ruleset": {
-          "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2",
+          "digest": "09ce7aafe0f084844f009673dd0a4c219859c1fce71e1a175ca9202198f96175",
           "id": "senkei.initial",
           "version": {
             "major": 1,
@@ -15745,7 +15745,7 @@
       "match_id": "campaign-intercept-visible",
       "max_ticks": 500,
       "ruleset": {
-        "digest": "b3b24bd438e25b869c07d8df94fdb7c7c2e8fc7335e7a4611fc553d3990480f2",
+        "digest": "09ce7aafe0f084844f009673dd0a4c219859c1fce71e1a175ca9202198f96175",
         "id": "senkei.initial",
         "version": {
           "major": 1,

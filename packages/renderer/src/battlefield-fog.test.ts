@@ -22,12 +22,19 @@ describe("battlefield fog presentation", () => {
     const state: DisplayState = { ...stateAt(replay, 2), fog: { worldUnitsPerRenderUnit: 25, state: {
       schema_version: 1, tick: 2, side: "attacker", nodes: { known: "explored", unknown: "unexplored" }, edges: { r: ["unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored", "unexplored"] }, facilities: [{ id: "facility-1", state: "last_known", kind: "bridge", side: "neutral", site: "world.bridge.top", facility_state: { bridge_state: "normal" }, last_seen_tick: 1 }],
     } } };
+    // The workspace sets information layers before the first replay update.
+    fog.setVisionAnnotationsEnabled(true);
     fog.update(state);
     expect(fog.group.visible).toBe(true);
     const concealment = fog.group.getObjectByName("mandatory-unexplored-concealment")!;
     const annotations = fog.group.getObjectByName("explored-vision-annotation")!;
     expect(concealment.visible).toBe(true);
     expect(annotations.visible).toBe(true);
+    fog.update(stateAt(replay, 0));
+    expect(concealment.visible).toBe(false);
+    fog.update(state);
+    expect(concealment.visible).toBe(true);
+    expect((concealment.children[0] as THREE.InstancedMesh).count).toBeGreaterThan(0);
     fog.setVisionAnnotationsEnabled(false);
     expect(fog.group.visible).toBe(true);
     expect(concealment.visible).toBe(true);

@@ -766,7 +766,7 @@ fn arbitration() -> BTreeMap<CapabilityId, ArbitrationRule> {
         // The credit check observes the phase-start balance. Locking the
         // producer to one deployment per tick prevents simultaneous deploys
         // from spending the same starting credit more than once.
-        ("deploy", vec![IntentKey::Actor, IntentKey::Target]),
+        ("deploy", vec![IntentKey::Actor]),
         ("move_forward", vec![IntentKey::Actor]),
         ("move_backward", vec![IntentKey::Actor]),
         ("shift_lane", vec![IntentKey::Actor]),
@@ -1059,3 +1059,15 @@ fn subtract(left: RuleExpression, right: RuleExpression) -> RuleExpression {
 
 fn and(items: Vec<RuleExpression>) -> RuleExpression { RuleExpression::And(items) }
 fn not(inner: RuleExpression) -> RuleExpression { RuleExpression::Not(Box::new(inner)) }
+
+#[cfg(test)]
+mod deploy_arbitration_tests {
+    use super::*;
+
+    #[test]
+    fn deploy_conflicts_on_the_producer_regardless_of_reserve_target() {
+        let rules = arbitration();
+        let deploy = rules.get(&id("deploy")).expect("initial deploy rule");
+        assert_eq!(deploy.conflict_keys, vec![IntentKey::Actor]);
+    }
+}

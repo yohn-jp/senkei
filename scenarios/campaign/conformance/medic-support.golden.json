@@ -1,13 +1,13 @@
 {
   "golden_schema": "senkei-conformance/v1",
   "request_id": "campaign-medic-support",
-  "request_sha256": "c3cacdf7f4f3b3b43d55265b5245c605a70070944f0ebc5681907834bae271e2",
-  "response_sha256": "c333e1ba5b629964f59fa85f68802585369643b6a1ce64c8cb8234d8ccf6b542",
+  "request_sha256": "8fcbc9e46071992b4f053d40db4254783fdfedc734408dad1f4fe66737552238",
+  "response_sha256": "c8734c52b6c13031450f5e5c177cf84892f0570178fc6d0f2b5ab5cec8df48bb",
   "summary": {
     "outcome": "defender_victory",
     "termination_reason": "attacker_core_destroyed",
     "final_tick": 72,
-    "final_state_digest": "f65be46387f33d18a17b85b65a41d57fdc9610c3a6504c6f32071154aa2c7e90",
+    "final_state_digest": "3a9c235a131016ed216822f364b24a3ab46b898e90f0700461202c8b64936c10",
     "cu_by_side": {
       "attacker": 1224
     },
