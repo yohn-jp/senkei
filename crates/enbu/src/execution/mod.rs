@@ -1,6 +1,6 @@
-//! Hybrid execution kernels. These do not change Enbu's authoritative rules.
-//! Until a certified scheduler exists, the reference Tick executor remains
-//! the only production executor; arithmetic provides a verified bounded solver.
+//! Proof-gated physical execution kernels. Semantic authority remains in Enbu's
+//! canonical phase transitions; strategies only narrow redundant physical work.
+pub(crate) mod strategies;
 pub(crate) mod arithmetic;
 #[cfg(feature = "lab-opt-arithmetic")]
 pub(crate) mod dispatcher;
