@@ -465,6 +465,27 @@ fn collect_basic_attacks(
     mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
+    #[cfg(feature = "lab-optimizations")]
+    let cohort_states = {
+        let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
+        for (member_id, member) in &start.entities {
+            if member.entity_type.as_str() != "hero" || !support::alive(member) {
+                continue;
+            }
+            let squad = support::string(member, "squad");
+            if squad.is_empty() {
+                continue;
+            }
+            let state = grouped.entry((member.owner, squad)).or_insert((false, i64::MIN));
+            let current = world.entities.get(member_id);
+            state.0 |= current.is_some_and(|entity| {
+                support::int(entity, "moved_tick") == i64::from(tick).saturating_add(1)
+            });
+            let current_lock = current.map(|entity| support::int(entity, "action_lock_until")).unwrap_or_default();
+            state.1 = state.1.max(current_lock.max(support::int(member, "action_lock_until")));
+        }
+        grouped
+    };
     for (source_id, source) in &start.entities {
         if !support::alive(source) || !is_combatant(source) {
             continue;
@@ -473,7 +494,22 @@ fn collect_basic_attacks(
             .and_then(|kind| collector.as_deref_mut().and_then(|collector| collector.begin(tick, source_id, kind, source.owner)));
         // Persistent movement goals do not consume a tick. Only movement
         // selected by navigation for any cohort member excludes an attack.
+        #[cfg(feature = "lab-optimizations")]
+        let (moved_this_tick, current_action_lock) = {
+            let squad = support::string(source, "squad");
+            if source.entity_type.as_str() == "hero" && !squad.is_empty() {
+                // World locks are not written until all basic attacks are selected.
+                // Consequently all members read the same cohort snapshot here.
+                *cohort_states.get(&(source.owner, squad))
+                    .expect("live hero belongs to its own indexed squad")
+            } else {
+                (cohort_moved_this_tick(world, start, source_id, tick),
+                 cohort_action_lock_until(world, start, source_id))
+            }
+        };
+        #[cfg(not(feature = "lab-optimizations"))]
         let moved_this_tick = cohort_moved_this_tick(world, start, source_id, tick);
+        #[cfg(not(feature = "lab-optimizations"))]
         let current_action_lock = cohort_action_lock_until(world, start, source_id);
         if moved_this_tick {
             if let Some(collector) = collector.as_deref_mut() {
@@ -1091,6 +1127,15 @@ fn regenerate_energy(world: &mut WorldState, rules: &NextRules, _tick: u32) {
 }
 
 fn apply_mature_squad_shields(world: &mut WorldState, rules: &NextRules) {
+    #[cfg(feature = "lab-optimizations")]
+    { apply_mature_squad_shields_grouped(world, rules); }
+    #[cfg(not(feature = "lab-optimizations"))]
+    { apply_mature_squad_shields_reference(world, rules); }
+}
+
+// Keep the original quadratic implementation for the production baseline.
+#[cfg(not(feature = "lab-optimizations"))]
+fn apply_mature_squad_shields_reference(world: &mut WorldState, rules: &NextRules) {
     let base = support::param(rules, "squad_shield_per_ally", 0).max(0);
     let maturity_cap = support::param(rules, "squad_maturation_ticks", 0).max(0);
     if base == 0 || maturity_cap == 0 {
@@ -1136,6 +1181,61 @@ fn apply_mature_squad_shields(world: &mut WorldState, rules: &NextRules) {
     }
     for (hero_id, cap) in shield_caps {
         if let Some(hero) = world.entities.get_mut(&hero_id) {
+            let current = support::int(hero, "shield").max(0);
+            support::set_int(hero, "shield", current.max(cap));
+        }
+    }
+}
+
+/// Algebraically identical per-member contributions, grouped by owner/squad.
+/// Nonnegative additions commute. On i128 overflow, fall back to the exact
+/// original saturating fold for that group's recipient, preserving semantics.
+#[cfg(feature = "lab-optimizations")]
+fn apply_mature_squad_shields_grouped(world: &mut WorldState, rules: &NextRules) {
+    let base = support::param(rules, "squad_shield_per_ally", 0).max(0);
+    let maturity_cap = support::param(rules, "squad_maturation_ticks", 0).max(0);
+    if base == 0 || maturity_cap == 0 { return; }
+    let members: Vec<_> = world.entities.iter()
+        .filter(|(_, hero)| hero.entity_type.as_str() == "hero" && support::alive(hero))
+        .filter_map(|(id, hero)| {
+            let squad = support::string(hero, "squad");
+            let side = hero.owner?;
+            if squad.is_empty() { return None; }
+            let catalog_id = support::string(hero, "catalog_id");
+            let multiplier = rules.heroes.iter()
+                .find(|definition| definition.id == catalog_id)
+                .and_then(|definition| definition.synergy.get("maturity_effect_milli"))
+                .copied().unwrap_or(1000).max(0);
+            Some((id.clone(), side, squad, support::int(hero, "maturity").clamp(0, maturity_cap), multiplier))
+        }).collect();
+    let denominator = i128::from(maturity_cap).saturating_mul(1000).max(1);
+    let contributions: Vec<i128> = members.iter().map(|(_, _, _, maturity, multiplier)| {
+        let raw = i128::from(base)
+            .saturating_mul(i128::from(*maturity))
+            .saturating_mul(i128::from(*multiplier));
+        let whole = raw / denominator;
+        whole + if raw % denominator != 0 { 1 } else { 0 }
+    }).collect();
+    let mut totals = BTreeMap::<(CombatantSide, String), Option<i128>>::new();
+    for ((_, side, squad, _, _), &value) in members.iter().zip(&contributions) {
+        let total = totals.entry((*side, squad.clone())).or_insert(Some(0));
+        *total = total.and_then(|sum| sum.checked_add(value));
+    }
+    for ((recipient_id, side, squad, _, _), &own) in members.iter().zip(&contributions) {
+        let key = (*side, squad.clone());
+        let total = if let Some(Some(sum)) = totals.get(&key) {
+            // All contributions are nonnegative, so this subtraction is exact.
+            sum - own
+        } else {
+            // Match the reference's original member order and saturating fold.
+            members.iter().zip(&contributions)
+                .filter(|((id, candidate_side, candidate_squad, _, _), _)| {
+                    id != recipient_id && candidate_side == side && candidate_squad == squad
+                })
+                .fold(0_i128, |sum, (_, &value)| sum.saturating_add(value))
+        };
+        let cap = total.min(i128::from(i64::MAX)) as i64;
+        if let Some(hero) = world.entities.get_mut(recipient_id) {
             let current = support::int(hero, "shield").max(0);
             support::set_int(hero, "shield", current.max(cap));
         }

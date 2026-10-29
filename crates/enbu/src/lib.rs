@@ -283,6 +283,17 @@ fn simulate_inner<P: TacticalExecutionPort>(
     if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     if let Some(inspection) = next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()) { inspection.validate_subject(&world)?; }
     let plan = rules.plan();
+    // Invariant hoisting: the verified plan is immutable for the whole match.
+    // Keep the normal Tick path as the control build.
+    #[cfg(feature = "lab-optimizations")]
+    let compact_cost_trace_precomputed = compact_cost_trace_for_plan(plan);
+    #[cfg(feature = "lab-optimizations")]
+    let ordered_termination_indices = {
+        let mut indices = (0..plan.termination.conditions.len()).collect::<Vec<_>>();
+        // Stable sort matches evaluate_termination's existing tie semantics.
+        indices.sort_by_key(|&index| plan.termination.conditions[index].order);
+        indices
+    };
     let mut route_runtime = context.next_route.as_ref().map(next_route::Runtime::new);
     let mut memories = BTreeMap::from([
         (CombatantSide::Attacker, attacker.initial_memory.clone()),
@@ -338,7 +349,11 @@ fn simulate_inner<P: TacticalExecutionPort>(
         }
     }
     let mut final_outcome = None;
-    if let Some((outcome, reason)) = evaluate_termination(plan, &world, 0, &projection_index)? {
+    #[cfg(feature = "lab-optimizations")]
+    let initial_termination = evaluate_termination_indexed(plan, &world, 0, &projection_index, &ordered_termination_indices)?;
+    #[cfg(not(feature = "lab-optimizations"))]
+    let initial_termination = evaluate_termination(plan, &world, 0, &projection_index)?;
+    if let Some((outcome, reason)) = initial_termination {
         final_outcome = Some((outcome, reason, 0));
     }
 
@@ -413,6 +428,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
             output.status == senkei_model::TacticalExecutionStatus::BudgetExceeded
         });
         let diagnostic_bound = context.host_limits.max_diagnostic_events as usize;
+        #[cfg(feature = "lab-optimizations")]
+        let compact_cost_trace = compact_cost_trace_precomputed;
+        #[cfg(not(feature = "lab-optimizations"))]
         let compact_cost_trace = compact_cost_trace_for_plan(plan);
         let proposed_output_trace_size = outputs.iter().try_fold(0_usize, |total, (_, output)| {
             let diagnostics = projected_tactical_diagnostic_count(&output.diagnostics, compact_cost_trace)?;
@@ -748,7 +766,12 @@ fn simulate_inner<P: TacticalExecutionPort>(
         let termination = if transition_outcome.is_some() {
             transition_outcome
         } else {
-            evaluate_termination(plan, &world, tick, &projection_index)?
+            {
+                #[cfg(feature = "lab-optimizations")]
+                { evaluate_termination_indexed(plan, &world, tick, &projection_index, &ordered_termination_indices)? }
+                #[cfg(not(feature = "lab-optimizations"))]
+                { evaluate_termination(plan, &world, tick, &projection_index)? }
+            }
         };
         if let Some((outcome, reason)) = termination {
             final_outcome = Some((outcome, reason, tick));
@@ -1475,6 +1498,23 @@ fn clamp_integer(base: i128, delta: i128, min: Option<i64>, max: Option<i64>) ->
     if lower > upper { return Err(invalid_plan("numeric field schema has an invalid range")); }
     let value = i64::try_from(raw.max(lower).min(upper)).map_err(|_| invalid_plan("numeric transition result is outside the representable range"))?;
     Ok(value)
+}
+
+#[cfg(feature = "lab-optimizations")]
+fn evaluate_termination_indexed(
+    plan: &RulePlan,
+    world: &WorldState,
+    tick: u32,
+    projection_index: &world::ProjectionIndex,
+    ordered_indices: &[usize],
+) -> Result<Option<(MatchOutcome, SymbolId)>, ApiError> {
+    for &index in ordered_indices {
+        let condition = &plan.termination.conditions[index];
+        if eval_truth(&condition.when, world, EvalContext::global(projection_index, tick))? == Truth::True {
+            return Ok(Some((condition.outcome, condition.reason.clone())));
+        }
+    }
+    Ok(None)
 }
 
 fn evaluate_termination(
