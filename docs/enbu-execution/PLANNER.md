@@ -1,6 +1,6 @@
 # Execution Planner — 因果領域と境界証明
 
-> 状態: 実装予定の内部設計契約。既存Enbuは本書の \`ExecutionPlan\` 等の型を提供していない。既存のVerifiedRulePlan/Jinrei/WorldStateを意味論上の正本として用いる。
+> 状態: 実装予定の内部設計契約。既存Enbuは本書の `ExecutionPlan` 等の型を提供していない。既存のVerifiedRulePlan/Jinrei/WorldStateを意味論上の正本として用いる。
 
 ## 1. 所有する責務
 
@@ -8,7 +8,7 @@ Plannerは **何が互いに影響するか** と **次に意味のある変化�
 
 Plannerは以下の入力の不変IDと版を受ける。
 
-- \`VerifiedRulePlan\` とRulePackage/World logic identity、phase/order、termination、host limits。
+- `VerifiedRulePlan` とRulePackage/World logic identity、phase/order、termination、host limits。
 - 両Program/Behavior/Route/Relation bindings、Jinrei cost schedule、memo/Memoryの依存版。
 - 現在のWorldState、直近の確定Tick、最大Tick、Entity集合の世代。
 - 利用者に要求された出力契約（public+owner Replay、診断、CU、任意Tick等）。
@@ -16,7 +16,7 @@ Plannerは以下の入力の不変IDと版を受ける。
 
 結果は以下の**概念型**。実装時にRust型名・持ち方は選べるが、フィールドの意味を失ってはならない。
 
-\`\`\`text
+```text
 ExecutionPlan {
   input_identity: (rule_digest, world_logic_digest, program_digests,
                    behavior_digest, cost_schedule_version, engine_version),
@@ -38,13 +38,13 @@ FrontierCertificate {
   scheduled_boundaries, invalidation_triggers, checked_host_limits,
   proof_kind, assumptions, required_materialization
 }
-\`\`\`
+```
 
-**重要:** \`expires_before\` は「そのTickまで何も起きない」という単独の主張ではない。独立性、各属性の変化式、観測/課金出力を再現できる条件とセットで初めて有効。
+**重要:** `expires_before` は「そのTickまで何も起きない」という単独の主張ではない。独立性、各属性の変化式、観測/課金出力を再現できる条件とセットで初めて有効。
 
 ## 2. Read/Write依存の分類
 
-Plannerは \`EntityId + field\` に加え集合形状/陣営/時間/全体集約を表せるキーを使用する。
+Plannerは `EntityId + field` に加え集合形状/陣営/時間/全体集約を表せるキーを使用する。
 
 | 依存種別 | 代表的なRead | 代表的なWrite/無効化要因 |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ Plannerは \`EntityId + field\` に加え集合形状/陣営/時間/全体集約
 - Jinreiの観測集合や順位/集約が戦場全体を参照する。
 - FogHistory・Replay・diagnosticsの時刻順序がDomain間の出力を統合する。
 
-\`read_set\` と \`write_set\` が現在のRulePlanまたは拡張Capabilityで列挙できないときは \`UnknownGlobalDependency\` とし、最適化不能としてReferenceへ戻す。知らないものを空集合と扱わない。
+`read_set` と `write_set` が現在のRulePlanまたは拡張Capabilityで列挙できないときは `UnknownGlobalDependency` とし、最適化不能としてReferenceへ戻す。知らないものを空集合と扱わない。
 
 ## 3. 因果グラフと独立性
 
@@ -79,14 +79,14 @@ Plannerは \`EntityId + field\` に加え集合形状/陣営/時間/全体集約
 
 SCC（強連結成分）は候補分割の**必要な解析道具**だが、SCCが異なるだけで独立性を証明できたことにはならない。結合する有向辺・全体障壁・時間依存が残る場合は、その境界で同期する。全体をまたぐJinrei観測が存在すれば一つの大きいDomainに縮退してよい。
 
-\`\`\`text
+```text
 derive_dependencies(verified_plan, concrete_world, output_mode)
   -> graph with every unknown/implicit global edge
   -> SCC and barrier analysis
   -> candidate domains
   -> prove no cross-domain causal or observable interference in [t,f)
   -> certificate | Reference-only
-\`\`\`
+```
 
 **安全な候補例:** 同じ固定対象に攻撃する二つのactorが独立し、他のRead/Writeがなく、全体出力を再構築できると証明された有限窓。対象数だけでこの結論を出してはならない。
 
@@ -96,9 +96,9 @@ derive_dependencies(verified_plan, concrete_world, output_mode)
 
 Plannerは最初に **cheap guard**（入力ゼロ、作用主体ゼロ、明らかな不能条件）を試す。guardの判定そのものが正規の決定/課金/出力を省けるかが前提である。次に必要なときだけ一度の状態走査からdependencyと統計を同時収集する。
 
-境界 \`f\` は、少なくとも次の最小値を下回らないよう保守的に選択する。
+境界 `f` は、少なくとも次の最小値を下回らないよう保守的に選択する。
 
-\`\`\`text
+```text
 f <= min(
   next_known_scheduled_change,
   earliest_possible_dynamic_interference,
@@ -107,13 +107,13 @@ f <= min(
   output/host_limit_boundary,
   requested_horizon + 1
 )
-\`\`\`
+```
 
 「変化の**可能性**」がある時刻へ進む前に再検証する。不確かな境界の値を推測して前倒し/先延ばししない。
 
 ### 依存証明の無効化
 
-- RulePlan/World topology/Program/Behavior/成本表/host limitsの版変更。
+- RulePlan/World topology/Program/Behavior/費用表/host limitsの版変更。
 - Entity生成・削除、所属/位置/HP/効果/ターゲット変更、施設・視界・Reveal/Memory変更。
 - Schedulerイベントの追加/取消/時刻短縮、予定外の新しい同Tick行動。
 - 出力要求（full replay/owner diagnostics、seek対象Tick）の変更。
@@ -121,7 +121,7 @@ f <= min(
 
 逆方向の依存グラフでDirty Frontierを伝播し、影響するDomainだけinvalidateする。ただしglobal barrierなら全体をinvalidateする。
 
-\`\`\`text
+```text
 on_commit(writes, new_tick):
   dirty = reverse_dependencies(writes)
   for each impacted domain:
@@ -129,22 +129,22 @@ on_commit(writes, new_tick):
     revoke_future_schedule_entries()
     invalidate_eligible_window()
   if unknown_global_write: invalidate_all()
-\`\`\`
+```
 
 CacheはIDだけでなく**内容/論理版と依存世代**で照合する。ポインタ/アドレスが一致するだけでは再利用できない。
 
 ## 5. 計算量と限界
 
-新規の任意Worldに対する一般的なactor・target分類は最低限 \`Ω(A+G)\` の初回検査が必要。全体走査の後で同じ項目を再走査しないよう、メンバー集約・read/write統計・時間境界を一度に構築する。
+新規の任意Worldに対する一般的なactor・target分類は最低限 `Ω(A+G)` の初回検査が必要。全体走査の後で同じ項目を再走査しないよう、メンバー集約・read/write統計・時間境界を一度に構築する。
 
 | 処理 | 目標計算量（条件付き） |
 | --- | --- |
-| 一般的な初回分類 | \`O(A+G+dependency_edges)\` + RulePlan解析 |
+| 一般的な初回分類 | `O(A+G+dependency_edges)` + RulePlan解析 |
 | 再利用時の有効性確認 | 変更された依存数/版参照に比例 |
 | Dirty伝播 | 到達した依存辺数に比例 |
 | 未知のグローバル依存 | 参照へfallback（計算削減保証なし） |
 
-\`A\` は作用主体、\`G\` は候補因果領域数。これらは**目標**であり、現行Enbuの達成済み性能ではない。観測負荷・全体集計が支配的ならPlannerでの投資自体が損になる。[Dispatcher](DISPATCHER.md) はこの費用も評価する。
+`A` は作用主体、`G` は候補因果領域数。これらは**目標**であり、現行Enbuの達成済み性能ではない。観測負荷・全体集計が支配的ならPlannerでの投資自体が損になる。[Dispatcher](DISPATCHER.md) はこの費用も評価する。
 
 ## 6. 実装・検証ゲート
 
