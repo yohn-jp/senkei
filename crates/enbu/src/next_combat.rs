@@ -479,6 +479,44 @@ pub fn outcome(world: &WorldState) -> Option<MatchOutcome> {
     }
 }
 
+/// Same-snapshot attack eligibility visibility, computed at most once per side
+/// and target instead of repeating the entire vision-source search for every
+/// attacker/target candidate. This is a physical-only cache: its lifetime is
+/// one immutable pre-movement snapshot, and it never becomes authoritative
+/// across a movement, reveal, spawn, or death boundary.
+pub(crate) struct CombatVisibilityIndex {
+    attacker: BTreeSet<EntityId>,
+    defender: BTreeSet<EntityId>,
+}
+
+impl CombatVisibilityIndex {
+    pub(crate) fn for_snapshot(snapshot: &WorldState, rules: &NextRules) -> Self {
+        let attacker_sources = crate::next_vision::vision_sources(snapshot, rules, CombatantSide::Attacker);
+        let defender_sources = crate::next_vision::vision_sources(snapshot, rules, CombatantSide::Defender);
+        let mut attacker = BTreeSet::new();
+        let mut defender = BTreeSet::new();
+        for (id, target) in &snapshot.entities {
+            if !support::alive(target) || !is_targetable(target) {
+                continue;
+            }
+            if crate::next_vision::visible_from_sources(&attacker_sources, rules, CombatantSide::Attacker, target) {
+                attacker.insert(id.clone());
+            }
+            if crate::next_vision::visible_from_sources(&defender_sources, rules, CombatantSide::Defender, target) {
+                defender.insert(id.clone());
+            }
+        }
+        Self { attacker, defender }
+    }
+
+    fn contains(&self, side: CombatantSide, target: &EntityId) -> bool {
+        match side {
+            CombatantSide::Attacker => self.attacker.contains(target),
+            CombatantSide::Defender => self.defender.contains(target),
+        }
+    }
+}
+
 fn collect_basic_attacks(
     world: &mut WorldState,
     start: &WorldState,
@@ -487,6 +525,9 @@ fn collect_basic_attacks(
     mut collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
     let mut attacks = Vec::new();
+    // Most ticks do not require target selection for every actor. Build only
+    // after a ready attacker reaches the target-selection phase.
+    let mut visibility_index: Option<CombatVisibilityIndex> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
         let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
@@ -558,8 +599,9 @@ fn collect_basic_attacks(
             }
             continue;
         }
+        let visibility = visibility_index.get_or_insert_with(|| CombatVisibilityIndex::for_snapshot(start, rules));
         let selected = requested_target(source, start)
-            .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick));
+            .filter(|(target_id, target)| can_basic_attack_with_visibility(source_id, source, target_id, target, start, rules, tick, Some(visibility)));
         let selection = if selected.is_some() { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId };
         if let Some((target_id, _)) = &selected {
             if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
@@ -567,7 +609,7 @@ fn collect_basic_attacks(
         let selected = selected.or_else(|| {
             start.entities.iter()
                 .filter(|(target_id, target)| {
-                    let eligible = can_basic_attack(source_id, source, target_id, target, start, rules, tick);
+                    let eligible = can_basic_attack_with_visibility(source_id, source, target_id, target, start, rules, tick, Some(visibility));
                     if eligible {
                         if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
                     }
@@ -625,6 +667,19 @@ pub fn can_basic_attack(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
+    can_basic_attack_with_visibility(source_id, source, target_id, target, snapshot, rules, tick, None)
+}
+
+pub(crate) fn can_basic_attack_with_visibility(
+    source_id: &EntityId,
+    source: &EntityState,
+    target_id: &EntityId,
+    target: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    visibility: Option<&CombatVisibilityIndex>,
+) -> bool {
     if source_id == target_id
         || !support::alive(source)
         || !support::alive(target)
@@ -654,7 +709,10 @@ pub fn can_basic_attack(
         return false;
     }
     if let Some(source_side) = source_side {
-        if !crate::next_vision::visible(snapshot, rules, source_side, target) {
+        if !visibility.map_or_else(
+            || crate::next_vision::visible(snapshot, rules, source_side, target),
+            |index| index.contains(source_side, target_id),
+        ) {
             return false;
         }
     }
