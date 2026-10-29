@@ -8,7 +8,7 @@ Enbuの全Tick・全Entity逐次処理を唯一の物理実行方式とせず、
 
 既存の [Enbu](../ENBU.md)、[実行/CU](../EXECUTION.md)、[Senritsu](../SENRITSU.md)、[Jinrei](../JINREI.md)、[Replay](../REPLAY.md) が所有するゲーム規則・論理課金・観測・出力・権限は変更しない。同一のRustコアをnative/WASMの両方へコンパイルする。
 
-Hybridは**実行のポートフォリオ**であり、単独の戦闘アルゴリズムではない。TSのSimulation Labにある \`active\`/\`heap\`/\`bucket\`/\`periodic\`/\`hybrid\`/\`adaptive\`/\`arithmetic\`/\`scan\`/\`phase_cache\`/\`planned\` はアルゴリズム研究の出発点である。その合成モデルはJinrei・CU・実際のFog/Replayを含まないため、実測倍率や適用可能性をそのまま本番へ持ち込まない。
+Hybridは**実行のポートフォリオ**であり、単独の戦闘アルゴリズムではない。TSのSimulation Labにある `active`/`heap`/`bucket`/`periodic`/`hybrid`/`adaptive`/`arithmetic`/`scan`/`phase_cache`/`planned` はアルゴリズム研究の出発点である。その合成モデルはJinrei・CU・実際のFog/Replayを含まないため、実測倍率や適用可能性をそのまま本番へ持ち込まない。
 
 ## 2. 三つの独立した問い
 
@@ -40,11 +40,11 @@ Hybridは**実行のポートフォリオ**であり、単独の戦闘アルゴ�
 | **Materialization** | 実体化 | 省略/集約した物理区間から必要な正本状態・各Tick出力を正確に生成 |
 | **Fallback** | 参照復帰 | 適用証明不能/無効化/コスト不利でReference Tickへ安全に切替 |
 
-\`Hybrid\` と \`Adaptive\` はStrategy IDではなく、**Dispatcherによる組み合わせと選択方針**を指す。\`Heap\`・\`Bucket\`・\`Scan\` はEvent Queueファミリの別カーネル。名称の類似で同一能力と扱わない。
+`Hybrid` と `Adaptive` はStrategy IDではなく、**Dispatcherによる組み合わせと選択方針**を指す。`Heap`・`Bucket`・`Scan` はEvent Queueファミリの別カーネル。名称の類似で同一能力と扱わない。
 
 ## 4. 処理の全体像
 
-\`\`\`text
+```text
 VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
                        |
                  Execution Planner
@@ -73,7 +73,7 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
                    or fallback
                     |
           Reference Tick Executor
-\`\`\`
+```
 
 「次のイベントまで何もない」はスキップの証明ではない。Jinreiの毎Tick評価、クールダウン、スキル、Minion wave、施設、Fog、スクアッド成熟、診断/CUなどを含むRead/Write・時間依存義務を登録・検証し、証明できない場合はReferenceへ戻る。
 
@@ -105,6 +105,6 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
 
 ## 7. 成功指標
 
-速さは \`dispatch\` 単独でなく、RulePlan検証/準備、計画、切替、実行、必要な観測/Replay生成、シリアライズ、WASM host転送を区分して**総時間**で測る。併せて判定数、状態コピー量、イベント処理数、実体化Tick数、メモリを測定する。各ケースで「何を飛ばせたか」「何をまだ毎Tick計算する必要があるか」を報告する。
+速さは `dispatch` 単独でなく、RulePlan検証/準備、計画、切替、実行、必要な観測/Replay生成、シリアライズ、WASM host転送を区分して**総時間**で測る。併せて判定数、状態コピー量、イベント処理数、実体化Tick数、メモリを測定する。各ケースで「何を飛ばせたか」「何をまだ毎Tick計算する必要があるか」を報告する。
 
-現行 \`crates/enbu/src/lib.rs::simulate_inner\` は \`for tick in 1..=max_ticks\` の参照方式。R/V/T/C/Sの物理最適化やPR内の変更は**Hybrid実行基盤そのものではない**。採用を先取りしない。
+現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` の参照方式。R/V/T/C/Sの物理最適化やPR内の変更は**Hybrid実行基盤そのものではない**。採用を先取りしない。
