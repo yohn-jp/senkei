@@ -552,6 +552,11 @@
 .is-battle-workspace .next-diagnostic-toggle small { font-size: 7px; }
 .is-battle-workspace .next-match-badge { font-size: 7px; max-width: 45%; }
 .is-battle-workspace .next-battle-stage { background: #182a2a; border: 1px solid rgba(214,225,218,.12); flex: 1 1 auto; height: auto; min-height: 360px; overflow: hidden; position: relative; }
+/* The desktop replay is the primary surface, even when diagnostics add controls. */
+@media (min-width: 761px) {
+  .is-battle-workspace .next-battle-stage { min-height: max(360px, 55dvh); flex-shrink: 0; }
+  .next-workspace.is-battle-workspace { overflow-y: auto; }
+}
 .is-battle-workspace .next-renderer-host { height: 100%; inset: 0; min-height: 0; position: absolute; width: 100%; }
 .is-battle-workspace .next-renderer-host canvas { height: 100%; width: 100%; }
 .is-battle-workspace .next-stage-hud { align-items: center; bottom: auto; font-size: 7px; left: 0; padding: 10px 12px; right: 0; top: 0; }
@@ -630,6 +635,9 @@
   .is-battle-workspace .next-result-disclosure > summary span,
   .is-battle-workspace .next-result-disclosure > summary small { font-size: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .is-battle-workspace .next-battle-mobile-tabs { align-items: stretch; background: rgba(11,18,22,.97); border: 1px solid rgba(214,225,218,.12); border-radius: 5px; display: flex; flex: 0 0 53px; gap: 2px; justify-content: space-around; margin-bottom: 0; padding: 3px 3px calc(3px + env(safe-area-inset-bottom)); z-index: 8; }
+  /* Keep the mobile replay switcher reachable after returning from Jinrei/Analysis. */
+  .is-battle-workspace .next-battle-mobile-tabs { position: fixed; bottom: env(safe-area-inset-bottom); left: 8px; right: 8px; width: auto; z-index: 20; }
+  .is-battle-workspace .next-panel.next-battle-panel { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .is-battle-workspace .next-battle-mobile-tabs button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 4px; color: #a9b8ad; cursor: pointer; display: flex; flex: 1 1 0; font-size: 11px; font-weight: 600; justify-content: center; min-height: 44px; min-width: 0; padding: 3px 0; white-space: nowrap; }
   .is-battle-workspace .next-battle-mobile-tabs button > span { display: none; }
   .is-battle-workspace .next-battle-mobile-tabs button > span { color: #9eb18f; font-size: 15px; line-height: 1; }
