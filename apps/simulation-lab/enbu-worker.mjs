@@ -52,8 +52,8 @@ self.onmessage = async ({data}) => {
     ]);
     if (fixtures.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu-matrix/v1' ||
       fixtures.revision !== build.revision || manifest.revision !== build.revision ||
-      !Array.isArray(manifest.variants) || manifest.variants.length !== 12) {
-      throw new Error('Enbu golden fixtures and all twelve WASM variants must share one revision');
+      !Array.isArray(manifest.variants) || manifest.variants.length !== 13) {
+      throw new Error('Enbu golden fixtures and all thirteen WASM variants must share one revision');
     }
     const selectedCases = data.caseId === 'all' ? fixtures.cases : fixtures.cases.filter(c => c.id === data.caseId);
     if (!selectedCases?.length) throw new Error('Unknown production Enbu case');
