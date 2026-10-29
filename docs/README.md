@@ -53,7 +53,8 @@
 | [GRAPHICS-DELIVERY.md](GRAPHICS-DELIVERY.md) | 描画の段階実装、Fixture、検証・スコープ |
 | [SIMULATION.md](SIMULATION.md) | 決定論、実行順序、再現、デバッグ・安全性 |
 | [simulation-optimization/README.md](simulation-optimization/README.md) | **研究候補**：Senrei計算の数理的圧縮・混成実行・物理最適化・実測計画。既存の意味論は変更しない |
-| [../apps/simulation-lab/README.md](../apps/simulation-lab/README.md) | **Simulation Lab**：実ブラウザで14ケース×7方式を差分検証・実測する静的サイト（合成JSモデル、本番Enbuとは別） |
+| [enbu-execution/README.md](enbu-execution/README.md) | **Hybrid Enbu実行基盤の設計契約案**：用語、意味論、因果Planner、Dispatcher、Scheduler、Strategy別方式、Replay/Fog/CU、同値性、移行ゲート。既存全Tickエンジンから移行する計画であり実装済みではない |
+| [../apps/simulation-lab/README.md](../apps/simulation-lab/README.md) | **Simulation Lab**：合成JSで11方式・14ケースの研究、および実Enbu Rust/WASMの別レーンによる比較。合成モデルの一致・速度は本番Enbuの適用証明ではない |
 | [ONLINE.md](ONLINE.md) | 将来の非同期PvP、公式戦、ランキング、Cloudflare |
 | [DELIVERY.md](DELIVERY.md) | 実装順・各段階の完了条件・未決定事項 |
 | [implementation/WEB-API.md](implementation/WEB-API.md) | React shell・Web Worker・WASM間の型付き境界 |
@@ -74,6 +75,10 @@
 UX-INTERACTION-CONTRACTSは採用後に画面間の状態保持・操作結果を所有し、PRE-BATTLE-FLOWS／SCREENSと相互参照する。PROGRESSION-UXは追加機能を実装する段階の導線であり、現在のG2とは別の適用範囲を持つ。
 
 [implementation/UX-FLOW-GAP-REVIEW.md](implementation/UX-FLOW-GAP-REVIEW.md) は特定SHAのコードと文書を照合した根拠記録であり、正本や実画面の受入証明ではない。実装未達、文書の空白、将来拡張、実機未検証を分けて読む。
+
+## Hybrid実行方式と既存の正本
+
+[enbu-execution/README.md](enbu-execution/README.md) は、**既存Enbuのゲーム規則を変えずに**計算量を減らすための、新しい設計契約案の入口である。各StrategyのEligibility/依存無効化/Reference fallbackは同ディレクトリで定義する。既存の [ENBU.md](ENBU.md)、[EXECUTION.md](EXECUTION.md)、[REPLAY.md](REPLAY.md)、[JINREI-GRAMMAR.md](JINREI-GRAMMAR.md) とRulePlanが意味論上優先する。研究のTS Simulation Labで得た倍率を本番の性能・完全一致の根拠として使わない。
 
 ## 変更の作法
 
