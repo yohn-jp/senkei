@@ -115,3 +115,11 @@ Local direct file serving of `apps/simulation-lab/` **cannot** load the real
 WASM suite because its fixture/manifest/revisioned WASM artifacts are generated
 by the Pages workflow. Synthetic algorithms still run independently. Use the
 published page, or serve the complete assembled `_site/` build output.
+
+A **full-factorial marginal-effect report** measures T, C and S independently:
+for each feature, it compares the ON and OFF versions in each of the four
+contexts formed by the other two features, on every selected real Enbu case.
+The geometric mean of those paired *configuration* ratios is shown beside
+best/worst and regressed comparisons. These are descriptive cross-build
+statistics, not causal attribution to isolated instructions or confidence
+intervals; rerun on a quiet device before promoting a marginal advantage.

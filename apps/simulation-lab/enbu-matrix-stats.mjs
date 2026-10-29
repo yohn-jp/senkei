@@ -46,3 +46,36 @@ export function rankVariants(rows, manifest) {
   }
   return ranked.sort((a, b) => b.aggregate_ratio - a.aggregate_ratio || a.id.localeCompare(b.id));
 }
+
+/** Full 2^3 factorial marginal effects, averaging all other feature contexts.
+ * Ratio > 1 means enabling the feature tends to reduce the same dispatch time.
+ * Descriptive only, and available only after all eight masks are verified.
+ */
+export function factorialEffects(rows) {
+  const cases = [...new Set(rows.map(row => row.id))];
+  if (!cases.length) return [];
+  const lookup = new Map(rows.filter(row => row.verified).map(row => [row.id + '/' + row.variant, row]));
+  if (cases.some(id => Array.from({length: 8}, (_, i) =>
+    id + '/' + i.toString(2).padStart(3, '0')).some(key => !lookup.has(key)))) return [];
+  return [
+    ['T', 4, 'lab-opt-termination'],
+    ['C', 2, 'lab-opt-cohort'],
+    ['S', 1, 'lab-opt-shields'],
+  ].map(([id, bit, feature]) => {
+    const ratios = [];
+    for (const caseId of cases) {
+      for (let mask = 0; mask < 8; mask++) {
+        if (mask & bit) continue;
+        const off = lookup.get(caseId + '/' + mask.toString(2).padStart(3, '0'));
+        const on = lookup.get(caseId + '/' + (mask | bit).toString(2).padStart(3, '0'));
+        ratios.push(Math.max(off.stats.median_ms, Number.EPSILON) /
+          Math.max(on.stats.median_ms, Number.EPSILON));
+      }
+    }
+    return {id, feature, comparisons: ratios.length,
+      geometric_mean_ratio: Math.exp(ratios.reduce((sum, ratio) =>
+        sum + Math.log(ratio), 0) / ratios.length),
+      worst_ratio: Math.min(...ratios), best_ratio: Math.max(...ratios),
+      regressions: ratios.filter(ratio => ratio < .98).length};
+  });
+}

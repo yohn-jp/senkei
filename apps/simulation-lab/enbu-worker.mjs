@@ -1,5 +1,5 @@
 import {createEnbuDispatcher} from './enbu-wasm-abi.mjs';
-import {summarizeSamples, pairedSpeedups, rankVariants} from './enbu-matrix-stats.mjs';
+import {summarizeSamples, pairedSpeedups, rankVariants, factorialEffects} from './enbu-matrix-stats.mjs';
 
 async function loadJson(path) {
   const response = await fetch(new URL(path, import.meta.url), {cache: 'no-store'});
@@ -110,6 +110,7 @@ self.onmessage = async ({data}) => {
       }
     }
     const ranking = rankVariants(rows, manifest);
+    const effects = factorialEffects(rows);
     self.postMessage({type:'complete', report: {
       schema:'senkei-enbu-matrix-report/v1',engine:'production-enbu-rust-wasm',
       source_revision: manifest.revision, environment: navigator.userAgent,
@@ -122,7 +123,7 @@ self.onmessage = async ({data}) => {
       },
       variants: manifest.variants, loads: Object.fromEntries(variants.map(v => [v.id, v.load])),
       cases: selectedCases.map(c => ({id:c.id,ticks:c.ticks})),
-      rows,ranking,
+      rows,ranking,effects,
     }});
   } catch(error) {
     self.postMessage({type:'error',message:error instanceof Error ? error.message : String(error)});

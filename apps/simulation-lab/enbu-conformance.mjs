@@ -3,7 +3,7 @@
 import {readFile, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createEnbuDispatcher} from './enbu-wasm-abi.mjs';
-import {summarizeSamples, pairedSpeedups, rankVariants} from './enbu-matrix-stats.mjs';
+import {summarizeSamples, pairedSpeedups, rankVariants, factorialEffects} from './enbu-matrix-stats.mjs';
 
 const root = new URL('../../_site/simulation-lab/', import.meta.url);
 const json = async filename => JSON.parse(await readFile(new URL(filename, root), 'utf8'));
@@ -97,16 +97,18 @@ for (const current of fixture.cases) {
   cases.push({id: current.id, ticks: current.ticks, golden_sha256: current.response_sha256});
 }
 const ranking = rankVariants(rows, manifest);
-if (ranking.length !== 8) throw Error('Not all feature masks have complete verified benchmark evidence');
+const effects = factorialEffects(rows);
+if (ranking.length !== 8 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +
     `bytes=${row.bytes}`);
 }
+for (const effect of effects) console.log(`FACTOR ${effect.id} marginal-geomean=${effect.geometric_mean_ratio.toFixed(3)}x worst=${effect.worst_ratio.toFixed(3)}x regressions=${effect.regressions}/${effect.comparisons}`);
 const report = {schema:'senkei-enbu-matrix-report/v1', engine:'production-enbu-rust-wasm',
   source_revision: manifest.revision, environment: `Node ${process.version}, ${process.platform}/${process.arch}`,
   measured_boundary: 'WASM JSON ABI dispatch including Rust decode, Enbu, encode; host input/output measured separately',
   timing_proof: 'every timed full JSON response matches native Rust SHA-256',
   ranking_method: 'equal-case geometric mean of baseline/candidate median; descriptive only',
-  sample_count: sampleCount, cases, variants: manifest.variants, rows, ranking};
+  sample_count: sampleCount, cases, variants: manifest.variants, rows, ranking, effects};
 await writeFile(new URL('enbu-ci-report.json', root), JSON.stringify(report, null, 2));

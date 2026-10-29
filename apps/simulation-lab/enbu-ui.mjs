@@ -16,6 +16,7 @@ function resetResults() {
   report = null;
   byId('enbu-results').replaceChildren();
   byId('enbu-ranking').replaceChildren();
+  byId('enbu-effects').replaceChildren();
   byId('enbu-report').value = '';
   byId('enbu-ranking-note').textContent =
     '各ケースの中央値を参照版と比較し、すべてのケースを確認した構成だけ順位付けします。';
@@ -52,6 +53,23 @@ function showRanking(ranking, cases) {
   byId('enbu-ranking-note').textContent =
     cases.length + '条件の同重み幾何平均。速度比1.000×が参照。順位は測定ノイズの影響を受け、数%差なら別端末・別実行で再検証が必要です。';
 }
+function showEffects(effects) {
+  const list = byId('enbu-effects');
+  list.replaceChildren();
+  if (!effects?.length) {
+    const item = document.createElement('li');
+    item.textContent = '個別寄与度には全8構成の比較が必要です。';
+    list.append(item);
+    return;
+  }
+  for (const effect of effects) {
+    const item = document.createElement('li');
+    item.textContent = effect.id + ': 平均 ' + effect.geometric_mean_ratio.toFixed(3) +
+      '× · 最悪 ' + effect.worst_ratio.toFixed(3) + '× · 悪化 ' +
+      effect.regressions + '/' + effect.comparisons + '比較';
+    list.append(item);
+  }
+}
 function finish(message) {
   if (worker) {
     worker.terminate();
@@ -78,6 +96,7 @@ function run(event) {
       report = data.report;
       byId('enbu-report').value = JSON.stringify(report, null, 2);
       showRanking(report.ranking, report.cases);
+      showEffects(report.effects);
       finish('検証成功: ' + report.cases.length +
         '条件・' + Object.keys(report.loads).length +
         '構成がNative Rustの応答全文と一致しました');

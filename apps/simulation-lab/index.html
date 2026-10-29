@@ -74,6 +74,9 @@
         <h3>最適化構成の順位</h3>
         <p class="inspector-intro" id="enbu-ranking-note">完了後、選択した実戦ケースにおける中央値速度比の幾何平均で順位を表示します。小差・測定ノイズは優劣未確定として扱ってください。</p>
         <ol id="enbu-ranking"></ol>
+        <h3>最適化ごとの平均寄与</h3>
+        <p class="inspector-intro">T・C・Sの各項目について、ほかの2項目の全4組合せで「ON/OFF」を比較します。すべての選択ケースを同重みで集計します。</p>
+        <ul id="enbu-effects"></ul>
         <div class="report-preview"><div class="report-preview-head"><label for="enbu-report">完全一致証明・計測内訳・WASMサイズ・起動時間を含むJSON</label></div><textarea id="enbu-report" readonly spellcheck="false" placeholder="全構成と全ケースの検証が完了すると表示します。"></textarea></div>
         <p class="inspector-intro">dispatchはRustによるJSON解析・Enbu計算・結果生成を含みます。JavaScript側の入力転送・出力デコードは別計測します。順位は測定条件に依存する参考値で、全ゲーム状態・全端末での優位性を証明するものではありません。</p>
       </section>

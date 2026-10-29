@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {summarizeSamples, pairedSpeedups, rankVariants} from './enbu-matrix-stats.mjs';
+import {summarizeSamples, pairedSpeedups, rankVariants, factorialEffects} from './enbu-matrix-stats.mjs';
 
 test('median and nearest-rank p95 have explicit small-sample behavior', () => {
   assert.deepEqual(summarizeSamples([9, 1, 3, 4, 7]),
@@ -21,4 +21,18 @@ test('matrix ranks only full and verified combinations and reports worst-case re
   assert.deepEqual(out.map(v=>v.id),['001','000']);
   assert.equal(out[0].regressed_cases,1);
   assert.equal(out[0].worst_ratio,.8);
+});
+
+test('full-factorial effects isolate each feature across all other contexts', () => {
+  const fixture = Array.from({length: 8}, (_, mask) => ({
+    id:'same', variant:mask.toString(2).padStart(3,'0'), verified:true,
+    stats:{median_ms:(mask & 4) ? 5 : 10},
+  }));
+  const effects = factorialEffects(fixture);
+  assert.deepEqual(effects.map(e=>e.id), ['T','C','S']);
+  assert.equal(effects[0].geometric_mean_ratio,2);
+  assert.equal(effects[1].geometric_mean_ratio,1);
+  assert.equal(effects[2].geometric_mean_ratio,1);
+  assert.equal(effects[0].comparisons,4);
+  assert.deepEqual(factorialEffects(fixture.slice(1)),[]);
 });
