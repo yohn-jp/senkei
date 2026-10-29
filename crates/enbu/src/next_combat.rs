@@ -1656,6 +1656,44 @@ mod tests {
     }
 
     #[test]
+    fn tick_visibility_index_matches_authoritative_predicate_and_attack_eligibility() {
+        let config = rules();
+        for reveal in [false, true] {
+            for far_alive in [false, true] {
+                let mut snapshot = WorldState::default();
+                insert(&mut snapshot, "attacker", entity("hero", Some(CombatantSide::Attacker), 0, 100, 10, 50));
+                insert(&mut snapshot, "defender", entity("minion", Some(CombatantSide::Defender), 10, 100, 10, 50));
+                insert(&mut snapshot, "near-neutral", entity("monster", None, 20, 100, 10, 50));
+                insert(&mut snapshot, "far-target", entity("hero", Some(CombatantSide::Defender), 400, if far_alive { 100 } else { 0 }, 10, 50));
+                insert(&mut snapshot, "structure", entity("tower", Some(CombatantSide::Defender), 30, 100, 10, 50));
+                insert(&mut snapshot, "not-targetable", entity("observation", None, 10, 100, 0, 0));
+                if reveal {
+                    support::set_int(snapshot.entities.get_mut(&EntityId::from("far-target")).unwrap(), "reveal_attacker_until", 3);
+                }
+                let index = CombatVisibilityIndex::for_snapshot(&snapshot, &config);
+                for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+                    for (target_id, target) in &snapshot.entities {
+                        if is_targetable(target) && support::alive(target) {
+                            assert_eq!(
+                                index.contains(side, target_id),
+                                crate::next_vision::visible(&snapshot, &config, side, target),
+                                "visibility differs for {side:?}/{target_id:?}, reveal={reveal}",
+                            );
+                        }
+                    }
+                }
+                for (source_id, source) in &snapshot.entities {
+                    for (target_id, target) in &snapshot.entities {
+                        let plain = can_basic_attack(source_id, source, target_id, target, &snapshot, &config, 1);
+                        let indexed = can_basic_attack_with_visibility(source_id, source, target_id, target, &snapshot, &config, 1, Some(&index));
+                        assert_eq!(plain, indexed, "attack differs for {source_id:?}/{target_id:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn autonomous_trace_is_taken_from_real_selection_and_attack_event() {
         let rules = rules();
         for (kind, owner) in [
