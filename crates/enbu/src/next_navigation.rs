@@ -103,12 +103,14 @@ fn advance_inner(
         let Some(entity) = world.entities.get_mut(&id) else {
             continue;
         };
-        let mut next = start.clone();
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
         let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
+        // Each ID is visited exactly once. Prior movement updates only their
+        // own entity, so this entity still equals the frozen snapshot at entry.
+        // Mutate in place instead of cloning every mobile EntityState per Tick.
         advance_entity(
             &id,
-            &mut next,
+            entity,
             rules,
             &movement,
             snapshot,
@@ -117,7 +119,6 @@ fn advance_inner(
             &mut cross_reservations,
             tick,
         );
-        *entity = next;
     }
 }
 
