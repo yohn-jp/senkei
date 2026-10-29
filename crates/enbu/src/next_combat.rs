@@ -481,29 +481,57 @@ pub fn outcome(world: &WorldState) -> Option<MatchOutcome> {
 }
 
 fn collect_basic_attacks(
-    world: &mut WorldState,
-    start: &WorldState,
-    rules: &NextRules,
-    tick: u32,
+    world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
-    // Reference remains an available, executable path for every input. The
-    // Planned kernel is opt-in until its complete Native/WASM parity is proven.
-    collect_basic_attacks_with_planner(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"))
+    collect_basic_attacks_with_execution(
+        world, start, rules, tick, collector,
+        cfg!(feature = "lab-opt-planned"), cfg!(feature = "lab-opt-arithmetic"),
+    )
 }
 
 fn collect_basic_attacks_with_planner(
+    world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
+    collector: Option<&mut ActorDecisionCollector>, use_planned: bool,
+) -> Vec<Hit> {
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, use_planned, cfg!(feature = "lab-opt-arithmetic"))
+}
+
+#[cfg(feature = "lab-opt-arithmetic")]
+fn collect_basic_attacks_with_dispatch(
+    world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
+    collector: Option<&mut ActorDecisionCollector>, use_dispatch: bool,
+) -> Vec<Hit> {
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"), use_dispatch)
+}
+
+#[cfg_attr(not(feature = "lab-opt-arithmetic"), allow(unused_variables))]
+fn collect_basic_attacks_with_execution(
     world: &mut WorldState,
     start: &WorldState,
     rules: &NextRules,
     tick: u32,
     mut collector: Option<&mut ActorDecisionCollector>,
     use_planned: bool,
+    use_dispatch: bool,
 ) -> Vec<Hit> {
+    #[cfg(feature = "lab-opt-arithmetic")]
+    let dispatch = if use_dispatch {
+        crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some())
+    } else {
+        crate::execution::dispatcher::BasicAttackPlan::Reference(
+            crate::execution::dispatcher::FallbackReason::ShortOrDenseWorkload,
+        )
+    };
+    #[cfg(feature = "lab-opt-arithmetic")]
+    if matches!(dispatch, crate::execution::dispatcher::BasicAttackPlan::ArithmeticIdle) {
+        return Vec::new();
+    }
+    #[cfg(feature = "lab-opt-arithmetic")]
+    let sources = dispatch.sources(start);
+    #[cfg(not(feature = "lab-opt-arithmetic"))]
+    let sources = start.entities.iter();
     let mut attacks = Vec::new();
-    // Compiled only on the first actual fallback to nearest-target search.
-    // Requested-target hits and idle/moving/locked/unready actors never pay
-    // its classification overhead.
     let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
@@ -526,8 +554,16 @@ fn collect_basic_attacks_with_planner(
         }
         grouped
     };
-    for (source_id, source) in &start.entities {
+    for (source_id, source) in sources {
         if !support::alive(source) || !is_combatant(source) {
+            continue;
+        }
+        #[cfg(feature = "lab-opt-arithmetic")]
+        if use_dispatch && collector.is_none()
+            && (support::int(source, "attack_ready") > i64::from(tick)
+                || support::int(source, "attack") <= 0
+                || support::int(source, "range") < 0)
+        {
             continue;
         }
         let mut decision_index = AutonomousActorKind::from_type(source.entity_type.as_str())
@@ -1753,6 +1789,68 @@ mod tests {
         let names = plan.candidates(tower).iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
         assert_eq!(names, vec!["enemy-hero"]);
         assert!(plan.candidates(tower).len() < snapshot.entities.len());
+    }
+
+    #[cfg(feature = "lab-opt-arithmetic")]
+    #[test]
+    fn arithmetic_dispatch_is_exactly_equivalent_to_reference_basic_attacks() {
+        let rules = rules();
+        for actors in [0_usize, 1, 4, 16, 32, 64] {
+            for tick in [1_u32, 3, 9] {
+                let mut start = WorldState::default();
+                for id in 0..actors {
+                    let (kind, side) = match id % 5 {
+                        0 => ("hero", Some(CombatantSide::Attacker)),
+                        1 => ("minion", Some(CombatantSide::Defender)),
+                        2 => ("monster", None),
+                        3 => ("tower", Some(CombatantSide::Attacker)),
+                        _ => ("base", Some(CombatantSide::Defender)),
+                    };
+                    let mut unit = entity(kind, side, i64::try_from(id % 20).unwrap(), if id % 11 == 0 { 0 } else { 100 }, 15, 100);
+                    support::set_int(&mut unit, "attack_ready",
+                        if id % 9 == 0 { i64::from(tick) + 5 } else if id % 9 == 1 { 0 } else { i64::from(tick) + 1 });
+                    support::set_int(&mut unit, "attack",
+                        if id % 8 == 0 { 0 } else { 15 });
+                    support::set_int(&mut unit, "vision", if id % 7 == 0 { 0 } else { 100 });
+                    if id % 6 == 1 {
+                        support::set_int(&mut unit, "action_lock_until", i64::from(tick) + 1);
+                    }
+                    if id % 9 == 1 && actors > 1 {
+                        support::set_string(&mut unit, "target",
+                            format!("source-{:03}", (id + 1) % actors));
+                    }
+                    insert(&mut start, &format!("source-{id:03}"), unit);
+                }
+                insert(&mut start, "irrelevant", entity("observation", None, 0, 100, 0, 0));
+
+                for trace in [false, true] {
+                    let mut reference = start.clone();
+                    let mut optimized = start.clone();
+                    let mut ref_trace = ActorDecisionCollector::new(20_000);
+                    let mut opt_trace = ActorDecisionCollector::new(20_000);
+                    let ref_hits = collect_basic_attacks_with_dispatch(
+                        &mut reference, &start, &rules, tick,
+                        if trace { Some(&mut ref_trace) } else { None }, false);
+                    let opt_hits = collect_basic_attacks_with_dispatch(
+                        &mut optimized, &start, &rules, tick,
+                        if trace { Some(&mut opt_trace) } else { None }, true);
+                    let signature = |hits: Vec<Hit>| hits.into_iter().map(|hit| {
+                        (hit.source, hit.target, hit.raw_power, hit.event,
+                         hit.uses_basic_attack, hit.decision_index)
+                    }).collect::<Vec<_>>();
+                    assert_eq!(signature(ref_hits), signature(opt_hits),
+                        "hit mismatch actor-count={actors} tick={tick} trace={trace}");
+                    assert_eq!(reference, optimized,
+                        "world mismatch actor-count={actors} tick={tick} trace={trace}");
+                    let canonical = ref_trace.records.iter().map(|d| &d.trace).collect::<Vec<_>>();
+                    let candidate = opt_trace.records.iter().map(|d| &d.trace).collect::<Vec<_>>();
+                    assert_eq!(canonical, candidate,
+                        "trace mismatch actor-count={actors} tick={tick} trace={trace}");
+                    assert_eq!(ref_trace.used(), opt_trace.used());
+                    assert_eq!(ref_trace.overflowed(), opt_trace.overflowed());
+                }
+            }
+        }
     }
 
     #[test]

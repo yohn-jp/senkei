@@ -27,5 +27,6 @@ lab-opt-visibility = []
 # First proof-scoped Hybrid strategy: snapshot-local Planned combat candidate index.
 # Reference scan remains the default and is used for all unsupported scopes.
 lab-opt-planned = []
+lab-opt-arithmetic = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

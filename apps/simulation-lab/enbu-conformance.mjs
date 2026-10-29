@@ -16,8 +16,8 @@ if (fixture.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu
   throw Error('Production Enbu artifacts are not from the same immutable revision');
 }
 if (!Array.isArray(fixture.cases) || fixture.cases.length !== 7 ||
-    !Array.isArray(manifest.variants) || manifest.variants.length !== 13) {
-  throw Error('Expected seven native golden fixtures and all thirteen optimizer masks');
+    !Array.isArray(manifest.variants) || manifest.variants.length !== 14) {
+  throw Error('Expected seven native golden fixtures and all fourteen optimizer masks');
 }
 const variants = [];
 const expectedVariants = Array.from({length:8}, (_, n) => ({
@@ -30,6 +30,7 @@ const expectedVariants = Array.from({length:8}, (_, n) => ({
   {id:'RV',features:['lab-opt-route','lab-opt-visibility']},
   {id:'TCSRV',features:['lab-optimizations','lab-opt-route','lab-opt-visibility']},
   {id:'P',features:['lab-opt-planned']},
+  {id:'A',features:['lab-opt-arithmetic']},
 ]);
 for (let n = 0; n < expectedVariants.length; n++) {
   const expected = expectedVariants[n].id;
@@ -47,7 +48,7 @@ for (let n = 0; n < expectedVariants.length; n++) {
   const {instance} = await WebAssembly.instantiate(bytes, {});
   variants.push({id: descriptor.id, dispatch: createEnbuDispatcher(instance.exports)});
 }
-console.log('PASS: all 13 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
+console.log('PASS: all 14 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
 
 const cases = [];
 const rows = [];
@@ -108,7 +109,7 @@ for (const current of fixture.cases) {
 }
 const ranking = rankVariants(rows, manifest);
 const effects = factorialEffects(rows);
-if (ranking.length !== 13 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
+if (ranking.length !== 14 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +

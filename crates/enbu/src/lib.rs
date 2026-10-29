@@ -24,10 +24,10 @@ mod next_squads;
 mod next_navigation;
 mod next_vision;
 pub(crate) mod next_fog;
+mod execution;
 mod next_combat;
 mod next_tactics;
 mod next_battlefield;
-mod execution;
 
 pub use validation::ENGINE_VERSION;
 
