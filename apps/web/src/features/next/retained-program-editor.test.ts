@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { catalogStamp, loadDomainCatalog } from "@senkei/jinrei-editor";
-import type { CompileOutcome, MatchResult, SimulationSnapshot, TacticalSource } from "../../contracts";
+import type { CompileOutcome, EditorCompilerEnvelope, MatchResult, SimulationSnapshot, TacticalSource } from "../../contracts";
 import { reproductionSnapshotDigest } from "../../worker/input-identity";
 import type { CoverageRun } from "./coverage-observed";
 import { RetainedProgramEditor } from "./RetainedProgramEditor";
@@ -35,7 +35,7 @@ async function setup() {
         identity: { schema_version: 1, side: "attacker", match_id: "match-a", result_digest: resultDigest,
           snapshot_digest: await reproductionSnapshotDigest(snapshot), program_digest: outcome.program.content_digest },
         events: [], cu_by_side: { attacker: 1 }, final_memory_by_side: { attacker: {} } } } } as unknown as CoverageRun;
-  const editorCompileRetained = vi.fn(async (request: { revision: number }) => ({ revision: request.revision,
+  const editorCompileRetained = vi.fn(async (request: { revision: number }): Promise<EditorCompilerEnvelope> => ({ revision: request.revision,
     reply: { status: "compiled", stamp, result: outcome } }));
   const core = { preflightReproduction: vi.fn().mockResolvedValue(undefined), editorCatalogRetained: vi.fn().mockResolvedValue(catalogJson),
     editorCompileRetained, formatRetainedAst: vi.fn().mockResolvedValue("original source") } as unknown as RetainedEditorCore;
