@@ -98,6 +98,30 @@ try {
   await writeFile(resolve(output, 'movement-window-production-comparison.json'),
     JSON.stringify(windowReport, null, 2));
   console.log('PASS: real Chromium Lab UI executed 16-Tick Behavior W/production paired comparison');
+  // Run a combat-heavy comparison through visible controls. All three
+  // buffers are the published Rust/WASM builds from the same revision.
+  await page.locator('#enbu-case').selectOption('quintet-64');
+  await page.locator('#enbu-variant').selectOption('TCSRVGX');
+  await page.locator('#enbu-run').click();
+  await expect(page.locator('#enbu-status'))
+    .toContainText('検証成功', { timeout: 120_000 });
+  const spatialReport = JSON.parse(await page.locator('#enbu-report').inputValue());
+  assert.equal(spatialReport.source_revision, build.revision);
+  assert.equal(spatialReport.cases[0].id, 'quintet-64');
+  assert.deepEqual(spatialReport.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGX']);
+  assert.equal(await page.locator('#enbu-results tr').count(), 3);
+  assert.ok(spatialReport.rows.every(row => row.verified && row.samples === 3));
+  assert.ok(spatialReport.rows.every(row => row.incumbent_speedup &&
+    Number.isFinite(row.incumbent_speedup.median_ratio)));
+  assert.deepEqual(errors, [], 'Spatial-index UI must not raise page errors');
+  await page.screenshot({
+    path: resolve(output, 'spatial-combat-production-comparison-1440.png'), fullPage: true,
+  });
+  await writeFile(resolve(output, 'spatial-combat-production-comparison.json'),
+    JSON.stringify(spatialReport, null, 2));
+  console.log('PASS: real Chromium UI verified 64-Tick combat spatial A/B with 3 WASM builds');
+
 
 } finally {
   await browser?.close();
