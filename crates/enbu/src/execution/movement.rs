@@ -72,7 +72,9 @@ fn field_equals(entity: &EntityState, key: &str, expected: &str) -> bool {
 pub(crate) struct MovementWindow {
     read_set: Vec<MovementKey>,
     active: Vec<EntityId>,
+    mobile_count: usize,
     initialized: bool,
+    pub(crate) skipped_sources: u64,
     pub(crate) reused: u64,
     pub(crate) rebuilt: u64,
 }
@@ -85,6 +87,7 @@ impl MovementWindow {
     pub(crate) fn eligible<'a>(&'a mut self, world: &WorldState) -> &'a [EntityId] {
         if self.initialized && self.valid(world) {
             self.reused += 1;
+            self.skipped_sources += self.mobile_count.saturating_sub(self.active.len()) as u64;
             return &self.active;
         }
         self.rebuilt += 1;
@@ -108,6 +111,9 @@ impl MovementWindow {
             }
         }
 
+        self.mobile_count = world.entities.values()
+            .filter(|entity| matches!(entity.entity_type.as_str(), "hero" | "minion" | "monster")
+                && support::alive(entity)).count();
         let mut active = Vec::<(u8, EntityId)>::new();
         for (id, actor) in &world.entities {
             let kind = actor.entity_type.as_str();
@@ -132,6 +138,7 @@ impl MovementWindow {
         }
         active.sort();
         self.active = active.into_iter().map(|(_, id)| id).collect();
+        self.skipped_sources += self.mobile_count.saturating_sub(self.active.len()) as u64;
         &self.active
     }
 
@@ -173,6 +180,7 @@ mod tests {
         assert!(ids(&mut window, &world).is_empty());
         assert!(ids(&mut window, &world).is_empty());
         assert_eq!(window.stats(), (1, 1));
+        assert_eq!(window.skipped_sources, 2, "both idle world Ticks must skip the Hero");
 
         world.entities.get_mut(&EntityId::from("hero-a")).unwrap()
             .fields.insert(FieldId::from("goal"), DomainValue::String("node-2".into()));
