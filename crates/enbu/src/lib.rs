@@ -657,24 +657,42 @@ fn simulate_inner<P: TacticalExecutionPort>(
             // Preparation reserves an exclusive action without moving anyone.
             let action_start = world.clone();
             next_battlefield::prepare(&mut world, &action_start, next, &accepted_by_side, tick);
-            // A skill-reservation snapshot is needed only if an accepted
-            // intent might actually activate a skill. For the overwhelmingly
-            // common all-movement/idle Tick it is a deep World clone with no
-            // corresponding transition; avoid allocating it entirely.
-            if accepted_by_side.iter().any(|(_, intent)| {
-                let capability = intent.capability.as_str();
-                capability == "activate" || capability.ends_with(".activate")
-            }) {
+            #[cfg(feature = "lab-opt-frozen")]
+            {
+                // An accepted Skill activation is the only reason to clone a
+                // reservation freeze. Preserve the unoptimized path when F
+                // is disabled for exact Source/Fixture A/B measurement.
+                if accepted_by_side.iter().any(|(_, intent)| {
+                    let capability = intent.capability.as_str();
+                    capability == "activate" || capability.ends_with(".activate")
+                }) {
+                    let skill_start = world.clone();
+                    next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+                }
+            }
+            #[cfg(not(feature = "lab-opt-frozen"))]
+            {
                 let skill_start = world.clone();
                 next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
             }
             let adjudication_start = world.clone();
-            // Reuse the exact post-reservation freeze already required by
-            // combat. Navigation previously deep-cloned the same World again.
-            if let Some(runtime) = route_runtime.as_mut() {
-                next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
-            } else {
-                next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
+            #[cfg(feature = "lab-opt-frozen")]
+            {
+                // The snapshot frozen for combat is identical to the movement
+                // freeze, so borrowing it avoids a deep clone each Tick.
+                if let Some(runtime) = route_runtime.as_mut() {
+                    next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
+                } else {
+                    next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
+                }
+            }
+            #[cfg(not(feature = "lab-opt-frozen"))]
+            {
+                if let Some(runtime) = route_runtime.as_mut() {
+                    next_navigation::advance_with_routes(&mut world, next, tick, runtime);
+                } else {
+                    next_navigation::advance(&mut world, next, tick);
+                }
             }
             next_events = if let Some(collector) = actor_collector.as_deref_mut() {
                 next_combat::resolve_from_snapshot_with_actor_decisions(&mut world, &adjudication_start, next, &accepted_by_side, tick, collector)
