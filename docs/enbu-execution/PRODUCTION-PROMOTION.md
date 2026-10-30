@@ -69,7 +69,7 @@ Pages jobs finish successfully. A queued, cancelled or ongoing run is not
 PASS. The browser acceptance runs against local copies of the exact
 published assets rather than an older live Pages revision.
 
-**Not promoted**: general Hybrid H/HS, because that run records regressions
+**Not promoted**: W / TCSRVGW certified MovementWindow remains behind an explicit feature until real Native/WASM A/B conformance and performance over TCSRVG are verified. It is phase-local, not a general whole-Tick skip. General Hybrid H/HS, because that run records regressions
 and no reliable end-to-end gain. A general whole-Tick scheduler that can
 materialize all public/owner frames and CU while skipping arbitrary
 Tick ranges is still not implemented; an optimized physical phase is
