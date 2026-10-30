@@ -122,11 +122,25 @@ pub fn string(e: &EntityState, key: &str) -> String {
     string_ref(e, key).to_owned()
 }
 pub fn set_int(e: &mut EntityState, key: &str, value: i64) {
+    // Most physical Tick writes update existing scalar fields. Preserve the
+    // existing canonical key and avoid allocating an equal FieldId each Tick.
+    if let Some(id) = cached_scalar_key(key) {
+        if let Some(current) = e.fields.get_mut(id) {
+            *current = DomainValue::Integer(value);
+            return;
+        }
+    }
     e.fields.insert(key.into(), DomainValue::Integer(value));
 }
 pub fn set_string(e: &mut EntityState, key: &str, value: impl Into<String>) {
-    e.fields
-        .insert(key.into(), DomainValue::String(value.into()));
+    let value = DomainValue::String(value.into());
+    if let Some(id) = cached_scalar_key(key) {
+        if let Some(current) = e.fields.get_mut(id) {
+            *current = value;
+            return;
+        }
+    }
+    e.fields.insert(key.into(), value);
 }
 pub fn alive(e: &EntityState) -> bool {
     int(e, "hp") > 0
@@ -683,6 +697,37 @@ mod borrowed_scalar_tests {
             assert_eq!(int(&e, key), 23);
             assert_eq!(scalar_value(&e, key), e.fields.get(&FieldId::from(key)));
         }
+    }
+
+    #[test]
+    fn cached_scalar_writes_match_original_btree_insert_on_existing_and_new_fields() {
+        let mut reference = EntityState {
+            entity_type: "hero".into(), owner: None, fields: BTreeMap::new(),
+        };
+        let mut optimized = reference.clone();
+        for (key, value) in [
+            ("hp", 100_i64), ("hp", 80), ("energy", 2),
+            ("energy", 5), ("future_extension", 9),
+            ("future_extension", 12),
+        ] {
+            reference.fields.insert(FieldId::from(key), DomainValue::Integer(value));
+            set_int(&mut optimized, key, value);
+            assert_eq!(optimized, reference);
+        }
+        for (key, value) in [
+            ("goal", "a"), ("goal", "b"),
+            ("catalog_id", "hero-001"), ("catalog_id", "hero-002"),
+            ("future_text", "a"), ("future_text", "b"),
+        ] {
+            reference.fields.insert(FieldId::from(key), DomainValue::String(value.into()));
+            set_string(&mut optimized, key, value);
+            assert_eq!(optimized, reference);
+        }
+        // Replacing an existing field with a different DomainValue kind is
+        // semantically identical to BTreeMap::insert.
+        reference.fields.insert("hp".into(), DomainValue::String("unknown".into()));
+        set_string(&mut optimized, "hp", "unknown");
+        assert_eq!(optimized, reference);
     }
 
     #[test]
