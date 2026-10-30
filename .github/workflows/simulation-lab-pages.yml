@@ -269,6 +269,19 @@ jobs:
         run: node apps/simulation-lab/enbu-conformance.mjs
       - name: Exercise published Simulation Lab Worker with real production WASM
         run: node apps/simulation-lab/enbu-publication-smoke.mjs
+      - name: Install Chromium for real Simulation Lab acceptance
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Exercise published Lab UI in real Chromium against Enbu WASM
+        run: node apps/simulation-lab/enbu-browser-smoke.mjs
+      - name: Preserve browser Lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-lab-real-browser-evidence
+          path: target/simulation-lab/browser-evidence/
+          if-no-files-found: ignore
       - name: Retain validated release site
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
