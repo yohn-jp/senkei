@@ -149,22 +149,27 @@ pub fn world_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> O
     if let Some(distance) = combat_distance2(a, b, rules) {
         return Some(distance);
     }
-    let endpoints = |entity: &EntityState| -> Option<Vec<(String, i64)>> {
-        let from = string(entity, "node");
-        let to = string(entity, "edge_to");
-        if to.is_empty() {
-            return rules.map.nodes.contains_key(&from).then_some(vec![(from, 0)]);
-        }
-        let edge = rules.map.edges.iter().find(|edge| {
-            (edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)
-        })?;
-        let progress = int(entity, "edge_progress").clamp(0, edge.length);
-        Some(vec![(from, progress), (to, edge.length - progress)])
-    };
-    let a_points = endpoints(a)?;
-    let b_points = endpoints(b)?;
+    let a_points = graph_endpoints(a, rules)?;
+    let b_points = graph_endpoints(b, rules)?;
     graph_distance_cached(&rules.map, &a_points, &b_points)
         .map(|distance| i128::from(distance) * i128::from(distance))
+}
+
+/// A frozen observer's endpoint references remain valid through the entire
+/// read-only geodesic query. No String copies are needed for edge endpoints.
+fn graph_endpoints<'a>(entity: &'a EntityState, rules: &NextRules)
+    -> Option<Vec<(&'a str, i64)>>
+{
+    let from = string_ref(entity, "node");
+    let to = string_ref(entity, "edge_to");
+    if to.is_empty() {
+        return rules.map.nodes.contains_key(from).then_some(vec![(from, 0)]);
+    }
+    let edge = rules.map.edges.iter().find(|edge| {
+        (edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)
+    })?;
+    let progress = int(entity, "edge_progress").clamp(0, edge.length);
+    Some(vec![(from, progress), (to, edge.length - progress)])
 }
 
 fn vision_graph_key(map: &BattleMap) -> VisionGraphKey {
@@ -192,7 +197,7 @@ fn vision_graph_matches(key: &VisionGraphKey, map: &BattleMap) -> bool {
         })
 }
 
-fn graph_distance_cached(map: &BattleMap, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
+fn graph_distance_cached(map: &BattleMap, from: &[(&str, i64)], to: &[(&str, i64)]) -> Option<i64> {
     VISION_GRAPH_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.as_ref().map_or(true, |(cached_key, _)| !vision_graph_matches(cached_key, map)) {
@@ -250,14 +255,14 @@ fn build_vision_graph_distances(map: &BattleMap) -> VisionGraphDistances {
     VisionGraphDistances { node_index, distances }
 }
 
-fn graph_distance_between(graph: &VisionGraphDistances, from: &[(String, i64)], to: &[(String, i64)]) -> Option<i64> {
+fn graph_distance_between(graph: &VisionGraphDistances, from: &[(&str, i64)], to: &[(&str, i64)]) -> Option<i64> {
     let mut best = None;
     for (source_node, source_offset) in from {
-        let Some(&source_index) = graph.node_index.get(source_node) else {
+        let Some(&source_index) = graph.node_index.get(*source_node) else {
             continue;
         };
         for (destination_node, destination_offset) in to {
-            let Some(&destination_index) = graph.node_index.get(destination_node) else {
+            let Some(&destination_index) = graph.node_index.get(*destination_node) else {
                 continue;
             };
             let Some(path) = graph.distances[source_index][destination_index] else {
