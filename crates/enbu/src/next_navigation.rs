@@ -2077,6 +2077,19 @@ mod tests {
     }
 
     #[test]
+    fn match_runner_frozen_snapshot_matches_public_navigation_entrypoint() {
+        let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
+        let mut before = WorldState::default();
+        before.entities.insert(id("a"), entity("hero", Some(CombatantSide::Attacker), 10, "a", "b"));
+        before.entities.insert(id("b"), entity("hero", Some(CombatantSide::Defender), 0, "b", "a"));
+        let mut reference = before.clone();
+        let mut reused = before.clone();
+        advance(&mut reference, &config, 1);
+        advance_from_snapshot(&mut reused, &before, &config, 1);
+        assert_eq!(reference, reused);
+    }
+
+    #[test]
     fn in_place_and_copy_on_move_are_world_equivalent_across_ticks() {
         let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
         let mut before = WorldState::default();
