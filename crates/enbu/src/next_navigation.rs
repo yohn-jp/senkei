@@ -2136,6 +2136,67 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "lab-opt-spatial")]
+    #[test]
+    fn spatial_attack_hold_matches_reference_across_owners_nodes_and_reversed_edges() {
+        let config = rules(test_map(vec![
+            edge("a", "b", 100, "lane", false),
+            edge("b", "c", 100, "lane", false),
+        ]));
+        let mut snapshot = WorldState::default();
+        for n in 0..60_usize {
+            let kind = match n % 5 {
+                0 => "hero",
+                1 | 4 => "minion",
+                2 => "monster",
+                _ => "hero",
+            };
+            let side = match n % 3 {
+                0 => Some(CombatantSide::Attacker),
+                1 => Some(CombatantSide::Defender),
+                _ => None,
+            };
+            let node = if n % 4 == 0 { "a" } else if n % 4 == 1 {
+                "b"
+            } else if n % 4 == 2 { "c" } else { "d" };
+            let mut actor = entity(kind, side, 10, node, if n % 5 == 0 { "b" } else { "" });
+            set_int(&mut actor, "attack", 20);
+            set_int(&mut actor, "range", 100);
+            set_int(&mut actor, "vision", 500);
+            if n % 4 == 0 {
+                set_string(&mut actor, "edge_to", "b");
+                set_int(&mut actor, "edge_progress", (n as i64) % 100);
+            } else if n % 4 == 1 {
+                set_string(&mut actor, "edge_to", "a");
+                set_int(&mut actor, "edge_progress", (n as i64) % 100);
+            }
+            snapshot.entities.insert(id(&format!("actor-{n:03}")), actor);
+        }
+        let index = crate::execution::strategies::planned::PlannedCombatCandidates::build(
+            &snapshot, &config,
+        );
+        let vision = crate::next_combat::CombatVisibilityIndex::for_snapshot(
+            &snapshot, &config,
+        );
+        let mut actually_reachable = 0;
+        for tick in [1_u32, 3, 11] {
+            for (actor_id, actor) in &snapshot.entities {
+                for visibility in [None, Some(&vision)] {
+                    let expected = should_hold_for_attack_indexed(
+                        actor_id, actor, &snapshot, &config, tick, visibility, None,
+                    );
+                    let spatial = should_hold_for_attack_indexed(
+                        actor_id, actor, &snapshot, &config, tick, visibility, Some(&index),
+                    );
+                    assert_eq!(expected, spatial,
+                        "movement auto-stop differs for {actor_id} on tick {tick}");
+                    if expected { actually_reachable += 1; }
+                }
+            }
+        }
+        assert!(actually_reachable > 0, "must exercise actual stoppable attacks");
+    }
+
     #[test]
     fn match_runner_frozen_snapshot_matches_public_navigation_entrypoint() {
         let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
