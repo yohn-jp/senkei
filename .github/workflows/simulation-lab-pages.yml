@@ -75,6 +75,7 @@ jobs:
       - name: Verify graph-local attack partition against real Next and owner traces
         run: |
           cargo test --locked --release -p enbu --features lab-opt-spatial --lib next_combat::tests::spatial_graph_partition_matches_reference_hits_and_owner_candidate_traces -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-spatial --lib next_navigation::tests::spatial_attack_hold_matches_reference_across_owners_nodes_and_reversed_edges -- --exact
           cargo test --locked --release -p enbu --features lab-opt-spatial --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
           cargo test --locked --release -p enbu --features lab-opt-spatial --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
       - name: Arithmetic dispatcher differential and real Jinrei gameplay
