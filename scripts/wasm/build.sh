@@ -38,11 +38,11 @@ if ! command -v wasm-ld >/dev/null 2>&1; then
 fi
 
 export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-# The production binary adopts the already proven real-Enbu TCSRV portfolio.
+# The production binary adopts the proven real-Enbu TCSRVG portfolio.
 # Explicit 'reference' remains the unoptimized control for certification.
-# Future promotions must come from full Native/WASM parity and total-time
+# Measured on the same revision: the G addition raised equal-case geometric\n# mean speedup from 1.012x (TCSRV) to 1.144x (TCSRVG), 7/7 exact\n# native full-response matches; Hybrid H/HS were slower and are not promoted.\n# Future promotions must come from full Native/WASM parity and total-time
 # measurements on the same immutable source revision.
-features="${SENKEI_WASM_FEATURES:-lab-optimizations,lab-opt-route,lab-opt-visibility}"
+features="${SENKEI_WASM_FEATURES:-lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache}"
 if [[ "$features" == reference ]]; then
   cargo build --locked --release --target "$target" -p "$crate" --lib
 else
