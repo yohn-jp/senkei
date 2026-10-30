@@ -28,7 +28,7 @@ lab-opt-visibility = []
 # Reference scan remains the default and is used for all unsupported scopes.
 lab-opt-planned = []
 # Frozen snapshot, canonical graph-local attack candidate partition.
-lab-opt-spatial = ["lab-opt-planned"]
+lab-opt-spatial = []
 lab-opt-arithmetic = []
 # Reuse immutable phase snapshots and skip impossible Skill acquisition copies.
 lab-opt-frozen = []

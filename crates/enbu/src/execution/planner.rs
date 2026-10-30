@@ -36,9 +36,14 @@ pub(crate) fn movement_phase(entity_count: usize, route_runtime: bool) -> bool {
 pub(crate) fn combat_phase(
     entity_count: usize, owner_trace: bool, hybrid: bool,
 ) -> CombatPhasePlan {
+    // Spatial is an independent Cargo strategy. It reuses the existing
+    // immutable Planned candidate representation as a *physical container*
+    // without implicitly enabling the lab-opt-planned feature in provenance.
+    let planned_enabled = cfg!(feature = "lab-opt-planned")
+        || cfg!(feature = "lab-opt-spatial");
     if !hybrid {
         return CombatPhasePlan {
-            planned: cfg!(feature = "lab-opt-planned"),
+            planned: planned_enabled,
             arithmetic: cfg!(feature = "lab-opt-arithmetic"),
         };
     }
@@ -48,7 +53,7 @@ pub(crate) fn combat_phase(
         return CombatPhasePlan { planned: false, arithmetic: false };
     }
     CombatPhasePlan {
-        planned: cfg!(feature = "lab-opt-planned") && entity_count >= PLANNED_MIN_ENTITIES,
+        planned: planned_enabled && entity_count >= PLANNED_MIN_ENTITIES,
         arithmetic: cfg!(feature = "lab-opt-arithmetic") && entity_count >= ARITHMETIC_MIN_ENTITIES,
     }
 }
