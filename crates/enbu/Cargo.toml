@@ -42,5 +42,7 @@ lab-opt-frontier = []
 lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier"]
 # Revalidate an exact combat-domain clock certificate across canonical Ticks.
 lab-opt-scheduler = []
+# Cross-Tick dependency-certified movement Active Set, preserves every Tick.
+lab-opt-movement-window = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

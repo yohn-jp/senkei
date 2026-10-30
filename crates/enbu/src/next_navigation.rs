@@ -87,10 +87,44 @@ fn advance_inner_with_mode(
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
-    mut routes: Option<&mut crate::next_route::Runtime>,
+    routes: Option<&mut crate::next_route::Runtime>,
     inplace: bool,
 ) {
-    let mut ids = snapshot
+    advance_inner_with_window(world, snapshot, rules, tick, routes, inplace, None);
+}
+
+/// Actual Enbu P7 entry point for the certified cross-Tick Active Set. The
+/// canonical movement implementation retains all semantics and reservations.
+#[cfg(feature = "lab-opt-movement-window")]
+pub(crate) fn advance_from_snapshot_window(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    window: &mut crate::execution::movement::MovementWindow,
+) {
+    advance_inner_with_window(world, snapshot, rules, tick, None,
+        cfg!(feature = "lab-opt-inplace"), Some(window));
+}
+
+fn advance_inner_with_window(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    mut routes: Option<&mut crate::next_route::Runtime>,
+    inplace: bool,
+    window: Option<&mut crate::execution::movement::MovementWindow>,
+) {
+    // Route waypoints can change without changing the source goal; only the
+    // separate route-free entry point may provide a certified Active Set.
+    debug_assert!(window.is_none() || routes.is_none());
+    let window_is_disabled = window.is_none();
+    let mut ids = if let Some(window) = window {
+        window.eligible(snapshot).iter().cloned()
+            .map(|id| (0_u8, id)).collect::<Vec<_>>()
+    } else {
+        snapshot
         .entities
         .iter()
         .filter(|(_, entity)| is_mobile(entity.entity_type.as_str()) && alive(entity))
@@ -104,9 +138,10 @@ fn advance_inner_with_mode(
                 id.clone(),
             )
         })
-        .collect::<Vec<_>>();
-    // Minion reservations have priority; stable identity resolves all ties.
-    ids.sort();
+        .collect::<Vec<_>>()
+    };
+    // The window already emits minion-first canonical order.
+    if window_is_disabled { ids.sort(); }
     let mut bridge_reservations = BTreeSet::<(String, String)>::new();
     let mut cross_reservations = BTreeSet::<(String, i64, String)>::new();
     // PR #71: lazily index visible combat targets once per immutable freeze.

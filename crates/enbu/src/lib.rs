@@ -367,6 +367,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
     // matches or authority boundaries. Every external Tick remains canonical.
     let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
     let mut reveal_frontier = execution::scheduler::RevealExpiryFrontier::default();
+    #[cfg(feature = "lab-opt-movement-window")]
+    let mut movement_window = execution::movement::MovementWindow::default();
     let mut materialization = execution::materialize::FullCaptureLedger::default();
     for tick in 1..=max_ticks {
         if final_outcome.is_some() {
@@ -738,7 +740,14 @@ fn simulate_inner<P: TacticalExecutionPort>(
             if let Some(runtime) = route_runtime.as_mut() {
                 next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
             } else {
-                next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
+                #[cfg(feature = "lab-opt-movement-window")]
+                next_navigation::advance_from_snapshot_window(
+                    &mut world, &adjudication_start, next, tick, &mut movement_window,
+                );
+                #[cfg(not(feature = "lab-opt-movement-window"))]
+                next_navigation::advance_from_snapshot(
+                    &mut world, &adjudication_start, next, tick,
+                );
             }
             next_events = if cfg!(feature = "lab-opt-scheduler") {
                 next_combat::resolve_from_snapshot_scheduled(

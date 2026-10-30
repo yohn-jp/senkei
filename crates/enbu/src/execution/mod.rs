@@ -2,6 +2,7 @@
 //! canonical phase transitions; strategies only narrow redundant physical work.
 pub(crate) mod strategies;
 pub(crate) mod scheduler;
+pub(crate) mod movement;
 pub(crate) mod materialize;
 pub(crate) mod planner;
 pub(crate) mod arithmetic;
