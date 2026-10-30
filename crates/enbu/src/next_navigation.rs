@@ -2221,6 +2221,9 @@ mod tests {
         let (reused, rebuilt) = window.stats();
         assert!(reused > 10, "the window was never physically reused: {reused}");
         assert!(rebuilt >= 5, "causal invalidation did not exercise reclassification: {rebuilt}");
+        assert!(window.skipped_sources >= 900,
+            "30 real Next Ticks must physically avoid repeated dormant-actor movement: {}",
+            window.skipped_sources);
     }
 
     #[test]
