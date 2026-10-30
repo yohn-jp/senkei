@@ -83,6 +83,15 @@ All candidates retained in a bucket pass through the unmodified
 eligibility, range, lane offsets, bridge/ford properties, reveal, source
 visibility, and effective original graph position are rechecked.
 
+The same frozen snapshot spatial buckets are also consumed by
+`next_navigation::should_hold_for_attack_indexed` when deciding whether a
+moving Hero/Minion/Monster should stop to engage. A lazy, snapshot-scoped
+`OnceCell` builds the buckets at most once in movement, and the same
+original `can_basic_attack_with_visibility` predicate remains the final
+arbiter. Route-runtime waypoints remain authoritative and are not
+invalidated or inferred from spatial candidates. This removes repeated
+global enemy scans from the Next navigation combat-hold check.
+
 **Trace fidelity:** Buckets are appended in original
 `WorldState.entities` BTreeMap ID order. `nearest_in_candidates`
 applies the same distance comparison and ID tie-break and emits identical
