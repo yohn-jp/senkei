@@ -442,7 +442,17 @@ mod tests {
 
     #[test]
     fn scoped_graph_cache_skips_only_stable_immutable_map_checks() {
-        let mut map = BattleMap::default();
+        let mut map = BattleMap {
+            id: "scoped-cache-test".into(),
+            world_identity: None,
+            world_projection: None,
+            nodes: BTreeMap::new(),
+            edges: Vec::new(),
+            lanes: BTreeMap::new(),
+            attacker_base: "a".into(),
+            defender_base: "c".into(),
+            towers: Vec::new(),
+        };
         map.nodes.insert("a".into(), MapNode::default());
         map.nodes.insert("b".into(), MapNode::default());
         map.nodes.insert("c".into(), MapNode::default());
