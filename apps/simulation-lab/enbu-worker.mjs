@@ -58,7 +58,8 @@ self.onmessage = async ({data}) => {
     const selectedCases = data.caseId === 'all' ? fixtures.cases : fixtures.cases.filter(c => c.id === data.caseId);
     if (!selectedCases?.length) throw new Error('Unknown production Enbu case');
     const descriptors = data.variantId === 'all' ? manifest.variants :
-      manifest.variants.filter(variant => variant.id === '000' || variant.id === data.variantId);
+      manifest.variants.filter(variant => variant.id === '000' || variant.id === data.variantId ||
+        (data.variantId === 'TCSRVGW' && variant.id === 'TCSRVG'));
     if (descriptors.length < 2 && data.variantId !== '000') throw new Error('Unknown optimizer mask');
     const variants = [];
     for (const descriptor of descriptors) {
@@ -98,6 +99,8 @@ self.onmessage = async ({data}) => {
           id: fixture.id, ticks: fixture.ticks, variant: variant.id, samples,
           verified: true, stats: summarizeSamples(records[variant.id]),
           speedup: pairedSpeedups(records['000'], records[variant.id]),
+          incumbent_speedup: records['TCSRVG']?.length
+            ? pairedSpeedups(records['TCSRVG'], records[variant.id]) : null,
           host_input_ms: summarizeSamples(hostInput[variant.id]).median_ms,
           wasm_dispatch_ms: summarizeSamples(dispatch[variant.id]).median_ms,
           host_output_ms: summarizeSamples(hostOutput[variant.id]).median_ms,
