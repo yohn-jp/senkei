@@ -831,7 +831,7 @@ fn nearest_basic_attack<'a>(
     let vision = source.owner.and_then(|side| planned.map(|plan| plan.vision_sources(side)));
     if let Some(plan) = planned {
         nearest_in_candidates(
-            plan.candidates(source).iter().copied(), source_id, source, start,
+            plan.candidates_for(source).iter().copied(), source_id, source, start,
             rules, tick, collector, decision_index, vision, visibility_index,
         )
     } else {
