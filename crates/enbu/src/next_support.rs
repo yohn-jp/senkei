@@ -294,25 +294,45 @@ pub fn world_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> O
     }
     let a_points = graph_endpoints(a, rules)?;
     let b_points = graph_endpoints(b, rules)?;
-    graph_distance_cached(&rules.map, &a_points, &b_points)
+    graph_distance_cached(&rules.map, a_points.as_slice(), b_points.as_slice())
         .map(|distance| i128::from(distance) * i128::from(distance))
 }
 
 /// A frozen observer's endpoint references remain valid through the entire
 /// read-only geodesic query. No String copies are needed for edge endpoints.
+/// Graph positions have at most two adjacent node endpoints. Keep these
+/// borrowed stack entries inline instead of allocating a Vec for each
+/// source/target vision-distance request.
+struct GraphEndpoints<'a> {
+    values: [(&'a str, i64); 2],
+    count: usize,
+}
+
+impl<'a> GraphEndpoints<'a> {
+    fn as_slice(&self) -> &[(&'a str, i64)] {
+        &self.values[..self.count]
+    }
+}
+
 fn graph_endpoints<'a>(entity: &'a EntityState, rules: &NextRules)
-    -> Option<Vec<(&'a str, i64)>>
+    -> Option<GraphEndpoints<'a>>
 {
     let from = string_ref(entity, "node");
     let to = string_ref(entity, "edge_to");
     if to.is_empty() {
-        return rules.map.nodes.contains_key(from).then_some(vec![(from, 0)]);
+        return rules.map.nodes.contains_key(from).then_some(GraphEndpoints {
+            values: [(from, 0), (from, 0)],
+            count: 1,
+        });
     }
     let edge = rules.map.edges.iter().find(|edge| {
         (edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)
     })?;
     let progress = int(entity, "edge_progress").clamp(0, edge.length);
-    Some(vec![(from, progress), (to, edge.length - progress)])
+    Some(GraphEndpoints {
+        values: [(from, progress), (to, edge.length - progress)],
+        count: 2,
+    })
 }
 
 fn vision_graph_key(map: &BattleMap) -> VisionGraphKey {
@@ -506,6 +526,38 @@ mod tests {
         // Outside the scope, even changing weights under the same map ID
         // must invalidate the cache and return the real graph distance.
         assert_eq!(world_distance2(&source, &target, &rules), Some(15 * 15));
+    }
+
+    #[test]
+    fn graph_endpoints_use_stack_storage_with_exact_node_and_edge_cardinality() {
+        let mut node = EntityState {
+            entity_type: "hero".into(), owner: None, fields: BTreeMap::new(),
+        };
+        set_string(&mut node, "node", "a");
+        let mut edge = node.clone();
+        set_string(&mut edge, "edge_to", "b");
+        set_int(&mut edge, "edge_progress", 3);
+        let rules = NextRules {
+            projection_policy: None, minion_control: None,
+            mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
+            map: BattleMap {
+                id: "stack-endpoints".into(), world_identity: None, world_projection: None,
+                nodes: ["a", "b"].into_iter().map(|id| (id.into(), MapNode::default())).collect(),
+                edges: vec![MapEdge {
+                    id: "ab".into(), from: "a".into(), to: "b".into(),
+                    length: 10, region: "lane".into(), ..Default::default()
+                }],
+                lanes: BTreeMap::new(), attacker_base: "a".into(),
+                defender_base: "b".into(), towers: Vec::new(),
+            },
+            heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(),
+            camps: Vec::new(), parameters: BTreeMap::new(),
+        };
+        assert_eq!(graph_endpoints(&node, &rules).unwrap().as_slice(), [("a", 0)]);
+        assert_eq!(graph_endpoints(&edge, &rules).unwrap().as_slice(),
+            [("a", 3), ("b", 7)]);
+        assert_eq!(world_distance2(&node, &edge, &rules), None);
     }
 
     #[test]
