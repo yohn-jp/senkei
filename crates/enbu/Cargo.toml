@@ -28,5 +28,7 @@ lab-opt-visibility = []
 # Reference scan remains the default and is used for all unsupported scopes.
 lab-opt-planned = []
 lab-opt-arithmetic = []
+# Reuse immutable phase snapshots and skip impossible Skill acquisition copies.
+lab-opt-frozen = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]
