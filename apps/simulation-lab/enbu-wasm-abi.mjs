@@ -1,4 +1,4 @@
-// JSON ABI shared by the actual game and all eight experimental Enbu builds.
+// JSON ABI shared by the production game and every independently verified Enbu WASM build.
 // Profiling is host-side: wasm_dispatch_ms also includes Rust JSON parse/serialize.
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 64_000_000;
