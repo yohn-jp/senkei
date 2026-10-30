@@ -2037,6 +2037,33 @@ mod tests {
     }
 
     #[test]
+    fn temporal_active_set_matches_dense_reference_with_sparse_ready_combatants() {
+        let config = rules();
+        let mut reference = WorldState::default();
+        for n in 0..64 {
+            let mut unit = entity("hero", Some(CombatantSide::Attacker), 0, 100, 7, 50);
+            support::set_int(&mut unit, "attack_ready", if n % 31 == 0 { 1 } else { 100 });
+            reference.entities.insert(format!("attacker-{n:02}").into(), unit);
+        }
+        reference.entities.insert("target".into(),
+            entity("minion", Some(CombatantSide::Defender), 10, 10_000, 0, 0));
+        let mut actual = reference.clone();
+        let frozen_ref = reference.clone();
+        let frozen_opt = actual.clone();
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+        let expected = resolve_from_snapshot(&mut reference, &frozen_ref, &config, &[], 1);
+        let observed = resolve_from_snapshot_scheduled(
+            &mut actual, &frozen_opt, &config, &[], 1, &mut frontier, None,
+        );
+        assert_eq!(observed, expected);
+        assert_eq!(actual, reference);
+        assert_eq!(
+            frontier.active_ids(1).unwrap().iter().map(EntityId::as_str).collect::<Vec<_>>(),
+            vec!["attacker-00", "attacker-31", "attacker-62"],
+        );
+    }
+
+    #[test]
     fn temporal_frontier_matches_reference_world_and_events_across_dynamic_ticks() {
         let config = rules();
         let mut reference = WorldState::default();
