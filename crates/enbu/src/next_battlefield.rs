@@ -85,6 +85,12 @@ pub fn prepare(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) {
+    #[cfg(feature = "lab-opt-frozen")]
+    if !accepted.iter().any(|(_, intent)| intent.capability.as_str() == "bridge_work") {
+        // Only bridge_work candidates can mutate a bridge/actor in prepare.
+        // Skipping the movement cohort index is safe when there are none.
+        return;
+    }
     let movement_cohorts = accepted.iter().filter_map(|(side, intent)| {
         if !matches!(intent.capability.as_str(), "move" | "retreat" | "pursue" | "select_track") {
             return None;

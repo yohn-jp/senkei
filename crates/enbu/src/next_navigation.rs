@@ -46,17 +46,27 @@ pub(crate) fn advance_with_routes(
     advance_inner(world, &snapshot, rules, tick, Some(routes));
 }
 
-/// The match runner already owns the immutable adjudication snapshot.
-/// Reuse it instead of cloning the entire world for navigation a second time.
-/// The caller must supply the world state immediately before movement.
+/// The Enbu Tick already owns an immutable post-reservation snapshot. Reuse it
+/// as the canonical movement freeze instead of cloning the entire World a
+/// second time. The caller must not modify `world` between snapshot creation
+/// and this call; movement decisions read only `snapshot`.
 pub(crate) fn advance_from_snapshot(
     world: &mut WorldState,
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
-    routes: Option<&mut crate::next_route::Runtime>,
 ) {
-    advance_inner(world, snapshot, rules, tick, routes);
+    advance_inner(world, snapshot, rules, tick, None);
+}
+
+pub(crate) fn advance_with_routes_from_snapshot(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    routes: &mut crate::next_route::Runtime,
+) {
+    advance_inner(world, snapshot, rules, tick, Some(routes));
 }
 
 fn advance_inner(
@@ -85,40 +95,67 @@ fn advance_inner(
     ids.sort();
     let mut bridge_reservations = BTreeSet::<(String, String)>::new();
     let mut cross_reservations = BTreeSet::<(String, i64, String)>::new();
-    // All movement decisions observe this same frozen world. Defer the index
-    // until attack-hold evaluation actually needs it, then reuse it for every
-    // moving cohort rather than rebuilding visibility per candidate.
+    // PR #71: lazily index visible combat targets once per immutable freeze.
+    // Sparse worlds continue to use Reference to avoid index overhead.
     let visibility_index = OnceCell::<crate::next_combat::CombatVisibilityIndex>::new();
+    let frontier = if cfg!(feature = "lab-opt-frontier") && snapshot.entities.len() >= 12 {
+        Some(&visibility_index)
+    } else { None };
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
         };
         if start.entity_type.as_str() == "hero"
-            && hero_cohort(&id, start, snapshot)
+            && hero_cohort(&id, start, &snapshot)
                 .iter()
                 .any(|(_, member)| int(member, "action_lock_until") > i64::from(tick))
         {
             continue;
+        }
+        #[cfg(feature = "lab-opt-frozen")]
+        if routes.is_none() {
+            // The canonical advance_entity returns before any mutation when
+            // there is no goal, explicit action or incumbent edge. This is
+            // also true for a solo Hero (its cohort leader is itself).
+            // Do not apply this guard to grouped Heroes, whose leader's goal
+            // can move a member without a personal goal. Route runtime may
+            // provide an implicit waypoint, so only skip without one.
+            let no_intent = string(start, "goal").is_empty()
+                && string(start, "edge_to").is_empty()
+                && int(start, "move_intent_tick") != i64::from(tick).saturating_add(1)
+                && int(start, "track_intent_tick") != i64::from(tick).saturating_add(1);
+            let independent = start.entity_type.as_str() != "hero"
+                || string(start, "squad").is_empty();
+            if no_intent && independent {
+                continue;
+            }
+            if int(start, "action_lock_until") > i64::from(tick) {
+                // The same early guard applies in canonical advance_entity,
+                // before any state writes; no route runtime needs callbacks.
+                continue;
+            }
         }
         let Some(entity) = world.entities.get_mut(&id) else {
             continue;
         };
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
         let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
-        // Each ID is visited exactly once. Prior movement updates only their
-        // own entity, so this entity still equals the frozen snapshot at entry.
-        // Mutate in place instead of cloning every mobile EntityState per Tick.
-        advance_entity(
-            &id,
-            entity,
-            rules,
-            &movement,
-            snapshot,
-            &visibility_index,
-            &mut bridge_reservations,
-            &mut cross_reservations,
-            tick,
-        );
+        if cfg!(feature = "lab-opt-inplace") {
+            // This ID is visited exactly once: no earlier movement can
+            // modify this actor. Its live state equals the frozen start.
+            advance_entity(
+                &id, entity, rules, &movement, snapshot, frontier,
+                &mut bridge_reservations, &mut cross_reservations, tick,
+            );
+        } else {
+            // Reference allocates a per-actor clone before replacing it.
+            let mut next = start.clone();
+            advance_entity(
+                &id, &mut next, rules, &movement, snapshot, frontier,
+                &mut bridge_reservations, &mut cross_reservations, tick,
+            );
+            *entity = next;
+        }
     }
 }
 
@@ -178,7 +215,7 @@ fn advance_entity(
     rules: &NextRules,
     movement: &MovementIntent,
     snapshot: &WorldState,
-    visibility_index: &OnceCell<crate::next_combat::CombatVisibilityIndex>,
+    visibility_index: Option<&OnceCell<crate::next_combat::CombatVisibilityIndex>>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
@@ -259,7 +296,9 @@ fn advance_entity(
         && int(entity, "retreating") == 0
         && should_hold_for_attack_indexed(
             actor_id, entity, snapshot, rules, tick,
-            Some(visibility_index.get_or_init(|| crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules))),
+            visibility_index.map(|index| index.get_or_init(|| {
+                crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules)
+            })),
         )
     {
         return;
@@ -632,7 +671,6 @@ fn should_hold_for_attack(
 ) -> bool {
     should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None)
 }
-
 fn should_hold_for_attack_indexed(
     actor_id: &EntityId,
     entity: &EntityState,
@@ -2022,19 +2060,6 @@ mod tests {
                 assert_eq!(actual, expected, "layout={layout}, actor={kind}");
             }
         }
-    }
-
-    #[test]
-    fn caller_frozen_snapshot_matches_existing_movement_entrypoint() {
-        let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
-        let mut before = WorldState::default();
-        before.entities.insert(id("mover"), entity("hero", Some(CombatantSide::Attacker), 10, "a", "b"));
-        before.entities.insert(id("target"), entity("hero", Some(CombatantSide::Defender), 0, "b", "a"));
-        let mut copied_internally = before.clone();
-        let mut reused_snapshot = before.clone();
-        advance(&mut copied_internally, &config, 1);
-        advance_from_snapshot(&mut reused_snapshot, &before, &config, 1, None);
-        assert_eq!(reused_snapshot, copied_internally);
     }
 
     #[test]

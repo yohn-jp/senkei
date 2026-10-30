@@ -25,14 +25,17 @@ enbu = { path = "../enbu" }
 senkei-editor-adapter = { path = "../senkei-editor-adapter" }
 
 [features]
-# The game and native dispatcher use the verified route + visibility fast paths.
-# Simulation Lab builds explicit --no-default-features baselines for A/B proof.
-default = ["production-enbu-optimizations"]
-production-enbu-optimizations = ["lab-opt-route", "lab-opt-visibility"]
-# Independently toggle the same Enbu code for controlled Lab experiments.
+# Build a second WASM from the same Enbu source for controlled Lab experiments.
 lab-opt-termination = ["enbu/lab-opt-termination"]
 lab-opt-cohort = ["enbu/lab-opt-cohort"]
 lab-opt-shields = ["enbu/lab-opt-shields"]
 lab-opt-route = ["enbu/lab-opt-route"]
 lab-opt-visibility = ["enbu/lab-opt-visibility"]
+lab-opt-planned = ["enbu/lab-opt-planned"]
+lab-opt-arithmetic = ["enbu/lab-opt-arithmetic"]
+lab-opt-frozen = ["enbu/lab-opt-frozen"]
+lab-opt-fog-cache = ["enbu/lab-opt-fog-cache"]
+lab-opt-observation = ["enbu/lab-opt-observation"]
+lab-opt-inplace = ["enbu/lab-opt-inplace"]
+lab-opt-frontier = ["enbu/lab-opt-frontier"]
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]
