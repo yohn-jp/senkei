@@ -750,7 +750,7 @@ fn should_hold_for_attack_indexed(
     let actors = if entity.entity_type.as_str() == "hero" {
         hero_cohort(actor_id, entity, snapshot)
     } else {
-        vec![(actor_id.clone(), entity.clone())]
+        vec![(actor_id.clone(), entity)]
     };
     actors.iter().any(|(source_id, source)| {
         let is_hostile_reachable = |target_id: &EntityId, target: &EntityState| {
@@ -1120,16 +1120,16 @@ fn movement_intent_for(
     }
 }
 
-fn hero_cohort(
+fn hero_cohort<'a>(
     actor_id: &EntityId,
-    actor: &EntityState,
-    world: &WorldState,
-) -> Vec<(EntityId, EntityState)> {
+    actor: &'a EntityState,
+    world: &'a WorldState,
+) -> Vec<(EntityId, &'a EntityState)> {
     // WorldState's BTreeMap order makes the first living member the stable
     // cohort leader for goal and vision sampling.
     let squad = string(actor, "squad");
     let Some(side) = actor.owner.filter(|_| !squad.is_empty()) else {
-        return vec![(actor_id.clone(), actor.clone())];
+        return vec![(actor_id.clone(), actor)];
     };
 
     let members = world
@@ -1141,10 +1141,10 @@ fn hero_cohort(
                 && alive(candidate)
                 && string(candidate, "squad") == squad
         })
-        .map(|(id, candidate)| (id.clone(), candidate.clone()))
+        .map(|(id, candidate)| (id.clone(), candidate))
         .collect::<Vec<_>>();
     if members.is_empty() {
-        vec![(actor_id.clone(), actor.clone())]
+        vec![(actor_id.clone(), actor)]
     } else {
         members
     }
@@ -1613,7 +1613,7 @@ fn route_speed(actor: &EntityState, world: &WorldState, rules: &NextRules, tick:
     let members = actor_id
         .as_ref()
         .map(|id| hero_cohort(id, actor, world))
-        .unwrap_or_else(|| vec![(EntityId::from("route"), actor.clone())]);
+        .unwrap_or_else(|| vec![(EntityId::from("route"), actor)]);
     let mut speed = members
         .iter()
         .map(|(_, member)| hero_base_speed_budget(member, tick) / (RATE_SCALE * RATE_SCALE))
@@ -1621,7 +1621,7 @@ fn route_speed(actor: &EntityState, world: &WorldState, rules: &NextRules, tick:
         .unwrap_or(1)
         .max(1);
     let size = members.len().clamp(1, 5);
-    let leader = members.first().map(|(_, member)| member).unwrap_or(actor);
+    let leader = members.first().map(|(_, member)| *member).unwrap_or(actor);
     if let Some(side) = leader.owner {
         if crate::next_vision::minion_vision(world, rules, side, leader) {
             speed = speed.saturating_mul(i128::from(
