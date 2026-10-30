@@ -45,11 +45,11 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu matrix: twenty-three real Rust/WASM builds
+### Production Enbu matrix: twenty-five real Rust/WASM builds
 
 The existing **11 strategy / 14 scenario synthetic** benchmark and independent
 synthetic Tick Inspector remain unchanged and are never used to claim production
-speedups. The production lane compiles **twenty-three** distinct WASM binaries from the
+speedups. The production lane compiles **twenty-five** distinct WASM binaries from the
 **same production Enbu Rust source** and JSON ABI: the original eight T/C/S
 factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index), A (Arithmetic phase dispatcher), F (frozen snapshot reuse), FPA and G (certified Fog probe reuse), TCSRVG and the independent O / TCSRVGO variants. The original T/C/S
 factorial varies these independent Cargo features:
@@ -151,6 +151,7 @@ change the computation in the authoritative Enbu Tick engine:
 - `V` / `lab-opt-visibility`: batch and deduplicate the actual authorized
   vision sources before each public/owner replay projection; all required
   views are still produced.
+- `H` / `lab-opt-hybrid`: phase-scoped Hybrid dispatcher combining the exact Reference, sparse Arithmetic and dense Planned selection paths with the independent combat visibility frontier and in-place navigation. It enables Planned only for 48+ entities, and Arithmetic readiness classification only for 64+ entities; owner decision traces remain fully visited. This is a **within-Tick** adaptive portfolio; it does not skip Jinrei, Replay or whole Ticks. `TCSRVH` measures H combined with the separately proven TCSRV base.
 - `I` / `lab-opt-inplace`: PR #71's per-unit in-place navigation state update, retaining the immutable pre-navigation freeze. It removes redundant entity clones under an independent benchmark feature.
 - `B` / `lab-opt-frontier`: PR #71's snapshot-scoped indexed combat visibility frontier, lazily compiled for dense eligible attack/hold checks. The original target predicate, stable order, fog authorization and owner trace remain authoritative. `TCSRVIB` measures I+B on top of the previously measured best production strategy set.
 - `O` / `lab-opt-observation`: build one deduplicated source set per side and observation Tick when the actor population is at least 16, and reuse it for all RulePlan visibility-field, collection, and nested derived-value eligibility checks. All checks remain current-Tick, full Jinrei/CU and owner replay are retained. `TCSRVGO` benchmarks this path on top of TCSRVG.
@@ -163,7 +164,7 @@ change the computation in the authoritative Enbu Tick engine:
   per-actor full scan remains the Reference path. This is not the TS
   synthetic `planned` executor nor a multi-Tick acceleration.
 
-The 23 real-WASM candidates include the prior 8-way T/C/S matrix,
+The 25 real-WASM candidates include the prior 8-way T/C/S matrix,
 R, V, R+V, the combined T+C+S+R+V build, P (Planned candidate selection), and A (Arithmetic phase dispatcher). Each must reproduce the
 complete native Rust SHA-256 across all 7 fixture scenarios to publish. The
 3-factor T/C/S marginal-effect study continues to use only the original eight
