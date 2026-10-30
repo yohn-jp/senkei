@@ -45,13 +45,13 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu matrix: fourteen real Rust/WASM builds
+### Production Enbu matrix: eighteen real Rust/WASM builds
 
 The existing **11 strategy / 14 scenario synthetic** benchmark and independent
 synthetic Tick Inspector remain unchanged and are never used to claim production
-speedups. The production lane compiles **fourteen** distinct WASM binaries from the
+speedups. The production lane compiles **eighteen** distinct WASM binaries from the
 **same production Enbu Rust source** and JSON ABI: the original eight T/C/S
-factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index) and A (Arithmetic phase dispatcher). The original T/C/S
+factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index), A (Arithmetic phase dispatcher), F (frozen snapshot reuse), FPA and G (certified Fog probe reuse), TCSRVG. The original T/C/S
 factorial varies these independent Cargo features:
 
 | Bit | Feature | Work eliminated |
@@ -66,7 +66,7 @@ Enbu, not synthetic stand-ins. No optimization is enabled by default in the
 game. Any promoted combination is the **same Rust code and feature set**,
 not a second JS implementation.
 
-The Pages workflow builds the production WASM and all fourteen benchmark variants
+The Pages workflow builds the production WASM and all eighteen benchmark variants
 from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
 publication unless **every variant** reproduces **all native Rust golden JSON
 responses** (the full response, including replay, CU, diagnostics, and output
@@ -77,7 +77,7 @@ These fixtures are a baseline, **not exhaustive gameplay equivalence**.
 
 #### Measurements and ranking
 
-The Worker can run all fourteen variants or the baseline against one selected
+The Worker can run all eighteen variants or the baseline against one selected
 variant, for all fixtures or one Tick count. Each variant is instantiated once,
 then run in alternating, rotating order with two warmups. Median/p95,
 input-transfer, WASM dispatch, output-transfer, WebAssembly linear memory,
@@ -145,6 +145,8 @@ change the computation in the authoritative Enbu Tick engine:
 - `V` / `lab-opt-visibility`: batch and deduplicate the actual authorized
   vision sources before each public/owner replay projection; all required
   views are still produced.
+- `G` / `lab-opt-fog-cache`: retain exact node/edge visibility booleans across Ticks while the same side, source graph positions/radii, map nodes/edges, and vision semantics are unchanged. Any changed dependency invalidates the certificate. Every Tick's Fog exploration, owner facilities, Jinrei/CU, and replay are still materialized. `TCSRVG` tests G combined with the prior measured best five-feature set.
+- `F` / `lab-opt-frozen`: omit provably redundant World clones and idle unit movement preparation; `FPA` combines F, Planned and Arithmetic. Neither physically skips entire Ticks.
 - `A` / `lab-opt-arithmetic`: same-Tick dispatcher proving that no basic attacks are due or selecting at most eight ready combatants when they are sparse. Dense combat/actor-decision traces use Reference. The checked long-window Arithmetic solver remains non-dispatched pending causal and output reconstruction proof.
 - `P` / `lab-opt-planned`: lazily compile a single frozen combat-phase target
   candidate partition and shared source-visibility set; apply the **existing**
@@ -152,7 +154,7 @@ change the computation in the authoritative Enbu Tick engine:
   per-actor full scan remains the Reference path. This is not the TS
   synthetic `planned` executor nor a multi-Tick acceleration.
 
-The 14 real-WASM candidates include the prior 8-way T/C/S matrix,
+The 18 real-WASM candidates include the prior 8-way T/C/S matrix,
 R, V, R+V, the combined T+C+S+R+V build, P (Planned candidate selection), and A (Arithmetic phase dispatcher). Each must reproduce the
 complete native Rust SHA-256 across all 7 fixture scenarios to publish. The
 3-factor T/C/S marginal-effect study continues to use only the original eight

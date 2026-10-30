@@ -565,7 +565,7 @@ fn within_vision(source: &EntityState, target: &EntityState, rules: &NextRules) 
     within_radius(source, target, radius, rules)
 }
 
-fn vision_radius(source: &EntityState, rules: &NextRules) -> i64 {
+pub(crate) fn vision_radius(source: &EntityState, rules: &NextRules) -> i64 {
     if source.entity_type.as_str() == "observation" {
         rules.parameters.get("mid_observation_radius_wu").copied().unwrap_or(240)
     } else if source.entity_type == TypeId::from(MINION) {

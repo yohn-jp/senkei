@@ -8,6 +8,8 @@
 
 use crate::next_vision;
 use senkei_model::{CombatantSide, DomainValue, EntityId, EntityState, FieldId, NextRules, TypeId, WorldState};
+#[cfg(feature = "lab-opt-fog-cache")]
+use senkei_model::{MapEdge, MapNode};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -109,6 +111,8 @@ pub struct FogHistory {
     /// Private keys remain inside Enbu. Only the generated facility serial exits.
     facilities: BTreeMap<EntityId, RememberedFacility>,
     next_facility: u64,
+    #[cfg(feature = "lab-opt-fog-cache")]
+    probe_cache: Option<CertifiedProbeCache>,
 }
 
 #[derive(Clone, Debug)]
@@ -119,6 +123,86 @@ struct RememberedFacility {
     site: String,
     last_seen_tick: u32,
     facility_state: BTreeMap<String, FacilityStateValue>,
+}
+
+// The sight-probe predicate reads only these properties of each source,
+// the static graph and three vision parameters. All are compared exactly;
+// entity identity, hp and UI coordinates are deliberately not involved in
+// logical sight once vision_sources has selected living allied observers.
+#[cfg(feature = "lab-opt-fog-cache")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SourceSignature {
+    node: String,
+    edge_to: String,
+    progress: i64,
+    track: String,
+    cross_remaining: i64,
+    radius: i64,
+}
+#[cfg(feature = "lab-opt-fog-cache")]
+impl SourceSignature {
+    fn new(source: &EntityState, rules: &NextRules) -> Self {
+        Self {
+            node: crate::next_support::string(source, "node"),
+            edge_to: crate::next_support::string(source, "edge_to"),
+            progress: crate::next_support::int(source, "edge_progress"),
+            track: crate::next_support::string(source, "track"),
+            cross_remaining: crate::next_support::int(source, "cross_remaining"),
+            radius: next_vision::vision_radius(source, rules),
+        }
+    }
+    fn matches(&self, source: &EntityState, rules: &NextRules) -> bool {
+        self.node == crate::next_support::string(source, "node")
+            && self.edge_to == crate::next_support::string(source, "edge_to")
+            && self.progress == crate::next_support::int(source, "edge_progress")
+            && self.track == crate::next_support::string(source, "track")
+            && self.cross_remaining == crate::next_support::int(source, "cross_remaining")
+            && self.radius == next_vision::vision_radius(source, rules)
+    }
+}
+
+#[cfg(feature = "lab-opt-fog-cache")]
+#[derive(Clone, Debug)]
+struct CertifiedProbeCache {
+    side: CombatantSide,
+    map_nodes: BTreeMap<String, MapNode>,
+    map_edges: Vec<MapEdge>,
+    graph_metric: i64,
+    occlusion: i64,
+    lane_offset: i64,
+    sources: Vec<SourceSignature>,
+    nodes_visible: Vec<bool>,
+    edges_visible: Vec<bool>,
+}
+#[cfg(feature = "lab-opt-fog-cache")]
+impl CertifiedProbeCache {
+    fn matches(&self, rules: &NextRules, side: CombatantSide, sources: &[&EntityState]) -> bool {
+        self.side == side
+            && self.map_nodes == rules.map.nodes
+            && self.map_edges == rules.map.edges
+            && self.graph_metric == crate::next_support::param(rules, "vision_graph_metric", 1)
+            && self.occlusion == crate::next_support::param(rules, "vision_occlusion_enabled", 0)
+            && self.lane_offset == crate::next_support::param(rules, "lane_track_offset_wu", 20)
+            && self.sources.len() == sources.len()
+            && self.sources.iter().zip(sources).all(|(a, b)| a.matches(b, rules))
+            && self.nodes_visible.len() == rules.map.nodes.len()
+            && self.edges_visible.len() == rules.map.edges.len().saturating_mul(EDGE_SAMPLE_COUNT)
+    }
+    fn new(
+        rules: &NextRules, side: CombatantSide, sources: &[&EntityState],
+        nodes_visible: Vec<bool>, edges_visible: Vec<bool>,
+    ) -> Self {
+        Self {
+            side,
+            map_nodes: rules.map.nodes.clone(),
+            map_edges: rules.map.edges.clone(),
+            graph_metric: crate::next_support::param(rules, "vision_graph_metric", 1),
+            occlusion: crate::next_support::param(rules, "vision_occlusion_enabled", 0),
+            lane_offset: crate::next_support::param(rules, "lane_track_offset_wu", 20),
+            sources: sources.iter().map(|source| SourceSignature::new(source, rules)).collect(),
+            nodes_visible, edges_visible,
+        }
+    }
 }
 
 impl FogHistory {
@@ -148,15 +232,29 @@ impl FogHistory {
         // Route endpoint samples coincide with node probes. Reuse only the
         // boolean probe result; history remains tracked independently for each
         // node and edge sample below.
+        #[cfg(feature = "lab-opt-fog-cache")]
+        let previous_cache = self.probe_cache.take();
+        #[cfg(feature = "lab-opt-fog-cache")]
+        let cache_hit = previous_cache.as_ref().filter(|cache| cache.matches(rules, side, vision_sources));
+        #[cfg(feature = "lab-opt-fog-cache")]
+        let mut nodes_visible = Vec::new();
+        #[cfg(feature = "lab-opt-fog-cache")]
+        let mut edges_visible = Vec::new();
         let mut probe_visibility = BTreeMap::new();
         let mut nodes = BTreeMap::new();
-        for (node_id, node) in &rules.map.nodes {
-            let probe = node_probe(node_id, node.x, node.y);
-            let visible = *probe_visibility
-                .entry(ProbePosition::node(node_id))
-                .or_insert_with(|| {
-                    next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
-                });
+        for (node_index, (node_id, node)) in rules.map.nodes.iter().enumerate() {
+            let mut calculate = || {
+                let probe = node_probe(node_id, node.x, node.y);
+                *probe_visibility
+                    .entry(ProbePosition::node(node_id))
+                    .or_insert_with(|| next_vision::visible_from_sources(vision_sources, rules, side, &probe))
+            };
+            #[cfg(feature = "lab-opt-fog-cache")]
+            let visible = if let Some(cache) = cache_hit { cache.nodes_visible[node_index] } else { calculate() };
+            #[cfg(not(feature = "lab-opt-fog-cache"))]
+            let visible = calculate();
+            #[cfg(feature = "lab-opt-fog-cache")]
+            if cache_hit.is_none() { nodes_visible.push(visible); }
             let state = if visible {
                 self.explored_nodes.insert(node_id.clone());
                 FogVisibility::Visible
@@ -169,7 +267,7 @@ impl FogHistory {
         }
 
         let mut edges = BTreeMap::new();
-        for edge in &rules.map.edges {
+        for (edge_index, edge) in rules.map.edges.iter().enumerate() {
             let edge_id = if edge.id.is_empty() {
                 format!("{}-{}", edge.from, edge.to)
             } else {
@@ -177,21 +275,24 @@ impl FogHistory {
             };
             let mut samples = Vec::with_capacity(EDGE_SAMPLE_COUNT);
             for sample in 0..EDGE_SAMPLE_COUNT {
-                let progress =
-                    edge.length.saturating_mul(sample as i64) / (EDGE_SAMPLE_COUNT as i64 - 1);
-                let probe = edge_probe(&edge.from, &edge.to, progress);
-                let visible = edge.length >= 0
-                    && *probe_visibility
-                        .entry(ProbePosition::edge(
-                            &edge.from,
-                            &edge.to,
-                            progress,
-                            edge.length,
-                            edge.region != "lane",
-                        ))
-                        .or_insert_with(|| {
-                            next_vision::visible_from_sources(&vision_sources, rules, side, &probe)
-                        });
+                let mut calculate = || {
+                    let progress = edge.length.saturating_mul(sample as i64) / (EDGE_SAMPLE_COUNT as i64 - 1);
+                    let probe = edge_probe(&edge.from, &edge.to, progress);
+                    edge.length >= 0
+                        && *probe_visibility
+                            .entry(ProbePosition::edge(
+                                &edge.from, &edge.to, progress, edge.length, edge.region != "lane",
+                            ))
+                            .or_insert_with(|| next_vision::visible_from_sources(vision_sources, rules, side, &probe))
+                };
+                #[cfg(feature = "lab-opt-fog-cache")]
+                let visible = if let Some(cache) = cache_hit {
+                    cache.edges_visible[edge_index * EDGE_SAMPLE_COUNT + sample]
+                } else { calculate() };
+                #[cfg(not(feature = "lab-opt-fog-cache"))]
+                let visible = calculate();
+                #[cfg(feature = "lab-opt-fog-cache")]
+                if cache_hit.is_none() { edges_visible.push(visible); }
                 let state = if visible {
                     self.explored_edges.insert((edge_id.clone(), sample));
                     FogVisibility::Visible
@@ -203,6 +304,20 @@ impl FogHistory {
                 samples.push(state);
             }
             edges.insert(edge_id, samples);
+        }
+
+        #[cfg(feature = "lab-opt-fog-cache")]
+        {
+            // Only the stable geometry visibility is reused. Explore history,
+            // facilities, owner authorization and every Replay Tick still
+            // recompute normally against the current World.
+            self.probe_cache = if cache_hit.is_some() {
+                previous_cache
+            } else {
+                Some(CertifiedProbeCache::new(
+                    rules, side, vision_sources, nodes_visible, edges_visible,
+                ))
+            };
         }
 
         let mut currently_visible_facilities = BTreeSet::new();
@@ -534,6 +649,37 @@ mod tests {
         entity.fields.insert("node".into(), DomainValue::String(node.into()));
         entity.fields.insert("x".into(), DomainValue::Integer(x));
         entity.fields.insert("y".into(), DomainValue::Integer(y));
+    }
+
+    #[cfg(feature = "lab-opt-fog-cache")]
+    #[test]
+    fn certified_probe_reuse_matches_uncached_fog_on_static_and_dynamic_frontiers() {
+        let mut rules = rules();
+        let mut world = WorldState::default();
+        world.entities.insert("hero.a".into(), unit(CombatantSide::Attacker, "a", 0, 0, 25));
+        world.entities.insert("hero.b".into(), unit(CombatantSide::Defender, "b", 80, 0, 25));
+        world.entities.insert("bridge.a".into(), bridge("b", "TOP", "normal", 100));
+        let mut cached = FogHistory::default();
+        for tick in 0_u32..30 {
+            match tick {
+                3 => move_to(world.entities.get_mut(&EntityId::from("hero.a")).unwrap(), "b", 80, 0),
+                6 => { world.entities.get_mut(&EntityId::from("hero.a")).unwrap().fields.insert("vision".into(), DomainValue::Integer(10)); }
+                9 => { world.entities.get_mut(&EntityId::from("hero.a")).unwrap().fields.insert("edge_to".into(), DomainValue::String("a".into())); }
+                12 => { rules.map.edges[0].length = 100; }
+                15 => { rules.parameters.insert("lane_track_offset_wu".into(), 99); }
+                18 => { world.entities.remove(&EntityId::from("hero.a")); }
+                21 => { world.entities.insert("hero.a".into(), unit(CombatantSide::Attacker, "a", 0, 0, 25)); }
+                24 => { rules.parameters.insert("vision_occlusion_enabled".into(), 1); }
+                27 => { rules.parameters.insert("vision_occlusion_enabled".into(), 0); }
+                _ => {}
+            }
+            let mut fresh = cached.clone();
+            fresh.probe_cache = None;
+            let expected = fresh.observe(&world, &rules, CombatantSide::Attacker, tick);
+            let actual = cached.observe(&world, &rules, CombatantSide::Attacker, tick);
+            assert_eq!(actual, expected, "probe reuse diverged at Tick {tick}");
+            assert!(cached.probe_cache.is_some());
+        }
     }
 
     #[test]
