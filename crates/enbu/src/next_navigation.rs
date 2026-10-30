@@ -7,6 +7,7 @@ use senkei_model::{
     WorldState,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::cell::OnceCell;
 
 const RATE_SCALE: i128 = 1_000;
 // Four per-mille modifiers are combined before terrain is applied:
@@ -94,6 +95,12 @@ fn advance_inner(
     ids.sort();
     let mut bridge_reservations = BTreeSet::<(String, String)>::new();
     let mut cross_reservations = BTreeSet::<(String, i64, String)>::new();
+    // PR #71: lazily index visible combat targets once per immutable freeze.
+    // Sparse worlds continue to use Reference to avoid index overhead.
+    let visibility_index = OnceCell::<crate::next_combat::CombatVisibilityIndex>::new();
+    let frontier = if cfg!(feature = "lab-opt-frontier") && snapshot.entities.len() >= 12 {
+        Some(&visibility_index)
+    } else { None };
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
@@ -131,20 +138,24 @@ fn advance_inner(
         let Some(entity) = world.entities.get_mut(&id) else {
             continue;
         };
-        let mut next = start.clone();
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
-        let movement = movement_intent_for(&id, start, &snapshot, rules, tick, waypoint.as_deref());
-        advance_entity(
-            &id,
-            &mut next,
-            rules,
-            &movement,
-            &snapshot,
-            &mut bridge_reservations,
-            &mut cross_reservations,
-            tick,
-        );
-        *entity = next;
+        let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
+        if cfg!(feature = "lab-opt-inplace") {
+            // This ID is visited exactly once: no earlier movement can
+            // modify this actor. Its live state equals the frozen start.
+            advance_entity(
+                &id, entity, rules, &movement, snapshot, frontier,
+                &mut bridge_reservations, &mut cross_reservations, tick,
+            );
+        } else {
+            // Reference allocates a per-actor clone before replacing it.
+            let mut next = start.clone();
+            advance_entity(
+                &id, &mut next, rules, &movement, snapshot, frontier,
+                &mut bridge_reservations, &mut cross_reservations, tick,
+            );
+            *entity = next;
+        }
     }
 }
 
@@ -204,6 +215,7 @@ fn advance_entity(
     rules: &NextRules,
     movement: &MovementIntent,
     snapshot: &WorldState,
+    visibility_index: Option<&OnceCell<crate::next_combat::CombatVisibilityIndex>>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
@@ -282,7 +294,12 @@ fn advance_entity(
     if !explicit_move
         && !forced_transit
         && int(entity, "retreating") == 0
-        && should_hold_for_attack(actor_id, entity, snapshot, rules, tick)
+        && should_hold_for_attack_indexed(
+            actor_id, entity, snapshot, rules, tick,
+            visibility_index.map(|index| index.get_or_init(|| {
+                crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules)
+            })),
+        )
     {
         return;
     }
@@ -644,12 +661,23 @@ fn clear_track(entity: &mut EntityState) {
     set_string(entity, "track", "");
 }
 
+#[cfg(test)]
 fn should_hold_for_attack(
     actor_id: &EntityId,
     entity: &EntityState,
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
+) -> bool {
+    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None)
+}
+fn should_hold_for_attack_indexed(
+    actor_id: &EntityId,
+    entity: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    visibility: Option<&crate::next_combat::CombatVisibilityIndex>,
 ) -> bool {
     let actors = if entity.entity_type.as_str() == "hero" {
         hero_cohort(actor_id, entity, snapshot)
@@ -661,8 +689,8 @@ fn should_hold_for_attack(
             target.owner.is_some()
                 && target.owner != source.owner
                 && alive(target)
-                && crate::next_combat::can_basic_attack(
-                    source_id, source, target_id, target, snapshot, rules, tick,
+                && crate::next_combat::can_basic_attack_with_visibility(
+                    source_id, source, target_id, target, snapshot, rules, tick, visibility,
                 )
         })
     })

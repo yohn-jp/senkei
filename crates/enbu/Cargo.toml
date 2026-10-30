@@ -34,5 +34,9 @@ lab-opt-frozen = []
 lab-opt-fog-cache = []
 # Share the current-Tick visibility source set across observation collection / schema checks.
 lab-opt-observation = []
+# PR #71: no per-actor movement clone; authoritative snapshot semantics unchanged.
+lab-opt-inplace = []
+# PR #71: lazy frozen target visibility for movement and combat selection.
+lab-opt-frontier = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

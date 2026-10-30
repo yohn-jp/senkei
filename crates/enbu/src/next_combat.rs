@@ -223,6 +223,11 @@ pub(crate) fn eligible_explicit_skill(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
+    // Reject all non-activation orders before cloning the World for skill projection.
+    let capability = intent.capability.as_str();
+    if capability != "activate" && !capability.ends_with(".activate") {
+        return false;
+    }
     let Some(actor_id) = intent.actor.as_ref() else { return false };
     let mut eligible_snapshot = snapshot.clone();
     learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
@@ -504,6 +509,48 @@ pub fn outcome(world: &WorldState) -> Option<MatchOutcome> {
     }
 }
 
+/// PR #71's immutable, pre-movement combat visibility frontier. Selection
+/// still runs every canonical eligibility and tie-break test; only duplicate
+/// graph vision checks are replaced with a frozen per-side membership lookup.
+pub(crate) struct CombatVisibilityIndex {
+    attacker: BTreeSet<EntityId>,
+    defender: BTreeSet<EntityId>,
+}
+impl CombatVisibilityIndex {
+    pub(crate) fn for_snapshot(snapshot: &WorldState, rules: &NextRules) -> Self {
+        let sources_a = crate::next_vision::vision_sources(snapshot, rules, CombatantSide::Attacker);
+        let sources_d = crate::next_vision::vision_sources(snapshot, rules, CombatantSide::Defender);
+        let mut attacker = BTreeSet::new();
+        let mut defender = BTreeSet::new();
+        for (id, entity) in &snapshot.entities {
+            if !support::alive(entity) || !is_targetable(entity) { continue; }
+            if crate::next_vision::visible_from_sources(&sources_a, rules, CombatantSide::Attacker, entity) {
+                attacker.insert(id.clone());
+            }
+            if crate::next_vision::visible_from_sources(&sources_d, rules, CombatantSide::Defender, entity) {
+                defender.insert(id.clone());
+            }
+        }
+        Self { attacker, defender }
+    }
+    pub(crate) fn contains(&self, side: CombatantSide, target: &EntityId) -> bool {
+        match side {
+            CombatantSide::Attacker => self.attacker.contains(target),
+            CombatantSide::Defender => self.defender.contains(target),
+        }
+    }
+}
+
+pub(crate) fn can_basic_attack_with_visibility(
+    source_id: &EntityId, source: &EntityState, target_id: &EntityId, target: &EntityState,
+    snapshot: &WorldState, rules: &NextRules, tick: u32,
+    visibility: Option<&CombatVisibilityIndex>,
+) -> bool {
+    can_basic_attack_with_sources(
+        source_id, source, target_id, target, snapshot, rules, tick, None, visibility,
+    )
+}
+
 fn collect_basic_attacks(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>,
@@ -557,6 +604,7 @@ fn collect_basic_attacks_with_execution(
     let sources = start.entities.iter();
     let mut attacks = Vec::new();
     let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
+    let mut visibility_index: Option<CombatVisibilityIndex> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = {
         let mut grouped = BTreeMap::<(Option<CombatantSide>, String), (bool, i64)>::new();
@@ -636,8 +684,15 @@ fn collect_basic_attacks_with_execution(
             }
             continue;
         }
+        // Only pay for a frozen eligibility frontier on dense worlds and
+        // when Planned does not already own a cached source index.
+        let visibility = if cfg!(feature = "lab-opt-frontier") && start.entities.len() >= 12 && !use_planned {
+            Some(visibility_index.get_or_insert_with(|| CombatVisibilityIndex::for_snapshot(start, rules)))
+        } else { None };
         let selected = requested_target(source, start)
-            .filter(|(target_id, target)| can_basic_attack(source_id, source, target_id, target, start, rules, tick));
+            .filter(|(target_id, target)| can_basic_attack_with_visibility(
+                source_id, source, target_id, target, start, rules, tick, visibility,
+            ));
         let selection = if selected.is_some() { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId };
         if let Some((target_id, _)) = &selected {
             if let Some(collector) = collector.as_deref_mut() { collector.candidate(decision_index, target_id); }
@@ -650,7 +705,7 @@ fn collect_basic_attacks_with_execution(
             };
             nearest_basic_attack(
                 source_id, source, start, rules, tick,
-                collector.as_deref_mut(), decision_index, planned.as_deref(),
+                collector.as_deref_mut(), decision_index, planned.as_deref(), visibility,
             )
         });
         let Some((target_id, _)) = selected else {
@@ -700,17 +755,18 @@ fn nearest_basic_attack<'a>(
     collector: Option<&mut ActorDecisionCollector>,
     decision_index: Option<usize>,
     planned: Option<&PlannedCombatCandidates<'a>>,
+    visibility_index: Option<&CombatVisibilityIndex>,
 ) -> Option<(EntityId, &'a EntityState)> {
     let vision = source.owner.and_then(|side| planned.map(|plan| plan.vision_sources(side)));
     if let Some(plan) = planned {
         nearest_in_candidates(
             plan.candidates(source).iter().copied(), source_id, source, start,
-            rules, tick, collector, decision_index, vision,
+            rules, tick, collector, decision_index, vision, visibility_index,
         )
     } else {
         nearest_in_candidates(
             start.entities.iter(), source_id, source, start,
-            rules, tick, collector, decision_index, None,
+            rules, tick, collector, decision_index, None, visibility_index,
         )
     }
 }
@@ -726,11 +782,12 @@ fn nearest_in_candidates<'a>(
     mut collector: Option<&mut ActorDecisionCollector>,
     decision_index: Option<usize>,
     vision: Option<&[&EntityState]>,
+    visibility_index: Option<&CombatVisibilityIndex>,
 ) -> Option<(EntityId, &'a EntityState)> {
     candidates
         .filter(|(target_id, target)| {
             let eligible = can_basic_attack_with_sources(
-                source_id, source, target_id, target, start, rules, tick, vision,
+                source_id, source, target_id, target, start, rules, tick, vision, visibility_index,
             );
             if eligible {
                 if let Some(collector) = collector.as_deref_mut() {
@@ -758,7 +815,7 @@ pub fn can_basic_attack(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
-    can_basic_attack_with_sources(source_id, source, target_id, target, snapshot, rules, tick, None)
+    can_basic_attack_with_sources(source_id, source, target_id, target, snapshot, rules, tick, None, None)
 }
 
 /// Optional precompiled vision sources are valid only for the same immutable
@@ -772,6 +829,7 @@ fn can_basic_attack_with_sources(
     rules: &NextRules,
     tick: u32,
     vision_sources: Option<&[&EntityState]>,
+    visibility_index: Option<&CombatVisibilityIndex>,
 ) -> bool {
     if source_id == target_id
         || !support::alive(source)
@@ -802,9 +860,12 @@ fn can_basic_attack_with_sources(
         return false;
     }
     if let Some(source_side) = source_side {
-        let observed = match vision_sources {
-            Some(sources) => crate::next_vision::visible_from_sources(sources, rules, source_side, target),
-            None => crate::next_vision::visible(snapshot, rules, source_side, target),
+        let observed = match visibility_index {
+            Some(index) => index.contains(source_side, target_id),
+            None => match vision_sources {
+                Some(sources) => crate::next_vision::visible_from_sources(sources, rules, source_side, target),
+                None => crate::next_vision::visible(snapshot, rules, source_side, target),
+            },
         };
         if !observed {
             return false;
@@ -1901,6 +1962,27 @@ mod tests {
                     assert_eq!(ref_trace.used(), opt_trace.used());
                     assert_eq!(ref_trace.overflowed(), opt_trace.overflowed());
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn combat_visibility_frontier_preserves_canonical_target_eligibility() {
+        let config = rules();
+        let mut snapshot = WorldState::default();
+        insert(&mut snapshot, "attacker", entity("hero", Some(CombatantSide::Attacker), 0, 100, 10, 50));
+        insert(&mut snapshot, "defender", entity("minion", Some(CombatantSide::Defender), 10, 100, 10, 50));
+        insert(&mut snapshot, "neutral", entity("monster", None, 20, 100, 10, 50));
+        insert(&mut snapshot, "far", entity("hero", Some(CombatantSide::Defender), 400, 100, 10, 50));
+        insert(&mut snapshot, "tower", entity("tower", Some(CombatantSide::Defender), 30, 100, 10, 50));
+        let index = CombatVisibilityIndex::for_snapshot(&snapshot, &config);
+        for (source_id, source) in &snapshot.entities {
+            for (target_id, target) in &snapshot.entities {
+                assert_eq!(
+                    can_basic_attack(source_id, source, target_id, target, &snapshot, &config, 1),
+                    can_basic_attack_with_visibility(source_id, source, target_id, target, &snapshot, &config, 1, Some(&index)),
+                    "frontier discrepancy for source={source_id:?} target={target_id:?}",
+                );
             }
         }
     }
