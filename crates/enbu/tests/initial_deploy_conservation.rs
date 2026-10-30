@@ -87,7 +87,7 @@ fn initial_single_credit_cannot_deploy_two_reserves_from_one_barracks() {
         .filter(|event| event.event.as_str() == "unit_deployed")
         .count();
     assert_eq!(deployed, 1, "one credit must admit only one deploy per barracks and Tick");
-    let diagnostics = &result.diagnostics;
+    let diagnostics = &result.diagnostics.events;
     let accepted = diagnostics.iter().filter(|event| {
         event.tick == 8 && matches!(&event.record,
             DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "deploy")
