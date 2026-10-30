@@ -181,6 +181,7 @@ pub(crate) struct BasicAttackFrontier {
     initialized: bool,
     last_tick: Option<u32>,
     scheduled: EventScheduler,
+    active: Vec<EntityId>,
     pub(crate) hits: u64,
     pub(crate) misses: u64,
 }
@@ -190,6 +191,16 @@ fn combatant(kind: &str) -> bool {
 }
 
 impl BasicAttackFrontier {
+    /// An exact, ordered active set derived from the same current-Tick source
+    /// fingerprint that certified the clock frontier. The canonical attack
+    /// predicate is still evaluated for every returned actor and candidate.
+    /// On dense workloads or owner trace requests we provide no active set:
+    /// the Reference iterator is used with no partial trace omissions.
+    pub(crate) fn active_ids(&self, tick: u32) -> Option<&[EntityId]> {
+        (self.initialized && self.last_tick == Some(tick) && !self.active.is_empty())
+            .then_some(self.active.as_slice())
+    }
+
     fn keys(world: &WorldState) -> impl Iterator<Item = AttackKey> + '_ {
         world.entities.iter().filter(|(_, actor)| combatant(actor.entity_type.as_str()))
             .map(|(id, actor)| AttackKey {
@@ -227,6 +238,7 @@ impl BasicAttackFrontier {
         };
         if owner_trace {
             self.initialized = false;
+            self.active.clear();
             self.last_tick = Some(tick);
             return false;
         }
@@ -250,6 +262,7 @@ impl BasicAttackFrontier {
             }
         }
         self.scheduled.subscribe("basic_attack", BTreeSet::from([Dependency::EntitySet]));
+        self.active.clear();
         self.read_set = Self::keys(world).collect();
         self.earliest_possible = self.read_set.iter()
             .filter(|source| source.hp > 0 && source.attack > 0 && source.range >= 0)
@@ -267,6 +280,19 @@ impl BasicAttackFrontier {
                 }
             }
             return true;
+        }
+        // Active Set never changes semantics: a non-ready actor cannot emit
+        // any basic-attack effect, and owner trace is already excluded.
+        // The read-set has just been certified from the same frozen World.
+        // The sparse cutoff avoids allocating a list for dense phases.
+        let ready = self.read_set.iter()
+            .filter(|source| source.hp > 0 && source.attack > 0
+                && source.range >= 0 && source.ready <= i64::from(tick))
+            .collect::<Vec<_>>();
+        if self.read_set.len() >= 32 && ready.len() <= 8
+            && ready.len().saturating_mul(4) <= self.read_set.len()
+        {
+            self.active.extend(ready.into_iter().map(|source| source.id.clone()));
         }
         false
     }
@@ -440,6 +466,32 @@ mod tests {
         assert!(f.certify_idle(&state, 16, false), "dead actor cannot attack");
         state.entities.insert("new".into(), actor(16));
         assert!(!f.certify_idle(&state, 16, false), "new ready actor invalidates");
+    }
+
+    #[test]
+    fn active_set_is_exact_and_sorted_at_frontier_and_updates_on_clock_change() {
+        let mut world = WorldState::default();
+        for n in 0..64 {
+            world.entities.insert(format!("hero-{n:02}").into(),
+                actor(if n % 31 == 0 { 4 } else { 20 }));
+        }
+        let mut frontier = BasicAttackFrontier::default();
+        for tick in 1..4 {
+            assert!(frontier.certify_idle(&world, tick, false));
+        }
+        assert!(!frontier.certify_idle(&world, 4, false));
+        assert_eq!(
+            frontier.active_ids(4).unwrap().iter().map(EntityId::as_str).collect::<Vec<_>>(),
+            vec!["hero-00", "hero-31", "hero-62"],
+        );
+        support::set_int(world.entities.get_mut(&EntityId::from("hero-01")).unwrap(), "attack_ready", 5);
+        assert!(!frontier.certify_idle(&world, 5, false));
+        assert_eq!(
+            frontier.active_ids(5).unwrap().iter().map(EntityId::as_str).collect::<Vec<_>>(),
+            vec!["hero-00", "hero-01", "hero-31", "hero-62"],
+        );
+        assert!(!frontier.certify_idle(&world, 6, true));
+        assert_eq!(frontier.active_ids(6), None);
     }
 
     #[test]

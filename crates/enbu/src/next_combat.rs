@@ -410,8 +410,10 @@ fn resolve_snapshot_with_events(
     let idle = attack_frontier.as_deref_mut().is_some_and(|frontier| {
         frontier.certify_idle(&combat_start, tick, collector.is_some())
     });
+    let active_ids = attack_frontier.as_deref()
+        .and_then(|frontier| frontier.active_ids(tick));
     let mut hits = if idle { Vec::new() }
-        else { collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut()) };
+        else { collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut(), active_ids) };
     hits.append(&mut skill_damage);
 
     // Timed support effects are prepared together, independent of accepted
@@ -596,13 +598,13 @@ fn hybrid_combat_selectors(entity_count: usize, owner_trace: bool, hybrid: bool)
 
 fn collect_basic_attacks(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
-    collector: Option<&mut ActorDecisionCollector>,
+    collector: Option<&mut ActorDecisionCollector>, active_ids: Option<&[EntityId]>,
 ) -> Vec<Hit> {
     let (planned, arithmetic) = hybrid_combat_selectors(
         start.entities.len(), collector.is_some(), cfg!(feature = "lab-opt-hybrid"),
     );
     collect_basic_attacks_with_execution(
-        world, start, rules, tick, collector, planned, arithmetic,
+        world, start, rules, tick, collector, planned, arithmetic, active_ids,
     )
 }
 
@@ -610,7 +612,7 @@ fn collect_basic_attacks_with_planner(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>, use_planned: bool,
 ) -> Vec<Hit> {
-    collect_basic_attacks_with_execution(world, start, rules, tick, collector, use_planned, cfg!(feature = "lab-opt-arithmetic"))
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, use_planned, cfg!(feature = "lab-opt-arithmetic"), None)
 }
 
 #[cfg(feature = "lab-opt-arithmetic")]
@@ -618,7 +620,7 @@ fn collect_basic_attacks_with_dispatch(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>, use_dispatch: bool,
 ) -> Vec<Hit> {
-    collect_basic_attacks_with_execution(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"), use_dispatch)
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"), use_dispatch, None)
 }
 
 #[cfg_attr(not(feature = "lab-opt-arithmetic"), allow(unused_variables))]
@@ -630,9 +632,10 @@ fn collect_basic_attacks_with_execution(
     mut collector: Option<&mut ActorDecisionCollector>,
     use_planned: bool,
     use_dispatch: bool,
+    active_ids: Option<&[EntityId]>,
 ) -> Vec<Hit> {
     #[cfg(feature = "lab-opt-arithmetic")]
-    let dispatch = if use_dispatch {
+    let dispatch = if use_dispatch && active_ids.is_none() {
         crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some())
     } else {
         crate::execution::dispatcher::BasicAttackPlan::Reference(
@@ -647,6 +650,17 @@ fn collect_basic_attacks_with_execution(
     let sources = dispatch.sources(start);
     #[cfg(not(feature = "lab-opt-arithmetic"))]
     let sources = start.entities.iter();
+    // Preserve the identical stable actor ordering: both snapshot.entities
+    // and the certified Active Set originate from the same BTreeMap.
+    // take(0) prevents even visiting Reference sources when the certified
+    // Active Set can replace the all-actor scan. An empty Active Set is never
+    // passed here: its whole phase was already skipped by the frontier.
+    let active_sources = active_ids.map(|ids| ids.iter()
+        .filter_map(|id| start.entities.get_key_value(id)).collect::<Vec<_>>());
+    let use_all = active_sources.is_none();
+    let sources = active_sources.into_iter().flatten().chain(
+        sources.take(if use_all { usize::MAX } else { 0 }),
+    );
     let mut attacks = Vec::new();
     let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
     let mut visibility_index: Option<CombatVisibilityIndex> = None;
