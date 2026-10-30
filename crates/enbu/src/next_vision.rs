@@ -1095,6 +1095,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn temporal_reveal_frontier_matches_reference_lifecycle_with_waves_and_reapplication() {
+        let rules = test_rules();
+        let mut reference = WorldState::default();
+        let mut hero_state = hero(CombatantSide::Attacker, 0, 10);
+        support::set_int(&mut hero_state, "reveal_defender_until", 16);
+        reference.entities.insert("a".into(), hero_state);
+        let mut actual = reference.clone();
+        let mut frontier = crate::execution::scheduler::RevealExpiryFrontier::default();
+        for tick in 1..=40 {
+            if tick == 7 {
+                for world in [&mut reference, &mut actual] {
+                    support::set_int(world.entities.get_mut(&EntityId::from("a")).unwrap(), "reveal_attacker_until", 11);
+                }
+            }
+            if tick == 22 {
+                for world in [&mut reference, &mut actual] {
+                    support::set_int(world.entities.get_mut(&EntityId::from("a")).unwrap(), "reveal_until", 31);
+                }
+            }
+            lifecycle(&mut reference, &rules, tick);
+            lifecycle_scheduled(&mut actual, &rules, tick, &mut frontier);
+            assert_eq!(actual, reference, "lifecycle output diverged at Tick {tick}");
+        }
+        assert!(frontier.hits > 0, "the bounded expiry proof never reused a window");
+    }
+
     fn test_rules() -> NextRules {
         let nodes = BTreeMap::from([
             (
