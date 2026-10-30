@@ -100,7 +100,8 @@ mod tests {
         assert_eq!(combat_phase(4, false, true),
             CombatPhasePlan { planned: false, arithmetic: false });
         let medium = combat_phase(52, false, true);
-        assert_eq!(medium.planned, cfg!(feature = "lab-opt-planned"));
+        assert_eq!(medium.planned,
+            cfg!(feature = "lab-opt-planned") || cfg!(feature = "lab-opt-spatial"));
         assert!(!medium.arithmetic);
     }
 }
