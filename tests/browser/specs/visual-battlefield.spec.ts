@@ -1335,6 +1335,52 @@ test("captures real Jinrei–Enbu–WASM Battlefield visual states across deskto
       }, captures);
     }
 
+    // #51: Capture the same authorized real-WASM Replay at the same integer
+    // Tick by direct seek, incremental playback order and backward seek.
+    // Include labels, fog and the 3D canvas in the exact screenshot bytes.
+    // A schema/data-tick equality check alone cannot detect history-dependent
+    // presentation slots, label collisions or one-frame visual teleportation.
+    if (["320x740", "390x844", "430x932", "1440x900"].includes(viewport.name)) {
+      await setView(page, viewport, "Tactical");
+      const surface = page.locator(".next-renderer-host");
+      const fixedTick = 13;
+      const stableCapture = async (): Promise<Buffer> => {
+        await waitForSettledCamera(page);
+        // Confirmed cue animations have settled; rendering remains paused.
+        await page.waitForTimeout(500);
+        await expect(page.getByRole("button", { name: "Play replay", exact: true })).toBeVisible();
+        await expect(page.locator(".next-renderer-host canvas")).toHaveAttribute("data-tick", String(fixedTick));
+        return surface.screenshot({ animations: "disabled", caret: "hide" });
+      };
+      await seekToTick(page, 0);
+      await seekToTick(page, fixedTick);
+      const direct = await stableCapture();
+
+      await seekToTick(page, 0);
+      for (let tick = 1; tick <= fixedTick; tick++) await seekToTick(page, tick);
+      const progressive = await stableCapture();
+
+      await seekToTick(page, 23);
+      await seekToTick(page, fixedTick);
+      const rewound = await stableCapture();
+
+      const capturesToCompare = [
+        { name: "progressive", image: progressive },
+        { name: "rewound", image: rewound },
+      ];
+      for (const candidate of capturesToCompare) {
+        if (!direct.equals(candidate.image)) {
+          await test.info().attach(`issue51-${viewport.name}-direct.png`, { body: direct, contentType: "image/png" });
+          await test.info().attach(`issue51-${viewport.name}-${candidate.name}.png`, { body: candidate.image, contentType: "image/png" });
+        }
+        expect(sha256(candidate.image), `#51 ${viewport.name}: same authorized Tick ${fixedTick} differs by ${candidate.name} navigation; inspect attached full render captures`).toBe(sha256(direct));
+      }
+      viewportChecks[`${viewport.name}/issue51`] = {
+        tick: fixedTick, navigation: ["direct", "progressive", "rewound"],
+        digest: sha256(direct), result: "exact_png_match",
+      };
+    }
+
     for (const trackState of [
       { tick: 2, id: "lateral-left", expectedTrack: "LEFT" },
       { tick: 5, id: "lateral-right", expectedTrack: "RIGHT" },
