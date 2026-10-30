@@ -83,6 +83,13 @@ impl EventScheduler {
     pub fn subscribe(&mut self, domain: &str, dependencies: BTreeSet<Dependency>) {
         let name = domain.to_owned();
         if let Some(prior) = self.domains.insert(name.clone(), dependencies.clone()) {
+            if prior != dependencies {
+                // Resubscribing with a different causal read-set revokes all
+                // work certified by the former subscription. Physically
+                // removing those entries avoids generation wraparound while
+                // leaving unrelated domains untouched.
+                self.due.retain(|entry| entry.domain != name);
+            }
             for dependency in prior {
                 if let Some(consumers) = self.reverse.get_mut(&dependency) {
                     consumers.remove(&name);
@@ -108,7 +115,10 @@ impl EventScheduler {
                 return Err(ScheduleError::CapacityExceeded);
             }
         }
-        let generation = self.generations.get(domain).copied().unwrap_or(0);
+        // Register every scheduled domain even if its consumer did not
+        // subscribe to a specific dependency. Global invalidation must
+        // revoke *all* prior work, including such unscoped reservations.
+        let generation = *self.generations.entry(domain.to_owned()).or_insert(0);
         self.due.insert(WorkKey {
             tick, phase, rule_priority: priority,
             entity_id: entity_id.to_owned(), event_id: event_id.to_owned(),
@@ -449,6 +459,30 @@ mod tests {
         assert!(q.take_tick(4).unwrap().is_empty());
         assert_eq!(q.take_tick(6), Err(ScheduleError::NonSequentialTick));
         assert_eq!(q.schedule("attack", 4, 7, 0, "", ""), Err(ScheduleError::PastEvent));
+    }
+
+    #[test]
+    fn resubscription_with_new_dependencies_revokes_old_future_events() {
+        let mut q = EventScheduler::default();
+        q.subscribe("navigation", BTreeSet::from([Dependency::EntitySet]));
+        q.schedule("navigation", 4, 2, 0, "hero", "old").unwrap();
+        q.subscribe("navigation", BTreeSet::from([Dependency::WorldRules]));
+        assert_eq!(q.invalidate(&BTreeSet::from([Dependency::EntitySet])), Ok(0));
+        assert_eq!(q.invalidate(&BTreeSet::from([Dependency::WorldRules])), Ok(1));
+        for tick in 1..=4 {
+            assert!(q.take_tick(tick).unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn global_invalidation_revokes_even_unsubscribed_scheduled_work() {
+        let mut queue = EventScheduler::default();
+        queue.schedule("unsubscribed", 3, 1, 0, "a", "old").unwrap();
+        queue.invalidate_all().unwrap();
+        assert!(queue.take_tick(1).unwrap().is_empty());
+        assert!(queue.take_tick(2).unwrap().is_empty());
+        assert!(queue.take_tick(3).unwrap().is_empty(),
+            "Global invalidation must revoke even unregistered domain work");
     }
 
     #[test]
