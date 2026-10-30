@@ -284,6 +284,12 @@ fn simulate_inner<P: TacticalExecutionPort>(
     if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     if let Some(inspection) = next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()) { inspection.validate_subject(&world)?; }
     let plan = rules.plan();
+    // The verified plan owns this immutable BattleMap for the entire match.
+    // Its scoped graph-distance memo can skip repeated whole-map equality
+    // scans while retaining exact validation outside this lifetime and in
+    // nested simulations with a different plan.
+    let _vision_graph_scope = plan.next.as_ref()
+        .map(|next| next_support::VisionGraphScope::enter(&next.map));
     // The capability schema is fixed for this verified RulePlan. The former
     // call_executor built this BTreeSet twice per Tick; all intent/authority
     // checks still consume the exact same immutable set.

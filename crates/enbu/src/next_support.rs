@@ -1,7 +1,9 @@
 //! Shared deterministic scalar access for finite battle primitives.
 use senkei_model::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct VisionGraphKey {
@@ -15,11 +17,57 @@ struct VisionGraphDistances {
     distances: Vec<Vec<Option<i64>>>,
 }
 
+/// A trust token is valid only while an immutable BattleMap is borrowed by
+/// the *synchronous* Enbu match runner. It is never a digest or a map ID.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct GraphScopeStamp {
+    epoch: u64,
+    map_address: usize,
+}
+
 thread_local! {
-    /// Non-authoritative, thread-local memo for the last complete vision graph.
-    /// Equality checks the graph contents on every call, so matching map IDs or
-    /// allocation addresses can never return stale distances.
-    static VISION_GRAPH_CACHE: RefCell<Option<(VisionGraphKey, VisionGraphDistances)>> = RefCell::new(None);
+    /// Outside an explicit match scope, every lookup still validates the
+    /// complete graph contents, including edits under an unchanged map ID.
+    static VISION_GRAPH_CACHE:
+        RefCell<Option<(VisionGraphKey, VisionGraphDistances, Option<GraphScopeStamp>)>> =
+        RefCell::new(None);
+    static GRAPH_SCOPE_ACTIVE: Cell<Option<GraphScopeStamp>> = const { Cell::new(None) };
+    static GRAPH_SCOPE_SERIAL: Cell<u64> = const { Cell::new(0) };
+    #[cfg(test)]
+    static GRAPH_SCOPE_REUSE: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Guarantees map identity and lifetime without changing the public game
+/// schema or holding an unsafe global reference. A nested simulation gets
+/// another epoch; its parent's cache tag is invalidated until revalidated.
+pub(crate) struct VisionGraphScope<'a> {
+    previous: Option<GraphScopeStamp>,
+    _map: PhantomData<&'a BattleMap>,
+    _not_send: PhantomData<Rc<()>>,
+}
+
+impl<'a> VisionGraphScope<'a> {
+    pub(crate) fn enter(map: &'a BattleMap) -> Self {
+        let previous = GRAPH_SCOPE_ACTIVE.with(|current| {
+            let prior = current.get();
+            let epoch = GRAPH_SCOPE_SERIAL.with(|serial| {
+                let next = serial.get().checked_add(1);
+                if let Some(id) = next { serial.set(id); }
+                next
+            });
+            current.set(epoch.map(|epoch| GraphScopeStamp {
+                epoch, map_address: map as *const BattleMap as usize,
+            }));
+            prior
+        });
+        Self { previous, _map: PhantomData, _not_send: PhantomData }
+    }
+}
+
+impl Drop for VisionGraphScope<'_> {
+    fn drop(&mut self) {
+        GRAPH_SCOPE_ACTIVE.with(|current| current.set(self.previous));
+    }
 }
 
 // FieldId's public API stays unchanged. A borrowed-key impl on FieldId
@@ -293,12 +341,27 @@ fn vision_graph_matches(key: &VisionGraphKey, map: &BattleMap) -> bool {
 }
 
 fn graph_distance_cached(map: &BattleMap, from: &[(&str, i64)], to: &[(&str, i64)]) -> Option<i64> {
+    let trusted = GRAPH_SCOPE_ACTIVE.with(|active| active.get()).filter(|stamp| {
+        stamp.map_address == map as *const BattleMap as usize
+    });
     VISION_GRAPH_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if cache.as_ref().map_or(true, |(cached_key, _)| !vision_graph_matches(cached_key, map)) {
-            *cache = Some((vision_graph_key(map), build_vision_graph_distances(map)));
+        let trusted_hit = trusted.is_some()
+            && cache.as_ref().is_some_and(|(_, _, prior)| *prior == trusted);
+        if !trusted_hit && cache.as_ref()
+            .map_or(true, |(cached_key, _, _)| !vision_graph_matches(cached_key, map))
+        {
+            *cache = Some((vision_graph_key(map), build_vision_graph_distances(map), trusted));
+        } else if let Some((_, _, stamp)) = cache.as_mut() {
+            // Reuse is safe after exact contents validation even if this
+            // is a different match, a nested scope, or an outside-scope call.
+            *stamp = trusted;
         }
-        let (_, graph) = cache.as_ref()?;
+        #[cfg(test)]
+        if trusted_hit {
+            GRAPH_SCOPE_REUSE.with(|hits| hits.set(hits.get().saturating_add(1)));
+        }
+        let (_, graph, _) = cache.as_ref()?;
         graph_distance_between(graph, from, to)
     })
 }
@@ -376,6 +439,64 @@ fn graph_distance_between(graph: &VisionGraphDistances, from: &[(&str, i64)], to
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scoped_graph_cache_skips_only_stable_immutable_map_checks() {
+        let mut map = BattleMap::default();
+        map.nodes.insert("a".into(), MapNode::default());
+        map.nodes.insert("b".into(), MapNode::default());
+        map.nodes.insert("c".into(), MapNode::default());
+        map.edges.push(MapEdge {
+            id: "ab".into(), from: "a".into(), to: "b".into(), length: 10,
+            region: "lane".into(), ..Default::default()
+        });
+        map.edges.push(MapEdge {
+            id: "bc".into(), from: "b".into(), to: "c".into(), length: 20,
+            region: "lane".into(), ..Default::default()
+        });
+        let make_points = || {
+            let mut a = EntityState {
+                entity_type: "hero".into(), owner: None, fields: BTreeMap::new(),
+            };
+            set_string(&mut a, "node", "a");
+            let mut b = a.clone();
+            set_string(&mut b, "node", "c");
+            (a, b)
+        };
+        let (source, target) = make_points();
+        let mut rules = NextRules {
+            projection_policy: None,
+            minion_control: None,
+            mechanics_version: Version::new(1,0,0),
+            world_identity: None,
+            map,
+            heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(),
+            camps: Vec::new(), parameters: BTreeMap::new(),
+        };
+        // The NextRules map is fixed while its scope is alive; a second
+        // independent map gets a new epoch even at a reused memory address.
+        let mut changed = rules.clone();
+        changed.map.edges[1].length = 100;
+        let before = GRAPH_SCOPE_REUSE.with(|hits| hits.get());
+        {
+            let _scope = VisionGraphScope::enter(&rules.map);
+            for _ in 0..6 {
+                assert_eq!(world_distance2(&source, &target, &rules), Some(30 * 30));
+            }
+            assert!(GRAPH_SCOPE_REUSE.with(|hits| hits.get()) >= before + 5);
+            {
+                let _nested = VisionGraphScope::enter(&changed.map);
+                for _ in 0..4 {
+                    assert_eq!(world_distance2(&source, &target, &changed), Some(110 * 110));
+                }
+            }
+            assert_eq!(world_distance2(&source, &target, &rules), Some(30 * 30));
+        }
+        rules.map.edges[1].length = 5;
+        // Outside the scope, even changing weights under the same map ID
+        // must invalidate the cache and return the real graph distance.
+        assert_eq!(world_distance2(&source, &target, &rules), Some(15 * 15));
+    }
 
     #[test]
     fn world_distance_checks_all_weighted_target_edge_endpoints_and_rejects_bad_positions() {
