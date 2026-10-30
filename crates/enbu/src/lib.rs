@@ -675,6 +675,21 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 let skill_start = world.clone();
                 next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
             }
+            // No code between action_start and adjudication_start can change
+            // the world unless an accepted bridge_work or Skill activation
+            // reserves a new action. Certify this by inspecting *all* accepted
+            // capabilities, not by assuming the world is static.
+            #[cfg(feature = "lab-opt-frozen")]
+            let adjudication_start: std::borrow::Cow<'_, WorldState> =
+                if accepted_by_side.iter().any(|(_, intent)| {
+                    let cap = intent.capability.as_str();
+                    cap == "bridge_work" || cap == "activate" || cap.ends_with(".activate")
+                }) {
+                    std::borrow::Cow::Owned(world.clone())
+                } else {
+                    std::borrow::Cow::Borrowed(&action_start)
+                };
+            #[cfg(not(feature = "lab-opt-frozen"))]
             let adjudication_start = world.clone();
             #[cfg(feature = "lab-opt-frozen")]
             {
