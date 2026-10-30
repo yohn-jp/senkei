@@ -140,7 +140,11 @@ jobs:
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
       - name: Verify promoted production WASM is exactly the tested TCSRV build
-        run: cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRV.wasm
+        run: |
+          cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRV.wasm
+          # This verification-only binary must not enter the 20-variant
+          # senkei_wasm_*.wasm publishing glob.
+          rm target/simulation-lab/senkei_wasm_production.wasm
       - name: Stamp immutable fixture provenance
         env:
           REVISION: ${{ github.sha }}
