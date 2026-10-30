@@ -74,7 +74,21 @@ fn advance_inner(
     snapshot: &WorldState,
     rules: &NextRules,
     tick: u32,
+    routes: Option<&mut crate::next_route::Runtime>,
+) {
+    advance_inner_with_mode(world, snapshot, rules, tick, routes, cfg!(feature = "lab-opt-inplace"))
+}
+
+/// Both branches execute the identical transition over the same immutable
+/// snapshot. Keeping the mode selectable in tests permits true differential
+/// proof without compiling two different crates.
+fn advance_inner_with_mode(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
     mut routes: Option<&mut crate::next_route::Runtime>,
+    inplace: bool,
 ) {
     let mut ids = snapshot
         .entities
@@ -140,7 +154,7 @@ fn advance_inner(
         };
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
         let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
-        if cfg!(feature = "lab-opt-inplace") {
+        if inplace {
             // This ID is visited exactly once: no earlier movement can
             // modify this actor. Its live state equals the frozen start.
             advance_entity(
@@ -2059,6 +2073,23 @@ mod tests {
                 );
                 assert_eq!(actual, expected, "layout={layout}, actor={kind}");
             }
+        }
+    }
+
+    #[test]
+    fn in_place_and_copy_on_move_are_world_equivalent_across_ticks() {
+        let config = rules(test_map(vec![edge("a", "b", 100, "lane", false)]));
+        let mut before = WorldState::default();
+        before.entities.insert(id("mover"), entity("hero", Some(CombatantSide::Attacker), 10, "a", "b"));
+        before.entities.insert(id("opponent"), entity("hero", Some(CombatantSide::Defender), 0, "b", "a"));
+        let mut reference = before.clone();
+        let mut inplace = before;
+        for tick in 1..=24 {
+            let ref_freeze = reference.clone();
+            let opt_freeze = inplace.clone();
+            advance_inner_with_mode(&mut reference, &ref_freeze, &config, tick, None, false);
+            advance_inner_with_mode(&mut inplace, &opt_freeze, &config, tick, None, true);
+            assert_eq!(inplace, reference, "in-place movement diverged at tick={tick}");
         }
     }
 
