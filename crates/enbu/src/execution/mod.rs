@@ -3,6 +3,7 @@
 pub(crate) mod strategies;
 pub(crate) mod scheduler;
 pub(crate) mod materialize;
+pub(crate) mod planner;
 pub(crate) mod arithmetic;
 #[cfg(feature = "lab-opt-arithmetic")]
 pub(crate) mod dispatcher;

@@ -191,6 +191,16 @@ fn combatant(kind: &str) -> bool {
 }
 
 impl BasicAttackFrontier {
+    pub(crate) fn decline_tick(&mut self, tick: u32) {
+        // The work is intentionally executed by Reference this Tick. Even a
+        // declined window must not make the scheduler's logical clock jump.
+        let _ = self.scheduled.take_tick(tick);
+        self.initialized = false;
+        self.last_tick = Some(tick);
+        self.read_set.clear();
+        self.active.clear();
+    }
+
     /// An exact, ordered active set derived from the same current-Tick source
     /// fingerprint that certified the clock frontier. The canonical attack
     /// predicate is still evaluated for every returned actor and candidate.
@@ -322,6 +332,13 @@ pub(crate) struct RevealExpiryFrontier {
 }
 
 impl RevealExpiryFrontier {
+    pub(crate) fn decline_tick(&mut self, tick: u32) {
+        let _ = self.scheduled.take_tick(tick);
+        self.initialized = false;
+        self.last_tick = Some(tick);
+        self.previous.clear();
+    }
+
     fn keys(world: &WorldState) -> impl Iterator<Item = RevealKey> + '_ {
         world.entities.iter().map(|(id, actor)| RevealKey {
             id: id.clone(),

@@ -380,7 +380,15 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some(next) = &plan.next {
             objective_events = next_combat::objective_lifecycle(&mut world, next, tick);
             if cfg!(feature = "lab-opt-scheduler") {
-                next_vision::lifecycle_scheduled(&mut world, next, tick, &mut reveal_frontier);
+                let plan = execution::planner::tick_work(
+                    world.entities.len(), false, cfg!(feature = "lab-opt-hybrid"), true,
+                );
+                if plan.reveal_frontier {
+                    next_vision::lifecycle_scheduled(&mut world, next, tick, &mut reveal_frontier);
+                } else {
+                    reveal_frontier.decline_tick(tick);
+                    next_vision::lifecycle(&mut world, next, tick);
+                }
             } else {
                 next_vision::lifecycle(&mut world, next, tick);
             }

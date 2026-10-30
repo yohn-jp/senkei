@@ -407,9 +407,23 @@ fn resolve_snapshot_with_events(
     // When a finite future readiness bound is exactly certified for the
     // current frozen combat domain, avoid visiting any attack candidates.
     // This does *not* skip the Tick or the other combat phase obligations.
-    let idle = attack_frontier.as_deref_mut().is_some_and(|frontier| {
-        frontier.certify_idle(&combat_start, tick, collector.is_some())
-    });
+    // The Planner chooses cost-effective temporal work independently from
+    // other phase kernels. Short H+S workloads advance the scheduler clock
+    // without allocating an otherwise useless read set.
+    let temporal = crate::execution::planner::tick_work(
+        combat_start.entities.len(), collector.is_some(),
+        cfg!(feature = "lab-opt-hybrid"), attack_frontier.is_some(),
+    ).attack_frontier;
+    let idle = if temporal {
+        attack_frontier.as_deref_mut().is_some_and(|frontier| {
+            frontier.certify_idle(&combat_start, tick, collector.is_some())
+        })
+    } else {
+        if let Some(frontier) = attack_frontier.as_deref_mut() {
+            frontier.decline_tick(tick);
+        }
+        false
+    };
     let active_ids = attack_frontier.as_deref()
         .and_then(|frontier| frontier.active_ids(tick));
     let mut hits = if idle { Vec::new() }
@@ -586,14 +600,8 @@ pub(crate) fn can_basic_attack_with_visibility(
 /// only attempted when there are many potential combatants. Owner diagnostics
 /// require Reference actor visitation regardless of size.
 fn hybrid_combat_selectors(entity_count: usize, owner_trace: bool, hybrid: bool) -> (bool, bool) {
-    if !hybrid {
-        return (cfg!(feature = "lab-opt-planned"), cfg!(feature = "lab-opt-arithmetic"));
-    }
-    if owner_trace { return (false, false); }
-    (
-        cfg!(feature = "lab-opt-planned") && entity_count >= 48,
-        cfg!(feature = "lab-opt-arithmetic") && entity_count >= 64,
-    )
+    let plan = crate::execution::planner::combat_phase(entity_count, owner_trace, hybrid);
+    (plan.planned, plan.arithmetic)
 }
 
 fn collect_basic_attacks(
