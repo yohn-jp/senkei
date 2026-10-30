@@ -1,6 +1,6 @@
 # Enbu Hybrid Execution Engine — 実行アーキテクチャ
 
-> 状態: **合意した設計方針の実装契約案**。本ディレクトリの新しいPlanner/Dispatcher/Scheduler/Strategyは、現行mainに実装済みという意味ではない。実装と検証の成否は各変更のCI結果で判定する。
+> 状態: **実装中の正本アーキテクチャ契約**。mainにはPR #71（merge commit `691b100`）と、TCSRV本番WASM、F/G/O/I/Bの独立カーネル、P/Aおよび`lab-opt-hybrid`のPhase-local Dispatchが存在する。ただし、**全Tickを飛ばすEvent Schedulerと完全Materializationは未実装**。実測優位が確認されていないfeatureは本番へ昇格しない。
 
 ## 1. 目的と責任境界
 
@@ -107,4 +107,4 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
 
 速さは `dispatch` 単独でなく、RulePlan検証/準備、計画、切替、実行、必要な観測/Replay生成、シリアライズ、WASM host転送を区分して**総時間**で測る。併せて判定数、状態コピー量、イベント処理数、実体化Tick数、メモリを測定する。各ケースで「何を飛ばせたか」「何をまだ毎Tick計算する必要があるか」を報告する。
 
-現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` の参照方式。R/V/T/C/Sの物理最適化やPR内の変更は**Hybrid実行基盤そのものではない**。採用を先取りしない。
+現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` を保ち、Jinrei・Replay・CUを毎Tick処理する。Phase-localの部分Hybridは存在するが、全Tickを飛ばすExecution Frontier/Materializationはまだない。WASM本番標準は実測優位のTCSRV、その他はLabでReference（000）と比較する。

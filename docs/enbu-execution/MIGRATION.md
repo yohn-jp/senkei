@@ -1,6 +1,6 @@
 # Hybrid Engine移行計画 — 文書から本番へ
 
-> 状態: **実装計画（未完了）**。この文書が存在することをもってEnbuがHybridへ切り替わったと判断しない。機能を停止して数字だけ速くすることは許さない。
+> 状態: **部分実装／残工事あり**。PR #71はmainへマージ済み。F/G/O/I/B、P/AとPhase-local Hは既存Tickで物理演算を削減する候補だが、有限窓を跨ぐ全Tick短絡と完全Materializationは未達。機能を停止して数字だけ速くすることは許さない。
 
 ## 1. ゴール
 
@@ -20,8 +20,8 @@
 | --- | --- |
 | EnbuのRust参照Tickループ | Event-drivenな有限窓実行と境界証明 |
 | R/V（経路/視界）等のfeature実験、WASM変種比較 | 因果領域に応じた複数StrategyのDispatcher |
-| Native golden fixturesと12-WASM SHA/完全応答比較 | Native/WASM両方のHybrid独立同値検証 |
-| TS Simulation Labの11種・14研究ケースと研究文書 | 各合成アルゴリズムの実Enbu意味論への条件付き移植 |
+| Native golden fixturesと25-WASM SHA/完全応答比較（最新mainのLabゲートで検証） | Native/WASM両方のHybrid独立同値検証 |
+| TS Simulation Labの11種・14研究ケースと研究文書、RustのPhase-local H | 各合成アルゴリズムの実Enbu意味論への条件付き移植、有限窓スキップ・完全出力再構成 |
 | Public/Owner ReplayとRestrictedDiagnostics | 物理スキップ中の全出力の正規Materialization |
 
 局所最適化（経路/視界、メモリコピー、Shield/Cohort等）は採用できるなら引き続き有効だが、**Tickを飛ばすアルゴリズムの採用証明ではない**。
