@@ -2079,6 +2079,17 @@ mod tests {
         insert(&mut reference, "defender", entity("minion", Some(CombatantSide::Defender), 10, 180, 8, 50));
         support::set_int(reference.entities.get_mut(&EntityId::from("attacker")).unwrap(), "attack_ready", 22);
         support::set_int(reference.entities.get_mut(&EntityId::from("defender")).unwrap(), "attack_ready", 22);
+        // H+S deliberately declines tiny matches at the Planner admission
+        // boundary (24 entities). Include distant, unready combatants so
+        // this test proves the temporal Frontier is really exercised in
+        // *both* standalone S and adaptive H+S configurations.
+        for index in 0..24 {
+            let mut dormant = entity(
+                "minion", Some(CombatantSide::Attacker), 500, 100, 6, 0,
+            );
+            support::set_int(&mut dormant, "attack_ready", 1000);
+            reference.entities.insert(format!("dormant-{index:02}").into(), dormant);
+        }
         let mut actual = reference.clone();
         let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
 
