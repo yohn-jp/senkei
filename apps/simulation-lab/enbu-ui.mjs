@@ -2,7 +2,7 @@
 const byId = id => document.getElementById(id);
 const labels = { '000':'参照', '100':'T', '010':'C', '001':'S',
   '110':'T+C', '101':'T+S', '011':'C+S', '111':'T+C+S',
-  R:'Route', V:'Visibility', RV:'Route+Visibility', TCSRV:'T+C+S+Route+Visibility', P:'Planned candidate index', A:'Arithmetic phase dispatcher', F:'Frozen snapshot reuse', FPA:'Frozen+Planned+Arithmetic', G:'Certified fog probes', TCSRVG:'T+C+S+Route+Visibility+Fog', O:'Indexed observations', TCSRVGO:'T+C+S+Route+Visibility+Fog+Observations', I:'In-place movement', B:'Combat visibility frontier', TCSRVIB:'TCSRV+In-place+Frontier', H:'Hybrid phase dispatcher', TCSRVH:'TCSRV+Hybrid dispatcher', S:'Temporal frontier and event scheduler', TCSRVS:'TCSRV+Temporal frontiers', TCSRVHS:'TCSRV+Hybrid+Temporal scheduler' };
+  R:'Route', V:'Visibility', RV:'Route+Visibility', TCSRV:'T+C+S+Route+Visibility', P:'Planned candidate index', A:'Arithmetic phase dispatcher', F:'Frozen snapshot reuse', FPA:'Frozen+Planned+Arithmetic', G:'Certified fog probes', TCSRVG:'T+C+S+Route+Visibility+Fog', O:'Indexed observations', TCSRVGO:'T+C+S+Route+Visibility+Fog+Observations', I:'In-place movement', B:'Combat visibility frontier', TCSRVIB:'TCSRV+In-place+Frontier', H:'Hybrid phase dispatcher', TCSRVH:'TCSRV+Hybrid dispatcher', S:'Temporal frontier and event scheduler', TCSRVS:'TCSRV+Temporal frontiers', TCSRVHS:'TCSRV+Hybrid+Temporal scheduler', W:'Certified Movement Active Set', TCSRVGW:'Current production TCSRVG + MovementWindow' };
 let worker = null;
 let report = null;
 
