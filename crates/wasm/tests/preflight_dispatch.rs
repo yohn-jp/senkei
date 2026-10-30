@@ -242,6 +242,70 @@ fn export_enbu_lab_fixtures() {
             "id": id, "ticks": ticks, "request": request, "native_response": response,
         }));
     }
+    // Real Next Behavior is a separate, full-output benchmark: with only
+    // default Move actions, no split/merge/regroup preview is necessary.
+    // The canonical reference and all 28 WASM strategies must agree.
+    let mut behavior_context =
+        new_match_context(&rules, MatchId::new("lab-next-behavior-16"));
+    behavior_context.max_ticks = 16;
+    let constant = BehaviorScoreTerm { signal: BehaviorSignal::Constant, weight: 1 };
+    let policy = NextBehaviorPolicy {
+        schema_version: 1,
+        policy_id: "lab-next-behavior".into(),
+        version: Version::new(1, 0, 0),
+        ruleset_digest: rules.package_digest().clone(),
+        test_only: true,
+        composition: BehaviorComposition {
+            hero_aggregation: BehaviorHeroAggregation::MeanFloor,
+            override_order: BehaviorOverrideOrder::ArmyThenSquad,
+            action_order: BehaviorActionOrder::ScoreDescThenActionIdAsc,
+            targeting_profile: BehaviorTargetingProfile::TargetHealthWeight,
+        },
+        hero_defaults: next.heroes.iter()
+            .map(|hero| (hero.id.clone(), NextBehaviorProfile::default()))
+            .collect(),
+        domains: BehaviorDomains {
+            navigation: vec![constant.clone()],
+            engagement: vec![constant.clone()],
+            targeting: vec![constant.clone()],
+            pursuit: vec![constant.clone()],
+            survival: vec![constant.clone()],
+            objective: vec![constant],
+        },
+        candidates: vec![BehaviorCandidateDefinition {
+            kind: BehaviorCandidateKind::Move,
+            capability: "move".into(),
+            arguments: vec![BehaviorArgument::Actor, BehaviorArgument::ObjectiveNode],
+        }],
+    };
+    senritsu::validate_next_behavior_policy(policy.clone(), &rules)
+        .expect("the real Lab Behavior policy must validate");
+    behavior_context.next_behavior = Some(NextBehaviorMatch {
+        policy,
+        inputs: NextBehaviorExecutionInputs { schema_version: 1, ..Default::default() },
+    });
+    let request = json!({
+        "api_version": WASM_API_VERSION,
+        "request_id": "lab-enbu-next-behavior-16",
+        "operation": "simulate",
+        "payload": {
+            "attacker": attacker, "defender": defender,
+            "context": behavior_context,
+            "include_diagnostics": true, "diagnostics_side": "attacker",
+        }
+    });
+    let response = senkei_wasm::dispatch_json(&request.to_string());
+    let parsed: Value = serde_json::from_str(&response).expect("valid Behavior JSON");
+    assert_eq!(parsed["ok"], true, "real Behavior simulation failed: {parsed:#}");
+    assert_eq!(
+        parsed["result"]["outcome"]["presentation_replay"]["frames"]
+            .as_array().expect("canonical Behavior Replay frames").len(),
+        17, "the 16-Tick Behavior run must preserve each Replay frame",
+    );
+    cases.push(json!({
+        "id": "next-behavior-16", "ticks": 16,
+        "request": request, "native_response": response,
+    }));
     if let Ok(path) = std::env::var("SENKEI_LAB_FIXTURE_OUT") {
         let fixture = json!({"schema": "senkei-enbu-wasm/v1", "cases": cases});
         std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap())

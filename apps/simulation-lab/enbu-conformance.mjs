@@ -15,9 +15,9 @@ if (fixture.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu
     fixture.revision !== build.revision || manifest.revision !== build.revision) {
   throw Error('Production Enbu artifacts are not from the same immutable revision');
 }
-if (!Array.isArray(fixture.cases) || fixture.cases.length !== 7 ||
+if (!Array.isArray(fixture.cases) || fixture.cases.length !== 8 ||
     !Array.isArray(manifest.variants) || manifest.variants.length !== 28) {
-  throw Error('Expected seven native golden fixtures and all twenty-eight optimizer masks');
+  throw Error('Expected eight native golden fixtures and all twenty-eight optimizer masks');
 }
 const variants = [];
 const expectedVariants = Array.from({length:8}, (_, n) => ({

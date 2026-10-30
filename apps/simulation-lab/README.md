@@ -66,7 +66,7 @@ and all differential comparisons. `111` is the historical
 The production `scripts/wasm/build.sh` now compiles the **measured TCSRVG**
 feature portfolio by default, while `SENKEI_WASM_FEATURES=reference` forces
 the original Reference WASM for diagnostics. TCSRV previously delivered a
-1.049× equal-case geometric mean on seven full-output real WASM cases
+1.049× equal-case geometric mean on seven full-output real WASM cases (prior promotion data; now eight with Next Behavior)
 (no regressed case in that run); these timings are source- and environment-
 specific, not a universal speedup guarantee. The Lab builds and verifies
 `000` independently rather than copying the optimized production binary.
@@ -170,7 +170,7 @@ change the computation in the authoritative Enbu Tick engine:
 
 The 28 real-WASM candidates include the prior 8-way T/C/S matrix,
 R, V, R+V, the combined T+C+S+R+V build, P (Planned candidate selection), and A (Arithmetic phase dispatcher). Each must reproduce the
-complete native Rust SHA-256 across all 7 fixture scenarios to publish. The
+complete native Rust SHA-256 across all 8 fixture scenarios to publish. The
 3-factor T/C/S marginal-effect study continues to use only the original eight
 combinations; R/V are compared directly by case, since extrapolating a full
 five-factor experiment from only fourteen builds would be invalid.
