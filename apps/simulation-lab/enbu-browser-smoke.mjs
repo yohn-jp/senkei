@@ -76,6 +76,29 @@ try {
     pageErrors: errors,
   }, null, 2));
   console.log('PASS: real Chromium Simulation Lab performed verified reference vs production TCSRVG WASM comparison');
+  // Exercise the *actual UI* with the new certified window, not only the
+  // standalone worker shim. Include the current production binary in the
+  // paired comparison and preserve the rendered evidence separately.
+  await page.locator('#enbu-case').selectOption('next-behavior-16');
+  await page.locator('#enbu-variant').selectOption('TCSRVGW');
+  await page.locator('#enbu-run').click();
+  await expect(page.locator('#enbu-status')).toContainText('検証成功', { timeout: 120_000 });
+  const windowReport = JSON.parse(await page.locator('#enbu-report').inputValue());
+  assert.equal(windowReport.source_revision, build.revision);
+  assert.equal(windowReport.cases[0].id, 'next-behavior-16');
+  assert.deepEqual(windowReport.rows.map(row => row.variant), ['000', 'TCSRVG', 'TCSRVGW']);
+  assert.equal(await page.locator('#enbu-results tr').count(), 3);
+  assert.ok(windowReport.rows.every(row => row.verified));
+  assert.ok(windowReport.rows.every(row =>
+    row.incumbent_speedup && Number.isFinite(row.incumbent_speedup.median_ratio)));
+  assert.deepEqual(errors, [], 'MovementWindow UI must not raise page errors');
+  await page.screenshot({
+    path: resolve(output, 'movement-window-production-comparison-1440.png'), fullPage: true,
+  });
+  await writeFile(resolve(output, 'movement-window-production-comparison.json'),
+    JSON.stringify(windowReport, null, 2));
+  console.log('PASS: real Chromium Lab UI executed 16-Tick Behavior W/production paired comparison');
+
 } finally {
   await browser?.close();
   await new Promise(ok => server.close(ok));
