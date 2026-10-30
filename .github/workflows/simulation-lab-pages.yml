@@ -100,7 +100,12 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-          cp apps/web/public/wasm/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
+          # Production build.sh is deliberately optimized; keep its immutable
+          # provenance separately. 000 must remain the actual Reference binary,
+          # not the newly promoted production feature set.
+          cp apps/web/public/wasm/senkei_wasm.wasm target/simulation-lab/senkei_wasm_production.wasm
+          cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib
+          cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
           for mask in 001 010 011 100 101 110 111; do
             value=$((2#$mask))
             features=()
@@ -134,6 +139,8 @@ jobs:
             cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
+      - name: Verify promoted production WASM is exactly the tested TCSRV build
+        run: cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRV.wasm
       - name: Stamp immutable fixture provenance
         env:
           REVISION: ${{ github.sha }}

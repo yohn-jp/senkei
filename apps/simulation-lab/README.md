@@ -60,11 +60,17 @@ factorial varies these independent Cargo features:
 | C (2) | `lab-opt-cohort` | Repeated per-hero squad membership/lock/movement scans during basic attack selection |
 | S (1) | `lab-opt-shields` | Repeated per-recipient shield contribution sums |
 
-`000` is the production reference. `111` is the historical
-`lab-optimizations` all-on alias; all other six subsets are actual compiled
-Enbu, not synthetic stand-ins. No optimization is enabled by default in the
-game. Any promoted combination is the **same Rust code and feature set**,
-not a second JS implementation.
+`000` is the unoptimized canonical Reference used by Native golden
+and all differential comparisons. `111` is the historical
+`lab-optimizations` alias; the other subsets are real Enbu builds.
+The production `scripts/wasm/build.sh` now compiles the **measured TCSRV**
+feature portfolio by default, while `SENKEI_WASM_FEATURES=reference` forces
+the original Reference WASM for diagnostics. TCSRV previously delivered a
+1.049× equal-case geometric mean on seven full-output real WASM cases
+(no regressed case in that run); these timings are source- and environment-
+specific, not a universal speedup guarantee. The Lab builds and verifies
+`000` independently rather than copying the optimized production binary.
+Any promoted combination is the **same Rust code**, not synthetic JS.
 
 The Pages workflow builds the production WASM and all twenty benchmark variants
 from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects

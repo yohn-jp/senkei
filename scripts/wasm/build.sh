@@ -38,7 +38,16 @@ if ! command -v wasm-ld >/dev/null 2>&1; then
 fi
 
 export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
-cargo build --locked --release --target "$target" -p "$crate" --lib
+# The production binary adopts the already proven real-Enbu TCSRV portfolio.
+# Explicit 'reference' remains the unoptimized control for certification.
+# Future promotions must come from full Native/WASM parity and total-time
+# measurements on the same immutable source revision.
+features="${SENKEI_WASM_FEATURES:-lab-optimizations,lab-opt-route,lab-opt-visibility}"
+if [[ "$features" == reference ]]; then
+  cargo build --locked --release --target "$target" -p "$crate" --lib
+else
+  cargo build --locked --release --target "$target" -p "$crate" --lib --features "$features"
+fi
 
 wasm_dir="$repo_root/apps/web/public/wasm"
 mkdir -p "$wasm_dir"
