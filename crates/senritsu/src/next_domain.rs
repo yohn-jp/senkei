@@ -238,7 +238,7 @@ fn observation_collections(skill_ids: &BTreeSet<FieldId>) -> BTreeMap<Collection
     let current_fields = |entity: &str, fields: &[&str]| -> BTreeMap<FieldId, ObservationFieldSchema> {
         let schema = entity_type_schema(entity, skill_ids);
         fields.iter().map(|name| {
-            let entity_field = id(*name);
+            let entity_field: FieldId = id(*name);
             let world_field = schema.fields.get(&entity_field)
                 .expect("collection field must exist on its entity type");
             (entity_field.clone(), current_field(
