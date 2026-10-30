@@ -27,6 +27,8 @@ lab-opt-visibility = []
 # First proof-scoped Hybrid strategy: snapshot-local Planned combat candidate index.
 # Reference scan remains the default and is used for all unsupported scopes.
 lab-opt-planned = []
+# Frozen snapshot, canonical graph-local attack candidate partition.
+lab-opt-spatial = ["lab-opt-planned"]
 lab-opt-arithmetic = []
 # Reuse immutable phase snapshots and skip impossible Skill acquisition copies.
 lab-opt-frozen = []
