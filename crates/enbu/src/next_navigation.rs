@@ -103,8 +103,15 @@ pub(crate) fn advance_from_snapshot_window(
     tick: u32,
     window: &mut crate::execution::movement::MovementWindow,
 ) {
-    advance_inner_with_window(world, snapshot, rules, tick, None,
-        cfg!(feature = "lab-opt-inplace"), Some(window));
+    if crate::execution::planner::movement_phase(snapshot.entities.len(), false) {
+        advance_inner_with_window(world, snapshot, rules, tick, None,
+            cfg!(feature = "lab-opt-inplace"), Some(window));
+    } else {
+        // A short battle should not pay for an O(N) certificate and a second
+        // source classification. Use the canonical physical executor.
+        advance_inner_with_mode(world, snapshot, rules, tick, None,
+            cfg!(feature = "lab-opt-inplace"));
+    }
 }
 
 fn advance_inner_with_window(
