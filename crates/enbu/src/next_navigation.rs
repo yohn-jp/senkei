@@ -157,6 +157,13 @@ fn advance_inner_with_window(
     let frontier = if cfg!(feature = "lab-opt-frontier") && snapshot.entities.len() >= 12 {
         Some(&visibility_index)
     } else { None };
+    // Frozen-location candidate filtering is shared by all movement sources
+    // in this canonical P7 snapshot. Lazy construction avoids its cost on
+    // pure explicit-move, forced-transit and small-world paths.
+    let spatial_index = OnceCell::<crate::execution::strategies::planned::PlannedCombatCandidates<'_>>::new();
+    let spatial = if cfg!(feature = "lab-opt-spatial") && snapshot.entities.len() >= 24 {
+        Some(&spatial_index)
+    } else { None };
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
@@ -200,14 +207,14 @@ fn advance_inner_with_window(
             // This ID is visited exactly once: no earlier movement can
             // modify this actor. Its live state equals the frozen start.
             advance_entity(
-                &id, entity, rules, &movement, snapshot, frontier,
+                &id, entity, rules, &movement, snapshot, frontier, spatial,
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
         } else {
             // Reference allocates a per-actor clone before replacing it.
             let mut next = start.clone();
             advance_entity(
-                &id, &mut next, rules, &movement, snapshot, frontier,
+                &id, &mut next, rules, &movement, snapshot, frontier, spatial,
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
             *entity = next;
@@ -272,6 +279,7 @@ fn advance_entity(
     movement: &MovementIntent,
     snapshot: &WorldState,
     visibility_index: Option<&OnceCell<crate::next_combat::CombatVisibilityIndex>>,
+    spatial_index: Option<&OnceCell<crate::execution::strategies::planned::PlannedCombatCandidates<'_>>>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
@@ -354,6 +362,9 @@ fn advance_entity(
             actor_id, entity, snapshot, rules, tick,
             visibility_index.map(|index| index.get_or_init(|| {
                 crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules)
+            })),
+            spatial_index.map(|index| index.get_or_init(|| {
+                crate::execution::strategies::planned::PlannedCombatCandidates::build(snapshot, rules)
             })),
         )
     {
@@ -725,7 +736,7 @@ fn should_hold_for_attack(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
-    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None)
+    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None, None)
 }
 fn should_hold_for_attack_indexed(
     actor_id: &EntityId,
@@ -734,6 +745,7 @@ fn should_hold_for_attack_indexed(
     rules: &NextRules,
     tick: u32,
     visibility: Option<&crate::next_combat::CombatVisibilityIndex>,
+    spatial: Option<&crate::execution::strategies::planned::PlannedCombatCandidates<'_>>,
 ) -> bool {
     let actors = if entity.entity_type.as_str() == "hero" {
         hero_cohort(actor_id, entity, snapshot)
@@ -741,14 +753,20 @@ fn should_hold_for_attack_indexed(
         vec![(actor_id.clone(), entity.clone())]
     };
     actors.iter().any(|(source_id, source)| {
-        snapshot.entities.iter().any(|(target_id, target)| {
+        let is_hostile_reachable = |target_id: &EntityId, target: &EntityState| {
             target.owner.is_some()
                 && target.owner != source.owner
                 && alive(target)
                 && crate::next_combat::can_basic_attack_with_visibility(
                     source_id, source, target_id, target, snapshot, rules, tick, visibility,
                 )
-        })
+        };
+        match spatial {
+            Some(index) => index.candidates_for(source).iter().copied()
+                .any(|(id, target)| is_hostile_reachable(id, target)),
+            None => snapshot.entities.iter()
+                .any(|(id, target)| is_hostile_reachable(id, target)),
+        }
     })
 }
 
