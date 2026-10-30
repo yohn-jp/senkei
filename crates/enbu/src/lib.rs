@@ -359,6 +359,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
     }
 
     let max_ticks = context.max_ticks.min(plan.termination.max_ticks);
+    // Owned by exactly one match. Never reuse a certificate across plans,
+    // matches or authority boundaries. Every external Tick remains canonical.
+    let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
     for tick in 1..=max_ticks {
         if final_outcome.is_some() {
             break;
@@ -701,7 +704,12 @@ fn simulate_inner<P: TacticalExecutionPort>(
             } else {
                 next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
             }
-            next_events = if let Some(collector) = actor_collector.as_deref_mut() {
+            next_events = if cfg!(feature = "lab-opt-scheduler") {
+                next_combat::resolve_from_snapshot_scheduled(
+                    &mut world, &adjudication_start, next, &accepted_by_side,
+                    tick, &mut attack_frontier, actor_collector.as_deref_mut(),
+                )
+            } else if let Some(collector) = actor_collector.as_deref_mut() {
                 next_combat::resolve_from_snapshot_with_actor_decisions(&mut world, &adjudication_start, next, &accepted_by_side, tick, collector)
             } else {
                 next_combat::resolve_from_snapshot(&mut world, &adjudication_start, next, &accepted_by_side, tick)

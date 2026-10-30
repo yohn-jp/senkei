@@ -130,7 +130,7 @@ pub fn resolve(
 ) -> Vec<PresentationEvent> {
     let events = objective_lifecycle(world, rules, tick);
     let start = world.clone();
-    resolve_snapshot_with_events(world, &start, rules, accepted, tick, events, None)
+    resolve_snapshot_with_events(world, &start, rules, accepted, tick, events, None, None)
 }
 
 /// Resolve attacks against a frozen pre-movement snapshot while committing
@@ -143,7 +143,7 @@ pub fn resolve_from_snapshot(
     accepted: &[(CombatantSide, Intent)],
     tick: u32,
 ) -> Vec<PresentationEvent> {
-    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), None)
+    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), None, None)
 }
 
 /// Opt-in diagnostics of the same selection and event-emission path.
@@ -157,7 +157,26 @@ pub(crate) fn resolve_from_snapshot_with_actor_decisions(
     tick: u32,
     collector: &mut ActorDecisionCollector,
 ) -> Vec<PresentationEvent> {
-    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), Some(collector))
+    resolve_snapshot_with_events(world, snapshot, rules, accepted, tick, Vec::new(), Some(collector), None)
+}
+
+/// Canonical combat resolver with an optional, proof-scoped temporal
+/// frontier. Only the basic-attack collection subphase can be bypassed; every
+/// skill, passive, shield, XP, support effect, trace and Replay responsibility
+/// stays in the same reference resolver. The caller owns frontier lifetime
+/// across canonical Ticks and never across matches.
+pub(crate) fn resolve_from_snapshot_scheduled(
+    world: &mut WorldState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    accepted: &[(CombatantSide, Intent)],
+    tick: u32,
+    frontier: &mut crate::execution::scheduler::BasicAttackFrontier,
+    collector: Option<&mut ActorDecisionCollector>,
+) -> Vec<PresentationEvent> {
+    resolve_snapshot_with_events(
+        world, snapshot, rules, accepted, tick, Vec::new(), collector, Some(frontier),
+    )
 }
 
 /// Reserve a legal active skill as this Hero's action before movement runs.
@@ -353,6 +372,7 @@ fn resolve_snapshot_with_events(
     tick: u32,
     mut events: Vec<PresentationEvent>,
     mut collector: Option<&mut ActorDecisionCollector>,
+    mut attack_frontier: Option<&mut crate::execution::scheduler::BasicAttackFrontier>,
 ) -> Vec<PresentationEvent> {
     // Skills already on a selected path unlock automatically once level and
     // prerequisite conditions are met. Initial level-one heroes are handled
@@ -384,7 +404,14 @@ fn resolve_snapshot_with_events(
     apply_mature_squad_shields(world, rules);
 
     let (mut skill_damage, activations) = collect_skill_activations(world, &combat_start, rules, accepted, tick, &mut events);
-    let mut hits = collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut());
+    // When a finite future readiness bound is exactly certified for the
+    // current frozen combat domain, avoid visiting any attack candidates.
+    // This does *not* skip the Tick or the other combat phase obligations.
+    let idle = attack_frontier.as_deref_mut().is_some_and(|frontier| {
+        frontier.certify_idle(&combat_start, tick, collector.is_some())
+    });
+    let mut hits = if idle { Vec::new() }
+        else { collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut()) };
     hits.append(&mut skill_damage);
 
     // Timed support effects are prepared together, independent of accepted
