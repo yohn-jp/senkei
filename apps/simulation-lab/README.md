@@ -45,11 +45,11 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu matrix: twenty-five real Rust/WASM builds
+### Production Enbu matrix: twenty-eight real Rust/WASM builds
 
 The existing **11 strategy / 14 scenario synthetic** benchmark and independent
 synthetic Tick Inspector remain unchanged and are never used to claim production
-speedups. The production lane compiles **twenty-five** distinct WASM binaries from the
+speedups. The production lane compiles **twenty-eight** distinct WASM binaries from the
 **same production Enbu Rust source** and JSON ABI: the original eight T/C/S
 factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index), A (Arithmetic phase dispatcher), F (frozen snapshot reuse), FPA and G (certified Fog probe reuse), TCSRVG and the independent O / TCSRVGO variants. The original T/C/S
 factorial varies these independent Cargo features:
@@ -72,7 +72,7 @@ specific, not a universal speedup guarantee. The Lab builds and verifies
 `000` independently rather than copying the optimized production binary.
 Any promoted combination is the **same Rust code**, not synthetic JS.
 
-The Pages workflow builds the production WASM and all twenty-three-three benchmark variants
+The Pages workflow builds the production WASM and all twenty-eight benchmark variants
 from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
 publication unless **every variant** reproduces **all native Rust golden JSON
 responses** (the full response, including replay, CU, diagnostics, and output
@@ -83,7 +83,7 @@ These fixtures are a baseline, **not exhaustive gameplay equivalence**.
 
 #### Measurements and ranking
 
-The Worker can run all twenty-three-three variants or the baseline against one selected
+The Worker can run all twenty-eight variants or the baseline against one selected
 variant, for all fixtures or one Tick count. Each variant is instantiated once,
 then run in alternating, rotating order with two warmups. Median/p95,
 input-transfer, WASM dispatch, output-transfer, WebAssembly linear memory,
@@ -137,8 +137,11 @@ The architecture for migrating beyond all-Tick execution into a proof-gated
 Hybrid Execution Engine is documented separately in
 [Enbu Hybrid execution contracts](../../docs/enbu-execution/README.md).
 R/V, P and A reduce work inside the existing Tick engine. P is a **real
-snapshot-scoped Planned combat-selection kernel**, but it does **not** skip
-future Ticks, run the Event Scheduler, or implement the full Hybrid engine.
+snapshot-scoped Planned combat-selection kernel**. S adds a real cross-Tick
+Event Scheduler with exactly certified subphase idle windows; every Tick's
+observable obligations continue to materialize. The general full-Tick window
+skipping and arbitrary replay reconstruction design remains a separate proof
+problem; this matrix cannot certify it merely through matching outputs.
 
 Unlike disabling output paths or measuring synthetic simulations, these flags
 change the computation in the authoritative Enbu Tick engine:
@@ -151,6 +154,7 @@ change the computation in the authoritative Enbu Tick engine:
 - `V` / `lab-opt-visibility`: batch and deduplicate the actual authorized
   vision sources before each public/owner replay projection; all required
   views are still produced.
+- `S` / `lab-opt-scheduler`: physical cross-Tick phase scheduling for two independently certified domains. The basic-attack frontier records the earliest possible next attack readiness and skips combat target/cohort traversal on intervening certified Ticks; the reveal frontier skips expiration scans until the first due deadline. Both compare their complete causal read sets each Tick (not an unsafe hash) and invalidate scheduled events on entity set, HP/attack/range/readiness or reveal-timer changes. Generation-checks, stable ordering, stale compaction and bounded queue capacity are enforced. Jinrei, RulePlan transitions, Fog, public/owner Replay, skills, support effects and logical CU continue on **every** Tick. `TCSRVS` and `TCSRVHS` measure the time-bound domains independently and alongside Phase Hybrid. No end-to-end speedup is claimed without real WASM evidence.
 - `H` / `lab-opt-hybrid`: phase-scoped Hybrid dispatcher combining the exact Reference, sparse Arithmetic and dense Planned selection paths with the independent combat visibility frontier and in-place navigation. It enables Planned only for 48+ entities, and Arithmetic readiness classification only for 64+ entities; owner decision traces remain fully visited. This is a **within-Tick** adaptive portfolio; it does not skip Jinrei, Replay or whole Ticks. `TCSRVH` measures H combined with the separately proven TCSRV base.
 - `I` / `lab-opt-inplace`: PR #71's per-unit in-place navigation state update, retaining the immutable pre-navigation freeze. It removes redundant entity clones under an independent benchmark feature.
 - `B` / `lab-opt-frontier`: PR #71's snapshot-scoped indexed combat visibility frontier, lazily compiled for dense eligible attack/hold checks. The original target predicate, stable order, fog authorization and owner trace remain authoritative. `TCSRVIB` measures I+B on top of the previously measured best production strategy set.
@@ -164,7 +168,7 @@ change the computation in the authoritative Enbu Tick engine:
   per-actor full scan remains the Reference path. This is not the TS
   synthetic `planned` executor nor a multi-Tick acceleration.
 
-The 25 real-WASM candidates include the prior 8-way T/C/S matrix,
+The 28 real-WASM candidates include the prior 8-way T/C/S matrix,
 R, V, R+V, the combined T+C+S+R+V build, P (Planned candidate selection), and A (Arithmetic phase dispatcher). Each must reproduce the
 complete native Rust SHA-256 across all 7 fixture scenarios to publish. The
 3-factor T/C/S marginal-effect study continues to use only the original eight
