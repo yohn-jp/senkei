@@ -284,6 +284,10 @@ fn simulate_inner<P: TacticalExecutionPort>(
     if let Some(hook) = next_behavior.as_deref() { next_behavior::validate_bindings(hook.inputs, &world)?; }
     if let Some(inspection) = next_behavior.as_deref().and_then(|hook| hook.inspection.as_ref()) { inspection.validate_subject(&world)?; }
     let plan = rules.plan();
+    // The capability schema is fixed for this verified RulePlan. The former
+    // call_executor built this BTreeSet twice per Tick; all intent/authority
+    // checks still consume the exact same immutable set.
+    let allowed_capabilities = plan.domain.capabilities.keys().cloned().collect::<BTreeSet<_>>();
     // Invariant hoisting: the verified plan is immutable for the whole match.
     // Keep the normal Tick path as the control build.
     #[cfg(feature = "lab-opt-termination")]
@@ -414,6 +418,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             executor,
             attacker,
             plan,
+            &allowed_capabilities,
             &memories[&CombatantSide::Attacker],
             &observations[0],
             CombatantSide::Attacker,
@@ -425,6 +430,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
             executor,
             defender,
             plan,
+            &allowed_capabilities,
             &memories[&CombatantSide::Defender],
             &observations[1],
             CombatantSide::Defender,
@@ -1026,6 +1032,7 @@ fn call_executor<P: TacticalExecutionPort>(
     executor: &mut P,
     snapshot: &senkei_model::SenkeiSnapshot,
     plan: &RulePlan,
+    allowed_capabilities: &BTreeSet<senkei_model::CapabilityId>,
     memory: &TacticalMemory,
     observation: &ObservationSnapshot,
     side: CombatantSide,
@@ -1044,7 +1051,7 @@ fn call_executor<P: TacticalExecutionPort>(
             program: &snapshot.program,
             observation,
             memory,
-            allowed_capabilities: &plan.domain.capabilities.keys().cloned().collect(),
+            allowed_capabilities,
             budget: ExecutionBudget {
                 available_cu,
                 max_intents: plan.limits.max_intents_per_side_per_tick,
