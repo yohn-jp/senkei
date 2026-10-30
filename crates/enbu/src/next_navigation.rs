@@ -2153,10 +2153,10 @@ mod tests {
         let mut initial = WorldState::default();
         let mut leader = entity("hero", Some(CombatantSide::Attacker), 10, "a", "");
         set_string(&mut leader, "squad", "squad");
-        initial.entities.insert(id("hero-leader"), leader);
+        initial.entities.insert(id("hero-a"), leader);
         let mut follower = entity("hero", Some(CombatantSide::Attacker), 12, "a", "");
         set_string(&mut follower, "squad", "squad");
-        initial.entities.insert(id("hero-follower"), follower);
+        initial.entities.insert(id("hero-b"), follower);
         for index in 0..36 {
             let mut dormant = entity("monster", None, 4, "a", "");
             set_string(&mut dormant, "squad", "");
@@ -2170,7 +2170,7 @@ mod tests {
             match tick {
                 4 => {
                     for world in [&mut reference, &mut accelerated] {
-                        set_string(world.entities.get_mut(&id("hero-leader")).unwrap(), "goal", "b");
+                        set_string(world.entities.get_mut(&id("hero-a")).unwrap(), "goal", "b");
                     }
                 }
                 7 => {
@@ -2182,12 +2182,12 @@ mod tests {
                 }
                 12 => {
                     for world in [&mut reference, &mut accelerated] {
-                        set_int(world.entities.get_mut(&id("hero-leader")).unwrap(), "hp", 0);
+                        set_int(world.entities.get_mut(&id("hero-a")).unwrap(), "hp", 0);
                     }
                 }
                 15 => {
                     for world in [&mut reference, &mut accelerated] {
-                        set_string(world.entities.get_mut(&id("hero-follower")).unwrap(), "goal", "c");
+                        set_string(world.entities.get_mut(&id("hero-b")).unwrap(), "goal", "c");
                     }
                 }
                 19 => {
