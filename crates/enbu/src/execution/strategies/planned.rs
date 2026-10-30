@@ -61,13 +61,29 @@ pub(crate) struct PlannedCombatCandidates<'a> {
 
 impl<'a> PlannedCombatCandidates<'a> {
     pub(crate) fn build(snapshot: &'a WorldState, rules: &NextRules) -> Self {
+        Self::build_inner(snapshot, rules, true)
+    }
+
+    /// Navigation uses only Node/Edge target membership; it supplies the
+    /// authoritative current visibility predicate independently. Do not
+    /// calculate both owner vision-source vectors in its spatial index.
+    #[cfg(feature = "lab-opt-spatial")]
+    pub(crate) fn build_for_navigation(snapshot: &'a WorldState, rules: &NextRules) -> Self {
+        Self::build_inner(snapshot, rules, false)
+    }
+
+    fn build_inner(snapshot: &'a WorldState, rules: &NextRules, include_vision: bool) -> Self {
         let mut result = Self {
             all: Vec::new(), enemy_attacker: Vec::new(), enemy_defender: Vec::new(),
             owned_hero_minion: Vec::new(),
             enemy_hero_minion_attacker: Vec::new(),
             enemy_hero_minion_defender: Vec::new(),
-            attacker_vision: next_vision::vision_sources(snapshot, rules, CombatantSide::Attacker),
-            defender_vision: next_vision::vision_sources(snapshot, rules, CombatantSide::Defender),
+            attacker_vision: if include_vision {
+                next_vision::vision_sources(snapshot, rules, CombatantSide::Attacker)
+            } else { Vec::new() },
+            defender_vision: if include_vision {
+                next_vision::vision_sources(snapshot, rules, CombatantSide::Defender)
+            } else { Vec::new() },
             #[cfg(feature = "lab-opt-spatial")]
             by_location: BTreeMap::new(),
             #[cfg(feature = "lab-opt-spatial")]
