@@ -534,6 +534,71 @@ mod tests {
     use super::*;
 
     #[test]
+    fn scoped_topology_preserves_parallel_edge_and_invalid_position_reference() {
+        let nodes = ["a", "b", "c"].into_iter()
+            .map(|id| (id.to_owned(), MapNode::default())).collect();
+        let edge = |id: &str, from: &str, to: &str, length| MapEdge {
+            id: id.into(), from: from.into(), to: to.into(), length,
+            region: "lane".into(), ..Default::default()
+        };
+        // The FIRST authored parallel edge is invalid, while the second
+        // makes progress on the same a-b pair valid. The combat distance
+        // reader must still select the first authored edge exactly as before.
+        let rules = NextRules {
+            projection_policy: None, minion_control: None,
+            mechanics_version: Version::new(1, 0, 0),
+            world_identity: None,
+            map: BattleMap {
+                id: "parallel-edges".into(), world_identity: None, world_projection: None,
+                nodes,
+                edges: vec![
+                    edge("invalid-first", "a", "b", 0),
+                    edge("valid-second", "b", "a", 10),
+                    edge("neighbor", "b", "c", 7),
+                ],
+                lanes: BTreeMap::new(), attacker_base: "a".into(),
+                defender_base: "c".into(), towers: Vec::new(),
+            },
+            heroes: Vec::new(), minions: Vec::new(), monsters: Vec::new(),
+            camps: Vec::new(), parameters: BTreeMap::new(),
+        };
+        let position = |node: &str, to: &str, progress: i64| {
+            let mut e = EntityState {
+                entity_type: "hero".into(), owner: None, fields: BTreeMap::new(),
+            };
+            set_string(&mut e, "node", node);
+            set_string(&mut e, "edge_to", to);
+            set_int(&mut e, "edge_progress", progress);
+            e
+        };
+        let positions = [
+            position("a", "", 0),
+            position("b", "", 0),
+            position("a", "b", 3),
+            position("b", "a", 4),
+            position("a", "b", 11),
+            position("c", "b", 7),
+            position("c", "unknown", 1),
+        ];
+        let pairs = || positions.iter().flat_map(|source| positions.iter().map(move |target| {
+            (combat_distance2(source, target, &rules),
+             world_distance2(source, target, &rules))
+        })).collect::<Vec<_>>();
+        let reference = pairs();
+        let before = GRAPH_TOPOLOGY_LOOKUPS.with(|lookups| lookups.get());
+        {
+            let _scope = VisionGraphScope::enter(&rules.map);
+            assert_eq!(pairs(), reference,
+                "scoped topology must match exact Reference for all pairs");
+            assert!(GRAPH_TOPOLOGY_LOOKUPS.with(|lookups| lookups.get()) > before);
+            // Cache reuse is not an accident of the first construction.
+            assert_eq!(pairs(), reference);
+        }
+        assert_eq!(pairs(), reference,
+            "ending a match must restore exact unspecialized graph handling");
+    }
+
+    #[test]
     fn scoped_graph_cache_skips_only_stable_immutable_map_checks() {
         let mut map = BattleMap {
             id: "scoped-cache-test".into(),
