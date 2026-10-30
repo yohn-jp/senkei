@@ -691,23 +691,15 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 };
             #[cfg(not(feature = "lab-opt-frozen"))]
             let adjudication_start = world.clone();
-            #[cfg(feature = "lab-opt-frozen")]
-            {
-                // The snapshot frozen for combat is identical to the movement
-                // freeze, so borrowing it avoids a deep clone each Tick.
-                if let Some(runtime) = route_runtime.as_mut() {
-                    next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
-                } else {
-                    next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
-                }
-            }
-            #[cfg(not(feature = "lab-opt-frozen"))]
-            {
-                if let Some(runtime) = route_runtime.as_mut() {
-                    next_navigation::advance_with_routes(&mut world, next, tick, runtime);
-                } else {
-                    next_navigation::advance(&mut world, next, tick);
-                }
+            // The match runner has already frozen this exact pre-movement
+            // World for combat adjudication. Passing it to navigation is
+            // semantics-preserving and avoids a second whole-World clone
+            // on every Tick, including Reference and production builds.
+            // Public standalone navigation entrypoints still freeze internally.
+            if let Some(runtime) = route_runtime.as_mut() {
+                next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
+            } else {
+                next_navigation::advance_from_snapshot(&mut world, &adjudication_start, next, tick);
             }
             next_events = if let Some(collector) = actor_collector.as_deref_mut() {
                 next_combat::resolve_from_snapshot_with_actor_decisions(&mut world, &adjudication_start, next, &accepted_by_side, tick, collector)
