@@ -267,6 +267,8 @@ jobs:
           touch _site/.nojekyll
       - name: Gate publication on exact Native/WASM Enbu responses
         run: node apps/simulation-lab/enbu-conformance.mjs
+      - name: Exercise published Simulation Lab Worker with real production WASM
+        run: node apps/simulation-lab/enbu-publication-smoke.mjs
       - name: Retain validated release site
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
