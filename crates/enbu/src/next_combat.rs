@@ -551,13 +551,31 @@ pub(crate) fn can_basic_attack_with_visibility(
     )
 }
 
+/// Dispatch only the physically optimizable combat-selection domain.
+/// Jinrei, RulePlan transitions, Fog, Replay and logical CU remain per Tick.
+/// Dense worlds can amortize Planned's index; Arithmetic's readiness scan is
+/// only attempted when there are many potential combatants. Owner diagnostics
+/// require Reference actor visitation regardless of size.
+fn hybrid_combat_selectors(entity_count: usize, owner_trace: bool, hybrid: bool) -> (bool, bool) {
+    if !hybrid {
+        return (cfg!(feature = "lab-opt-planned"), cfg!(feature = "lab-opt-arithmetic"));
+    }
+    if owner_trace { return (false, false); }
+    (
+        cfg!(feature = "lab-opt-planned") && entity_count >= 48,
+        cfg!(feature = "lab-opt-arithmetic") && entity_count >= 64,
+    )
+}
+
 fn collect_basic_attacks(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>,
 ) -> Vec<Hit> {
+    let (planned, arithmetic) = hybrid_combat_selectors(
+        start.entities.len(), collector.is_some(), cfg!(feature = "lab-opt-hybrid"),
+    );
     collect_basic_attacks_with_execution(
-        world, start, rules, tick, collector,
-        cfg!(feature = "lab-opt-planned"), cfg!(feature = "lab-opt-arithmetic"),
+        world, start, rules, tick, collector, planned, arithmetic,
     )
 }
 
@@ -1964,6 +1982,17 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn hybrid_dispatch_selection_is_phase_local_and_trace_safe() {
+        assert_eq!(hybrid_combat_selectors(4, false, true), (false, false));
+        assert_eq!(hybrid_combat_selectors(100, true, true), (false, false));
+        let large = hybrid_combat_selectors(128, false, true);
+        assert_eq!(large.0, cfg!(feature = "lab-opt-planned"));
+        assert_eq!(large.1, cfg!(feature = "lab-opt-arithmetic"));
+        let medium = hybrid_combat_selectors(52, false, true);
+        assert_eq!(medium, (cfg!(feature = "lab-opt-planned"), false));
     }
 
     #[test]
