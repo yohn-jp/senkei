@@ -81,6 +81,30 @@ try {
     row.incumbent_speedup && Number.isFinite(row.incumbent_speedup.median_ratio)));
   console.log('PASS: real Behavior-driven Lab Worker compared 000/TCSRVG/TCSRVGW, ' +
     'verified every Native golden and measured the exact incumbent delta');
+  // The graph-local combat kernel is a separate physical strategy. Include
+  // the published production binary and an actually active 64-Tick fixture.
+  // This rules out a zero-work benchmark being mistaken for combat speedup.
+  messages.length = 0;
+  await globalThis.self.onmessage({
+    data: { type: 'run', caseId: 'quintet-64', variantId: 'TCSRVGX', samples: 3 },
+  });
+  const spatialFailure = messages.find(message => message.type === 'error');
+  assert.equal(spatialFailure, undefined,
+    `Spatial Enbu Lab worker failed: ${spatialFailure?.message}`);
+  const spatialCompletion = messages.find(message => message.type === 'complete');
+  assert.ok(spatialCompletion, 'spatial real-WASM benchmark must finish');
+  assert.equal(spatialCompletion.report.source_revision, build.revision);
+  assert.equal(spatialCompletion.report.cases[0].id, 'quintet-64');
+  assert.deepEqual(spatialCompletion.report.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGX']);
+  assert.ok(spatialCompletion.report.rows.every(row =>
+    row.verified && row.samples === 3));
+  assert.ok(spatialCompletion.report.rows.every(row =>
+    row.incumbent_speedup &&
+      Number.isFinite(row.incumbent_speedup.median_ratio)));
+  console.log('PASS: published Lab worker executed real 64-Tick Quintet, ' +
+    'Native-equal graph-local combat and incumbent wall-time A/B');
+
 } finally {
   globalThis.fetch = originalFetch;
   if (originalSelf === undefined) delete globalThis.self;
