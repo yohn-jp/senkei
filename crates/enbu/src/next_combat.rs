@@ -176,6 +176,7 @@ pub fn prepare_actions(
     // activation. Do not clone the entire world and replay every hero's
     // path merely to confirm that an all-movement/idle Tick has no skill.
     // Match the canonical capability predicate in active_skill_target.
+    #[cfg(feature = "lab-opt-frozen")]
     if !accepted.iter().any(|(_, intent)| {
         let cap = intent.capability.as_str();
         cap == "activate" || cap.ends_with(".activate")
@@ -357,6 +358,7 @@ fn resolve_snapshot_with_events(
     // us borrow the existing snapshot rather than deep-cloning every entity
     // on each of those Ticks. Unlockable path skills still take exactly the
     // original owned clone + canonical learning path.
+    #[cfg(feature = "lab-opt-frozen")]
     let combat_start = if path_skill_may_unlock(start, rules) {
         let mut frozen = start.clone();
         learn_path_skills(&mut frozen, rules, &mut Vec::new());
@@ -364,6 +366,10 @@ fn resolve_snapshot_with_events(
     } else {
         std::borrow::Cow::Borrowed(start)
     };
+    #[cfg(not(feature = "lab-opt-frozen"))]
+    let mut combat_start = start.clone();
+    #[cfg(not(feature = "lab-opt-frozen"))]
+    learn_path_skills(&mut combat_start, rules, &mut Vec::new());
 
     // Mature squads offer a capped, member-to-member protective shield. It is
     // a support effect with quadratic group contribution, not a blanket stat
@@ -1108,6 +1114,7 @@ fn progress_levels(
 // Conservative candidate check: prerequisites may further reject a skill,
 // but an unlearned, level-eligible path entry is necessary for any mutation.
 // Using it before cloning preserves every passive unlock and event.
+#[cfg(feature = "lab-opt-frozen")]
 fn path_skill_may_unlock(world: &WorldState, rules: &NextRules) -> bool {
     world.entities.values().any(|hero| {
         if hero.entity_type.as_str() != "hero" { return false; }
@@ -1128,9 +1135,9 @@ fn path_skill_may_unlock(world: &WorldState, rules: &NextRules) -> bool {
 }
 
 fn learn_path_skills(world: &mut WorldState, rules: &NextRules, events: &mut Vec<PresentationEvent>) {
+    #[cfg(feature = "lab-opt-frozen")]
     if !path_skill_may_unlock(world, rules) {
-        // Do not clone every Hero or allocate a Skill event buffer when the
-        // verified path+level cannot produce any new acquisition.
+        // Conservative proof that no Hero can learn a new path skill.
         return;
     }
     let hero_ids: Vec<_> = world.entities.iter()
