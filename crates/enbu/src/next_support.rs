@@ -28,12 +28,17 @@ pub fn int(e: &EntityState, key: &str) -> i64 {
         _ => 0,
     }
 }
-pub fn string(e: &EntityState, key: &str) -> String {
+/// Read a canonical scalar without cloning the payload. The owned string()
+/// accessor stays available for callers that persist or mutate a value.
+pub fn string_ref<'a>(e: &'a EntityState, key: &str) -> &'a str {
     match e.fields.get(key) {
-        Some(DomainValue::String(v)) => v.clone(),
-        Some(DomainValue::Enum(v)) => v.as_str().into(),
-        _ => String::new(),
+        Some(DomainValue::String(v)) => v.as_str(),
+        Some(DomainValue::Enum(v)) => v.as_str(),
+        _ => "",
     }
+}
+pub fn string(e: &EntityState, key: &str) -> String {
+    string_ref(e, key).to_owned()
 }
 pub fn set_int(e: &mut EntityState, key: &str, value: i64) {
     e.fields.insert(key.into(), DomainValue::Integer(value));
@@ -71,10 +76,10 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     if !valid_graph_position(a, rules) || !valid_graph_position(b, rules) {
         return None;
     }
-    let a_node = string(a, "node");
-    let a_to = string(a, "edge_to");
-    let b_node = string(b, "node");
-    let b_to = string(b, "edge_to");
+    let a_node = string_ref(a, "node");
+    let a_to = string_ref(a, "edge_to");
+    let b_node = string_ref(b, "node");
+    let b_to = string_ref(b, "edge_to");
     if a_to.is_empty() && b_to.is_empty() {
         return (a_node == b_node).then_some(0);
     }
@@ -97,7 +102,7 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     let dx = i128::from(a_canonical) - i128::from(b_canonical);
     let mut distance2 = dx * dx;
     if edge.region == "lane" && edge.bridge_site.is_empty() && !edge.ford {
-        let offset = |entity: &EntityState| match if int(entity, "cross_remaining") > 0 { "CENTER".into() } else { string(entity, "track") }.as_str() {
+        let offset = |entity: &EntityState| match if int(entity, "cross_remaining") > 0 { "CENTER" } else { string_ref(entity, "track") } {
             "LEFT" => -param(rules, "lane_track_offset_wu", 20),
             "RIGHT" => param(rules, "lane_track_offset_wu", 20),
             _ => 0,
@@ -109,9 +114,9 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
 }
 
 fn valid_graph_position(entity: &EntityState, rules: &NextRules) -> bool {
-    let node = string(entity, "node");
-    let edge_to = string(entity, "edge_to");
-    if node.is_empty() || !rules.map.nodes.contains_key(&node) {
+    let node = string_ref(entity, "node");
+    let edge_to = string_ref(entity, "edge_to");
+    if node.is_empty() || !rules.map.nodes.contains_key(node) {
         return false;
     }
     let progress = int(entity, "edge_progress");
@@ -120,7 +125,7 @@ fn valid_graph_position(entity: &EntityState, rules: &NextRules) -> bool {
         // ignored once the graph position says Node.
         return true;
     }
-    if !rules.map.nodes.contains_key(&edge_to) {
+    if !rules.map.nodes.contains_key(edge_to) {
         return false;
     }
     rules.map.edges.iter().any(|edge| {
@@ -576,5 +581,20 @@ pub fn event(
         event: id.into(),
         entity,
         payload,
+    }
+}
+
+#[cfg(test)]
+mod borrowed_scalar_tests {
+    use super::*;
+    #[test]
+    fn borrowed_string_matches_owned_for_all_scalar_representations() {
+        let mut entity = EntityState::default();
+        entity.fields.insert("node".into(), DomainValue::String("lane-left".into()));
+        entity.fields.insert("track".into(), DomainValue::Enum("CENTER".into()));
+        entity.fields.insert("hp".into(), DomainValue::Integer(8));
+        for key in ["node", "track", "hp", "missing"] {
+            assert_eq!(string_ref(&entity, key), string(&entity, key));
+        }
     }
 }
