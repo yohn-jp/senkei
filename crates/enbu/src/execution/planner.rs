@@ -22,6 +22,16 @@ pub(crate) struct TickWorkPlan {
 const PLANNED_MIN_ENTITIES: usize = 48;
 const ARITHMETIC_MIN_ENTITIES: usize = 64;
 const TEMPORAL_MIN_ENTITIES: usize = 24;
+const MOVEMENT_MIN_ENTITIES: usize = 24;
+
+/// The cross-Tick MovementWindow has an O(N) exact read-set verification.
+/// Avoid paying that cost for small worlds, where Reference's actor scan is
+/// already cheap. Route-driven navigation must retain Reference because its
+/// waypoint source cannot be certified by the source-goal read set.
+pub(crate) fn movement_phase(entity_count: usize, route_runtime: bool) -> bool {
+    !route_runtime && entity_count >= MOVEMENT_MIN_ENTITIES
+}
+
 
 pub(crate) fn combat_phase(
     entity_count: usize, owner_trace: bool, hybrid: bool,
@@ -69,6 +79,12 @@ mod tests {
         assert!(plan.reveal_frontier);
         assert_eq!(combat_phase(200, true, true),
             CombatPhasePlan { planned: false, arithmetic: false });
+    }
+    #[test]
+    fn movement_window_only_admits_large_route_free_snapshots() {
+        assert!(!movement_phase(23, false));
+        assert!(movement_phase(24, false));
+        assert!(!movement_phase(100, true));
     }
     #[test]
     fn independent_cost_gates_never_fallback_entire_hybrid() {
