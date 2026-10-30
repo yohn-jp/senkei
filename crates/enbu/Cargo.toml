@@ -32,5 +32,7 @@ lab-opt-arithmetic = []
 lab-opt-frozen = []
 # Reuse graph sight-probe results only when the exact source and map dependency key is unchanged.
 lab-opt-fog-cache = []
+# Share the current-Tick visibility source set across observation collection / schema checks.
+lab-opt-observation = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]

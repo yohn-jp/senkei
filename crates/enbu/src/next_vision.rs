@@ -259,18 +259,29 @@ pub fn observation(
     tick: u32,
 ) -> ObservationSnapshot {
     let projection_index = crate::world::ProjectionIndex::new();
+    // Batch source classification once per side/observation Tick, not once
+    // for every field and collection filter. Small worlds retain the exact
+    // scan path because classification overhead outweighs repeated checks.
+    #[cfg(feature = "lab-opt-observation")]
+    let observation_sources = plan.next.as_ref()
+        .filter(|_| world.entities.len() >= 16)
+        .map(|rules| vision_sources(world, rules, side));
+    #[cfg(feature = "lab-opt-observation")]
+    let source_index = observation_sources.as_deref();
+    #[cfg(not(feature = "lab-opt-observation"))]
+    let source_index: Option<&[&EntityState]> = None;
     let mut fields = BTreeMap::new();
     for (path, schema) in &plan.domain.observation_fields {
         fields.insert(
             path.clone(),
-            observation_field(schema, world, plan, side, tick, None, &projection_index),
+            observation_field(schema, world, plan, side, tick, None, &projection_index, source_index),
         );
     }
     let mut collections = BTreeMap::new();
     for (id, schema) in &plan.domain.collections {
         collections.insert(
             id.clone(),
-            collection_observation(schema, world, plan, side, tick, &projection_index),
+            collection_observation(schema, world, plan, side, tick, &projection_index, source_index),
         );
     }
     ObservationSnapshot {
@@ -586,6 +597,19 @@ fn within_radius(source: &EntityState, target: &EntityState, radius: i64, rules:
         .is_some_and(|distance2| distance2 <= i128::from(radius) * i128::from(radius))
 }
 
+/// The existing visibility predicate remains authoritative. The optional
+/// source slice contains exactly the living allied sources from the current
+/// World; no per-Tick, owner or historical visibility is ever reused.
+fn visible_in_observation(
+    world: &WorldState, rules: &NextRules, side: CombatantSide,
+    entity: &EntityState, source_index: Option<&[&EntityState]>,
+) -> bool {
+    match source_index {
+        Some(sources) => visible_from_sources(sources, rules, side, entity),
+        None => visible(world, rules, side, entity),
+    }
+}
+
 fn collection_observation(
     schema: &CollectionSchema,
     world: &WorldState,
@@ -593,6 +617,7 @@ fn collection_observation(
     side: CombatantSide,
     tick: u32,
     projection_index: &crate::world::ProjectionIndex,
+    source_index: Option<&[&EntityState]>,
 ) -> Observed<Vec<EntityObservation>> {
     if schema.visibility == Visibility::Internal {
         return Observed::Unknown;
@@ -615,7 +640,7 @@ fn collection_observation(
             && !plan
                 .next
                 .as_ref()
-                .is_some_and(|rules| visible(world, rules, side, entity))
+                .is_some_and(|rules| visible_in_observation(world, rules, side, entity, source_index))
         {
             continue;
         }
@@ -625,7 +650,7 @@ fn collection_observation(
             Some(entity),
             world,
             plan.next.as_ref(),
-        ) {
+         source_index) {
             continue;
         }
         if let Some(filter) = filter {
@@ -637,6 +662,7 @@ fn collection_observation(
                 tick,
                 Some(id),
                 projection_index,
+                source_index,
             ) {
                 return Observed::Unknown;
             }
@@ -675,6 +701,7 @@ fn collection_observation(
                     tick,
                     Some(id),
                     projection_index,
+                    source_index,
                 );
                 (field.clone(), value)
             })
@@ -696,10 +723,11 @@ fn observation_field(
     tick: u32,
     current_entity: Option<&EntityId>,
     projection_index: &crate::world::ProjectionIndex,
+    source_index: Option<&[&EntityState]>,
 ) -> Observed<DomainValue> {
     let value = match &schema.source {
         ObservationSource::Tick => {
-            if !visibility_allows(schema.visibility, side, None, world, plan.next.as_ref()) {
+            if !visibility_allows(schema.visibility, side, None, world, plan.next.as_ref(), source_index) {
                 return Observed::Unknown;
             }
             Some(DomainValue::Integer(i64::from(tick)))
@@ -708,13 +736,14 @@ fn observation_field(
             let Some(field_schema) = plan.world.global_fields.get(field) else {
                 return Observed::Unknown;
             };
-            if !visibility_allows(schema.visibility, side, None, world, plan.next.as_ref())
+            if !visibility_allows(schema.visibility, side, None, world, plan.next.as_ref(), source_index)
                 || !visibility_allows(
                     field_schema.visibility,
                     side,
                     None,
                     world,
                     plan.next.as_ref(),
+                    source_index,
                 )
             {
                 return Observed::Unknown;
@@ -727,13 +756,13 @@ fn observation_field(
             else {
                 return Observed::Unknown;
             };
-            entity_field_value(&entity_id, field, schema, world, plan, side)
+            entity_field_value(&entity_id, field, schema, world, plan, side, source_index)
         }
         ObservationSource::CurrentEntityField { field } => {
             let Some(entity_id) = current_entity else {
                 return Observed::Unknown;
             };
-            entity_field_value(entity_id, field, schema, world, plan, side)
+            entity_field_value(entity_id, field, schema, world, plan, side, source_index)
         }
         ObservationSource::Derived(expression) => {
             let target_entity = current_entity.and_then(|id| world.entities.get(id));
@@ -743,6 +772,7 @@ fn observation_field(
                 target_entity,
                 world,
                 plan.next.as_ref(),
+                source_index,
             ) {
                 return Observed::Unknown;
             }
@@ -754,6 +784,7 @@ fn observation_field(
                 tick,
                 current_entity,
                 projection_index,
+                source_index,
             ) {
                 return Observed::Unknown;
             }
@@ -778,12 +809,13 @@ fn expression_is_currently_observable(
     tick: u32,
     current_entity: Option<&EntityId>,
     projection_index: &crate::world::ProjectionIndex,
+    source_index: Option<&[&EntityState]>,
 ) -> bool {
     use RuleExpression as E;
     match expression {
         E::Literal(_) | E::CurrentTick | E::IntentArgument(_) => true,
         E::GlobalField(field) => plan.world.global_fields.get(field).is_some_and(|schema| {
-            visibility_allows(schema.visibility, side, None, world, plan.next.as_ref())
+            visibility_allows(schema.visibility, side, None, world, plan.next.as_ref(), source_index)
         }),
         E::Field { target, field } => {
             let context = EvalContext {
@@ -805,7 +837,7 @@ fn expression_is_currently_observable(
                 && !plan
                     .next
                     .as_ref()
-                    .is_some_and(|rules| visible(world, rules, side, entity))
+                    .is_some_and(|rules| visible_in_observation(world, rules, side, entity, source_index))
             {
                 return false;
             }
@@ -820,7 +852,7 @@ fn expression_is_currently_observable(
                         Some(entity),
                         world,
                         plan.next.as_ref(),
-                    )
+                     source_index)
                 })
         }
         E::AddInteger { left, right }
@@ -836,6 +868,7 @@ fn expression_is_currently_observable(
                 tick,
                 current_entity,
                 projection_index,
+                source_index,
             ) && expression_is_currently_observable(
                 right,
                 world,
@@ -844,6 +877,7 @@ fn expression_is_currently_observable(
                 tick,
                 current_entity,
                 projection_index,
+                source_index,
             )
         }
         E::And(items) | E::Or(items) => items.iter().all(|item| {
@@ -855,6 +889,7 @@ fn expression_is_currently_observable(
                 tick,
                 current_entity,
                 projection_index,
+                source_index,
             )
         }),
         E::Not(inner) => expression_is_currently_observable(
@@ -865,6 +900,7 @@ fn expression_is_currently_observable(
             tick,
             current_entity,
             projection_index,
+            source_index,
         ),
     }
 }
@@ -876,13 +912,14 @@ fn entity_field_value(
     world: &WorldState,
     plan: &RulePlan,
     side: CombatantSide,
+    source_index: Option<&[&EntityState]>,
 ) -> Option<DomainValue> {
     let entity = world.entities.get(entity_id)?;
     if entity.owner != Some(side)
         && !plan
             .next
             .as_ref()
-            .is_some_and(|rules| visible(world, rules, side, entity))
+            .is_some_and(|rules| visible_in_observation(world, rules, side, entity, source_index))
     {
         return None;
     }
@@ -892,6 +929,7 @@ fn entity_field_value(
         Some(entity),
         world,
         plan.next.as_ref(),
+        source_index,
     ) {
         return None;
     }
@@ -903,6 +941,7 @@ fn entity_field_value(
         Some(entity),
         world,
         plan.next.as_ref(),
+        source_index,
     ) {
         return None;
     }
@@ -915,13 +954,14 @@ fn visibility_allows(
     entity: Option<&EntityState>,
     world: &WorldState,
     rules: Option<&NextRules>,
+    source_index: Option<&[&EntityState]>,
 ) -> bool {
     match visibility {
         Visibility::Public => true,
         Visibility::OwningSide => entity.is_some_and(|entity| entity.owner == Some(side)),
         Visibility::EnemyVisible => entity.is_some_and(|entity| {
             entity.owner != Some(side)
-                && rules.is_some_and(|rules| visible(world, rules, side, entity))
+                && rules.is_some_and(|rules| visible_in_observation(world, rules, side, entity, source_index))
         }),
         Visibility::Internal => false,
     }
@@ -991,6 +1031,48 @@ mod tests {
                     visible_from_sources(&sources, &rules, side, entity),
                     "batching must not change authorization",
                 );
+            }
+        }
+    }
+
+    #[cfg(feature = "lab-opt-observation")]
+    #[test]
+    fn observation_source_index_preserves_all_visibility_and_owner_access() {
+        let mut rules = test_rules();
+        let mut world = WorldState::default();
+        let mut friendly = hero(CombatantSide::Attacker, 0, 10);
+        support::set_string(&mut friendly, "node", "a0");
+        let mut enemy = hero(CombatantSide::Defender, 20, 10);
+        support::set_string(&mut enemy, "node", "d0");
+        world.entities.insert("attacker".into(), friendly);
+        world.entities.insert("defender".into(), enemy);
+        for step in 0..6 {
+            match step {
+                1 => support::set_string(world.entities.get_mut(&EntityId::from("attacker")).unwrap(), "node", "a1"),
+                2 => support::set_int(world.entities.get_mut(&EntityId::from("attacker")).unwrap(), "vision", 30),
+                3 => support::set_int(world.entities.get_mut(&EntityId::from("defender")).unwrap(), "reveal_attacker_until", 3),
+                4 => { world.entities.remove(&EntityId::from("attacker")); },
+                5 => { rules.parameters.insert("vision_graph_metric".into(), 0); },
+                _ => {}
+            }
+            for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+                let sources = vision_sources(&world, &rules, side);
+                for entity in world.entities.values() {
+                    assert_eq!(
+                        visible_in_observation(&world, &rules, side, entity, Some(&sources)),
+                        visible(&world, &rules, side, entity),
+                        "source index diverged for step={step} side={side:?}",
+                    );
+                    for visibility in [Visibility::Public, Visibility::OwningSide,
+                        Visibility::EnemyVisible, Visibility::Internal]
+                    {
+                        assert_eq!(
+                            visibility_allows(visibility, side, Some(entity), &world, Some(&rules), Some(&sources)),
+                            visibility_allows(visibility, side, Some(entity), &world, Some(&rules), None),
+                            "field access diverged for step={step} side={side:?}",
+                        );
+                    }
+                }
             }
         }
     }

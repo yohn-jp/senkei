@@ -88,9 +88,14 @@ jobs:
           cargo test --locked --release -p enbu --features lab-opt-fog-cache --lib
           cargo test --locked --release -p enbu --features lab-opt-fog-cache --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
           cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache --lib
+      - name: Verify indexed current-Tick observations and dynamic visibility
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-observation --lib
+          cargo test --locked --release -p enbu --features lab-opt-observation --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-observation --lib
       - name: Compile production Enbu WASM from the same revision
         run: bash scripts/wasm/build.sh
-      - name: Build 8 historical and 10 experimental Enbu WASM variants
+      - name: Build 8 historical and 12 experimental Enbu WASM variants
         shell: bash
         run: |
           set -euo pipefail
@@ -110,7 +115,7 @@ jobs:
           done
           # Real production Enbu algorithm candidates adapted from TS Lab:
           # indexed route planning and batched visibility, individually and together.
-          for choice in R V RV TCSRV P A F FPA G TCSRVG; do
+          for choice in R V RV TCSRV P A F FPA G TCSRVG O TCSRVGO; do
             case "$choice" in
               R) flags=lab-opt-route ;;
               V) flags=lab-opt-visibility ;;
@@ -122,6 +127,8 @@ jobs:
               FPA) flags=lab-opt-frozen,lab-opt-planned,lab-opt-arithmetic ;;
               G) flags=lab-opt-fog-cache ;;
               TCSRVG) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache ;;
+              O) flags=lab-opt-observation ;;
+              TCSRVGO) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-observation ;;
             esac
             cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "$flags"
             cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
@@ -146,7 +153,7 @@ jobs:
           data['revision'] = os.environ['REVISION']
           path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
           PY
-      - name: Stamp all eighteen immutable WASM hashes and sizes
+      - name: Stamp all twenty immutable WASM hashes and sizes
         env:
           REVISION: ${{ github.sha }}
         run: |
@@ -177,7 +184,9 @@ jobs:
               'F':['lab-opt-frozen'],
               'FPA':['lab-opt-frozen','lab-opt-planned','lab-opt-arithmetic'],
               'G':['lab-opt-fog-cache'],
-              'TCSRVG':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache']
+              'TCSRVG':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache'],
+              'O':['lab-opt-observation'],
+              'TCSRVGO':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-observation']
           }
           for mask, features in extra.items():
               file=Path(f'target/simulation-lab/senkei_wasm_{mask}.wasm')
@@ -209,7 +218,7 @@ jobs:
           test -s _site/simulation-lab/build.json
           test -s _site/simulation-lab/enbu-fixtures.json
           test -s _site/simulation-lab/enbu-variants.json
-          test "$(find _site/simulation-lab/wasm -maxdepth 1 -name 'senkei_wasm_*.wasm' | wc -l)" -eq 18
+          test "$(find _site/simulation-lab/wasm -maxdepth 1 -name 'senkei_wasm_*.wasm' | wc -l)" -eq 20
           echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
           touch _site/.nojekyll
       - name: Gate publication on exact Native/WASM Enbu responses
