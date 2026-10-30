@@ -239,9 +239,20 @@ impl BasicAttackFrontier {
     }
 
     fn still_valid(&self, world: &WorldState) -> bool {
-        let mut keys = Self::keys(world);
-        self.read_set.iter().all(|prior| keys.next().is_some_and(|now| &now == prior))
-            && keys.next().is_none()
+        // Comparing owned AttackKey values would clone an EntityId for every
+        // combatant on *every* certified idle Tick. Revalidate the complete
+        // ordered read set against borrowed live state instead; no allocation
+        // and no weakened fingerprint/hash collision risk.
+        let mut current = world.entities.iter()
+            .filter(|(_, actor)| combatant(actor.entity_type.as_str()));
+        self.read_set.iter().all(|prior| current.next().is_some_and(|(id, actor)| {
+            &prior.id == id
+                && prior.owner == actor.owner
+                && prior.hp == support::int(actor, "hp")
+                && prior.ready == support::int(actor, "attack_ready")
+                && prior.attack == support::int(actor, "attack")
+                && prior.range == support::int(actor, "range")
+        })) && current.next().is_none()
     }
 
     /// Returns true only when the absence of all basic attacks has been
@@ -380,9 +391,16 @@ impl RevealExpiryFrontier {
     }
 
     fn valid(&self, world: &WorldState) -> bool {
-        let mut keys = Self::keys(world);
-        self.previous.iter().all(|prior| keys.next().is_some_and(|now| &now == prior))
-            && keys.next().is_none()
+        // Reveal certificates include every entity, including noncombatants.
+        // Compare borrowed fields in the canonical BTreeMap order; avoid
+        // cloning every EntityId simply to revalidate an unchanged Tick.
+        let mut current = world.entities.iter();
+        self.previous.iter().all(|prior| current.next().is_some_and(|(id, entity)| {
+            &prior.id == id
+                && prior.attacker_until == support::int(entity, "reveal_attacker_until")
+                && prior.defender_until == support::int(entity, "reveal_defender_until")
+                && prior.general_until == support::int(entity, "reveal_until")
+        })) && current.next().is_none()
     }
 
     pub fn certify_no_expiration(&mut self, world: &WorldState, tick: u32) -> bool {
