@@ -568,12 +568,23 @@ fn simulate_inner<P: TacticalExecutionPort>(
         }
         let mut accepted = arbitrate(validated, plan, &world, tick, &mut diagnostics, &mut diagnostic_sequence)?;
         if next_behavior.is_some() {
-            // Squad operations execute before goal orders; determine conflicts
-            // from the same post-squad membership that goal application sees.
-            let mut goal_world = world.clone();
-            next_squads::intents(&mut goal_world, plan.next.as_ref().unwrap(), &accepted, tick);
+            // Squad operations execute before goal orders. Only split/merge/
+            // regroup can mutate the squad membership examined by goal
+            // arbitration. With no such accepted command, use the *actual*
+            // frozen World directly instead of cloning every entity merely
+            // to execute a no-op squad preview on every canonical Tick.
+            // A real squad edit still runs the exact old preview path.
+            let squad_preview_needed = accepted.iter().any(|(_, intent)| {
+                matches!(intent.capability.as_str(), "split" | "merge" | "regroup")
+            });
+            let mut goal_preview = if squad_preview_needed {
+                Some(world.clone())
+            } else { None };
+            if let Some(preview) = goal_preview.as_mut() {
+                next_squads::intents(preview, plan.next.as_ref().unwrap(), &accepted, tick);
+            }
             let scores = next_behavior.as_deref().unwrap().traces.iter().rev().take_while(|trace| trace.tick==tick).filter_map(|trace| Some(((trace.side,trace.selected.as_ref()?.action_id.clone()),trace.score?))).collect();
-            let rejected = next_tactics::resolve_goal_conflicts(&goal_world, plan.next.as_ref().unwrap(), &mut accepted, &scores);
+            let rejected = next_tactics::resolve_goal_conflicts(goal_preview.as_ref().unwrap_or(&world), plan.next.as_ref().unwrap(), &mut accepted, &scores);
             for (side, intent) in rejected {
                 let event = diagnostics.iter_mut().rev().find(|event| event.tick == tick && event.side == side && matches!(&event.record, DiagnosticRecord::IntentAccepted { intent: accepted } if *accepted == intent))
                     .ok_or_else(|| api_error(ApiErrorCode::InternalError, "missing goal arbitration diagnostic"))?;
