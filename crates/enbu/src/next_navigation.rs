@@ -364,7 +364,7 @@ fn advance_entity<'a>(
                 crate::next_combat::CombatVisibilityIndex::for_snapshot(snapshot, rules)
             })),
             spatial_index.map(|index| index.get_or_init(|| {
-                crate::execution::strategies::planned::PlannedCombatCandidates::build(snapshot, rules)
+                crate::execution::strategies::planned::PlannedCombatCandidates::build_for_navigation(snapshot, rules)
             })),
         )
     {

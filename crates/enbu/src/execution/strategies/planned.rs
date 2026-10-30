@@ -67,7 +67,7 @@ impl<'a> PlannedCombatCandidates<'a> {
     /// Navigation uses only Node/Edge target membership; it supplies the
     /// authoritative current visibility predicate independently. Do not
     /// calculate both owner vision-source vectors in its spatial index.
-    #[cfg(feature = "lab-opt-spatial")]
+    #[allow(dead_code)]
     pub(crate) fn build_for_navigation(snapshot: &'a WorldState, rules: &NextRules) -> Self {
         Self::build_inner(snapshot, rules, false)
     }
