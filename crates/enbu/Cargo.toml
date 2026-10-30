@@ -38,5 +38,7 @@ lab-opt-observation = []
 lab-opt-inplace = []
 # PR #71: lazy frozen target visibility for movement and combat selection.
 lab-opt-frontier = []
+# Adaptive phase-scoped portfolio: no global Tick skipping, cost-gated P/A.
+lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier"]
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]
