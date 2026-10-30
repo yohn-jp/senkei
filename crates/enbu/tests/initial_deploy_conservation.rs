@@ -9,8 +9,11 @@ struct TwoSameProducerDeploys {
 
 impl TacticalExecutionPort for TwoSameProducerDeploys {
     fn execute(&mut self, request: TacticalExecutionRequest<'_>) -> Result<TacticalExecutionOutput, TacticalExecutionError> {
-        let intents = if request.side == CombatantSide::Attacker && request.tick == 8 {
-            ["mid", "bot"].iter().enumerate().map(|(index, lane)| Intent {
+        let intents = if request.side == CombatantSide::Attacker && (request.tick == 8 || request.tick == 9) {
+            ["mid", "bot"].iter().enumerate()
+                // Tick 9 probes that the rejected second reserve cannot spend a nonexistent credit.
+                .filter(|(index, _)| request.tick == 8 || *index == 1)
+                .map(|(index, lane)| Intent {
                 action_id: ActionId::new(format!("deploy-{index}")),
                 capability: CapabilityId::new("deploy"),
                 actor: Some(self.barracks.clone()),
@@ -87,10 +90,22 @@ fn initial_single_credit_cannot_deploy_two_reserves_from_one_barracks() {
         .filter(|event| event.event.as_str() == "unit_deployed")
         .count();
     assert_eq!(deployed, 1, "one credit must admit only one deploy per barracks and Tick");
+    assert_eq!(
+        result.replay.frames[9].events.iter().filter(|event| event.event.as_str() == "unit_deployed").count(),
+        0,
+        "the following Tick must not deploy a second reserve with exhausted credits",
+    );
     let diagnostics = &result.diagnostics.events;
     let accepted = diagnostics.iter().filter(|event| {
         event.tick == 8 && matches!(&event.record,
             DiagnosticRecord::IntentAccepted { intent } if intent.capability.as_str() == "deploy")
     }).count();
     assert_eq!(accepted, 1, "the other same-producer deployment must be rejected");
+    assert_eq!(
+        diagnostics.iter().filter(|event| event.tick == 9 && matches!(&event.record,
+            DiagnosticRecord::IntentRejected { intent, .. } if intent.capability.as_str() == "deploy"
+        )).count(),
+        1,
+        "a later deployment must be denied after the only credit is consumed",
+    );
 }
