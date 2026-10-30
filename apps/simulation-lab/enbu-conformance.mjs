@@ -112,6 +112,7 @@ for (const current of fixture.cases) {
     const stats = summarizeSamples(samples[variant.id]);
     const row = {id: current.id, ticks: current.ticks, variant: variant.id,
       verified: true, stats, speedup: pairedSpeedups(base, samples[variant.id]),
+      incumbent_speedup: pairedSpeedups(samples['TCSRVG'], samples[variant.id]),
       host_input_ms: summarizeSamples(hostInputParts[variant.id]).median_ms,
       wasm_dispatch_ms: summarizeSamples(dispatchParts[variant.id]).median_ms,
       host_output_ms: summarizeSamples(hostOutputParts[variant.id]).median_ms,
@@ -119,7 +120,8 @@ for (const current of fixture.cases) {
     rows.push(row);
     console.log(`BENCH ${current.id} mask=${variant.id} median=${stats.median_ms.toFixed(3)}ms ` +
       `p95=${stats.p95_ms.toFixed(3)}ms baseline-ratio=${row.speedup.median_ratio.toFixed(3)}x ` +
-      `wasm-dispatch=${row.wasm_dispatch_ms.toFixed(3)}ms`);
+      `wasm-dispatch=${row.wasm_dispatch_ms.toFixed(3)}ms ` +
+      `incumbent-TCSRVG-ratio=${row.incumbent_speedup.median_ratio.toFixed(3)}x`);
   }
   cases.push({id: current.id, ticks: current.ticks, golden_sha256: current.response_sha256});
 }
