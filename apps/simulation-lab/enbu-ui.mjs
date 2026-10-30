@@ -27,6 +27,7 @@ function addRow(row) {
     row.ticks, row.variant + ' · ' + labels[row.variant],
     row.stats.median_ms.toFixed(2), row.wasm_dispatch_ms.toFixed(2),
     row.stats.p95_ms.toFixed(2), row.speedup.median_ratio.toFixed(3) + '×',
+    row.incumbent_speedup ? row.incumbent_speedup.median_ratio.toFixed(3) + '×' : '—',
     (row.wasm_bytes / 1024).toFixed(0), (row.memory_bytes / 1048576).toFixed(1),
     row.verified ? 'PASS' : 'FAIL',
   ];
