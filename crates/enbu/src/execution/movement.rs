@@ -111,15 +111,14 @@ impl MovementWindow {
             }
         }
 
-        self.mobile_count = world.entities.values()
-            .filter(|entity| matches!(entity.entity_type.as_str(), "hero" | "minion" | "monster")
-                && support::alive(entity)).count();
+        self.mobile_count = 0;
         let mut active = Vec::<(u8, EntityId)>::new();
         for (id, actor) in &world.entities {
             let kind = actor.entity_type.as_str();
             if !matches!(kind, "hero" | "minion" | "monster") || !support::alive(actor) {
                 continue;
             }
+            self.mobile_count += 1;
             let squad = support::string(actor, "squad");
             let shared_goal = kind == "hero" && actor.owner
                 .and_then(|side| leader_has_goal.get(&(side, squad)))
