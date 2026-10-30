@@ -933,37 +933,38 @@ fn entity_field_value(
     source_index: Option<&[&EntityState]>,
 ) -> Option<DomainValue> {
     let entity = world.entities.get(entity_id)?;
-    if entity.owner != Some(side)
-        && !plan
-            .next
-            .as_ref()
-            .is_some_and(|rules| visible_in_observation(world, rules, side, entity, source_index))
+    // The precondition is current-Tick owner visibility. In the canonical
+    // path this exact same expensive observer predicate was evaluated up
+    // to three times per scalar (entity authorization, observation schema,
+    // and field schema). Observe it once, then apply all schema visibility
+    // types to that immutable fact with no further graph queries.
+    let owned = entity.owner == Some(side);
+    let observed = owned || plan.next.as_ref().is_some_and(|rules| {
+        visible_in_observation(world, rules, side, entity, source_index)
+    });
+    if !observed
+        || !visibility_allows_observed(observation_schema.visibility, owned, observed)
     {
-        return None;
-    }
-    if !visibility_allows(
-        observation_schema.visibility,
-        side,
-        Some(entity),
-        world,
-        plan.next.as_ref(),
-        source_index,
-    ) {
         return None;
     }
     let entity_schema = plan.world.entity_types.get(&entity.entity_type)?;
     let field_schema = entity_schema.fields.get(field)?;
-    if !visibility_allows(
-        field_schema.visibility,
-        side,
-        Some(entity),
-        world,
-        plan.next.as_ref(),
-        source_index,
-    ) {
+    if !visibility_allows_observed(field_schema.visibility, owned, observed) {
         return None;
     }
     entity.fields.get(field).cloned()
+}
+
+/// Reuse one authorized observation result through both independent schema
+/// gates. EnemyVisible remains false for own entities, and Public remains
+/// gated by the surrounding entity-presence check in entity_field_value.
+fn visibility_allows_observed(visibility: Visibility, owned: bool, observed: bool) -> bool {
+    match visibility {
+        Visibility::Public => true,
+        Visibility::OwningSide => owned,
+        Visibility::EnemyVisible => !owned && observed,
+        Visibility::Internal => false,
+    }
 }
 
 fn visibility_allows(
@@ -1023,6 +1024,32 @@ fn compare_entities(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cached_observation_visibility_preserves_schema_and_owner_boundaries() {
+        use super::*;
+        for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+            for owner in [None, Some(CombatantSide::Attacker), Some(CombatantSide::Defender)] {
+                let owned = owner == Some(side);
+                for seen in [false, true] {
+                    let observed = owned || seen;
+                    for visibility in [
+                        Visibility::Public, Visibility::OwningSide,
+                        Visibility::EnemyVisible, Visibility::Internal,
+                    ] {
+                        let expected = match visibility {
+                            Visibility::Public => true,
+                            Visibility::OwningSide => owned,
+                            Visibility::EnemyVisible => !owned && observed,
+                            Visibility::Internal => false,
+                        };
+                        assert_eq!(visibility_allows_observed(visibility, owned, observed),
+                            expected, "{side:?}/{owner:?}/{visibility:?}");
+                    }
+                }
+            }
+        }
+    }
+
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
 
