@@ -589,7 +589,11 @@ mod borrowed_scalar_tests {
     use super::*;
     #[test]
     fn borrowed_string_matches_owned_for_all_scalar_representations() {
-        let mut entity = EntityState::default();
+        let mut entity = EntityState {
+            entity_type: "hero".into(),
+            owner: None,
+            fields: BTreeMap::new(),
+        };
         entity.fields.insert("node".into(), DomainValue::String("lane-left".into()));
         entity.fields.insert("track".into(), DomainValue::Enum("CENTER".into()));
         entity.fields.insert("hp".into(), DomainValue::Integer(8));
