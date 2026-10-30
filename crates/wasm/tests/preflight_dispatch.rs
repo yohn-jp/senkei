@@ -298,7 +298,7 @@ fn export_enbu_lab_fixtures() {
     let parsed: Value = serde_json::from_str(&response).expect("valid Behavior JSON");
     assert_eq!(parsed["ok"], true, "real Behavior simulation failed: {parsed:#}");
     assert_eq!(
-        parsed["result"]["outcome"]["presentation_replay"]["frames"]
+        parsed["result"]["replay"]["frames"]
             .as_array().expect("canonical Behavior Replay frames").len(),
         17, "the 16-Tick Behavior run must preserve each Replay frame",
     );
