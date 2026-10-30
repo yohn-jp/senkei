@@ -2142,6 +2142,81 @@ mod tests {
     }
 
     #[test]
+    fn certified_movement_windows_match_reference_on_real_next_navigation() {
+        // This is a direct differential test of the *actual* P7 transition,
+        // not a synthetic position approximation. The window persists across
+        // Tick boundaries and must invalidate on goal, squad, spawn and death.
+        let config = rules(test_map(vec![
+            edge("a", "b", 100, "lane", false),
+            edge("b", "c", 100, "lane", false),
+        ]));
+        let mut initial = WorldState::default();
+        let mut leader = entity("hero", Some(CombatantSide::Attacker), 10, "a", "");
+        set_string(&mut leader, "squad", "squad");
+        initial.entities.insert(id("hero-leader"), leader);
+        let mut follower = entity("hero", Some(CombatantSide::Attacker), 12, "a", "");
+        set_string(&mut follower, "squad", "squad");
+        initial.entities.insert(id("hero-follower"), follower);
+        for index in 0..36 {
+            let mut dormant = entity("monster", None, 4, "a", "");
+            set_string(&mut dormant, "squad", "");
+            initial.entities.insert(id(&format!("idle-{index:03}")), dormant);
+        }
+        let mut reference = initial.clone();
+        let mut accelerated = initial;
+        let mut window = crate::execution::movement::MovementWindow::default();
+        for tick in 1..=30 {
+            // Changes are made to *both* worlds before the frozen P7 phase.
+            match tick {
+                4 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        set_string(world.entities.get_mut(&id("hero-leader")).unwrap(), "goal", "b");
+                    }
+                }
+                7 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        let mut minion = entity("minion", Some(CombatantSide::Defender), 8, "c", "b");
+                        set_string(&mut minion, "squad", "");
+                        world.entities.insert(id("spawned-minion"), minion);
+                    }
+                }
+                12 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        set_int(world.entities.get_mut(&id("hero-leader")).unwrap(), "hp", 0);
+                    }
+                }
+                15 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        set_string(world.entities.get_mut(&id("hero-follower")).unwrap(), "goal", "c");
+                    }
+                }
+                19 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        set_int(world.entities.get_mut(&id("idle-000")).unwrap(), "move_intent_tick", 20);
+                    }
+                }
+                25 => {
+                    for world in [&mut reference, &mut accelerated] {
+                        set_string(world.entities.get_mut(&id("spawned-minion")).unwrap(), "goal", "");
+                    }
+                }
+                _ => {}
+            }
+            let ref_snapshot = reference.clone();
+            let fast_snapshot = accelerated.clone();
+            advance_inner_with_mode(&mut reference, &ref_snapshot, &config, tick, None, false);
+            advance_inner_with_window(
+                &mut accelerated, &fast_snapshot, &config, tick,
+                None, false, Some(&mut window),
+            );
+            assert_eq!(accelerated, reference, "MovementWindow diverged at Tick {tick}");
+        }
+        let (reused, rebuilt) = window.stats();
+        assert!(reused > 10, "the window was never physically reused: {reused}");
+        assert!(rebuilt >= 5, "causal invalidation did not exercise reclassification: {rebuilt}");
+    }
+
+    #[test]
     fn path_is_undirected_shortest_and_lexically_stable() {
         let edges = vec![
             edge("a", "b", 4, "lane", false),
