@@ -23,13 +23,13 @@ thread_local! {
 }
 
 pub fn int(e: &EntityState, key: &str) -> i64 {
-    match e.fields.get(&FieldId::from(key)) {
+    match e.fields.get(key) {
         Some(DomainValue::Integer(v)) => *v,
         _ => 0,
     }
 }
 pub fn string(e: &EntityState, key: &str) -> String {
-    match e.fields.get(&FieldId::from(key)) {
+    match e.fields.get(key) {
         Some(DomainValue::String(v)) => v.clone(),
         Some(DomainValue::Enum(v)) => v.as_str().into(),
         _ => String::new(),
