@@ -2023,6 +2023,55 @@ mod tests {
     }
 
     #[test]
+    fn temporal_frontier_matches_reference_world_and_events_across_dynamic_ticks() {
+        let config = rules();
+        let mut reference = WorldState::default();
+        insert(&mut reference, "attacker", entity("hero", Some(CombatantSide::Attacker), 0, 120, 8, 50));
+        insert(&mut reference, "defender", entity("minion", Some(CombatantSide::Defender), 10, 180, 8, 50));
+        support::set_int(reference.entities.get_mut(&EntityId::from("attacker")).unwrap(), "attack_ready", 22);
+        support::set_int(reference.entities.get_mut(&EntityId::from("defender")).unwrap(), "attack_ready", 22);
+        let mut actual = reference.clone();
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+
+        for tick in 1..=64 {
+            if tick == 8 {
+                // New independent attacker created in the middle of an idle
+                // window. Its newly-ready clock must cancel that window.
+                let mut spawned = entity("minion", Some(CombatantSide::Attacker), 5, 100, 6, 50);
+                support::set_int(&mut spawned, "attack_ready", 8);
+                reference.entities.insert("new".into(), spawned.clone());
+                actual.entities.insert("new".into(), spawned);
+            }
+            if tick == 15 {
+                // The original attack-ready deadline is brought forward.
+                for world in [&mut reference, &mut actual] {
+                    support::set_int(world.entities.get_mut(&EntityId::from("attacker")).unwrap(), "attack_ready", 15);
+                }
+            }
+            if tick == 34 {
+                // A phase-start death and disappearance may invalidate every
+                // schedule entry but must preserve simultaneous effects.
+                for world in [&mut reference, &mut actual] {
+                    if let Some(actor) = world.entities.get_mut(&EntityId::from("new")) {
+                        support::set_int(actor, "hp", 0);
+                    }
+                }
+            }
+            let frozen_reference = reference.clone();
+            let frozen_actual = actual.clone();
+            let expected_events = resolve_from_snapshot(
+                &mut reference, &frozen_reference, &config, &[], tick,
+            );
+            let actual_events = resolve_from_snapshot_scheduled(
+                &mut actual, &frozen_actual, &config, &[], tick, &mut frontier, None,
+            );
+            assert_eq!(actual_events, expected_events, "events diverged at Tick {tick}");
+            assert_eq!(actual, reference, "World diverged at Tick {tick}");
+        }
+        assert!(frontier.hits > 0, "the true future readiness window was not reused");
+    }
+
+    #[test]
     fn combat_visibility_frontier_preserves_canonical_target_eligibility() {
         let config = rules();
         let mut snapshot = WorldState::default();
