@@ -95,7 +95,25 @@ const OWNER_ONLY_FIELDS: &[&str] = &[
 /// Advances minion waves and prepares their lane waypoint goals before the
 /// same-tick observation snapshot.
 pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
-    expire_reveals(world, tick);
+    lifecycle_inner(world, rules, tick, None);
+}
+
+/// Same canonical lifecycle; only the expensive reveal-expiration scan can
+/// be skipped for a proven unchanged, not-yet-due finite window.
+pub(crate) fn lifecycle_scheduled(
+    world: &mut WorldState, rules: &NextRules, tick: u32,
+    frontier: &mut crate::execution::scheduler::RevealExpiryFrontier,
+) {
+    lifecycle_inner(world, rules, tick, Some(frontier));
+}
+
+fn lifecycle_inner(
+    world: &mut WorldState, rules: &NextRules, tick: u32,
+    frontier: Option<&mut crate::execution::scheduler::RevealExpiryFrontier>,
+) {
+    if !frontier.is_some_and(|frontier| frontier.certify_no_expiration(world, tick)) {
+        expire_reveals(world, tick);
+    }
     remove_dead_minions(world, tick);
 
     let interval = support::param(rules, "minion_spawn_interval", 30).max(1) as u32;

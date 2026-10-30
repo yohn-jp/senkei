@@ -362,6 +362,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
     // Owned by exactly one match. Never reuse a certificate across plans,
     // matches or authority boundaries. Every external Tick remains canonical.
     let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
+    let mut reveal_frontier = execution::scheduler::RevealExpiryFrontier::default();
     for tick in 1..=max_ticks {
         if final_outcome.is_some() {
             break;
@@ -370,7 +371,11 @@ fn simulate_inner<P: TacticalExecutionPort>(
         let mut objective_events = Vec::new();
         if let Some(next) = &plan.next {
             objective_events = next_combat::objective_lifecycle(&mut world, next, tick);
-            next_vision::lifecycle(&mut world, next, tick);
+            if cfg!(feature = "lab-opt-scheduler") {
+                next_vision::lifecycle_scheduled(&mut world, next, tick, &mut reveal_frontier);
+            } else {
+                next_vision::lifecycle(&mut world, next, tick);
+            }
         }
         // Freeze observations before calling either side. Executor call order
         // cannot expose one side's proposed actions to the other.

@@ -243,6 +243,86 @@ impl BasicAttackFrontier {
     }
 }
 
+/// A second independent causal domain: reveal expiration. It does not
+/// certify that vision/Fog or owner observations may be skipped; it only
+/// certifies that the mutating expiration scan has no due field before the
+/// earliest positive deadline. All three authority-defined reveal timers
+/// are compared exactly on every current-Tick pre-lifecycle World.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RevealKey {
+    id: EntityId,
+    attacker_until: i64,
+    defender_until: i64,
+    general_until: i64,
+}
+
+#[derive(Default)]
+pub(crate) struct RevealExpiryFrontier {
+    previous: Vec<RevealKey>,
+    earliest_possible: i64,
+    initialized: bool,
+    last_tick: Option<u32>,
+    scheduled: EventScheduler,
+    pub(crate) hits: u64,
+}
+
+impl RevealExpiryFrontier {
+    fn keys(world: &WorldState) -> impl Iterator<Item = RevealKey> + '_ {
+        world.entities.iter().map(|(id, actor)| RevealKey {
+            id: id.clone(),
+            attacker_until: support::int(actor, "reveal_attacker_until"),
+            defender_until: support::int(actor, "reveal_defender_until"),
+            general_until: support::int(actor, "reveal_until"),
+        })
+    }
+
+    fn valid(&self, world: &WorldState) -> bool {
+        let mut keys = Self::keys(world);
+        self.previous.iter().all(|prior| keys.next().is_some_and(|now| &now == prior))
+            && keys.next().is_none()
+    }
+
+    pub fn certify_no_expiration(&mut self, world: &WorldState, tick: u32) -> bool {
+        let due = match self.scheduled.take_tick(tick) {
+            Ok(due) => due,
+            Err(_) => { self.initialized = false; return false; }
+        };
+        if self.initialized
+            && self.last_tick.and_then(|t| t.checked_add(1)) == Some(tick)
+            && due.is_empty()
+            && i64::from(tick) < self.earliest_possible
+            && self.valid(world)
+        {
+            self.hits += 1;
+            self.last_tick = Some(tick);
+            return true;
+        }
+        if self.initialized && self.scheduled.invalidate(&BTreeSet::from([Dependency::EntitySet])).is_err() {
+            self.initialized = false;
+            return false;
+        }
+        self.scheduled.subscribe("reveal", BTreeSet::from([Dependency::EntitySet]));
+        self.previous = Self::keys(world).collect();
+        self.earliest_possible = self.previous.iter()
+            .flat_map(|key| [key.attacker_until, key.defender_until, key.general_until])
+            .filter(|deadline| *deadline > 0)
+            .min().unwrap_or(i64::MAX);
+        self.last_tick = Some(tick);
+        self.initialized = true;
+        if i64::from(tick) < self.earliest_possible {
+            if let Ok(due_tick) = u32::try_from(self.earliest_possible) {
+                if self.scheduled.schedule("reveal", due_tick, 1, 0, "", "expiration").is_err() {
+                    self.initialized = false;
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,6 +393,30 @@ mod tests {
         assert!(f.certify_idle(&state, 16, false), "dead actor cannot attack");
         state.entities.insert("new".into(), actor(16));
         assert!(!f.certify_idle(&state, 16, false), "new ready actor invalidates");
+    }
+
+    #[test]
+    fn reveal_frontier_invalidates_on_reapplication_earlier_deadline_and_new_actor() {
+        let mut world = WorldState::default();
+        let mut first = actor(12);
+        support::set_int(&mut first, "reveal_attacker_until", 9);
+        world.entities.insert("a".into(), first);
+        let mut q = RevealExpiryFrontier::default();
+        for tick in 1..9 {
+            assert!(q.certify_no_expiration(&world, tick));
+        }
+        assert_eq!(q.hits, 7);
+        assert!(!q.certify_no_expiration(&world, 9));
+        // The canonical phase cleared the expired field.
+        support::set_int(world.entities.get_mut(&EntityId::from("a")).unwrap(), "reveal_attacker_until", 0);
+        assert!(q.certify_no_expiration(&world, 10));
+        // Re-application creates a new earlier deadline: do not use the old empty schedule.
+        support::set_int(world.entities.get_mut(&EntityId::from("a")).unwrap(), "reveal_defender_until", 11);
+        assert!(!q.certify_no_expiration(&world, 11));
+        let mut newcomer = actor(100);
+        support::set_int(&mut newcomer, "reveal_until", 12);
+        world.entities.insert("b".into(), newcomer);
+        assert!(!q.certify_no_expiration(&world, 12));
     }
 
     #[test]
