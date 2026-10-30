@@ -67,6 +67,45 @@ A differential regression test compares the two physical Next navigation
 paths over 30 actual Ticks with a new wave actor, changing leader goals,
 death, explicit movement, and a changed minion goal.
 
+## Frozen graph-local combat partition (real Enbu P7)
+
+The experimental `lab-opt-spatial` feature builds an ordered
+`CombatLocation::Node` or unordered-endpoint `CombatLocation::Edge`
+index over the **same immutable P7 combat snapshot**. It specializes
+`execution/strategies/planned.rs`, not the game rules or target selection.
+
+**Proof:** `next_support::combat_distance2` can return a distance only
+when both actors occupy the identical graph node with no incumbent edge,
+or both occupy the same undirected authored edge. Consequently actors in
+different buckets can *never* generate a normal attack on this Tick.
+All candidates retained in a bucket pass through the unmodified
+`can_basic_attack_with_sources` predicate: health, owner and type
+eligibility, range, lane offsets, bridge/ford properties, reveal, source
+visibility, and effective original graph position are rechecked.
+
+**Trace fidelity:** Buckets are appended in original
+`WorldState.entities` BTreeMap ID order. `nearest_in_candidates`
+applies the same distance comparison and ID tie-break and emits identical
+owner-only actor-decision candidate traces, including invalid edge
+positions. Explicit requested-target selection remains untouched.
+
+**Cost:** The index is built only for at least 24 entities, and a source
+uses its local bucket only when it contains fewer candidates than the
+original ownership/type partition; otherwise it uses that existing
+`PlannedCombatCandidates` slice. This is a phase-local partition with
+`O(N log N + K)` nominal indexing plus eligible-candidate traversal,
+not a cross-Tick inference. It does not skip events, mutable writes, or
+Replay projection. No new public fields or CU changes occur.
+
+Native regression tests compare full hit orders, current World and
+owner decision traces for mixed Nodes, reversed edges, invalid edges,
+deaths, readiness, and ownership. Real Lab variants `X` and
+`TCSRVGX` compare this exact source revision and complete Native
+SHA-256 response against unchanged TCSRVG, including 64-Tick Quintet
+through the actual browser Worker. **Promotion remains contingent on
+those tests passing and measured wall-clock improvement**, not a claim
+from synthetic TS timings.
+
 ## Requirements before a closed-domain whole-Tick jump
 
 A full `FastStep(S_a,[a+1,b])` is only valid when the engine can prove the
