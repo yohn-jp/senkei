@@ -657,8 +657,17 @@ fn simulate_inner<P: TacticalExecutionPort>(
             // Preparation reserves an exclusive action without moving anyone.
             let action_start = world.clone();
             next_battlefield::prepare(&mut world, &action_start, next, &accepted_by_side, tick);
-            let skill_start = world.clone();
-            next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            // A skill-reservation snapshot is needed only if an accepted
+            // intent might actually activate a skill. For the overwhelmingly
+            // common all-movement/idle Tick it is a deep World clone with no
+            // corresponding transition; avoid allocating it entirely.
+            if accepted_by_side.iter().any(|(_, intent)| {
+                let capability = intent.capability.as_str();
+                capability == "activate" || capability.ends_with(".activate")
+            }) {
+                let skill_start = world.clone();
+                next_combat::prepare_actions(&mut world, &skill_start, next, &accepted_by_side, tick);
+            }
             let adjudication_start = world.clone();
             // Reuse the exact post-reservation freeze already required by
             // combat. Navigation previously deep-cloned the same World again.
