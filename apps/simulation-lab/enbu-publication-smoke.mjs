@@ -60,6 +60,27 @@ try {
   assert.equal(completed.report.source_revision, build.revision);
   console.log('PASS: published Lab worker executed real 000/TCSRVG Rust/WASM, ' +
     'verified Native full-response SHA-256 on every sample and returned UI rows');
+  // The independent production+window A/B must run through this *same*
+  // Worker and Native full-response digest. Test a Behavior-driven case,
+  // not merely the quiet one-Tick reference used above.
+  messages.length = 0;
+  await globalThis.self.onmessage({
+    data: { type: 'run', caseId: 'next-behavior-16', variantId: 'TCSRVGW', samples: 3 },
+  });
+  const windowFailure = messages.find(message => message.type === 'error');
+  assert.equal(windowFailure, undefined,
+    `MovementWindow Lab worker failed: ${windowFailure?.message}`);
+  const windowCompletion = messages.find(message => message.type === 'complete');
+  assert.ok(windowCompletion, 'MovementWindow real-WASM comparison must complete');
+  assert.equal(windowCompletion.report.source_revision, build.revision);
+  assert.equal(windowCompletion.report.cases[0].id, 'next-behavior-16');
+  assert.deepEqual(windowCompletion.report.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGW']);
+  assert.ok(windowCompletion.report.rows.every(row => row.verified && row.samples === 3));
+  assert.ok(windowCompletion.report.rows.every(row =>
+    row.incumbent_speedup && Number.isFinite(row.incumbent_speedup.median_ratio)));
+  console.log('PASS: real Behavior-driven Lab Worker compared 000/TCSRVG/TCSRVGW, ' +
+    'verified every Native golden and measured the exact incumbent delta');
 } finally {
   globalThis.fetch = originalFetch;
   if (originalSelf === undefined) delete globalThis.self;
