@@ -16,8 +16,8 @@ if (fixture.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu
   throw Error('Production Enbu artifacts are not from the same immutable revision');
 }
 if (!Array.isArray(fixture.cases) || fixture.cases.length !== 8 ||
-    !Array.isArray(manifest.variants) || manifest.variants.length !== 30) {
-  throw Error('Expected eight native golden fixtures and all thirty optimizer masks');
+    !Array.isArray(manifest.variants) || manifest.variants.length !== 32) {
+  throw Error('Expected eight native golden fixtures and all thirty-two optimizer masks');
 }
 const variants = [];
 const expectedVariants = Array.from({length:8}, (_, n) => ({
@@ -47,6 +47,8 @@ const expectedVariants = Array.from({length:8}, (_, n) => ({
   {id:'TCSRVHS',features:['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-hybrid','lab-opt-scheduler']},
   {id:'W',features:['lab-opt-movement-window']},
   {id:'TCSRVGW',features:['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-movement-window']},
+  {id:'X',features:['lab-opt-spatial']},
+  {id:'TCSRVGX',features:['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-spatial']},
 ]);
 for (let n = 0; n < expectedVariants.length; n++) {
   const expected = expectedVariants[n].id;
@@ -64,7 +66,7 @@ for (let n = 0; n < expectedVariants.length; n++) {
   const {instance} = await WebAssembly.instantiate(bytes, {});
   variants.push({id: descriptor.id, dispatch: createEnbuDispatcher(instance.exports)});
 }
-console.log('PASS: all 30 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
+console.log('PASS: all 32 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
 
 const cases = [];
 const rows = [];
@@ -127,7 +129,7 @@ for (const current of fixture.cases) {
 }
 const ranking = rankVariants(rows, manifest);
 const effects = factorialEffects(rows);
-if (ranking.length !== 30 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
+if (ranking.length !== 32 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +
