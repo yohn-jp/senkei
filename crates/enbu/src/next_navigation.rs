@@ -272,14 +272,14 @@ fn is_mobile(entity_type: &str) -> bool {
     matches!(entity_type, "hero" | "minion" | "monster")
 }
 
-fn advance_entity(
+fn advance_entity<'a>(
     actor_id: &EntityId,
     entity: &mut EntityState,
     rules: &NextRules,
     movement: &MovementIntent,
-    snapshot: &WorldState,
+    snapshot: &'a WorldState,
     visibility_index: Option<&OnceCell<crate::next_combat::CombatVisibilityIndex>>,
-    spatial_index: Option<&OnceCell<crate::execution::strategies::planned::PlannedCombatCandidates<'_>>>,
+    spatial_index: Option<&OnceCell<crate::execution::strategies::planned::PlannedCombatCandidates<'a>>>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
