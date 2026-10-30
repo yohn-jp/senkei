@@ -164,9 +164,9 @@ jobs:
             cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
-      - name: Verify promoted production WASM is exactly the tested TCSRV build
+      - name: Verify promoted production WASM is exactly the tested TCSRVG build
         run: |
-          cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRV.wasm
+          cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRVG.wasm
           # This verification-only binary must not enter the 28-variant
           # senkei_wasm_*.wasm publishing glob.
           rm target/simulation-lab/senkei_wasm_production.wasm
