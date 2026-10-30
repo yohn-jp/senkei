@@ -12,8 +12,40 @@
 //! writing a source goal.
 
 use crate::next_support as support;
-use senkei_model::{CombatantSide, EntityId, EntityState, WorldState};
+use senkei_model::{CombatantSide, DomainValue, EntityId, EntityState, FieldId, WorldState};
 use std::collections::BTreeMap;
+
+/// Immutable physical keys resolved once per match. Validating a reused
+/// window must not allocate FieldId Strings for the same six field names
+/// on every Entity/Tick; allocation itself can outweigh a quiet phase.
+struct MovementFields {
+    hp: FieldId,
+    squad: FieldId,
+    goal: FieldId,
+    edge_to: FieldId,
+    move_intent_tick: FieldId,
+    track_intent_tick: FieldId,
+}
+
+impl Default for MovementFields {
+    fn default() -> Self {
+        Self {
+            hp: "hp".into(),
+            squad: "squad".into(),
+            goal: "goal".into(),
+            edge_to: "edge_to".into(),
+            move_intent_tick: "move_intent_tick".into(),
+            track_intent_tick: "track_intent_tick".into(),
+        }
+    }
+}
+
+fn equals_int(entity: &EntityState, key: &FieldId, expected: i64) -> bool {
+    match entity.fields.get(key) {
+        Some(DomainValue::Integer(actual)) => *actual == expected,
+        _ => expected == 0,
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct MovementKey {
@@ -43,24 +75,23 @@ impl MovementKey {
         }
     }
 
-    fn matches(&self, id: &EntityId, actor: &EntityState) -> bool {
+    fn matches(&self, id: &EntityId, actor: &EntityState, fields: &MovementFields) -> bool {
         self.id == *id
             && self.kind == actor.entity_type.as_str()
             && self.owner == actor.owner
-            && self.hp == support::int(actor, "hp")
-            && field_equals(actor, "squad", &self.squad)
-            && field_equals(actor, "goal", &self.goal)
-            && field_equals(actor, "edge_to", &self.edge_to)
-            && self.move_intent_tick == support::int(actor, "move_intent_tick")
-            && self.track_intent_tick == support::int(actor, "track_intent_tick")
+            && equals_int(actor, &fields.hp, self.hp)
+            && field_equals(actor, &fields.squad, &self.squad)
+            && field_equals(actor, &fields.goal, &self.goal)
+            && field_equals(actor, &fields.edge_to, &self.edge_to)
+            && equals_int(actor, &fields.move_intent_tick, self.move_intent_tick)
+            && equals_int(actor, &fields.track_intent_tick, self.track_intent_tick)
     }
 }
 
 /// Compare a cached string/enum in place; validating a quiet window must not
 /// clone or allocate a new copy of every field on every Tick.
-fn field_equals(entity: &EntityState, key: &str, expected: &str) -> bool {
-    use senkei_model::{DomainValue, FieldId};
-    let actual = match entity.fields.get(&FieldId::from(key)) {
+fn field_equals(entity: &EntityState, key: &FieldId, expected: &str) -> bool {
+    let actual = match entity.fields.get(key) {
         Some(DomainValue::String(s)) => s.as_str(),
         Some(DomainValue::Enum(s)) => s.as_str(),
         _ => "",
@@ -71,6 +102,7 @@ fn field_equals(entity: &EntityState, key: &str, expected: &str) -> bool {
 #[derive(Default)]
 pub(crate) struct MovementWindow {
     read_set: Vec<MovementKey>,
+    fields: MovementFields,
     active: Vec<EntityId>,
     mobile_count: usize,
     initialized: bool,
@@ -144,7 +176,7 @@ impl MovementWindow {
     fn valid(&self, world: &WorldState) -> bool {
         let mut current = world.entities.iter();
         self.read_set.iter().all(|previous| current.next()
-            .is_some_and(|(id, entity)| previous.matches(id, entity)))
+            .is_some_and(|(id, entity)| previous.matches(id, entity, &self.fields)))
             && current.next().is_none()
     }
 
