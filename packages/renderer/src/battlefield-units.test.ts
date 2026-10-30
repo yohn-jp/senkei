@@ -5,6 +5,7 @@ import {
   buildBattlefieldHero,
   buildBattlefieldMinion,
   buildBattlefieldMonster,
+  cloneBattlefieldFollowMaterial,
 } from "./battlefield-units";
 import { battlefieldUnitLodLevel } from "./battlefield-unit-geometry";
 
@@ -148,6 +149,39 @@ describe("Battlefield unit models", () => {
         expect(meshes(level).every(mesh => !mesh.castShadow), `${id} reduced LOD skips the shadow-map pass`).toBe(true);
     }
     expect(names).toHaveProperty("size", 12);
+  });
+
+  it("preserves baked Medium/Far shader hooks when Follow opacity clones and restores materials", () => {
+    const root = new THREE.Group();
+    const key = "senkei.next.hero.r01";
+    buildBattlefieldHero(root, entity("R01", key, "R01"), 0x347e83, key);
+    const levels = lodLevels(root);
+    const source = meshes(levels[1])[0].material as THREE.MeshStandardMaterial;
+    expect(source).toBe(meshes(levels[2])[0].material);
+    const clone = cloneBattlefieldFollowMaterial(source) as THREE.MeshStandardMaterial;
+    try {
+      expect(clone).not.toBe(source);
+      expect(clone.onBeforeCompile).toBe(source.onBeforeCompile);
+      expect(clone.customProgramCacheKey()).toBe(source.customProgramCacheKey());
+      clone.transparent = true;
+      clone.opacity = 0.27;
+      clone.depthWrite = false;
+      const shader = {
+        uniforms: {},
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      } as Parameters<typeof clone.onBeforeCompile>[0];
+      clone.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+      expect(shader.vertexShader).toContain("attribute vec3 senkeiSurfaceResponse;");
+      expect(shader.fragmentShader).toContain("roughnessFactor = clamp(vSenkeiSurfaceResponse.x, 0.04, 1.0);");
+      expect(shader.fragmentShader).toContain("metalnessFactor = clamp(vSenkeiSurfaceResponse.y, 0.0, 1.0);");
+      expect(shader.fragmentShader).toContain("totalEmissiveRadiance = emissive * vSenkeiSurfaceResponse.z;");
+      expect(source.transparent).toBe(false);
+      expect(source.opacity).toBe(1);
+      expect(source.depthWrite).toBe(true);
+    } finally {
+      clone.dispose();
+    }
   });
 
   it("gives golden capes a tapered, waved cloth silhouette in all LODs without body or hand penetration", () => {
