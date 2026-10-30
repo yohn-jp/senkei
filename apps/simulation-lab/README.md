@@ -63,7 +63,7 @@ factorial varies these independent Cargo features:
 `000` is the unoptimized canonical Reference used by Native golden
 and all differential comparisons. `111` is the historical
 `lab-optimizations` alias; the other subsets are real Enbu builds.
-The production `scripts/wasm/build.sh` now compiles the **measured TCSRV**
+The production `scripts/wasm/build.sh` now compiles the **measured TCSRVG**
 feature portfolio by default, while `SENKEI_WASM_FEATURES=reference` forces
 the original Reference WASM for diagnostics. TCSRV previously delivered a
 1.049× equal-case geometric mean on seven full-output real WASM cases
