@@ -557,7 +557,7 @@ mod tests {
         assert_eq!(graph_endpoints(&node, &rules).unwrap().as_slice(), [("a", 0)]);
         assert_eq!(graph_endpoints(&edge, &rules).unwrap().as_slice(),
             [("a", 3), ("b", 7)]);
-        assert_eq!(world_distance2(&node, &edge, &rules), None);
+        assert_eq!(world_distance2(&node, &edge, &rules), Some(3 * 3));
     }
 
     #[test]
