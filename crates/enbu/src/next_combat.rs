@@ -611,6 +611,10 @@ fn collect_basic_attacks(
     let (planned, arithmetic) = hybrid_combat_selectors(
         start.entities.len(), collector.is_some(), cfg!(feature = "lab-opt-hybrid"),
     );
+    // A snapshot-scoped Planned index cannot amortize its O(N) construction
+    // when the certified Active Set contains just one source. Reference's
+    // original predicate is then the cheaper, equally authoritative kernel.
+    let planned = planned && active_ids.map_or(true, |ids| ids.len() > 1);
     collect_basic_attacks_with_execution(
         world, start, rules, tick, collector, planned, arithmetic, active_ids,
     )
@@ -2042,6 +2046,33 @@ mod tests {
         assert_eq!(large.1, cfg!(feature = "lab-opt-arithmetic"));
         let medium = hybrid_combat_selectors(52, false, true);
         assert_eq!(medium, (cfg!(feature = "lab-opt-planned"), false));
+    }
+
+    #[test]
+    fn singleton_temporal_frontier_reuses_reference_selection_without_planned_index() {
+        let rules = rules();
+        let mut reference = WorldState::default();
+        for n in 0..64 {
+            let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 100, 8, 50);
+            support::set_int(&mut hero, "attack_ready", if n == 0 { 1 } else { 1000 });
+            reference.entities.insert(format!("hero-{n:02}").into(), hero);
+        }
+        let mut target = entity("minion", Some(CombatantSide::Defender), 10, 10000, 0, 0);
+        support::set_int(&mut target, "attack_ready", 1000);
+        reference.entities.insert("target".into(), target);
+        let mut actual = reference.clone();
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+        for tick in 1..=8 {
+            let baseline = reference.clone();
+            let candidate = actual.clone();
+            let expected = resolve_from_snapshot(&mut reference, &baseline, &rules, &[], tick);
+            let got = resolve_from_snapshot_scheduled(
+                &mut actual, &candidate, &rules, &[], tick, &mut frontier, None,
+            );
+            assert_eq!(got, expected, "singleton event mismatch at tick={tick}");
+            assert_eq!(actual, reference, "singleton World mismatch at tick={tick}");
+            assert_eq!(frontier.active_ids(tick).map(|ids| ids.len()), Some(1));
+        }
     }
 
     #[test]

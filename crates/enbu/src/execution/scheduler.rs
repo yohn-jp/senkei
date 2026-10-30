@@ -159,6 +159,7 @@ impl EventScheduler {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AttackKey {
     id: EntityId,
+    owner: Option<senkei_model::CombatantSide>,
     hp: i64,
     ready: i64,
     attack: i64,
@@ -178,6 +179,10 @@ struct AttackKey {
 pub(crate) struct BasicAttackFrontier {
     read_set: Vec<AttackKey>,
     earliest_possible: i64,
+    /// Exact, current-snapshot proof that no hostile target exists among
+    /// the live targetable combatant types. A future owner/HP/membership write
+    /// revokes it on the next authoritative Tick.
+    no_hostile_target: bool,
     initialized: bool,
     last_tick: Option<u32>,
     scheduled: EventScheduler,
@@ -215,6 +220,7 @@ impl BasicAttackFrontier {
         world.entities.iter().filter(|(_, actor)| combatant(actor.entity_type.as_str()))
             .map(|(id, actor)| AttackKey {
                 id: id.clone(),
+                owner: actor.owner,
                 hp: support::int(actor, "hp"),
                 ready: support::int(actor, "attack_ready"),
                 attack: support::int(actor, "attack"),
@@ -255,7 +261,7 @@ impl BasicAttackFrontier {
         if self.initialized
             && self.last_tick.and_then(|at| at.checked_add(1)) == Some(tick)
             && due.is_empty()
-            && i64::from(tick) < self.earliest_possible
+            && (self.no_hostile_target || i64::from(tick) < self.earliest_possible)
             && self.still_valid(world)
         {
             self.hits += 1;
@@ -274,12 +280,27 @@ impl BasicAttackFrontier {
         self.scheduled.subscribe("basic_attack", BTreeSet::from([Dependency::EntitySet]));
         self.active.clear();
         self.read_set = Self::keys(world).collect();
+        // All targetable living entities are in this combatant read set.
+        // A singleton, an empty set, or one non-neutral owner cannot contain
+        // an eligible hostile pair. Unlike a distance-based guess, this proof
+        // remains true regardless of movement/vision changes within the Tick.
+        // Owner and HP are included in the next-Tick exact read comparison.
+        let mut living = self.read_set.iter().filter(|entry| entry.hp > 0);
+        self.no_hostile_target = match (living.next(), living.next()) {
+            (None, _) | (Some(_), None) => true,
+            (Some(first), Some(second)) => first.owner.is_some()
+                && second.owner == first.owner
+                && living.all(|entry| entry.owner == first.owner),
+        };
         self.earliest_possible = self.read_set.iter()
             .filter(|source| source.hp > 0 && source.attack > 0 && source.range >= 0)
             .map(|source| source.ready)
             .min().unwrap_or(i64::MAX);
         self.initialized = true;
         self.last_tick = Some(tick);
+        if self.no_hostile_target {
+            return true;
+        }
         if i64::from(tick) < self.earliest_possible {
             if let Ok(when) = u32::try_from(self.earliest_possible) {
                 if self.scheduled.schedule(
@@ -464,9 +485,38 @@ mod tests {
     }
 
     #[test]
+    fn no_hostile_target_window_invalidates_on_enemy_spawn_and_owner_conversion() {
+        let mut state = WorldState::default();
+        for n in 0..32 {
+            state.entities.insert(format!("ally-{n:02}").into(), actor(0));
+        }
+        let mut frontier = BasicAttackFrontier::default();
+        for tick in 1..=5 {
+            assert!(frontier.certify_idle(&state, tick, false));
+        }
+        assert!(frontier.hits >= 4);
+        let mut enemy = actor(0);
+        enemy.owner = Some(CombatantSide::Defender);
+        state.entities.insert("enemy".into(), enemy);
+        assert!(!frontier.certify_idle(&state, 6, false),
+            "an enemy spawn must revoke the no-target certificate");
+        state.entities.get_mut(&EntityId::from("enemy")).unwrap().owner =
+            Some(CombatantSide::Attacker);
+        assert!(frontier.certify_idle(&state, 7, false),
+            "single-side ownership must be recalculated");
+        state.entities.get_mut(&EntityId::from("enemy")).unwrap().owner = None;
+        assert!(!frontier.certify_idle(&state, 8, false),
+            "neutral ownership must not be mistaken for friendly");
+    }
+
+    #[test]
     fn attack_frontier_respects_future_clock_and_all_invalidation_barriers() {
         let mut state = WorldState::default();
         state.entities.insert("hero".into(), actor(12));
+        let mut enemy = actor(12);
+        enemy.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut enemy, "attack", 0);
+        state.entities.insert("enemy".into(), enemy);
         let mut f = BasicAttackFrontier::default();
         for tick in 1..12 {
             assert!(f.certify_idle(&state, tick, false));
@@ -492,6 +542,10 @@ mod tests {
             world.entities.insert(format!("hero-{n:02}").into(),
                 actor(if n % 31 == 0 { 4 } else { 20 }));
         }
+        let mut enemy = actor(100);
+        enemy.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut enemy, "attack", 0);
+        world.entities.insert("target".into(), enemy);
         let mut frontier = BasicAttackFrontier::default();
         for tick in 1..4 {
             assert!(frontier.certify_idle(&world, tick, false));
