@@ -59,7 +59,7 @@ self.onmessage = async ({data}) => {
     if (!selectedCases?.length) throw new Error('Unknown production Enbu case');
     const descriptors = data.variantId === 'all' ? manifest.variants :
       manifest.variants.filter(variant => variant.id === '000' || variant.id === data.variantId ||
-        (data.variantId === 'TCSRVGW' && variant.id === 'TCSRVG'));
+        ((data.variantId === 'TCSRVGW' || data.variantId === 'TCSRVGX') && variant.id === 'TCSRVG'));
     if (descriptors.length < 2 && data.variantId !== '000') throw new Error('Unknown optimizer mask');
     const variants = [];
     for (const descriptor of descriptors) {
