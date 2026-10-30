@@ -64,7 +64,7 @@ fn scoped_edge(map: &BattleMap, from: &str, to: &str)
     })?;
     Some(GRAPH_TOPOLOGY_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if cache.as_ref().is_none_or(|(previous, _)| *previous != stamp) {
+        if cache.as_ref().map_or(true, |(previous, _)| *previous != stamp) {
             *cache = Some((stamp, ScopedTopology::build(map)));
         }
         #[cfg(test)]
@@ -147,12 +147,12 @@ impl Drop for VisionGraphScope<'_> {
 // throughout the RulePlan compiler. Instead specialize only the hot Enbu
 // scalar accessors with static, canonical owned FieldId values.
 fn cached_scalar_key(key: &str) -> Option<&'static FieldId> {
-    use std::sync::LazyLock;
+    // OnceLock is available at the repository's Rust 1.75 MSRV.
+    use std::sync::OnceLock;
     macro_rules! cached_key {
         ($name:literal) => {{
-            static KEY: LazyLock<FieldId> =
-                LazyLock::new(|| FieldId::from($name));
-            Some(&*KEY)
+            static KEY: OnceLock<FieldId> = OnceLock::new();
+            Some(KEY.get_or_init(|| FieldId::from($name)))
         }};
     }
     match key {
