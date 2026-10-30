@@ -691,7 +691,7 @@ fn collect_basic_attacks_with_execution(
         } else { None };
         let selected = requested_target(source, start)
             .filter(|(target_id, target)| can_basic_attack_with_visibility(
-                source_id, source, target_id, target, start, rules, tick, visibility,
+                source_id, source, target_id, target, start, rules, tick, visibility.as_deref(),
             ));
         let selection = if selected.is_some() { AutonomousTargetSelection::RequestedTarget } else { AutonomousTargetSelection::NearestThenEntityId };
         if let Some((target_id, _)) = &selected {
@@ -705,7 +705,7 @@ fn collect_basic_attacks_with_execution(
             };
             nearest_basic_attack(
                 source_id, source, start, rules, tick,
-                collector.as_deref_mut(), decision_index, planned.as_deref(), visibility,
+                collector.as_deref_mut(), decision_index, planned.as_deref(), visibility.as_deref(),
             )
         });
         let Some((target_id, _)) = selected else {
