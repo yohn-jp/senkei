@@ -32,6 +32,8 @@ lab-opt-shields = ["enbu/lab-opt-shields"]
 lab-opt-route = ["enbu/lab-opt-route"]
 lab-opt-visibility = ["enbu/lab-opt-visibility"]
 lab-opt-planned = ["enbu/lab-opt-planned"]
+# Frozen snapshot, canonical graph-local attack candidate partition.
+lab-opt-spatial = ["enbu/lab-opt-spatial"]
 lab-opt-arithmetic = ["enbu/lab-opt-arithmetic"]
 lab-opt-frozen = ["enbu/lab-opt-frozen"]
 lab-opt-fog-cache = ["enbu/lab-opt-fog-cache"]
