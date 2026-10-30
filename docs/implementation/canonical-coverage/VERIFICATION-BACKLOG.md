@@ -8,6 +8,15 @@ At `e330e10167a0a663f9e407396346bc4ebfb70a8a`, [CI run 41054190125](https://gith
 
 The current source includes focused fixes/regressions for #54 (compiler envelope), #57 (Fog scene visibility), #58 (explicit skill vs default movement), #59 (producer conflict), #60 (raw legacy export), #61 (opaque owned-Hero slot keys), #62 (LOD shader hooks) and #51 (Replay placement index). A source-level fix is not proof of all issue-specific acceptance conditions. In particular #51 still needs labels-on deterministic real-browser evidence, and #5 requires independent game, UI, art, balance and device acceptance.
 
+### Measured complete CI evidence — `9bebc1b`
+
+[CI run 41057373825](https://github.com/yohn-jp/senkei/actions/runs/41057373825) completed **SUCCESS** on the exact `9bebc1b4390d33979c591c6242b9bf4ee204262a` main revision. All 26 jobs passed: native workspace Rust build/tests, native/real-WASM conformance, Web test/build, production WASM/browser build, every configured desktop/mobile journeys/visual/browser shard, and aggregate Production browser smoke. [Simulation Lab run 41057373991](https://github.com/yohn-jp/senkei/actions/runs/41057373991) also completed **SUCCESS** (both WASM benchmark validation and publication). This supersedes the older cancelled-run status **for this specific SHA only**.
+
+At this SHA the #59 real initial-rules Tick-8 deployment/credit exhaustion test and #62 real R01 Follow shader-clone test are covered by successful Rust/Web test jobs. #57 Fog scene graph and #58 real Enbu explicit skill/Behavior default regressions are also included. Their scoped defect issues have been closed with execution references. This does **not** independently prove physical GPU, exact #51 history-independent screenshot bytes, user visual/art acceptance, balance of representative opposing strategies, accessibility on physical devices, or full #5 gameplay acceptance.
+
+Post-`9bebc1b` changes:
+- `622f57b` adds a real-WASM authorized Replay browser assertion comparing exact rendered PNG bytes (canvas + labels + fog) for direct, progressive, and rewind navigation at Tick 13, at 320/390/430/1440px. Its **new** acceptance assertion is **NOT_CHECKED** until the matching SHA's visual browser job runs. A failure must retain the attached images and be analyzed, not bypassed with a tolerance.
+
 ### Newly added direct-main regression coverage
 
 - `ecfa213`: exercises the **real** baked R01 Medium/Far material hooks and clone isolation across Follow opacity changes (#62).
