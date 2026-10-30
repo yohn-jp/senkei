@@ -17,6 +17,74 @@ struct VisionGraphDistances {
     distances: Vec<Vec<Option<i64>>>,
 }
 
+/// A match-scoped structural edge index. The first authored edge is retained
+/// for canonical combat distance and graph endpoint projection; separately,
+/// the longest *positive* parallel edge certifies valid progress in
+/// valid_graph_position. This distinction exactly matches the reference
+/// any-edge validator and first-edge distance selector.
+#[derive(Clone, Copy, Debug)]
+struct IndexedEdge {
+    first_index: usize,
+    longest_positive: i64,
+}
+
+#[derive(Default)]
+struct ScopedTopology {
+    adjacency: BTreeMap<String, BTreeMap<String, IndexedEdge>>,
+}
+
+impl ScopedTopology {
+    fn build(map: &BattleMap) -> Self {
+        let mut topology = Self::default();
+        for (index, edge) in map.edges.iter().enumerate() {
+            for (from, to) in [(&edge.from, &edge.to), (&edge.to, &edge.from)] {
+                let value = topology.adjacency.entry(from.clone())
+                    .or_default().entry(to.clone()).or_insert(IndexedEdge {
+                        first_index: index,
+                        longest_positive: 0,
+                    });
+                value.longest_positive = value.longest_positive.max(edge.length.max(0));
+            }
+        }
+        topology
+    }
+
+    fn edge(&self, from: &str, to: &str) -> Option<IndexedEdge> {
+        self.adjacency.get(from).and_then(|edges| edges.get(to)).copied()
+    }
+}
+
+/// None => no map scope (use Reference); Some(None) => scoped proof that no
+/// authored edge exists. Thus a missing edge never triggers an O(E) scan.
+fn scoped_edge(map: &BattleMap, from: &str, to: &str)
+    -> Option<Option<IndexedEdge>>
+{
+    let stamp = GRAPH_SCOPE_ACTIVE.with(|active| active.get()).filter(|stamp| {
+        stamp.map_address == map as *const BattleMap as usize
+    })?;
+    Some(GRAPH_TOPOLOGY_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.as_ref().is_none_or(|(previous, _)| *previous != stamp) {
+            *cache = Some((stamp, ScopedTopology::build(map)));
+        }
+        #[cfg(test)]
+        GRAPH_TOPOLOGY_LOOKUPS.with(|counter|
+            counter.set(counter.get().saturating_add(1)));
+        cache.as_ref().and_then(|(_, topology)| topology.edge(from, to))
+    }))
+}
+
+fn canonical_edge<'a>(map: &'a BattleMap, from: &str, to: &str) -> Option<&'a MapEdge> {
+    match scoped_edge(map, from, to) {
+        Some(index) => index.and_then(|entry| map.edges.get(entry.first_index)),
+        None => map.edges.iter().find(|edge| {
+            (edge.from == from && edge.to == to)
+                || (edge.to == from && edge.from == to)
+        }),
+    }
+}
+
+
 /// A trust token is valid only while an immutable BattleMap is borrowed by
 /// the *synchronous* Enbu match runner. It is never a digest or a map ID.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,6 +99,10 @@ thread_local! {
     static VISION_GRAPH_CACHE:
         RefCell<Option<(VisionGraphKey, VisionGraphDistances, Option<GraphScopeStamp>)>> =
         RefCell::new(None);
+    static GRAPH_TOPOLOGY_CACHE:
+        RefCell<Option<(GraphScopeStamp, ScopedTopology)>> = RefCell::new(None);
+    #[cfg(test)]
+    static GRAPH_TOPOLOGY_LOOKUPS: Cell<u64> = const { Cell::new(0) };
     static GRAPH_SCOPE_ACTIVE: Cell<Option<GraphScopeStamp>> = const { Cell::new(None) };
     static GRAPH_SCOPE_SERIAL: Cell<u64> = const { Cell::new(0) };
     #[cfg(test)]
@@ -229,9 +301,7 @@ pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> 
     if a_to.is_empty() || b_to.is_empty() {
         return None;
     }
-    let edge = rules.map.edges.iter().find(|edge| {
-        (edge.from == a_node && edge.to == a_to) || (edge.to == a_node && edge.from == a_to)
-    })?;
+    let edge = canonical_edge(&rules.map, a_node, a_to)?;
     if !((b_node == edge.from && b_to == edge.to) || (b_node == edge.to && b_to == edge.from)) {
         return None;
     }
@@ -271,13 +341,18 @@ fn valid_graph_position(entity: &EntityState, rules: &NextRules) -> bool {
     if !rules.map.nodes.contains_key(edge_to) {
         return false;
     }
-    rules.map.edges.iter().any(|edge| {
-        edge.length > 0
-            && progress >= 0
-            && progress <= edge.length
-            && ((edge.from == node && edge.to == edge_to)
-                || (edge.to == node && edge.from == edge_to))
-    })
+    match scoped_edge(&rules.map, node, edge_to) {
+        Some(Some(edge)) => progress >= 0 && progress <= edge.longest_positive
+            && edge.longest_positive > 0,
+        Some(None) => false,
+        None => rules.map.edges.iter().any(|edge| {
+            edge.length > 0
+                && progress >= 0
+                && progress <= edge.length
+                && ((edge.from == node && edge.to == edge_to)
+                    || (edge.to == node && edge.from == edge_to))
+        }),
+    }
 }
 /// Graph-geodesic distance for vision, independent of renderer coordinates.
 /// Unlike combat range, observers may see through a chain of adjacent graph
@@ -325,9 +400,7 @@ fn graph_endpoints<'a>(entity: &'a EntityState, rules: &NextRules)
             count: 1,
         });
     }
-    let edge = rules.map.edges.iter().find(|edge| {
-        (edge.from == from && edge.to == to) || (edge.to == from && edge.from == to)
-    })?;
+    let edge = canonical_edge(&rules.map, from, to)?;
     let progress = int(entity, "edge_progress").clamp(0, edge.length);
     Some(GraphEndpoints {
         values: [(from, progress), (to, edge.length - progress)],
