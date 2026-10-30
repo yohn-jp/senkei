@@ -130,10 +130,17 @@ impl<'a> PlannedCombatCandidates<'a> {
     {
         #[cfg(feature = "lab-opt-spatial")]
         if self.spatial_admitted {
-            return CombatLocation::of(source)
-                .and_then(|location| self.by_location.get(&location))
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
+            // Spatial bucketing is useful only if it prunes more than the
+            // existing ownership/type partition. In a dense same-node fight
+            // the bucket can include more actors than the old Planned list;
+            // retain the cheaper, equally authoritative list per source.
+            let baseline = self.candidates(source);
+            if let Some(location) = CombatLocation::of(source) {
+                let bucket = self.by_location.get(&location)
+                    .map(Vec::as_slice).unwrap_or(&[]);
+                return if bucket.len() < baseline.len() { bucket } else { baseline };
+            }
+            return &[];
         }
         self.candidates(source)
     }
