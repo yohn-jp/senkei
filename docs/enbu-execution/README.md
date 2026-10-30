@@ -85,6 +85,7 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
 | [PLANNER.md](PLANNER.md) | 因果領域、Read/Write依存、境界証明書 |
 | [DISPATCHER.md](DISPATCHER.md) | 適格性、最小総費用の選択、切替 |
 | [SCHEDULER.md](SCHEDULER.md) | 期限、活性集合、安定順序、無効化 |
+| [WINDOW-EXECUTION.md](WINDOW-EXECUTION.md) | 実装済みの時間窓と全Tick短絡に必要な未達証明 |
 | [STRATEGIES/README.md](STRATEGIES/README.md) | 全Strategyの共通インターフェース・fallback |
 | [STRATEGIES/ACTIVE.md](STRATEGIES/ACTIVE.md) | 変更部分だけを物理的に評価 |
 | [STRATEGIES/EVENT-QUEUE.md](STRATEGIES/EVENT-QUEUE.md) | Heap、Bucket、Scan |
@@ -107,4 +108,4 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
 
 速さは `dispatch` 単独でなく、RulePlan検証/準備、計画、切替、実行、必要な観測/Replay生成、シリアライズ、WASM host転送を区分して**総時間**で測る。併せて判定数、状態コピー量、イベント処理数、実体化Tick数、メモリを測定する。各ケースで「何を飛ばせたか」「何をまだ毎Tick計算する必要があるか」を報告する。
 
-現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` を保ち、Jinrei・Replay・CUを毎Tick処理する。`execution/scheduler.rs` は期限・依存世代・局所Active Setによって2種類の処理領域をTick間で省略し、`execution/materialize.rs` は全Tickおよびpublic/owner Frameを必須にする。一般的なWhole-Tick実行窓と任意Tickへの高速ジャンプは未実装。WASM本番標準は実測優位のTCSRV、その他はLabでReference（000）と比較する。
+現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` を保ち、Jinrei・Replay・CUを毎Tick処理する。`execution/scheduler.rs` は期限・依存世代・局所Active Setによって2種類の処理領域をTick間で省略し、`execution/materialize.rs` は全Tickおよびpublic/owner Frameを必須にする。一般的なWhole-Tick実行窓と任意Tickへの高速ジャンプは未実装。WASM本番標準は実測優位のTCSRVG、その他はLabでReference（000）と比較する。
