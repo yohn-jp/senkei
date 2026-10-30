@@ -35,6 +35,7 @@ pub(crate) enum ScheduleError {
     NonSequentialTick,
     PastEvent,
     GenerationOverflow,
+    CapacityExceeded,
 }
 
 #[derive(Default)]
@@ -47,6 +48,15 @@ pub(crate) struct EventScheduler {
 }
 
 impl EventScheduler {
+    const MAX_PENDING: usize = 4096;
+    const STALE_COMPACTION_THRESHOLD: usize = 512;
+
+    fn compact_stale(&mut self) {
+        self.due.retain(|entry| {
+            self.generations.get(&entry.domain).copied().unwrap_or(0) == entry.generation
+        });
+    }
+
     /// Output frames are due on every Tick. Advancing over a Tick is rejected
     /// because this scheduler has no authority to reconstitute a missing frame.
     pub fn take_tick(&mut self, tick: u32) -> Result<Vec<WorkKey>, ScheduleError> {
@@ -92,6 +102,12 @@ impl EventScheduler {
         if tick <= self.current_tick {
             return Err(ScheduleError::PastEvent);
         }
+        if self.due.len() >= Self::MAX_PENDING {
+            self.compact_stale();
+            if self.due.len() >= Self::MAX_PENDING {
+                return Err(ScheduleError::CapacityExceeded);
+            }
+        }
         let generation = self.generations.get(domain).copied().unwrap_or(0);
         self.due.insert(WorkKey {
             tick, phase, rule_priority: priority,
@@ -108,16 +124,29 @@ impl EventScheduler {
         for dependency in writes {
             dirty.extend(self.reverse.get(dependency).into_iter().flatten().cloned());
         }
+        // Check all counters before mutation, so overflow cannot partially
+        // invalidate one domain and leave another generation live.
+        if dirty.iter().any(|domain| self.generations.get(domain) == Some(&u64::MAX)) {
+            return Err(ScheduleError::GenerationOverflow);
+        }
         for domain in &dirty {
-            let generation = self.generations.entry(domain.clone()).or_default();
-            *generation = generation.checked_add(1).ok_or(ScheduleError::GenerationOverflow)?;
+            *self.generations.entry(domain.clone()).or_default() += 1;
+        }
+        if self.due.len() >= Self::STALE_COMPACTION_THRESHOLD {
+            self.compact_stale();
         }
         Ok(dirty.len())
     }
 
     pub fn invalidate_all(&mut self) -> Result<(), ScheduleError> {
+        if self.generations.values().any(|generation| *generation == u64::MAX) {
+            return Err(ScheduleError::GenerationOverflow);
+        }
         for generation in self.generations.values_mut() {
-            *generation = generation.checked_add(1).ok_or(ScheduleError::GenerationOverflow)?;
+            *generation += 1;
+        }
+        if self.due.len() >= Self::STALE_COMPACTION_THRESHOLD {
+            self.compact_stale();
         }
         // Also invalidate subscribed domains which have not yet scheduled.
         for domain in self.domains.keys() {
@@ -371,6 +400,24 @@ mod tests {
         q.schedule("movement", 3, 2, 0, "b", "move").unwrap();
         q.invalidate_all().unwrap();
         assert!(q.take_tick(3).unwrap().is_empty());
+    }
+
+    #[test]
+    fn repeated_invalidations_do_not_accumulate_unbounded_stale_events() {
+        let mut q = EventScheduler::default();
+        q.subscribe("domain", BTreeSet::from([Dependency::WorldRules]));
+        for index in 0..5_000 {
+            q.schedule("domain", 10_000 + index, 2, 0, "actor", "future").unwrap();
+            q.invalidate(&BTreeSet::from([Dependency::WorldRules])).unwrap();
+        }
+        assert!(q.due.len() <= EventScheduler::MAX_PENDING);
+        for tick in 1..=16 {
+            assert!(q.take_tick(tick).unwrap().is_empty());
+        }
+        // Any overflow is a rejected certificate, never a stale execution.
+        q.generations.insert("domain".into(), u64::MAX);
+        assert_eq!(q.invalidate(&BTreeSet::from([Dependency::WorldRules])),
+            Err(ScheduleError::GenerationOverflow));
     }
 
     #[test]
