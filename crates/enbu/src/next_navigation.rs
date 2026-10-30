@@ -105,6 +105,29 @@ fn advance_inner(
         {
             continue;
         }
+        #[cfg(feature = "lab-opt-frozen")]
+        if routes.is_none() {
+            // The canonical advance_entity returns before any mutation when
+            // there is no goal, explicit action or incumbent edge. This is
+            // also true for a solo Hero (its cohort leader is itself).
+            // Do not apply this guard to grouped Heroes, whose leader's goal
+            // can move a member without a personal goal. Route runtime may
+            // provide an implicit waypoint, so only skip without one.
+            let no_intent = string(start, "goal").is_empty()
+                && string(start, "edge_to").is_empty()
+                && int(start, "move_intent_tick") != i64::from(tick).saturating_add(1)
+                && int(start, "track_intent_tick") != i64::from(tick).saturating_add(1);
+            let independent = start.entity_type.as_str() != "hero"
+                || string(start, "squad").is_empty();
+            if no_intent && independent {
+                continue;
+            }
+            if int(start, "action_lock_until") > i64::from(tick) {
+                // The same early guard applies in canonical advance_entity,
+                // before any state writes; no route runtime needs callbacks.
+                continue;
+            }
+        }
         let Some(entity) = world.entities.get_mut(&id) else {
             continue;
         };
