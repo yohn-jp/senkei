@@ -1,6 +1,21 @@
 # Verification backlog
 
-## User-requested stop before final verification
+## Current verification authority and measured evidence (2026-10-30)
+
+The 2026-10-27 instruction to stop after implementation is historical. The 2026-10-30 instruction explicitly resumes P0–P3 implementation and verification, requires direct `main` commits, and **forbids waiting for CI**. Keep pushing independent fixes without blocking on queued or running checks; never count a cancelled or incomplete job as green. This change in authorization does **not** remove any functional, visual, security or device acceptance gate.
+
+At `e330e10167a0a663f9e407396346bc4ebfb70a8a`, [CI run 41054190125](https://github.com/yohn-jp/senkei/actions/runs/41054190125) completed **Web application build** (`npm test`, `npm run build`) and **Production browser build** (actual WASM compile, `npm run build`) successfully. Native + real WASM determinism and Behavior adapter comparisons also passed within the conformance job; the larger conformance job, native workspace tests and browser matrix were cancelled before completion by newer pushes. The run **was not** fully green. These results cannot be transferred to later commits without separate checks.
+
+The current source includes focused fixes/regressions for #54 (compiler envelope), #57 (Fog scene visibility), #58 (explicit skill vs default movement), #59 (producer conflict), #60 (raw legacy export), #61 (opaque owned-Hero slot keys), #62 (LOD shader hooks) and #51 (Replay placement index). A source-level fix is not proof of all issue-specific acceptance conditions. In particular #51 still needs labels-on deterministic real-browser evidence, and #5 requires independent game, UI, art, balance and device acceptance.
+
+### Newly added direct-main regression coverage
+
+- `ecfa213`: exercises the **real** baked R01 Medium/Far material hooks and clone isolation across Follow opacity changes (#62).
+- `f5ecdec`: adds an actual `senkei.initial` / Enbu runner test for two same-barracks deployments at Tick 8 with a single starting credit (#59).
+- These commits were pushed without waiting for CI. Their newly introduced tests are **NOT_CHECKED** until a matching-revision native/Web run produces results. Preserve that distinction; do not infer that they pass from the earlier `e330e10` build.
+
+## Historical stop before final verification (2026-10-27)
+
 
 Implementation source was saved at `d9fec65`; verification of that integration was not run, as explicitly requested by the user. Prior PASS/FAIL records below retain their original source/build scope and are not final-HEAD results.
 
