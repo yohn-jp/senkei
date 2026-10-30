@@ -212,14 +212,17 @@ pub(crate) fn vision_sources<'a>(
         if radius < 0 {
             continue;
         }
+        // The classified sources are borrowed from one frozen World. Keep
+        // deduplication keys as &str rather than allocate three owned Strings
+        // for each observer on each Tick.
         let track = if support::int(source, "cross_remaining") > 0 {
-            "CENTER".into()
+            "CENTER"
         } else {
-            support::string(source, "track")
+            support::string_ref(source, "track")
         };
         let key = (
-            support::string(source, "node"),
-            support::string(source, "edge_to"),
+            support::string_ref(source, "node"),
+            support::string_ref(source, "edge_to"),
             support::int(source, "edge_progress"),
             track,
             radius,
@@ -256,11 +259,11 @@ fn is_vision_source(entity: &EntityState, side: CombatantSide) -> bool {
 /// Whether a hero is inside any living friendly minion's vision. The result is
 /// a boolean so overlapping minions apply the movement modifier only once.
 pub fn minion_vision(world: &WorldState, rules: &NextRules, side: CombatantSide, entity: &EntityState) -> bool {
-    if entity.entity_type != TypeId::from(HERO) {
+    if entity.entity_type.as_str() != HERO {
         return false;
     }
     world.entities.values().any(|source| {
-        source.entity_type == TypeId::from(MINION)
+        source.entity_type.as_str() == MINION
             && source.owner == Some(side)
             && support::alive(source)
             && within_radius(source, entity, support::int(source, "vision"), rules)
