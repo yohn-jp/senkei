@@ -1975,6 +1975,94 @@ mod tests {
         assert!(plan.candidates(tower).len() < snapshot.entities.len());
     }
 
+    #[cfg(feature = "lab-opt-spatial")]
+    #[test]
+    fn spatial_graph_partition_matches_reference_hits_and_owner_candidate_traces() {
+        let rules = rules();
+        for actor_count in [24_usize, 48, 96] {
+            for tick in [1_u32, 5] {
+                let mut frozen = WorldState::default();
+                for index in 0..actor_count {
+                    let kind = match index % 6 {
+                        0 | 1 => "hero",
+                        2 => "minion",
+                        3 => "tower",
+                        4 => "monster",
+                        _ => "base",
+                    };
+                    let owner = match index % 3 {
+                        0 => Some(CombatantSide::Attacker),
+                        1 => Some(CombatantSide::Defender),
+                        _ => None,
+                    };
+                    let mut actor = entity(kind, owner, (index % 100) as i64,
+                        if index % 13 == 0 { 0 } else { 100 },
+                        if index % 8 == 0 { 0 } else { 10 }, 100);
+                    support::set_int(&mut actor, "attack_ready",
+                        if index % 7 == 0 { i64::from(tick) + 1 } else { 0 });
+                    match index % 6 {
+                        0 => {
+                            // Node actors cannot attack edge occupants.
+                            support::set_string(&mut actor, "edge_to", "");
+                            support::set_int(&mut actor, "edge_progress", 0);
+                        }
+                        1 => {
+                            // Second node is a separate combat domain.
+                            support::set_string(&mut actor, "node", "test_b");
+                            support::set_string(&mut actor, "edge_to", "");
+                            support::set_int(&mut actor, "edge_progress", 0);
+                        }
+                        2 => {
+                            // Reverse orientation is still the same edge.
+                            support::set_string(&mut actor, "node", "test_b");
+                            support::set_string(&mut actor, "edge_to", "test_a");
+                            support::set_int(&mut actor, "edge_progress", 500);
+                        }
+                        3 => {
+                            // Positive range does not legitimize a nonexistent edge.
+                            support::set_string(&mut actor, "edge_to", "invalid");
+                        }
+                        _ => {}
+                    }
+                    insert(&mut frozen, &format!("spatial-{index:03}"), actor);
+                }
+                let plan = PlannedCombatCandidates::build(&frozen, &rules);
+                let node_actor = frozen.entities.get(&EntityId::from("spatial-000")).unwrap();
+                let candidate_count = plan.candidates_for(node_actor).len();
+                assert!(candidate_count < plan.candidates(node_actor).len(),
+                    "spatial partition did not remove any impossible target");
+                let mut reference_world = frozen.clone();
+                let mut spatial_world = frozen.clone();
+                let mut reference_trace = ActorDecisionCollector::new(50_000);
+                let mut spatial_trace = ActorDecisionCollector::new(50_000);
+                let reference_hits = collect_basic_attacks_with_planner(
+                    &mut reference_world, &frozen, &rules, tick,
+                    Some(&mut reference_trace), false,
+                );
+                let optimized_hits = collect_basic_attacks_with_planner(
+                    &mut spatial_world, &frozen, &rules, tick,
+                    Some(&mut spatial_trace), true,
+                );
+                let signature = |hits: Vec<Hit>| hits.into_iter()
+                    .map(|hit| (hit.source, hit.target, hit.raw_power,
+                        hit.event, hit.uses_basic_attack, hit.decision_index))
+                    .collect::<Vec<_>>();
+                assert_eq!(signature(reference_hits), signature(optimized_hits),
+                    "spatial hits diverged: n={actor_count}, tick={tick}");
+                assert_eq!(reference_world, spatial_world,
+                    "spatial world diverged: n={actor_count}, tick={tick}");
+                assert_eq!(reference_trace.used(), spatial_trace.used());
+                assert_eq!(reference_trace.overflowed(), spatial_trace.overflowed());
+                let reference_records = reference_trace.records.iter()
+                    .map(|record| &record.trace).collect::<Vec<_>>();
+                let spatial_records = spatial_trace.records.iter()
+                    .map(|record| &record.trace).collect::<Vec<_>>();
+                assert_eq!(reference_records, spatial_records,
+                    "spatial owner diagnostics diverged: n={actor_count}, tick={tick}");
+            }
+        }
+    }
+
     #[cfg(feature = "lab-opt-arithmetic")]
     #[test]
     fn arithmetic_dispatch_is_exactly_equivalent_to_reference_basic_attacks() {
