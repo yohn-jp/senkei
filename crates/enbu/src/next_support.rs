@@ -22,8 +22,89 @@ thread_local! {
     static VISION_GRAPH_CACHE: RefCell<Option<(VisionGraphKey, VisionGraphDistances)>> = RefCell::new(None);
 }
 
+// FieldId's public API stays unchanged. A borrowed-key impl on FieldId
+// makes arbitrary existing BTreeMap::get(&"...".into()) expressions ambiguous
+// throughout the RulePlan compiler. Instead specialize only the hot Enbu
+// scalar accessors with static, canonical owned FieldId values.
+fn cached_scalar_key(key: &str) -> Option<&'static FieldId> {
+    use std::sync::LazyLock;
+    macro_rules! cached_key {
+        ($name:literal) => {{
+            static KEY: LazyLock<FieldId> =
+                LazyLock::new(|| FieldId::from($name));
+            Some(&*KEY)
+        }};
+    }
+    match key {
+        "hp" => cached_key!("hp"),
+        "goal" => cached_key!("goal"),
+        "squad" => cached_key!("squad"),
+        "node" => cached_key!("node"),
+        "edge_to" => cached_key!("edge_to"),
+        "edge_progress" => cached_key!("edge_progress"),
+        "move_intent_tick" => cached_key!("move_intent_tick"),
+        "track_intent_tick" => cached_key!("track_intent_tick"),
+        "attack" => cached_key!("attack"),
+        "attack_ready" => cached_key!("attack_ready"),
+        "attack_interval" => cached_key!("attack_interval"),
+        "range" => cached_key!("range"),
+        "vision" => cached_key!("vision"),
+        "track" => cached_key!("track"),
+        "cross_remaining" => cached_key!("cross_remaining"),
+        "speed" => cached_key!("speed"),
+        "action_lock_until" => cached_key!("action_lock_until"),
+        "moved_tick" => cached_key!("moved_tick"),
+        "shield" => cached_key!("shield"),
+        "max_hp" => cached_key!("max_hp"),
+        "energy" => cached_key!("energy"),
+        "maturity" => cached_key!("maturity"),
+        "catalog_id" => cached_key!("catalog_id"),
+        "slot_id" => cached_key!("slot_id"),
+        "death_tick" => cached_key!("death_tick"),
+        "respawn_at" => cached_key!("respawn_at"),
+        "defense" => cached_key!("defense"),
+        "xp" => cached_key!("xp"),
+        "level" => cached_key!("level"),
+        "x" => cached_key!("x"),
+        "y" => cached_key!("y"),
+        "reveal_until" => cached_key!("reveal_until"),
+        "reveal_attacker_until" => cached_key!("reveal_attacker_until"),
+        "reveal_defender_until" => cached_key!("reveal_defender_until"),
+        "retreating" => cached_key!("retreating"),
+        "ford_remaining" => cached_key!("ford_remaining"),
+        "crossing" => cached_key!("crossing"),
+        "formation" => cached_key!("formation"),
+        "target" => cached_key!("target"),
+        "attack_prepared_tick" => cached_key!("attack_prepared_tick"),
+        "haste" => cached_key!("haste"),
+        "haste_until" => cached_key!("haste_until"),
+        "slow" => cached_key!("slow"),
+        "slow_until" => cached_key!("slow_until"),
+        "ford_active" => cached_key!("ford_active"),
+        "max_energy" => cached_key!("max_energy"),
+        "speed_bonus" => cached_key!("speed_bonus"),
+        "energy_regen" => cached_key!("energy_regen"),
+        "crossing_enter_tick" => cached_key!("crossing_enter_tick"),
+        "progress" => cached_key!("progress"),
+        "camp" => cached_key!("camp"),
+        "region" => cached_key!("region"),
+        "action_state" => cached_key!("action_state"),
+        "prepared_action_tick" => cached_key!("prepared_action_tick"),
+        _ => None,
+    }
+}
+
+fn scalar_value<'a>(entity: &'a EntityState, key: &str) -> Option<&'a DomainValue> {
+    if let Some(cached) = cached_scalar_key(key) {
+        entity.fields.get(cached)
+    } else {
+        // Unknown/extended schema fields retain the original exact lookup.
+        entity.fields.get(&FieldId::from(key))
+    }
+}
+
 pub fn int(e: &EntityState, key: &str) -> i64 {
-    match e.fields.get(key) {
+    match scalar_value(e, key) {
         Some(DomainValue::Integer(v)) => *v,
         _ => 0,
     }
@@ -31,7 +112,7 @@ pub fn int(e: &EntityState, key: &str) -> i64 {
 /// Read a canonical scalar without cloning the payload. The owned string()
 /// accessor stays available for callers that persist or mutate a value.
 pub fn string_ref<'a>(e: &'a EntityState, key: &str) -> &'a str {
-    match e.fields.get(key) {
+    match scalar_value(e, key) {
         Some(DomainValue::String(v)) => v.as_str(),
         Some(DomainValue::Enum(v)) => v.as_str(),
         _ => "",
@@ -592,6 +673,18 @@ pub fn event(
 #[cfg(test)]
 mod borrowed_scalar_tests {
     use super::*;
+    #[test]
+    fn scalar_key_cache_matches_arbitrary_field_ids_without_schema_changes() {
+        let mut e = EntityState {
+            entity_type: "hero".into(), owner: None, fields: BTreeMap::new(),
+        };
+        for key in ["hp", "attack_ready", "goal", "future_extension"] {
+            e.fields.insert(FieldId::from(key), DomainValue::Integer(23));
+            assert_eq!(int(&e, key), 23);
+            assert_eq!(scalar_value(&e, key), e.fields.get(&FieldId::from(key)));
+        }
+    }
+
     #[test]
     fn borrowed_string_matches_owned_for_all_scalar_representations() {
         let mut entity = EntityState {

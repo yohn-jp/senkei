@@ -53,34 +53,6 @@ string_id!(EntityId);
 string_id!(EventId);
 string_id!(FieldId);
 
-/// Borrowed lookup preserves FieldId's original lexicographic ordering
-/// and serialized representation while avoiding heap allocation for every
-/// scalar WorldState field read in Enbu. BTreeMap<String-ID, _> can now
-/// perform an exact search with a borrowed &str.
-impl std::borrow::Borrow<str> for FieldId {
-    fn borrow(&self) -> &str { self.as_str() }
-}
-
-#[cfg(test)]
-mod field_key_borrow_tests {
-    use super::*;
-    use std::collections::BTreeMap;
-
-    #[test]
-    fn borrowed_lookup_is_identical_to_owned_id_and_preserves_order() {
-        let keys = BTreeMap::from([
-            (FieldId::from("attack_ready"), 2),
-            (FieldId::from("hp"), 10),
-            (FieldId::from("goal"), 5),
-        ]);
-        for key in ["attack_ready", "hp", "goal", "missing", "HP", ""] {
-            assert_eq!(keys.get(key), keys.get(&FieldId::from(key)));
-        }
-        assert_eq!(keys.keys().map(FieldId::as_str).collect::<Vec<_>>(),
-            ["attack_ready", "goal", "hp"]);
-    }
-}
-
 string_id!(MatchId);
 string_id!(ObservationPath);
 string_id!(ParameterId);

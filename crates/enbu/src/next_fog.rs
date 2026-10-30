@@ -550,7 +550,7 @@ fn is_facility(entity_type: &TypeId) -> bool {
 
 fn facility_site(entity: &EntityState) -> Option<String> {
     let field = if entity.entity_type == TypeId::from("bridge") { "site" } else { "node" };
-    let site = match entity.fields.get(field) {
+    let site = match entity.fields.get(&FieldId::from(field)) {
         Some(DomainValue::String(value)) => value.clone(),
         Some(DomainValue::Enum(value)) => value.to_string(),
         _ => return None,
@@ -577,12 +577,12 @@ fn observed_facility_state(entity: &EntityState) -> BTreeMap<String, FacilitySta
 
     let mut state = BTreeMap::new();
     for name in INTEGER_FIELDS {
-        if let Some(DomainValue::Integer(value)) = entity.fields.get(*name) {
+        if let Some(DomainValue::Integer(value)) = entity.fields.get(&FieldId::from(*name)) {
             state.insert((*name).into(), FacilityStateValue::Integer(*value));
         }
     }
     for name in STRING_FIELDS {
-        let value = match entity.fields.get(*name) {
+        let value = match entity.fields.get(&FieldId::from(*name)) {
             Some(DomainValue::String(value)) => Some(value.clone()),
             Some(DomainValue::Enum(value)) => Some(value.to_string()),
             _ => None,
