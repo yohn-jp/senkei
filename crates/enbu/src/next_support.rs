@@ -580,10 +580,16 @@ mod tests {
             position("c", "b", 7),
             position("c", "unknown", 1),
         ];
-        let pairs = || positions.iter().flat_map(|source| positions.iter().map(move |target| {
-            (combat_distance2(source, target, &rules),
-             world_distance2(source, target, &rules))
-        })).collect::<Vec<_>>();
+        let pairs = || {
+            let mut result = Vec::new();
+            for source in &positions {
+                for target in &positions {
+                    result.push((combat_distance2(source, target, &rules),
+                        world_distance2(source, target, &rules)));
+                }
+            }
+            result
+        };
         let reference = pairs();
         let before = GRAPH_TOPOLOGY_LOOKUPS.with(|lookups| lookups.get());
         {
