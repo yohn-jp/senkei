@@ -36,7 +36,7 @@ L1の内部計測を外部の公開ABIへ強制追加しない。L2-L5の最終�
 
 現行リポジトリには次の実測可能な仕組みがある（追加HybridのPASSを意味しない）。
 
-- `apps/simulation-lab/enbu-conformance.mjs`: 12種類の実Enbu WASMとNative Rustの7 golden fixturesについて、完全応答digest/bytes/出力順を検証。計測用WASM JSON ABIにはRust parse/serializeが入る。
+- `apps/simulation-lab/enbu-conformance.mjs`: 28種類の実Enbu WASMとNative Rustの7 golden fixturesについて、完全応答digest/bytes/出力順を検証。計測用WASM JSON ABIにはRust parse/serializeが入る。
 - `apps/simulation-lab/enbu-worker.mjs`: BrowserでWASMを読み、同一revision/digestを検証してから計測。WASM全構成に同じNative goldenを使用。
 - `crates/wasm/tests/preflight_dispatch.rs`: 本番dispatch経由でNative fixtureをexport。
 - `tests/conformance/compare-adapters.mjs`: Native/real WASM適合性と既存goldenの検査。

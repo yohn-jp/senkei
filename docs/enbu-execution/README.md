@@ -1,6 +1,6 @@
 # Enbu Hybrid Execution Engine — 実行アーキテクチャ
 
-> 状態: **実装中の正本アーキテクチャ契約**。mainにはPR #71（merge commit `691b100`）と、TCSRV本番WASM、F/G/O/I/Bの独立カーネル、P/Aおよび`lab-opt-hybrid`のPhase-local Dispatchが存在する。ただし、**全Tickを飛ばすEvent Schedulerと完全Materializationは未実装**。実測優位が確認されていないfeatureは本番へ昇格しない。
+> 状態: **実装中の正本アーキテクチャ契約**。mainにはPR #71（merge commit `691b100`）と、TCSRV本番WASM、F/G/O/I/Bの独立カーネル、P/Aおよび`lab-opt-hybrid`のPhase-local Dispatchが存在する。Temporal Event Scheduler（S）は攻撃準備とReveal期限の2領域でTick間境界を管理し、FullCaptureLedgerが全Tickのpublic/owner Replay生成を検査する。**一般的な全Tick短絡と任意時刻の高速な状態復元は未実装**。実測優位が確認されていないfeatureは本番へ昇格しない。
 
 ## 1. 目的と責任境界
 
@@ -107,4 +107,4 @@ VerifiedRulePlan + current WorldState + frozen input / Jinrei authority
 
 速さは `dispatch` 単独でなく、RulePlan検証/準備、計画、切替、実行、必要な観測/Replay生成、シリアライズ、WASM host転送を区分して**総時間**で測る。併せて判定数、状態コピー量、イベント処理数、実体化Tick数、メモリを測定する。各ケースで「何を飛ばせたか」「何をまだ毎Tick計算する必要があるか」を報告する。
 
-現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` を保ち、Jinrei・Replay・CUを毎Tick処理する。Phase-localの部分Hybridは存在するが、全Tickを飛ばすExecution Frontier/Materializationはまだない。WASM本番標準は実測優位のTCSRV、その他はLabでReference（000）と比較する。
+現行 `crates/enbu/src/lib.rs::simulate_inner` は `for tick in 1..=max_ticks` を保ち、Jinrei・Replay・CUを毎Tick処理する。`execution/scheduler.rs` は期限・依存世代・局所Active Setによって2種類の処理領域をTick間で省略し、`execution/materialize.rs` は全Tickおよびpublic/owner Frameを必須にする。一般的なWhole-Tick実行窓と任意Tickへの高速ジャンプは未実装。WASM本番標準は実測優位のTCSRV、その他はLabでReference（000）と比較する。

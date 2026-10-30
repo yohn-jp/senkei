@@ -1,6 +1,6 @@
 # Observation Projection — Replay・Fog・CU・診断・任意Tick
 
-> 状態: 本番移行の設計契約。Enbuの正本の出力を欠落させずに計算だけを圧縮する。投影の公開範囲と認可は [REPLAY](../REPLAY.md)、[ENBU](../ENBU.md)、[EXECUTION](../EXECUTION.md) が上位権威。
+> 状態: 本番移行の設計契約。`execution/materialize.rs` のFullCaptureLedgerが全Tickのpublic/owner Frameが存在することと終局Tickを検証する。各Frameの実生成は既存のEnbu、Fog、Replayの正本パイプラインが担い、一般的な将来窓の状態復元器は未実装。投影の公開範囲と認可は [REPLAY](../REPLAY.md)、[ENBU](../ENBU.md)、[EXECUTION](../EXECUTION.md) が上位権威。
 
 ## 1. なぜStrategyから独立させるか
 
