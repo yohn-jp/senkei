@@ -363,10 +363,14 @@ fn simulate_inner<P: TacticalExecutionPort>(
     // matches or authority boundaries. Every external Tick remains canonical.
     let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
     let mut reveal_frontier = execution::scheduler::RevealExpiryFrontier::default();
+    let mut materialization = execution::materialize::FullCaptureLedger::default();
     for tick in 1..=max_ticks {
         if final_outcome.is_some() {
             break;
         }
+        materialization.enter(tick).map_err(|_| api_error(
+            ApiErrorCode::InternalError, "Hybrid output ledger rejected nonsequential Tick",
+        ))?;
 
         let mut objective_events = Vec::new();
         if let Some(next) = &plan.next {
@@ -520,6 +524,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     });
                 }
             }
+            materialization.commit(tick, &replay_frames, &owner_frames, plan.next.is_some())
+                .map_err(|_| api_error(ApiErrorCode::InternalError, "Hybrid output ledger rejected abort frames"))?;
             break;
         }
 
@@ -829,6 +835,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some((outcome, reason)) = termination {
             final_outcome = Some((outcome, reason, tick));
         }
+        materialization.commit(tick, &replay_frames, &owner_frames, plan.next.is_some())
+            .map_err(|_| api_error(ApiErrorCode::InternalError, "Hybrid output ledger rejected canonical frames"))?;
     }
 
     let (outcome, termination_reason, final_tick) = final_outcome.unwrap_or_else(|| {
@@ -838,6 +846,9 @@ fn simulate_inner<P: TacticalExecutionPort>(
             max_ticks,
         )
     });
+    materialization.finish(final_tick).map_err(|_| api_error(
+        ApiErrorCode::InternalError, "Hybrid output ledger rejected final Tick",
+    ))?;
     let final_state_digest = digest_json(&world)?;
     let result = MatchResult {
         match_id: context.match_id.clone(),
