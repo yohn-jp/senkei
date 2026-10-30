@@ -24,9 +24,10 @@ export function pairedSpeedups(reference, candidate) {
       ? 'regression-trend' : 'inconclusive';
   return {median_ratio: estimate, median_absolute_deviation: mad, trend};
 }
-export function rankVariants(rows, manifest) {
+export function rankVariants(rows, manifest, baselineId = '000') {
   const cases = [...new Set(rows.map(row => row.id))];
-  const baseline = new Map(rows.filter(row => row.variant === '000').map(row => [row.id, row]));
+  const baseline = new Map(rows.filter(row => row.variant === baselineId && row.verified)
+    .map(row => [row.id, row]));
   const ranked = [];
   for (const variant of manifest.variants) {
     const mine = rows.filter(row => row.variant === variant.id);

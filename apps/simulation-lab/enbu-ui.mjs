@@ -39,7 +39,7 @@ function addRow(row) {
   }
   byId('enbu-results').append(tr);
 }
-function showRanking(ranking, cases) {
+function showRanking(ranking, cases, incumbentRanking = []) {
   const list = byId('enbu-ranking');
   list.replaceChildren();
   for (const ranked of ranking) {
@@ -52,8 +52,15 @@ function showRanking(ranking, cases) {
       (ranked.bytes / 1024).toFixed(0) + ' KiB';
     list.append(li);
   }
+  const experiments = ['TCSRVGW', 'TCSRVGX'].map(id =>
+    incumbentRanking.find(candidate => candidate.id === id)).filter(Boolean);
+  const compared = experiments.map(candidate =>
+    candidate.id + ': 現行本番比 ' + candidate.aggregate_ratio.toFixed(3) +
+    '× / 最悪 ' + candidate.worst_ratio.toFixed(3) + '×').join(' · ');
   byId('enbu-ranking-note').textContent =
-    cases.length + '条件の同重み幾何平均。速度比1.000×が参照。順位は測定ノイズの影響を受け、数%差なら別端末・別実行で再検証が必要です。';
+    cases.length + '条件の同重み幾何平均。順位はReference 000比。' +
+    (compared ? '現行本番TCSRVGとの比較：' + compared + '。' : '') +
+    '数%差は測定ノイズを含むため別端末で再測定が必要です。';
 }
 function showEffects(effects) {
   const list = byId('enbu-effects');
@@ -97,7 +104,7 @@ function run(event) {
     if (data.type === 'complete') {
       report = data.report;
       byId('enbu-report').value = JSON.stringify(report, null, 2);
-      showRanking(report.ranking, report.cases);
+      showRanking(report.ranking, report.cases, report.incumbent_ranking);
       showEffects(report.effects);
       finish('検証成功: ' + report.cases.length +
         '条件・' + Object.keys(report.loads).length +

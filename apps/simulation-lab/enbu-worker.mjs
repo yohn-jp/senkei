@@ -113,6 +113,7 @@ self.onmessage = async ({data}) => {
       }
     }
     const ranking = rankVariants(rows, manifest);
+    const incumbent_ranking = rankVariants(rows, manifest, 'TCSRVG');
     const effects = factorialEffects(rows);
     self.postMessage({type:'complete', report: {
       schema:'senkei-enbu-matrix-report/v1',engine:'production-enbu-rust-wasm',
@@ -126,7 +127,7 @@ self.onmessage = async ({data}) => {
       },
       variants: manifest.variants, loads: Object.fromEntries(variants.map(v => [v.id, v.load])),
       cases: selectedCases.map(c => ({id:c.id,ticks:c.ticks})),
-      rows,ranking,effects,
+      rows,ranking,incumbent_ranking,incumbent_baseline:'TCSRVG',effects,
     }});
   } catch(error) {
     self.postMessage({type:'error',message:error instanceof Error ? error.message : String(error)});

@@ -128,8 +128,9 @@ for (const current of fixture.cases) {
   cases.push({id: current.id, ticks: current.ticks, golden_sha256: current.response_sha256});
 }
 const ranking = rankVariants(rows, manifest);
+const incumbent_ranking = rankVariants(rows, manifest, 'TCSRVG');
 const effects = factorialEffects(rows);
-if (ranking.length !== 32 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
+if (ranking.length !== 32 || incumbent_ranking.length !== 32 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +
@@ -141,5 +142,6 @@ const report = {schema:'senkei-enbu-matrix-report/v1', engine:'production-enbu-r
   measured_boundary: 'WASM JSON ABI dispatch including Rust decode, Enbu, encode; host input/output measured separately',
   timing_proof: 'every timed full JSON response matches native Rust SHA-256',
   ranking_method: 'equal-case geometric mean of baseline/candidate median; descriptive only',
-  sample_count: sampleCount, cases, variants: manifest.variants, rows, ranking, effects};
+  sample_count: sampleCount, cases, variants: manifest.variants, rows, ranking,
+  incumbent_ranking, incumbent_baseline:'TCSRVG', effects};
 await writeFile(new URL('enbu-ci-report.json', root), JSON.stringify(report, null, 2));

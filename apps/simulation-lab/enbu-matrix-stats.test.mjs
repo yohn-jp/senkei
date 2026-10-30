@@ -23,6 +23,34 @@ test('matrix ranks only full and verified combinations and reports worst-case re
   assert.equal(out[0].worst_ratio,.8);
 });
 
+test('production-incumbent rankings require every golden verified case', () => {
+  const manifest={variants:[
+    {id:'000',features:[],bytes:100},
+    {id:'TCSRVG',features:['production'],bytes:102},
+    {id:'TCSRVGX',features:['spatial'],bytes:103},
+  ]};
+  const row=(id,variant,median,verified=true)=>({
+    id,variant,stats:{median_ms:median},verified,
+  });
+  const samples=[
+    row('next-1','000',100),row('next-16','000',100),
+    row('next-1','TCSRVG',80),row('next-16','TCSRVG',70),
+    row('next-1','TCSRVGX',60),row('next-16','TCSRVGX',60),
+  ];
+  const incumbent=rankVariants(samples,manifest,'TCSRVG');
+  assert.equal(incumbent[0].id,'TCSRVGX');
+  assert.ok(incumbent[0].aggregate_ratio > 1.20);
+  assert.equal(incumbent.find(r=>r.id==='TCSRVG').aggregate_ratio,1);
+  const reference=rankVariants(samples,manifest);
+  assert.ok(reference[0].aggregate_ratio > incumbent[0].aggregate_ratio);
+  const incomplete=rankVariants(samples.filter(r=>
+    !(r.id==='next-16' && r.variant==='TCSRVG')),manifest,'TCSRVG');
+  assert.deepEqual(incomplete,[]);
+  const mismatched=rankVariants(samples.map(r=>r.variant==='TCSRVG' &&
+    r.id==='next-1' ? {...r,verified:false} : r),manifest,'TCSRVG');
+  assert.deepEqual(mismatched,[]);
+});
+
 test('full-factorial effects isolate each feature across all other contexts', () => {
   const fixture = Array.from({length: 8}, (_, mask) => ({
     id:'same', variant:mask.toString(2).padStart(3,'0'), verified:true,
