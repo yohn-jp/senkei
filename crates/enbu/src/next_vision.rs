@@ -303,13 +303,13 @@ pub fn observation(
     // for every field and collection filter. Small worlds retain the exact
     // scan path because classification overhead outweighs repeated checks.
     #[cfg(feature = "lab-opt-observation")]
-    let observation_sources = plan.next.as_ref()
+    let observation_index = plan.next.as_ref()
         .filter(|_| world.entities.len() >= 16)
-        .map(|rules| vision_sources(world, rules, side));
+        .map(|rules| ObservationVisibilityIndex::new(world, rules, side));
     #[cfg(feature = "lab-opt-observation")]
-    let source_index = observation_sources.as_deref();
+    let source_index = observation_index.as_ref();
     #[cfg(not(feature = "lab-opt-observation"))]
-    let source_index: Option<&[&EntityState]> = None;
+    let source_index: Option<&ObservationVisibilityIndex<'_>> = None;
     let mut fields = BTreeMap::new();
     for (path, schema) in &plan.domain.observation_fields {
         fields.insert(
@@ -638,14 +638,36 @@ fn within_radius(source: &EntityState, target: &EntityState, radius: i64, rules:
 }
 
 /// The existing visibility predicate remains authoritative. The optional
-/// source slice contains exactly the living allied sources from the current
-/// World; no per-Tick, owner or historical visibility is ever reused.
+/// Immutable current-World / side authorization. Addresses are lookup
+/// keys only while that World is borrowed for the same observation call.
+/// They never serve as persistent entity identity or leave this Tick.
+struct ObservationVisibilityIndex<'a> {
+    sources: Vec<&'a EntityState>,
+    visible: BTreeMap<usize, bool>,
+}
+
+impl<'a> ObservationVisibilityIndex<'a> {
+    fn new(world: &'a WorldState, rules: &NextRules, side: CombatantSide) -> Self {
+        let sources = vision_sources(world, rules, side);
+        let visible = world.entities.values().map(|entity| (
+            entity as *const EntityState as usize,
+            visible_from_sources(&sources, rules, side, entity),
+        )).collect();
+        Self { sources, visible }
+    }
+
+    fn can_observe(&self, rules: &NextRules, side: CombatantSide, entity: &EntityState) -> bool {
+        self.visible.get(&(entity as *const EntityState as usize)).copied()
+            .unwrap_or_else(|| visible_from_sources(&self.sources, rules, side, entity))
+    }
+}
+
 fn visible_in_observation(
     world: &WorldState, rules: &NextRules, side: CombatantSide,
-    entity: &EntityState, source_index: Option<&[&EntityState]>,
+    entity: &EntityState, source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> bool {
     match source_index {
-        Some(sources) => visible_from_sources(sources, rules, side, entity),
+        Some(index) => index.can_observe(rules, side, entity),
         None => visible(world, rules, side, entity),
     }
 }
@@ -657,7 +679,7 @@ fn collection_observation(
     side: CombatantSide,
     tick: u32,
     projection_index: &crate::world::ProjectionIndex,
-    source_index: Option<&[&EntityState]>,
+    source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> Observed<Vec<EntityObservation>> {
     if schema.visibility == Visibility::Internal {
         return Observed::Unknown;
@@ -763,7 +785,7 @@ fn observation_field(
     tick: u32,
     current_entity: Option<&EntityId>,
     projection_index: &crate::world::ProjectionIndex,
-    source_index: Option<&[&EntityState]>,
+    source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> Observed<DomainValue> {
     let value = match &schema.source {
         ObservationSource::Tick => {
@@ -849,7 +871,7 @@ fn expression_is_currently_observable(
     tick: u32,
     current_entity: Option<&EntityId>,
     projection_index: &crate::world::ProjectionIndex,
-    source_index: Option<&[&EntityState]>,
+    source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> bool {
     use RuleExpression as E;
     match expression {
@@ -952,7 +974,7 @@ fn entity_field_value(
     world: &WorldState,
     plan: &RulePlan,
     side: CombatantSide,
-    source_index: Option<&[&EntityState]>,
+    source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> Option<DomainValue> {
     let entity = world.entities.get(entity_id)?;
     // The precondition is current-Tick owner visibility. In the canonical
@@ -995,7 +1017,7 @@ fn visibility_allows(
     entity: Option<&EntityState>,
     world: &WorldState,
     rules: Option<&NextRules>,
-    source_index: Option<&[&EntityState]>,
+    source_index: Option<&ObservationVisibilityIndex<'_>>,
 ) -> bool {
     match visibility {
         Visibility::Public => true,
@@ -1123,10 +1145,10 @@ mod tests {
                 _ => {}
             }
             for side in [CombatantSide::Attacker, CombatantSide::Defender] {
-                let sources = vision_sources(&world, &rules, side);
+                let index = ObservationVisibilityIndex::new(&world, &rules, side);
                 for entity in world.entities.values() {
                     assert_eq!(
-                        visible_in_observation(&world, &rules, side, entity, Some(&sources)),
+                        visible_in_observation(&world, &rules, side, entity, Some(&index)),
                         visible(&world, &rules, side, entity),
                         "source index diverged for step={step} side={side:?}",
                     );
@@ -1134,7 +1156,7 @@ mod tests {
                         Visibility::EnemyVisible, Visibility::Internal]
                     {
                         assert_eq!(
-                            visibility_allows(visibility, side, Some(entity), &world, Some(&rules), Some(&sources)),
+                            visibility_allows(visibility, side, Some(entity), &world, Some(&rules), Some(&index)),
                             visibility_allows(visibility, side, Some(entity), &world, Some(&rules), None),
                             "field access diverged for step={step} side={side:?}",
                         );
