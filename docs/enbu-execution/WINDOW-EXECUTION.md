@@ -199,7 +199,11 @@ rewrites, death, owner or attack-interval changes are checked against the
 complete exact source read set before this *domain-local* fallback. A newly
 inserted/removed combatant, changed combatant type, missing due Tick, expired
 128-Tick horizon or loss of all certified clocks still forces full Reference
-replanning. Source-local invalidation cannot authorize guessed damage or
+replanning. At *normal* horizon expiry, the current frozen World may compile
+a new bounded certificate immediately at Tick 129/257 without an unproven
+Reference gap; changed source membership, missing work and failed proof
+still require canonical fallback. This continuous rebase does not skip any
+Replay or Jinrei Tick. Source-local invalidation cannot authorize guessed damage or
 skip canonical target selection, Jinrei, CU, Fog, owner diagnostics or Replay. Nonlethal HP changes to an attack
 source preserve a certified recurrence because the attack-readiness predicate
 only depends on whether it is alive; a crossing of the alive/dead boundary
