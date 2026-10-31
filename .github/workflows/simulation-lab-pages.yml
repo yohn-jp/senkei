@@ -107,6 +107,8 @@ jobs:
           cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-inplace,lab-opt-frontier --lib
       - name: Verify hybrid phase portfolio with independent Jinrei/canonical Replay
         run: |
+          cargo test --locked --release -p enbu --features lab-opt-replay-fusion --lib
+          cargo test --locked --release -p enbu --features lab-opt-replay-fusion --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
           cargo test --locked --release -p enbu --features lab-opt-hybrid --lib
           cargo test --locked --release -p enbu --features lab-opt-hybrid --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
           cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-hybrid --lib
@@ -118,7 +120,7 @@ jobs:
           cargo test --locked --release -p enbu --features lab-opt-scheduler,lab-opt-hybrid --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
       - name: Compile production Enbu WASM from the same revision
         run: bash scripts/wasm/build.sh
-      - name: Build 8 historical and 20 experimental Enbu WASM variants
+      - name: Build 8 historical and 27 experimental Enbu WASM variants
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +145,7 @@ jobs:
           done
           # Real production Enbu algorithm candidates adapted from TS Lab:
           # indexed route planning and batched visibility, individually and together.
-          for choice in R V RV TCSRV P A F FPA G TCSRVG O TCSRVGO I B TCSRVIB H TCSRVH S TCSRVS TCSRVHS W TCSRVGW X TCSRVGX TCSRVGAS; do
+          for choice in R V RV TCSRV P A F FPA G TCSRVG Y TCSRVGY O TCSRVGO I B TCSRVIB H TCSRVH S TCSRVS TCSRVHS W TCSRVGW X TCSRVGX TCSRVGAS; do
             case "$choice" in
               R) flags=lab-opt-route ;;
               V) flags=lab-opt-visibility ;;
@@ -155,6 +157,8 @@ jobs:
               FPA) flags=lab-opt-frozen,lab-opt-planned,lab-opt-arithmetic ;;
               G) flags=lab-opt-fog-cache ;;
               TCSRVG) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache ;;
+              Y) flags=lab-opt-replay-fusion ;;
+              TCSRVGY) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-replay-fusion ;;
               O) flags=lab-opt-observation ;;
               TCSRVGO) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-observation ;;
               I) flags=lab-opt-inplace ;;
@@ -184,7 +188,7 @@ jobs:
       - name: Verify promoted production WASM is exactly the tested TCSRVG build
         run: |
           cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRVG.wasm
-          # This verification-only binary must not enter the 33-variant
+          # This verification-only binary must not enter the 35-variant
           # senkei_wasm_*.wasm publishing glob.
           rm target/simulation-lab/senkei_wasm_production.wasm
       - name: Stamp immutable fixture provenance
@@ -206,7 +210,7 @@ jobs:
           data['revision'] = os.environ['REVISION']
           path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
           PY
-      - name: Stamp all thirty-three immutable WASM hashes and sizes
+      - name: Stamp all thirty-five immutable WASM hashes and sizes
         env:
           REVISION: ${{ github.sha }}
         run: |
@@ -238,6 +242,8 @@ jobs:
               'FPA':['lab-opt-frozen','lab-opt-planned','lab-opt-arithmetic'],
               'G':['lab-opt-fog-cache'],
               'TCSRVG':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache'],
+              'Y':['lab-opt-replay-fusion'],
+              'TCSRVGY':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-replay-fusion'],
               'O':['lab-opt-observation'],
               'TCSRVGO':['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-observation'],
               'I':['lab-opt-inplace'],
@@ -284,7 +290,7 @@ jobs:
           test -s _site/simulation-lab/build.json
           test -s _site/simulation-lab/enbu-fixtures.json
           test -s _site/simulation-lab/enbu-variants.json
-          test "$(find _site/simulation-lab/wasm -maxdepth 1 -name 'senkei_wasm_*.wasm' | wc -l)" -eq 33
+          test "$(find _site/simulation-lab/wasm -maxdepth 1 -name 'senkei_wasm_*.wasm' | wc -l)" -eq 35
           echo '<!doctype html><html lang="ja"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./simulation-lab/"><title>Senkei Simulation Lab</title><p><a href="./simulation-lab/">Simulation Lab</a></p></html>' > _site/index.html
           touch _site/.nojekyll
       - name: Gate publication on exact Native/WASM Enbu responses
