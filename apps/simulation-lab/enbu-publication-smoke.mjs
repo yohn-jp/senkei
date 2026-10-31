@@ -104,6 +104,26 @@ try {
       Number.isFinite(row.incumbent_speedup.median_ratio)));
   console.log('PASS: published Lab worker executed real 64-Tick Quintet, ' +
     'Native-equal graph-local combat and incumbent wall-time A/B');
+  // Unified Rust Hybrid must prove byte-identical Native output through the
+  // actual published Worker, not a synthetic benchmark or a build-only check.
+  messages.length = 0;
+  await globalThis.self.onmessage({
+    data: { type: 'run', caseId: 'next-behavior-16', variantId: 'TCSRVGH', samples: 3 },
+  });
+  const hybridFailure = messages.find(message => message.type === 'error');
+  assert.equal(hybridFailure, undefined,
+    `Unified Hybrid WASM worker failed: ${hybridFailure?.message}`);
+  const hybridCompletion = messages.find(message => message.type === 'complete');
+  assert.ok(hybridCompletion, 'unified Hybrid real-WASM comparison must finish');
+  assert.equal(hybridCompletion.report.source_revision, build.revision);
+  assert.equal(hybridCompletion.report.cases[0].id, 'next-behavior-16');
+  assert.deepEqual(hybridCompletion.report.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGH']);
+  assert.ok(hybridCompletion.report.rows.every(row => row.verified && row.samples === 3));
+  assert.ok(hybridCompletion.report.rows.every(row => row.incumbent_speedup &&
+    Number.isFinite(row.incumbent_speedup.median_ratio)));
+  console.log('PASS: full-Hybrid WASM matches real Behavior-driven Native golden');
+
 
 } finally {
   globalThis.fetch = originalFetch;
