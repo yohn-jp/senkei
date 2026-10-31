@@ -76,6 +76,20 @@ try {
     pageErrors: errors,
   }, null, 2));
   console.log('PASS: real Chromium Simulation Lab performed verified reference, previous TCSRVG and production TCSRVGY WASM comparison');
+  // A real multi-Tick Behavior workload is mandatory for the published
+  // production triad; the one-Tick smoke alone cannot prove real gameplay.
+  await page.locator('#enbu-case').selectOption('next-behavior-16');
+  await page.locator('#enbu-run').click();
+  await expect(page.locator('#enbu-status'))
+    .toContainText('検証成功', { timeout: 120_000 });
+  const behaviorReport = JSON.parse(await page.locator('#enbu-report').inputValue());
+  assert.equal(behaviorReport.source_revision, build.revision);
+  assert.deepEqual(behaviorReport.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGY']);
+  assert.ok(behaviorReport.rows.every(row => row.verified));
+  assert.deepEqual(errors, [], 'Production behavior UI must remain error-free');
+  await writeFile(resolve(output, 'production-enbu-behavior-report.json'),
+    JSON.stringify(behaviorReport, null, 2));
   // Experimental portfolios exist only in explicitly requested research runs.
   // Standard publication must still prove the real production UI, above.
   const publishedManifest = JSON.parse(await readFile(
@@ -161,7 +175,7 @@ try {
   assert.equal(hybridReport.cases[0].id, 'next-behavior-16');
   assert.deepEqual(hybridReport.rows.map(row => row.variant),
     ['000', 'TCSRVG', 'TCSRVGY', 'TCSRVGH']);
-  assert.equal(await page.locator('#enbu-results tr').count(), 3);
+  assert.equal(await page.locator('#enbu-results tr').count(), 4);
   assert.ok(hybridReport.rows.every(row => row.verified && row.samples === 3));
   assert.ok(hybridReport.rows.every(row => row.incumbent_speedup &&
     Number.isFinite(row.incumbent_speedup.median_ratio)));
