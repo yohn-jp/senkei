@@ -20,7 +20,7 @@ if (!Array.isArray(fixture.cases) || fixture.cases.length !== 8 ||
   throw Error('Expected eight native golden fixtures and all thirty-six optimizer masks');
 }
 const variants = [];
-const expectedVariants = Array.from({length:8}, (_, n) => ({
+let expectedVariants = Array.from({length:8}, (_, n) => ({
   id:n.toString(2).padStart(3,'0'),
   features:[n & 4 ? 'lab-opt-termination' : null, n & 2 ? 'lab-opt-cohort' : null,
     n & 1 ? 'lab-opt-shields' : null].filter(Boolean),
@@ -54,6 +54,14 @@ const expectedVariants = Array.from({length:8}, (_, n) => ({
   {id:'TCSRVGAS',features:['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-arithmetic','lab-opt-scheduler']},
   {id:'TCSRVGH',features:['lab-optimizations','lab-opt-route','lab-opt-visibility','lab-opt-fog-cache','lab-opt-hybrid']},
 ]);
+// Normal publication includes reference, previous and current production only.
+// An explicit research run may provide the entire immutable 36-variant matrix.
+if (manifest.variants.length === 3) {
+  expectedVariants = expectedVariants.filter(variant =>
+    ['000', 'TCSRVG', 'TCSRVGY'].includes(variant.id));
+} else if (manifest.variants.length !== 36) {
+  throw Error('Expected exactly 3 production or 36 research WASM variants');
+}
 for (let n = 0; n < expectedVariants.length; n++) {
   const expected = expectedVariants[n].id;
   const descriptor = manifest.variants[n];
@@ -70,7 +78,7 @@ for (let n = 0; n < expectedVariants.length; n++) {
   const {instance} = await WebAssembly.instantiate(bytes, {});
   variants.push({id: descriptor.id, dispatch: createEnbuDispatcher(instance.exports)});
 }
-console.log('PASS: all 36 feature combinations built from one immutable Rust revision; verified SHA-256 and size');
+console.log(`PASS: ${expectedVariants.length} WASM variants share one Rust revision, verified SHA-256 and size`);
 
 const cases = [];
 const rows = [];
@@ -134,7 +142,10 @@ for (const current of fixture.cases) {
 const ranking = rankVariants(rows, manifest);
 const incumbent_ranking = rankVariants(rows, manifest, 'TCSRVG');
 const effects = factorialEffects(rows);
-if (ranking.length !== 36 || incumbent_ranking.length !== 36 || effects.length !== 3) throw Error('Full-factorial evidence incomplete or unverified');
+if (ranking.length !== expectedVariants.length || incumbent_ranking.length !== expectedVariants.length ||
+    effects.length !== (expectedVariants.length === 36 ? 3 : 0)) {
+  throw Error('Published portfolio evidence incomplete or unverified');
+}
 for (const row of ranking) {
   console.log(`RANK mask=${row.id} geomean=${row.aggregate_ratio.toFixed(3)}x ` +
     `worst=${row.worst_ratio.toFixed(3)}x regressions=${row.regressed_cases}/${row.cases} ` +
