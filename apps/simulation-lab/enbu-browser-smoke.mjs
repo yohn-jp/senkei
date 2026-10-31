@@ -47,7 +47,7 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${address.port}/simulation-lab/`, { waitUntil: 'networkidle' });
-  await expect(page.locator('#enbu-variant')).toHaveValue('TCSRVG');
+  await expect(page.locator('#enbu-variant')).toHaveValue('TCSRVGY');
   await page.locator('#enbu-case').selectOption('next-1');
   await page.locator('#enbu-samples').selectOption('3');
   await page.locator('#enbu-run').click();
@@ -57,13 +57,13 @@ try {
   assert.equal(report.source_revision, build.revision);
   assert.equal(report.engine, 'production-enbu-rust-wasm');
   assert.equal(report.cases.length, 1);
-  assert.deepEqual(report.rows.map(row => row.variant), ['000', 'TCSRVG']);
+  assert.deepEqual(report.rows.map(row => row.variant), ['000', 'TCSRVG', 'TCSRVGY']);
   for (const row of report.rows) {
     assert.equal(row.verified, true);
     assert.equal(row.samples, 3);
     assert.ok(row.stats.median_ms > 0 && Number.isFinite(row.stats.p95_ms));
   }
-  assert.equal(await page.locator('#enbu-results tr').count(), 2);
+  assert.equal(await page.locator('#enbu-results tr').count(), 3);
   assert.deepEqual(errors, [], 'Browser must not raise page errors');
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: resolve(output, 'production-enbu-lab-1440.png'), fullPage: true });
@@ -75,7 +75,7 @@ try {
       p95_ms: row.stats.p95_ms, verified: row.verified })),
     pageErrors: errors,
   }, null, 2));
-  console.log('PASS: real Chromium Simulation Lab performed verified reference vs production TCSRVG WASM comparison');
+  console.log('PASS: real Chromium Simulation Lab performed verified reference, previous TCSRVG and production TCSRVGY WASM comparison');
   // Exercise the *actual UI* with the new certified window, not only the
   // standalone worker shim. Include the current production binary in the
   // paired comparison and preserve the rendered evidence separately.
