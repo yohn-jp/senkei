@@ -185,9 +185,9 @@ jobs:
             fi
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
-      - name: Verify promoted production WASM is exactly the tested TCSRVG build
+      - name: Verify production WASM is exactly the tested TCSRVGY replay-fusion build
         run: |
-          cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRVG.wasm
+          cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRVGY.wasm
           # This verification-only binary must not enter the 35-variant
           # senkei_wasm_*.wasm publishing glob.
           rm target/simulation-lab/senkei_wasm_production.wasm
