@@ -2129,6 +2129,63 @@ mod tests {
         EntityId::from(value)
     }
 
+    #[test]
+    fn indexed_navigation_cohorts_preserve_full_source_selection_and_mobility() {
+        // Differential proof over the actual P7 algorithms, not a separately
+        // reimplemented squad-movement model. Side, Squad, alive status and
+        // BTreeMap order all affect the lowest-ID leader and slowest budget.
+        let config = rules(test_map(vec![
+            edge("a", "b", 100, "lane", false),
+            edge("b", "c", 50, "jungle", false),
+            edge("a", "d", 75, "forest", false),
+            edge("d", "c", 90, "lane", false),
+        ]));
+        for seed in 0_u32..12 {
+            let mut world = WorldState::default();
+            for n in 0_u32..32 {
+                let side = match (n + seed) % 4 {
+                    0 => Some(CombatantSide::Attacker),
+                    1 => Some(CombatantSide::Defender),
+                    2 => None,
+                    _ => Some(CombatantSide::Attacker),
+                };
+                let kind = if n % 7 == 0 { "minion" } else { "hero" };
+                let goal = if n % 5 == 0 { "" } else { "c" };
+                let mut hero = entity(kind, side, 50 + i64::from(n % 11),
+                    if n % 3 == 0 { "b" } else { "a" }, goal);
+                set_string(&mut hero, "squad",
+                    if n % 13 == 0 { "" } else if n % 3 == 0 { "alpha" }
+                    else { "beta" });
+                if (n + seed) % 9 == 0 { set_int(&mut hero, "hp", 0); }
+                if n % 10 == 0 { set_int(&mut hero, "action_lock_until", 8); }
+                world.entities.insert(id(&format!("actor-{n:02}")), hero);
+            }
+            let index = NavigationCohorts::new(&world);
+            for (actor_id, actor) in &world.entities {
+                if actor.entity_type.as_str() != "hero" { continue; }
+                assert_eq!(hero_cohort(actor_id, actor, &world),
+                    hero_cohort_indexed(actor_id, actor, &world, Some(&index)),
+                    "indexed cohort mismatch for {actor_id} seed={seed}");
+                for tick in [1_u32, 8, 19] {
+                    let ordinary = movement_intent_for(actor_id, actor,
+                        &world, &config, tick, None, None);
+                    let indexed = movement_intent_for(actor_id, actor,
+                        &world, &config, tick, None, Some(&index));
+                    assert_eq!((ordinary.goal, ordinary.track, ordinary.terrain_milli,
+                        ordinary.budget),
+                        (indexed.goal, indexed.track, indexed.terrain_milli, indexed.budget),
+                        "movement source diverged for {actor_id} seed={seed} tick={tick}");
+                    let reference_hold = should_hold_for_attack_indexed(
+                        actor_id, actor, &world, &config, tick, None, None, None);
+                    let indexed_hold = should_hold_for_attack_indexed(
+                        actor_id, actor, &world, &config, tick, None, None, Some(&index));
+                    assert_eq!(reference_hold, indexed_hold,
+                        "attack-hold diverged for {actor_id} seed={seed} tick={tick}");
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "lab-opt-route")]
     #[test]
     fn indexed_travel_time_matches_legacy_across_dynamic_graph_cases() {
