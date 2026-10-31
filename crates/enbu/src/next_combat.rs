@@ -1823,6 +1823,12 @@ mod tests {
         let mut saw_attack = false;
         for tick in 1_u32..=24 {
             for world in [&mut reference, &mut planned] {
+                if tick == 5 || tick == 9 {
+                    // Nonlethal HP changes must not revoke an otherwise
+                    // valid periodic source readiness proof.
+                    support::set_int(world.entities.get_mut(&EntityId::from("source")).unwrap(),
+                        "hp", if tick == 5 { 80 } else { 50 });
+                }
                 if tick == 11 {
                     support::set_int(world.entities.get_mut(&EntityId::from("source")).unwrap(),
                         "attack_interval", 2);

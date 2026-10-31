@@ -161,9 +161,13 @@ existing canonical attack resolver.
 An attack that was predicted but did not commit leaves `attack_ready`
 different from its required recurrence on the following Tick, invalidating
 the certificate. P1/P5/Skill rewrites, new combatants, death and interval
-changes likewise revoke it before reuse. Damage to a permanently
-nonattacking target need not invalidate a source-readiness proof, because
-the target's HP cannot create an earlier basic attack by that source.
+changes likewise revoke it before reuse. Nonlethal HP changes to an attack
+source preserve a certified recurrence because the attack-readiness predicate
+only depends on whether it is alive; a crossing of the alive/dead boundary
+revokes the certificate. Damage to a permanently nonattacking target does
+not invalidate source readiness. A match with no pair of hostile living
+combatants uses the cheaper exact no-hostile-target frontier rather than
+staging periodic hits that cannot commit.
 Neither `target`, `distance`, `visibility`, `damage` nor a predicted
 lethal Tick is taken as authoritative; all such behavior is adjudicated
 on its original canonical Tick.

@@ -237,9 +237,21 @@ impl CertifiedAttackTimeline {
         let mut sources = Vec::new();
         let mut clocks = Vec::new();
         let mut clock_ids = Vec::new();
+        // A single living owner cannot emit a hostile basic attack. Defer
+        // that case to BasicAttackFrontier rather than speculating recurring
+        // hits that would be rejected by the canonical target resolver.
+        let mut sole_living_side = None;
+        let mut no_hostile_pair = true;
         for (id, entity) in &world.entities {
             if !is_combat_source(entity.entity_type.as_str()) { continue; }
             let hp = support::int(entity, "hp");
+            if hp > 0 {
+                match (sole_living_side, entity.owner) {
+                    (None, Some(side)) => sole_living_side = Some(side),
+                    (Some(side), Some(owner)) if side == owner => {},
+                    _ => no_hostile_pair = false,
+                }
+            }
             let ready = support::int(entity, "attack_ready");
             let attack = support::int(entity, "attack");
             let range = support::int(entity, "range");
@@ -266,6 +278,7 @@ impl CertifiedAttackTimeline {
                 clock,
             });
         }
+        if no_hostile_pair { return None; }
         // Derive the next bounded arithmetic interval in one heap merge.
         // High-density schedules (or overflow) decline the candidate and
         // leave the live canonical combat resolver unchanged. This is a
@@ -315,13 +328,12 @@ impl CertifiedAttackTimeline {
             if *id != prior.id
                 || entity.entity_type.as_str() != prior.kind
                 || entity.owner != prior.owner
-                // The HP of a target that cannot itself attack is *not*
-                // a causal dependency of basic-attack source readiness.
-                // Preserve the periodic window through canonical damage to
-                // passive targets. If attack/range ever becomes eligible the
-                // exact attack-field comparison below revokes it first.
+                // Source HP affects attack-readiness eligibility at the
+                // alive/dead boundary, not on every nonlethal hit. Target
+                // selection, damage and owner output remain canonical on
+                // every due Tick; HP-independent passive targets stay valid.
                 || (prior.attack > 0 && prior.range >= 0
-                    && support::int(entity, "hp") != prior.hp)
+                    && ((support::int(entity, "hp") > 0) != (prior.hp > 0)))
                 || support::int(entity, "attack") != prior.attack
                 || support::int(entity, "range") != prior.range
                 || support::int(entity, "attack_interval").max(1) != prior.interval
@@ -386,6 +398,9 @@ mod tests {
             world.entities.insert(format!("idle-{n:02}").into(),
                 timeline_actor(0, 5, 0));
         }
+        let mut passive = timeline_actor(0, 1, 0);
+        passive.owner = Some(CombatantSide::Defender);
+        world.entities.insert("passive-enemy".into(), passive);
         let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
         assert!(plan.due(&world, 1).unwrap().is_empty());
         assert!(plan.due(&world, 2).unwrap().is_empty());
@@ -401,6 +416,53 @@ mod tests {
         // speculative periodic interval is invalid on Tick 8, so the
         // canonical resolver must inspect that ready actor again.
         assert_eq!(plan.due(&world, 8), None);
+    }
+
+    #[test]
+    fn periodic_source_survives_nonlethal_damage_but_revokes_on_death() {
+        let mut world = WorldState::default();
+        world.entities.insert("source".into(), timeline_actor(3, 4, 20));
+        let mut victim = timeline_actor(0, 1, 0);
+        victim.owner = Some(CombatantSide::Defender);
+        world.entities.insert("victim".into(), victim);
+        let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+        assert!(plan.due(&world, 1).unwrap().is_empty());
+        world.entities.get_mut(&EntityId::from("source")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(80));
+        assert!(plan.due(&world, 2).unwrap().is_empty(),
+            "nonlethal source damage must not invalidate attack readiness");
+        assert_eq!(plan.due(&world, 3).unwrap(), vec![EntityId::from("source")]);
+        set_ready(&mut world, "source", 7);
+        world.entities.get_mut(&EntityId::from("source")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(30));
+        for tick in 4..=6 {
+            assert!(plan.due(&world, tick).unwrap().is_empty());
+        }
+        assert_eq!(plan.due(&world, 7).unwrap(), vec![EntityId::from("source")]);
+        world.entities.get_mut(&EntityId::from("source")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(0));
+        assert!(plan.due(&world, 8).is_none(),
+            "death must revoke the scheduled attack source");
+    }
+
+    #[test]
+    fn single_living_side_defers_to_no_hostile_target_certificate() {
+        let mut world = WorldState::default();
+        for index in 0..32 {
+            world.entities.insert(format!("ally-{index:02}").into(),
+                timeline_actor(1, 1, 10));
+        }
+        assert!(CertifiedAttackTimeline::from_snapshot(&world, 1).is_none(),
+            "single-side ready clocks cannot commit hits");
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+        assert!(frontier.certify_idle(&world, 1, false));
+        assert!(frontier.certify_idle(&world, 2, false));
+        assert!(frontier.hits > 0);
+        let mut enemy = timeline_actor(1, 1, 0);
+        enemy.owner = Some(CombatantSide::Defender);
+        world.entities.insert("enemy".into(), enemy);
+        assert!(!frontier.certify_idle(&world, 3, false),
+            "a new enemy must revoke the old no-target proof");
     }
 
     #[test]
@@ -432,6 +494,9 @@ mod tests {
         for change in 0..5 {
             let mut world = WorldState::default();
             world.entities.insert("source".into(), timeline_actor(6, 4, 12));
+            let mut passive = timeline_actor(0, 1, 0);
+            passive.owner = Some(CombatantSide::Defender);
+            world.entities.insert("passive-enemy".into(), passive);
             let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
             assert!(plan.due(&world, 1).unwrap().is_empty());
             match change {
@@ -455,6 +520,9 @@ mod tests {
         let mut world = WorldState::default();
         world.entities.insert("early".into(), timeline_actor(2, 3, 15));
         world.entities.insert("late".into(), timeline_actor(5, 7, 12));
+        let mut passive = timeline_actor(0, 1, 0);
+        passive.owner = Some(CombatantSide::Defender);
+        world.entities.insert("passive-enemy".into(), passive);
         let mut window = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
         assert_eq!(window.horizon_end, 128);
         assert!(window.candidate_batches.iter().all(|batch| {
@@ -483,6 +551,9 @@ mod tests {
     fn periodic_timeline_clamps_existing_ready_clock_and_requires_sequential_ticks() {
         let mut world = WorldState::default();
         world.entities.insert("source".into(), timeline_actor(-50, 3, 20));
+        let mut passive = timeline_actor(0, 1, 0);
+        passive.owner = Some(CombatantSide::Defender);
+        world.entities.insert("passive-enemy".into(), passive);
         let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 10).unwrap();
         assert_eq!(plan.due(&world, 10).unwrap(), vec![EntityId::from("source")]);
         set_ready(&mut world, "source", 13);
@@ -494,6 +565,9 @@ mod tests {
         let mut invalid = WorldState::default();
         invalid.entities.insert("source".into(),
             timeline_actor(0, i64::from(u32::MAX) + 1, 20));
+        let mut passive = timeline_actor(0, 1, 0);
+        passive.owner = Some(CombatantSide::Defender);
+        invalid.entities.insert("passive-enemy".into(), passive);
         assert!(CertifiedAttackTimeline::from_snapshot(&invalid, 1).is_none());
     }
 
