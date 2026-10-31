@@ -787,16 +787,14 @@ fn collect_basic_attacks_with_execution(
     let sources = dispatch.sources(start);
     #[cfg(not(feature = "lab-opt-arithmetic"))]
     let sources = start.entities.iter();
-    // Preserve the identical stable actor ordering: both snapshot.entities
-    // and the certified Active Set originate from the same BTreeMap.
-    // take(0) prevents even visiting Reference sources when the certified
-    // Active Set can replace the all-actor scan. An empty Active Set is never
-    // passed here: its whole phase was already skipped by the frontier.
-    let active_sources = active_ids.map(|ids| ids.iter()
-        .filter_map(|id| start.entities.get_key_value(id)).collect::<Vec<_>>());
-    let use_all = active_sources.is_none();
-    let sources = active_sources.into_iter().flatten().chain(
-        sources.take(if use_all { usize::MAX } else { 0 }),
+    // An exact Active Set already owns ordered IDs. Stream borrowed World
+    // references directly rather than allocating a new Vec of every active
+    // candidate on each attack Tick. take(0) keeps the Reference iterator
+    // inert whenever the scheduler supplies this certified source set.
+    let active_sources = active_ids.unwrap_or(&[]).iter()
+        .filter_map(|id| start.entities.get_key_value(id));
+    let sources = active_sources.chain(
+        sources.take(if active_ids.is_none() { usize::MAX } else { 0 }),
     );
     let mut attacks = Vec::new();
     let mut planned_candidates: Option<PlannedCombatCandidates<'_>> = None;
