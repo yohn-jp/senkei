@@ -16,8 +16,8 @@ if (fixture.schema !== 'senkei-enbu-wasm/v1' || manifest.schema !== 'senkei-enbu
   throw Error('Production Enbu artifacts are not from the same immutable revision');
 }
 if (!Array.isArray(fixture.cases) || fixture.cases.length !== 8 ||
-    !Array.isArray(manifest.variants) || manifest.variants.length !== 36) {
-  throw Error('Expected eight native golden fixtures and all thirty-six optimizer masks');
+    !Array.isArray(manifest.variants) || ![3, 36].includes(manifest.variants.length)) {
+  throw Error('Expected eight native golden fixtures and either 3 production or 36 research WASM variants');
 }
 const variants = [];
 let expectedVariants = Array.from({length:8}, (_, n) => ({
