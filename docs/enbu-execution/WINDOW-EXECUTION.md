@@ -145,9 +145,13 @@ following Tick.
 ## Periodic Arithmetic candidate windows (implemented, strict fallback)
 
 `execution::arithmetic::CertifiedAttackTimeline` compiles attack-ready
-recurrences from an actual frozen P7 snapshot. The live `BasicAttackFrontier`
-uses this certificate when `lab-opt-scheduler` and
-`lab-opt-arithmetic` are both selected. A complete, ordered read set
+recurrences from an actual frozen P7 snapshot. The existing checked
+`execute_certified_window` heap-merges the next 128 Ticks into exact
+ordered **candidate** batches, bounded at 8,192 potential hits. An
+unsupported/over-budget schedule declines the optimization and leaves
+Reference intact; the horizon is never silently extended. The live
+`BasicAttackFrontier` consumes these batches at every original Tick
+when `lab-opt-scheduler` and `lab-opt-arithmetic` are both selected. A complete, ordered read set
 validates source identity, type, owner, attack, interval, readiness, range,
 and causal HP dependencies on **every** current Tick before using the
 prediction. On predicted no-due Ticks, only the basic attack-selection scan
