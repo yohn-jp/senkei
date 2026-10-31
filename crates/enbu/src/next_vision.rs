@@ -185,7 +185,7 @@ fn lifecycle_inner(
 
     let interval = support::param(rules, "minion_spawn_interval", 30).max(1) as u32;
     if tick % interval == 0 {
-        spawn_wave(world, rules, tick);
+        spawn_wave(world, rules, tick, lane_index);
     }
 
     refresh_minion_goals(world, rules, cfg!(feature = "lab-opt-hybrid"), lane_index);
@@ -677,7 +677,10 @@ fn remove_dead_minions(world: &mut WorldState, tick: u32) {
     }
 }
 
-fn spawn_wave(world: &mut WorldState, rules: &NextRules, tick: u32) {
+fn spawn_wave(
+    world: &mut WorldState, rules: &NextRules, tick: u32,
+    lane_index: Option<&LaneWaypointIndex>,
+) {
     for (lane, nodes) in &rules.map.lanes {
         for side in [CombatantSide::Attacker, CombatantSide::Defender] {
             let Some(start) = lane_endpoint(nodes, side) else {
@@ -708,7 +711,10 @@ fn spawn_wave(world: &mut WorldState, rules: &NextRules, tick: u32) {
                 support::set_int(&mut entity, "xp_reward", definition.xp);
                 support::set_string(&mut entity, "catalog_id", definition.id.clone());
                 support::set_string(&mut entity, "lane", lane.clone());
-                let goal = lane_waypoint(&rules.map, side, lane, start).unwrap_or_default();
+                let goal = match lane_index {
+                    Some(index) => index.waypoint(side, lane, start),
+                    None => lane_waypoint(&rules.map, side, lane, start),
+                }.unwrap_or_default();
                 support::set_string(&mut entity, "goal", goal);
                 world.entities.insert(id, entity);
             }
@@ -1442,6 +1448,24 @@ mod tests {
             assert_eq!(current, reference,
                 "in-place minion goals differ from canonical at Tick {tick}");
         }
+    }
+
+    #[test]
+    fn compiled_lane_index_preserves_full_minion_wave_world_across_48_ticks() {
+        let rules = test_rules();
+        let lane_index = LaneWaypointIndex::compile(&rules);
+        let mut baseline = WorldState::default();
+        let mut hybrid = WorldState::default();
+        let mut spawned = false;
+        for tick in 1..=48 {
+            lifecycle_inner(&mut baseline, &rules, tick, None, None);
+            lifecycle_inner(&mut hybrid, &rules, tick, None, Some(&lane_index));
+            spawned |= baseline.entities.values().any(|entity|
+                entity.entity_type.as_str() == MINION);
+            assert_eq!(hybrid, baseline,
+                "precompiled P1 lane wave/goal transition differs at Tick {tick}");
+        }
+        assert!(spawned, "fixture must create real lane Minions");
     }
 
     #[test]
