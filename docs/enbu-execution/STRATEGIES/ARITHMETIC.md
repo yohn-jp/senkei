@@ -88,13 +88,28 @@ arithmetic_execute(plan):
 
 全体状態に影響するReward/Skill/respawnまで式で閉じていない場合は**そこを境界として止める**。続きは別のStrategyかReferenceで計算する。
 
-## 実装進捗（Arithmetic Solver / Stage 1）
+## 実装進捗（Arithmetic Solver / Stage 1–2）
 
 `crates/enbu/src/execution/arithmetic.rs` に、固定周期・正の一定ダメージのための整数カーネルを追加した。実装済みの関数は `hit_count`、`hit_stats`、`cumulative_damage`、`first_lethal_tick`、`due_actor_indices`。包括境界、同Tickの全攻撃者、無効なinterval、`u32::MAX` の境界をテストする。
 
 **実装段階: 部分Dispatchに接続（全Tickスキップは未実装）。** `lab-opt-arithmetic` により、`next_combat::collect_basic_attacks` の直前で `execution::dispatcher` が現在の凍結スナップショットを検査する。全攻撃者が未準備・攻撃不可なら基本攻撃処理を省略し、候補が最大8主体かつ全主体の1/4以下ならその主体だけを正規のtarget選択関数へ流す。密な群、diagnosticsのactor決定トレースが必要な場合、計画費用が重い少数群はReferenceへfallbackする。攻撃の権威・Tick相互作用・同時Damage・Replayは既存処理を利用する。これは**確実に実行可能な同Tick局所最適化**であり、TSで研究した長窓のfirst-lethal算術集約そのものとは区別する。
 
 `simulate_inner` は各TickでJinreiを評価し、CU・Fog・ReplayをMaterializeする。したがってArithmetic数式を実装しても、未証明の長い窓をそのまま飛ばさない。長窓Arithmeticを実際に選択するには、依存証明と中間出力の復元を追加する必要がある。
+
+**Stage 2（実装済み・限定適用）:** `CertifiedAttackTimeline` を
+`lab-opt-arithmetic` + `lab-opt-scheduler` の実Enbu
+`BasicAttackFrontier` に接続した。実Worldの `attack_ready` と
+`attack_interval` から包括的な周期候補集合を構成し、
+各Tickの全ソースRead Setを照合する。次の攻撃を予測しても、
+実際に攻撃が成立しなかった場合は次Tickで失効しReferenceに
+戻る。正規の攻撃選択、同時Damage、Jinrei、CU、Fog、Replayの
+処理はスキップしない。受動的なTargetのHP変化は攻撃可能時刻
+の因果依存ではないため、証明を維持できる。
+
+**未実装:** 一般の固定Target/複数作用域に対する
+`execute_certified_window` のダメージ一括Commit、
+依存グラフ横断のTick飛越し、途中Tickの全出力復元。
+周期Readiness選択と致死境界Solverを同一機能と表現しない。
 
 次段階の本番接続ゲートは、(1) causal read/write certificate、(2) 正規のfirst lethal Tickまでの状態遷移のstaging、(3) 同Tick全攻撃の原子的commit、(4) 全TickのJinrei/CU/Owner Replay復元、(5) Reference/HybridのNative/WASM完全JSON一致、(6) fallbackを含む総時間の実測、の順である。
 

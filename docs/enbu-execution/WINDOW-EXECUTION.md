@@ -115,6 +115,60 @@ through the actual browser Worker. **Promotion remains contingent on
 those tests passing and measured wall-clock improvement**, not a claim
 from synthetic TS timings.
 
+## P7 frozen-snapshot squad and vision sharing (implemented)
+
+The production Next navigation executor now builds an immutable,
+per-P7-snapshot `NavigationCohorts` index for nontrivial worlds. It groups
+living Heroes by (owner, Squad) in original EntityId order and classifies
+living friendly Minions by side. The previous canonical per-Hero global scan
+is replaced with an indexed membership lookup for action-lock checks,
+movement-intent aggregation and attack-hold selection. Route-supplied
+waypoints retain their independent actor-specific evaluation.
+
+Within a route-free Tick, a complete `MovementIntent` is computed only once
+for a living same-owner, nonempty Squad. Its leader, slowest corrected speed,
+minion visibility, terrain effects and goal all derive from the same frozen
+World and Tick. There is no sharing across Ticks, across owners or across
+distinct route waypoints. Owner/HP/Squad changes are reflected by rebuilding
+the snapshot index the next Tick. Cached and uncached executors are compared
+over actual multistep navigation with spawn, deaths, leader goal changes and
+dynamic membership.
+
+`minion_vision_from_sources` preserves the canonical boolean geodesic
+predicate while avoiding repeat scans of non-minion or opposite-side
+entities. Observation visibility's independent `lab-opt-observation`
+variant uses a current-World, current-side table that classifies each
+entity's visibility once, then applies each schema field's original
+authorization separately. This table does not persist into combat or the
+following Tick.
+
+## Periodic Arithmetic candidate windows (implemented, strict fallback)
+
+`execution::arithmetic::CertifiedAttackTimeline` compiles attack-ready
+recurrences from an actual frozen P7 snapshot. The live `BasicAttackFrontier`
+uses this certificate when `lab-opt-scheduler` and
+`lab-opt-arithmetic` are both selected. A complete, ordered read set
+validates source identity, type, owner, attack, interval, readiness, range,
+and causal HP dependencies on **every** current Tick before using the
+prediction. On predicted no-due Ticks, only the basic attack-selection scan
+is suppressed; on due Ticks, ordered candidate EntityIds are passed to the
+existing canonical attack resolver.
+
+An attack that was predicted but did not commit leaves `attack_ready`
+different from its required recurrence on the following Tick, invalidating
+the certificate. P1/P5/Skill rewrites, new combatants, death and interval
+changes likewise revoke it before reuse. Damage to a permanently
+nonattacking target need not invalidate a source-readiness proof, because
+the target's HP cannot create an earlier basic attack by that source.
+Neither `target`, `distance`, `visibility`, `damage` nor a predicted
+lethal Tick is taken as authoritative; all such behavior is adjudicated
+on its original canonical Tick.
+
+This is **real multi-Tick Arithmetic dispatch for phase-local candidate
+selection**, not closed-form state mutation or a whole-Tick jump. The
+general fixed-target first-lethal kernel is implemented but is not allowed
+to commit world damage without a full effect/read-write proof.
+
 ## Requirements before a closed-domain whole-Tick jump
 
 A full `FastStep(S_a,[a+1,b])` is only valid when the engine can prove the
