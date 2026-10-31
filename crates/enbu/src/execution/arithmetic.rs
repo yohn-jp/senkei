@@ -470,6 +470,8 @@ impl CertifiedAttackTimeline {
         Some(ids)
     }
 
+    pub(crate) fn expired_at(&self, tick: u32) -> bool { tick > self.horizon_end }
+
     pub(crate) fn combatant_count(&self) -> usize { self.sources.len() }
 
     /// Count still-certified periodic source clocks, excluding local
