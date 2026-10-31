@@ -89,7 +89,11 @@ death, explicit movement, and a changed minion goal.
 
 The experimental `lab-opt-spatial` feature builds an ordered
 `CombatLocation::Node` or unordered-endpoint `CombatLocation::Edge`
-index over the **same immutable P7 combat snapshot**. It specializes
+index over the **same immutable P7 combat snapshot**. Its Node and canonical
+undirected Edge keys borrow stable graph identifiers from that frozen World.
+A lookup from the live combat or movement source compares borrowed string
+slices; it never allocates a fresh String per candidate query. The
+authoritative position and target predicate remain unchanged. It specializes
 `execution/strategies/planned.rs`, not the game rules or target selection.
 
 **Proof:** `next_support::combat_distance2` can return a distance only
@@ -136,7 +140,13 @@ from synthetic TS timings.
 ## P7 frozen-snapshot squad and vision sharing (implemented)
 
 The production Next navigation executor now builds an immutable,
-per-P7-snapshot `NavigationCohorts` index for nontrivial worlds. It groups
+per-P7-snapshot `NavigationCohorts` index for nontrivial worlds.
+Its certified frozen Squad membership also precomputes the maximum
+`action_lock_until` once per (side, Squad): movement dispatch checks this
+frontier without cloning or rescanning each Hero's cohort. The P7 worklist
+now borrows its EntityIds directly from the frozen snapshot or certified
+MovementWindow. Auto-stop combat probes borrow the indexed cohort members
+rather than allocating a new vector of cloned IDs per Hero. It groups
 living Heroes by (owner, Squad) in original EntityId order and classifies
 living friendly Minions by side. The previous canonical per-Hero global scan
 is replaced with an indexed membership lookup for action-lock checks,
