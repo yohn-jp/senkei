@@ -664,6 +664,79 @@ mod tests {
     }
 
     #[test]
+    fn source_local_fallback_matches_full_ready_scan_under_seeded_interruptions() {
+        use crate::next_support as support;
+        for seed in 0_u32..64 {
+            let mut world = WorldState::default();
+            for index in 0..6_u32 {
+                world.entities.insert(format!("source-{index:02}").into(),
+                    timeline_actor(i64::from(2 + (index + seed) % 7),
+                        i64::from(2 + (index * 3 + seed) % 8), 10));
+            }
+            for index in 0..24 {
+                world.entities.insert(format!("dormant-{index:02}").into(),
+                    timeline_actor(0, 1, 0));
+            }
+            let mut victim = timeline_actor(0, 1, 0);
+            victim.owner = Some(CombatantSide::Defender);
+            world.entities.insert("victim".into(), victim);
+            let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1);
+            let mut saw_local_invalidation = false;
+            for tick in 1_u32..=64 {
+                // One source can miss its planned hit, have cooldown rewritten,
+                // change attack interval or receive nonlethal damage. Other
+                // clocks must not silently disappear from due candidates.
+                if tick > 1 && tick % 11 == (seed % 11) {
+                    let source_id = EntityId::from(format!("source-{:02}", tick % 6));
+                    let actor = world.entities.get_mut(&source_id).unwrap();
+                    match seed % 4 {
+                        0 => support::set_int(actor, "attack_ready", i64::from(tick)),
+                        1 => support::set_int(actor, "attack_interval",
+                            2 + i64::from((tick + seed) % 7)),
+                        2 => support::set_int(actor, "hp",
+                            1 + i64::from((tick + seed) % 80)),
+                        _ => support::set_int(actor, "attack", if tick % 2 == 0 { 0 } else { 10 }),
+                    }
+                }
+                let expected = world.entities.iter()
+                    .filter(|(_, entity)| is_combat_source(entity.entity_type.as_str()))
+                    .filter(|(_, entity)| support::int(entity, "hp") > 0
+                        && support::int(entity, "attack") > 0
+                        && support::int(entity, "range") >= 0
+                        && support::int(entity, "attack_ready") <= i64::from(tick))
+                    .map(|(id, _)| id.clone())
+                    .collect::<Vec<_>>();
+                if plan.is_none() {
+                    plan = CertifiedAttackTimeline::from_snapshot(&world, tick);
+                }
+                let actual = plan.as_mut().and_then(|window| window.due(&world, tick));
+                if let Some(ids) = actual {
+                    assert_eq!(ids, expected,
+                        "periodic and live domain candidates differ seed={seed} Tick={tick}");
+                    saw_local_invalidation |= plan.as_ref().is_some_and(|window|
+                        window.uncertified.iter().any(|value| *value));
+                } else {
+                    plan = None; // exact whole-phase Reference fallback
+                }
+                for id in expected {
+                    // Most simulated attacks commit; some are blocked by a
+                    // movement/lock effect and leave readiness unchanged.
+                    if (tick + seed + id.as_str().len() as u32) % 13 == 0 {
+                        continue;
+                    }
+                    let source = world.entities.get_mut(&id).unwrap();
+                    let interval = support::int(source, "attack_interval").max(1);
+                    support::set_int(source, "attack_ready",
+                        i64::from(tick).saturating_add(interval));
+                }
+            }
+            if seed == 0 {
+                assert!(saw_local_invalidation, "fixture must exercise domain-local fallback");
+            }
+        }
+    }
+
+    #[test]
     fn staged_candidate_batches_cover_each_due_tick_and_expire_at_horizon() {
         let mut world = WorldState::default();
         world.entities.insert("early".into(), timeline_actor(2, 3, 15));
