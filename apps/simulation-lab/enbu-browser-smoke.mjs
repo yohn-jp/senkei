@@ -122,6 +122,29 @@ try {
     JSON.stringify(spatialReport, null, 2));
   console.log('PASS: real Chromium UI verified 64-Tick combat spatial A/B with 3 WASM builds');
 
+  // Explicit opt-in Arithmetic candidate windows. The same published
+  // Reference/production/periodic variants share immutable fixture provenance.
+  // This runs only in a later requested browser acceptance, not at commit time.
+  await page.locator('#enbu-case').selectOption('clash-16');
+  await page.locator('#enbu-variant').selectOption('TCSRVGAS');
+  await page.locator('#enbu-run').click();
+  await expect(page.locator('#enbu-status'))
+    .toContainText('検証成功', { timeout: 120_000 });
+  const arithmeticReport = JSON.parse(await page.locator('#enbu-report').inputValue());
+  assert.equal(arithmeticReport.source_revision, build.revision);
+  assert.equal(arithmeticReport.cases[0].id, 'clash-16');
+  assert.deepEqual(arithmeticReport.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGAS']);
+  assert.ok(arithmeticReport.rows.every(row => row.verified));
+  assert.deepEqual(errors, [], 'Arithmetic periodic candidate UI must remain error-free');
+  await page.screenshot({
+    path: resolve(output, 'arithmetic-candidate-production-comparison-1440.png'),
+    fullPage: true,
+  });
+  await writeFile(resolve(output, 'arithmetic-candidate-production-comparison.json'),
+    JSON.stringify(arithmeticReport, null, 2));
+  console.log('PASS: real Chromium UI verified periodic Arithmetic candidate WASM variant');
+
 
 } finally {
   await browser?.close();
