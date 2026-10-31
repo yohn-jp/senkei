@@ -523,8 +523,13 @@ fn active_skill_target(
         DomainValue::String(value) => Some(value.as_str()),
         _ => None,
     })?;
-    let hero = rules.heroes.iter().find(|hero| hero.id == support::string(actor, "catalog_id"))?;
-    let skill = hero.skills.iter().find(|skill| skill.id == skill_id)?.clone();
+    // The verified rules are immutable for this match. Reject cheap
+    // authorization/cooldown failures using borrowed static definitions and
+    // the live actor before allocating a SkillDefinition for a successful
+    // activation. The original stable target/vision predicate remains final.
+    let catalog = support::string_ref(actor, "catalog_id");
+    let definition = rules.heroes.iter().find(|hero| hero.id == catalog)?;
+    let skill = definition.skills.iter().find(|skill| skill.id == skill_id)?;
     if skill.passive || !has_skill(actor, skill_id)
         || cooldown_ready(actor, skill_id) > i64::from(tick)
         || support::int(actor, "energy") < skill.cost.max(0)
@@ -535,12 +540,12 @@ fn active_skill_target(
     let target = snapshot.entities.get(&target_id)?;
     if !support::alive(target)
         || !skill_target_allowed(&skill.target, side, actor_id, &target_id, target)
-        || !skill_in_range(&skill, actor, target, rules)
+        || !skill_in_range(skill, actor, target, rules)
         || (target.owner != Some(side) && !crate::next_vision::visible(snapshot, rules, side, target))
     {
         return None;
     }
-    Some((skill, target_id))
+    Some((skill.clone(), target_id))
 }
 
 fn resolve_snapshot_with_events(
