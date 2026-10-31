@@ -121,35 +121,55 @@ fn lifecycle_inner(
         spawn_wave(world, rules, tick);
     }
 
-    let ids: Vec<_> = world
-        .entities
-        .iter()
-        .filter(|(_, entity)| entity.entity_type == TypeId::from(MINION) && support::alive(entity))
-        .map(|(id, _)| id.clone())
-        .collect();
-    for id in ids {
-        let Some(entity) = world.entities.get(&id) else {
-            continue;
-        };
-        let Some(side) = entity.owner else {
-            continue;
-        };
-        let lane = support::string(entity, "lane");
-        let current_goal = support::string(entity, "goal");
-        let edge_to = support::string(entity, "edge_to");
-        if !edge_to.is_empty() && !current_goal.is_empty() {
-            continue;
-        }
-        let node = if edge_to.is_empty() {
-            support::string(entity, "node")
-        } else {
-            edge_to
-        };
-        let Some(goal) = lane_waypoint(&rules.map, side, &lane, &node) else {
-            continue;
-        };
-        if let Some(entity) = world.entities.get_mut(&id) {
+    refresh_minion_goals(world, rules, cfg!(feature = "lab-opt-hybrid"));
+}
+
+/// Independent physical execution modes for the same immutable lane map.
+/// Each Minion's goal only depends on that Minion's own frozen fields and
+/// immutable rules. No Minion reads another Minion's freshly written goal,
+/// so in-place traversal is identical to the legacy ID-collect-and-relookup
+/// implementation and preserves stable BTreeMap iteration order.
+fn refresh_minion_goals(world: &mut WorldState, rules: &NextRules, in_place: bool) {
+    if in_place {
+        for entity in world.entities.values_mut() {
+            if entity.entity_type.as_str() != MINION || !support::alive(entity) {
+                continue;
+            }
+            let Some(side) = entity.owner else { continue; };
+            let lane = support::string_ref(entity, "lane");
+            let current_goal = support::string_ref(entity, "goal");
+            let edge_to = support::string_ref(entity, "edge_to");
+            if !edge_to.is_empty() && !current_goal.is_empty() { continue; }
+            let node = if edge_to.is_empty() {
+                support::string_ref(entity, "node")
+            } else { edge_to };
+            let Some(goal) = lane_waypoint(&rules.map, side, lane, node) else {
+                continue;
+            };
             support::set_string(entity, "goal", goal);
+        }
+    } else {
+        // Reference path is retained as the in-crate differential oracle.
+        let ids: Vec<_> = world.entities.iter()
+            .filter(|(_, entity)|
+                entity.entity_type == TypeId::from(MINION) && support::alive(entity))
+            .map(|(id, _)| id.clone()).collect();
+        for id in ids {
+            let Some(entity) = world.entities.get(&id) else { continue; };
+            let Some(side) = entity.owner else { continue; };
+            let lane = support::string(entity, "lane");
+            let current_goal = support::string(entity, "goal");
+            let edge_to = support::string(entity, "edge_to");
+            if !edge_to.is_empty() && !current_goal.is_empty() { continue; }
+            let node = if edge_to.is_empty() {
+                support::string(entity, "node")
+            } else { edge_to };
+            let Some(goal) = lane_waypoint(&rules.map, side, &lane, &node) else {
+                continue;
+            };
+            if let Some(entity) = world.entities.get_mut(&id) {
+                support::set_string(entity, "goal", goal);
+            }
         }
     }
 }
@@ -1297,6 +1317,58 @@ mod tests {
             assert_eq!(actual, reference, "lifecycle output diverged at Tick {tick}");
         }
         assert!(frontier.hits > 0, "the bounded expiry proof never reused a window");
+    }
+
+    #[test]
+    fn inplace_minion_waypoint_refresh_matches_original_reference_across_mutations() {
+        let rules = test_rules();
+        let mut reference = WorldState::default();
+        for index in 0..40 {
+            let mut unit = support::unit(MINION, Some(if index % 2 == 0 {
+                CombatantSide::Attacker
+            } else {
+                CombatantSide::Defender
+            }), &rules.minions[0].stats,
+                if index % 3 == 0 { "a0" } else { "a1" }, &rules);
+            support::set_string(&mut unit, "lane", "top");
+            if index % 4 == 0 { support::set_string(&mut unit, "goal", "d0"); }
+            if index % 5 == 0 { support::set_string(&mut unit, "edge_to", "a1"); }
+            if index % 7 == 0 { support::set_int(&mut unit, "hp", 0); }
+            reference.entities.insert(format!("minion-{index:02}").into(), unit);
+        }
+        reference.entities.insert("hero".into(),
+            hero(CombatantSide::Attacker, 0, 10));
+        let mut current = reference.clone();
+        for tick in 1_u32..=48 {
+            if tick == 11 || tick == 23 {
+                for world in [&mut reference, &mut current] {
+                    let id = EntityId::from("minion-01");
+                    let actor = world.entities.get_mut(&id).unwrap();
+                    support::set_string(actor, "edge_to", if tick == 11 { "d0" } else { "" });
+                    support::set_string(actor, "goal", "");
+                }
+            }
+            if tick == 17 {
+                for world in [&mut reference, &mut current] {
+                    world.entities.get_mut(&EntityId::from("minion-02")).unwrap()
+                        .owner = None;
+                }
+            }
+            if tick == 31 {
+                for world in [&mut reference, &mut current] {
+                    let mut new_minion = support::unit(
+                        MINION, Some(CombatantSide::Attacker),
+                        &rules.minions[0].stats, "a0", &rules,
+                    );
+                    support::set_string(&mut new_minion, "lane", "top");
+                    world.entities.insert("new-minion".into(), new_minion);
+                }
+            }
+            refresh_minion_goals(&mut reference, &rules, false);
+            refresh_minion_goals(&mut current, &rules, true);
+            assert_eq!(current, reference,
+                "in-place minion goals differ from canonical at Tick {tick}");
+        }
     }
 
     fn test_rules() -> NextRules {
