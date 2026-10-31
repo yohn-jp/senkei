@@ -299,7 +299,13 @@ impl CertifiedAttackTimeline {
             if *id != prior.id
                 || entity.entity_type.as_str() != prior.kind
                 || entity.owner != prior.owner
-                || support::int(entity, "hp") != prior.hp
+                // The HP of a target that cannot itself attack is *not*
+                // a causal dependency of basic-attack source readiness.
+                // Preserve the periodic window through canonical damage to
+                // passive targets. If attack/range ever becomes eligible the
+                // exact attack-field comparison below revokes it first.
+                || (prior.attack > 0 && prior.range >= 0
+                    && support::int(entity, "hp") != prior.hp)
                 || support::int(entity, "attack") != prior.attack
                 || support::int(entity, "range") != prior.range
                 || support::int(entity, "attack_interval").max(1) != prior.interval
@@ -364,6 +370,30 @@ mod tests {
         // A blocked attack at Tick 7 leaves attack_ready at 7. The
         // speculative periodic interval is invalid on Tick 8, so the
         // canonical resolver must inspect that ready actor again.
+        assert_eq!(plan.due(&world, 8), None);
+    }
+
+    #[test]
+    fn periodic_readset_retains_window_across_passive_target_hp_changes() {
+        let mut world = WorldState::default();
+        world.entities.insert("source".into(), timeline_actor(3, 4, 20));
+        let mut victim = timeline_actor(0, 1, 0);
+        victim.owner = Some(CombatantSide::Defender);
+        world.entities.insert("victim".into(), victim);
+        let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+        assert!(plan.due(&world, 1).unwrap().is_empty());
+        assert!(plan.due(&world, 2).unwrap().is_empty());
+        assert_eq!(plan.due(&world, 3).unwrap(), vec![EntityId::from("source")]);
+        set_ready(&mut world, "source", 7);
+        world.entities.get_mut(&EntityId::from("victim")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(80));
+        for tick in 4..=6 {
+            assert!(plan.due(&world, tick).unwrap().is_empty());
+        }
+        assert_eq!(plan.due(&world, 7).unwrap(), vec![EntityId::from("source")]);
+        // Attacker death is a possible difference in future eligibility.
+        world.entities.get_mut(&EntityId::from("source")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(0));
         assert_eq!(plan.due(&world, 8), None);
     }
 
