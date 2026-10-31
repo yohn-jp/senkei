@@ -70,7 +70,7 @@
           <div class="control-actions"><button id="enbu-run" class="primary" type="submit">WASMを検証・比較</button><button id="enbu-cancel" class="secondary" type="button" disabled>中止</button><button id="enbu-export" class="secondary" type="button" disabled>JSONをコピー</button><button id="enbu-download" class="secondary" type="button" disabled>JSONを保存</button></div>
         </form>
         <p class="inspector-intro" id="enbu-status" role="status" aria-live="polite">WASMは測定時に読み込みます。初期化時間は独立して記録します。全36構成・全8条件は時間がかかります。最初は現行本番TCSRVGYと旧本番TCSRVG、参照000の全文一致・速度比較を推奨します。</p>
-        <div class="table-scroll"><table><thead><tr><th scope="col">最大Tick</th><th scope="col">最適化構成</th><th scope="col">合計 ms</th><th scope="col">WASM dispatch ms</th><th scope="col">p95 ms</th><th scope="col">基準比</th><th scope="col">旧本番TCSRVG比</th><th scope="col">KiB</th><th scope="col">メモリ MiB</th><th scope="col">一致</th></tr></thead><tbody id="enbu-results"></tbody></table></div>
+        <div class="table-scroll"><table><thead><tr><th scope="col">最大Tick</th><th scope="col">最適化構成</th><th scope="col">合計 ms</th><th scope="col">WASM dispatch ms</th><th scope="col">p95 ms</th><th scope="col">基準比</th><th scope="col">旧本番TCSRVG比</th><th scope="col">現行本番TCSRVGY比</th><th scope="col">KiB</th><th scope="col">メモリ MiB</th><th scope="col">一致</th></tr></thead><tbody id="enbu-results"></tbody></table></div>
         <h3>最適化構成の順位</h3>
         <p class="inspector-intro" id="enbu-ranking-note">完了後、選択した実戦ケースにおける中央値速度比の幾何平均で順位を表示します。小差・測定ノイズは優劣未確定として扱ってください。</p>
         <ol id="enbu-ranking"></ol>
