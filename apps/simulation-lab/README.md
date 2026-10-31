@@ -45,13 +45,13 @@ The browser's independent Tick Inspector uses a Worker and reports a measured ra
 
 The result contract separates canonical state, optional on-demand inspection, and lightweight displayed summary. Future Rust/WASM work must first demonstrate full rule equivalence before adopting any compressed representation.
 
-### Production Enbu matrix: thirty-three real Rust/WASM builds
+### Production Enbu matrix: thirty-five real Rust/WASM builds
 
 The existing **11 strategy / 14 scenario synthetic** benchmark and independent
 synthetic Tick Inspector remain unchanged and are never used to claim production
-speedups. The production lane compiles **thirty-three** distinct WASM binaries from the
+speedups. The production lane compiles **thirty-five** distinct WASM binaries from the
 **same production Enbu Rust source** and JSON ABI: the original eight T/C/S
-factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index), A (Arithmetic phase dispatcher), F (frozen snapshot reuse), FPA and G (certified Fog probe reuse), TCSRVG and the independent O / TCSRVGO variants. The original T/C/S
+factorial configurations plus R, V, R+V, T+C+S+R+V, P (one-Tick Planned candidate index), A (Arithmetic phase dispatcher), F (frozen snapshot reuse), FPA and G (certified Fog probe reuse), TCSRVG, the independent Y / TCSRVGY Replay-fusion variants, and O / TCSRVGO variants. The original T/C/S
 factorial varies these independent Cargo features:
 
 | Bit | Feature | Work eliminated |
@@ -64,14 +64,16 @@ factorial varies these independent Cargo features:
 and all differential comparisons. `111` is the historical
 `lab-optimizations` alias; the other subsets are real Enbu builds.
 The experimental `TCSRVGAS` variant isolates the bounded real-Enbu Arithmetic
-candidate timeline and canonical attack Scheduler on top of shipping `TCSRVG`.
+candidate timeline and canonical attack Scheduler on top of the previous production `TCSRVG`.
 It retains every Tick's Jinrei, CU, Fog, full Replay and canonical damage;
 only certified basic-attack selection is compressed. It is not promoted by
 default. The Lab defines its build and future full-response golden checks;
 no performance result is implied by registration.
 
-The production `scripts/wasm/build.sh` now compiles the **measured TCSRVG**
-feature portfolio by default, while `SENKEI_WASM_FEATURES=reference` forces
+The production `scripts/wasm/build.sh` now compiles the **unverified TCSRVGY candidate**
+(TCSRVG plus Replay-fusion) by default, retaining the measured TCSRVG as a
+same-revision comparator. The full golden and wall-clock results of TCSRVGY
+must be checked before calling it an improvement. `SENKEI_WASM_FEATURES=reference` forces
 the original Reference WASM for diagnostics. TCSRV previously delivered a
 1.049× equal-case geometric mean on seven full-output real WASM cases (prior promotion data; now eight with Next Behavior)
 (no regressed case in that run); these timings are source- and environment-
@@ -79,7 +81,7 @@ specific, not a universal speedup guarantee. The Lab builds and verifies
 `000` independently rather than copying the optimized production binary.
 Any promoted combination is the **same Rust code**, not synthetic JS.
 
-The Pages workflow builds the production WASM and all thirty-three benchmark variants
+The Pages workflow builds the production WASM and all thirty-five benchmark variants
 from one Git revision, publishes a SHA-256 and byte-size manifest, and rejects
 publication unless **every variant** reproduces **all native Rust golden JSON
 responses** (the full response, including replay, CU, diagnostics, and output
@@ -90,7 +92,7 @@ These fixtures are a baseline, **not exhaustive gameplay equivalence**.
 
 #### Measurements and ranking
 
-The Worker can run all thirty-three variants or the baseline against one selected
+The Worker can run all thirty-five variants or the baseline against one selected
 variant, for all fixtures or one Tick count. Each variant is instantiated once,
 then run in alternating, rotating order with two warmups. Median/p95,
 input-transfer, WASM dispatch, output-transfer, WebAssembly linear memory,
@@ -169,7 +171,7 @@ change the computation in the authoritative Enbu Tick engine:
 - `I` / `lab-opt-inplace`: PR #71's per-unit in-place navigation state update, retaining the immutable pre-navigation freeze. It removes redundant entity clones under an independent benchmark feature.
 - `B` / `lab-opt-frontier`: PR #71's snapshot-scoped indexed combat visibility frontier, lazily compiled for dense eligible attack/hold checks. The original target predicate, stable order, fog authorization and owner trace remain authoritative. `TCSRVIB` measures I+B on top of the previously measured best production strategy set.
 - `O` / `lab-opt-observation`: build one deduplicated source set per side and observation Tick when the actor population is at least 16, and reuse it for all RulePlan visibility-field, collection, and nested derived-value eligibility checks. All checks remain current-Tick, full Jinrei/CU and owner replay are retained. `TCSRVGO` benchmarks this path on top of TCSRVG.
-- `G` / `lab-opt-fog-cache`: retain exact node/edge visibility booleans across Ticks while the same side, source graph positions/radii, map nodes/edges, and vision semantics are unchanged. Any changed dependency invalidates the certificate. Every Tick's Fog exploration, owner facilities, Jinrei/CU, and replay are still materialized. `TCSRVG` tests G combined with the prior measured best five-feature set.
+- `Y` / `lab-opt-replay-fusion`: reuse exact authorized owner-frame visibility when constructing public Replay; defer precombat owner views behind a frozen same-Tick snapshot when events are unlikely, and rebuild them upon any unexpected event. Full replay and private-state rules remain intact.\n- `G` / `lab-opt-fog-cache`: retain exact node/edge visibility booleans across Ticks while the same side, source graph positions/radii, map nodes/edges, and vision semantics are unchanged. Any changed dependency invalidates the certificate. Every Tick's Fog exploration, owner facilities, Jinrei/CU, and replay are still materialized. `TCSRVG` tests G combined with the prior measured best five-feature set.
 - `F` / `lab-opt-frozen`: omit provably redundant World clones and idle unit movement preparation; `FPA` combines F, Planned and Arithmetic. Neither physically skips entire Ticks.
 - `A` / `lab-opt-arithmetic`: same-Tick dispatcher proving that no basic attacks are due or selecting at most eight ready combatants when they are sparse. With `S` enabled, the actual Enbu `BasicAttackFrontier` additionally compiles bounded 128-Tick periodic readiness schedules using exact Scan (small), Heap (sparse), and Bucket (dense) due-batch kernels. Each current frozen World revalidates the complete ordered source dependency set before dispatch; missed hits, new combatants, death, owner/clock/interval changes and horizon expiry revoke the prediction. Only basic-attack *candidate work* is elided; target legality, damage, simultaneous effects, every Replay frame and Jinrei/CU remain canonical. `TCSRVGAS` isolates A+S on current production TCSRVG. General long-window first-lethal damage commits and whole-Tick skipping remain non-dispatched pending a stronger full-output causal proof.
 - `P` / `lab-opt-planned`: lazily compile a single frozen combat-phase target
@@ -178,7 +180,7 @@ change the computation in the authoritative Enbu Tick engine:
   per-actor full scan remains the Reference path. This is not the TS
   synthetic `planned` executor nor a multi-Tick acceleration.
 
-The 33 real-WASM candidates include the prior 8-way T/C/S matrix,
+The 35 real-WASM candidates include the prior 8-way T/C/S matrix,
 R, V, R+V, the combined T+C+S+R+V build, P (Planned candidate selection), and A (Arithmetic phase dispatcher). Each must reproduce the
 complete native Rust SHA-256 across all 8 fixture scenarios to publish. The
 3-factor T/C/S marginal-effect study continues to use only the original eight
