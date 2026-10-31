@@ -21,6 +21,53 @@ struct MovementIntent {
     budget: i128,
 }
 
+/// A P7-snapshot-scoped exact membership index. The reference helper scans
+/// *every* entity for each Hero when computing squad mobility and combat
+/// holding. Group once in canonical EntityId order and retain borrowed
+/// references: squad changes on the mutable World cannot affect this
+/// immutable phase snapshot, and the index never survives the Tick.
+struct NavigationCohorts<'a> {
+    by_side: BTreeMap<CombatantSide, BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>>,
+}
+
+impl<'a> NavigationCohorts<'a> {
+    fn new(snapshot: &'a WorldState) -> Self {
+        let mut by_side = BTreeMap::<
+            CombatantSide,
+            BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>,
+        >::new();
+        for (id, hero) in &snapshot.entities {
+            if hero.entity_type.as_str() != "hero" || !alive(hero) {
+                continue;
+            }
+            let squad = support::string_ref(hero, "squad");
+            if let Some(side) = hero.owner.filter(|_| !squad.is_empty()) {
+                by_side.entry(side).or_default()
+                    .entry(squad).or_default().push((id, hero));
+            }
+        }
+        Self { by_side }
+    }
+
+    fn members(&self, hero: &EntityState) -> Option<Vec<(EntityId, &'a EntityState)>> {
+        let side = hero.owner?;
+        let squad = support::string_ref(hero, "squad");
+        if squad.is_empty() {
+            return None;
+        }
+        let members = self.by_side.get(&side)?.get(squad)?;
+        Some(members.iter().map(|(id, entity)| ((*id).clone(), *entity)).collect())
+    }
+}
+
+fn hero_cohort_indexed<'a>(
+    id: &EntityId, hero: &'a EntityState, snapshot: &'a WorldState,
+    index: Option<&NavigationCohorts<'a>>,
+) -> Vec<(EntityId, &'a EntityState)> {
+    index.and_then(|groups| groups.members(hero))
+        .unwrap_or_else(|| hero_cohort(id, hero, snapshot))
+}
+
 /// Advance every living mobile entity with a valid node goal by one tick.
 ///
 /// Movement factors are sampled from the same start-of-movement world for all
@@ -164,12 +211,17 @@ fn advance_inner_with_window(
     let spatial = if cfg!(feature = "lab-opt-spatial") && snapshot.entities.len() >= 24 {
         Some(&spatial_index)
     } else { None };
+    // Entity membership can change between Ticks, never within this frozen
+    // movement snapshot. Small worlds use the original scan to avoid index
+    // construction overhead.
+    let cohort_index = (snapshot.entities.len() >= 12)
+        .then(|| NavigationCohorts::new(snapshot));
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
         };
         if start.entity_type.as_str() == "hero"
-            && hero_cohort(&id, start, &snapshot)
+            && hero_cohort_indexed(&id, start, snapshot, cohort_index.as_ref())
                 .iter()
                 .any(|(_, member)| int(member, "action_lock_until") > i64::from(tick))
         {
@@ -202,12 +254,13 @@ fn advance_inner_with_window(
             continue;
         };
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
-        let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref());
+        let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref(), cohort_index.as_ref());
         if inplace {
             // This ID is visited exactly once: no earlier movement can
             // modify this actor. Its live state equals the frozen start.
             advance_entity(
                 &id, entity, rules, &movement, snapshot, frontier, spatial,
+                cohort_index.as_ref(),
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
         } else {
@@ -215,6 +268,7 @@ fn advance_inner_with_window(
             let mut next = start.clone();
             advance_entity(
                 &id, &mut next, rules, &movement, snapshot, frontier, spatial,
+                cohort_index.as_ref(),
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
             *entity = next;
@@ -280,6 +334,7 @@ fn advance_entity<'a>(
     snapshot: &'a WorldState,
     visibility_index: Option<&OnceCell<crate::next_combat::CombatVisibilityIndex>>,
     spatial_index: Option<&OnceCell<crate::execution::strategies::planned::PlannedCombatCandidates<'a>>>,
+    cohort_index: Option<&NavigationCohorts<'a>>,
     bridge_reservations: &mut BTreeSet<(String, String)>,
     cross_reservations: &mut BTreeSet<(String, i64, String)>,
     tick: u32,
@@ -366,6 +421,7 @@ fn advance_entity<'a>(
             spatial_index.map(|index| index.get_or_init(|| {
                 crate::execution::strategies::planned::PlannedCombatCandidates::build_for_navigation(snapshot, rules)
             })),
+            cohort_index,
         )
     {
         return;
@@ -736,7 +792,7 @@ fn should_hold_for_attack(
     rules: &NextRules,
     tick: u32,
 ) -> bool {
-    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None, None)
+    should_hold_for_attack_indexed(actor_id, entity, snapshot, rules, tick, None, None, None)
 }
 fn should_hold_for_attack_indexed(
     actor_id: &EntityId,
@@ -746,9 +802,10 @@ fn should_hold_for_attack_indexed(
     tick: u32,
     visibility: Option<&crate::next_combat::CombatVisibilityIndex>,
     spatial: Option<&crate::execution::strategies::planned::PlannedCombatCandidates<'_>>,
+    cohort_index: Option<&NavigationCohorts<'_>>,
 ) -> bool {
     let actors = if entity.entity_type.as_str() == "hero" {
-        hero_cohort(actor_id, entity, snapshot)
+        hero_cohort_indexed(actor_id, entity, snapshot, cohort_index)
     } else {
         vec![(actor_id.clone(), entity)]
     };
@@ -1007,7 +1064,7 @@ fn movement_intent(
     rules: &NextRules,
     tick: u32,
 ) -> MovementIntent {
-    movement_intent_for(entity_id, entity, world, rules, tick, None)
+    movement_intent_for(entity_id, entity, world, rules, tick, None, None)
 }
 
 fn movement_intent_for(
@@ -1017,6 +1074,7 @@ fn movement_intent_for(
     rules: &NextRules,
     tick: u32,
     waypoint: Option<&str>,
+    cohort_index: Option<&NavigationCohorts<'_>>,
 ) -> MovementIntent {
     if entity.entity_type.as_str() != "hero" {
         let speed = i128::from(int(entity, "speed").max(0));
@@ -1032,7 +1090,7 @@ fn movement_intent_for(
         };
     }
 
-    let members = hero_cohort(entity_id, entity, world);
+    let members = hero_cohort_indexed(entity_id, entity, world, cohort_index);
     let Some((_, leader)) = members.first() else {
         return MovementIntent {
             goal: string(entity, "goal"),
@@ -2183,10 +2241,10 @@ mod tests {
             for (actor_id, actor) in &snapshot.entities {
                 for visibility in [None, Some(&vision)] {
                     let expected = should_hold_for_attack_indexed(
-                        actor_id, actor, &snapshot, &config, tick, visibility, None,
+                        actor_id, actor, &snapshot, &config, tick, visibility, None, None,
                     );
                     let spatial = should_hold_for_attack_indexed(
-                        actor_id, actor, &snapshot, &config, tick, visibility, Some(&index),
+                        actor_id, actor, &snapshot, &config, tick, visibility, Some(&index), None,
                     );
                     assert_eq!(expected, spatial,
                         "movement auto-stop differs for {actor_id} on tick {tick}");
