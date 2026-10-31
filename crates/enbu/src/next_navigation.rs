@@ -65,14 +65,18 @@ impl<'a> NavigationCohorts<'a> {
         Self { by_side, max_lock_by_side, minions_by_side }
     }
 
-    fn members(&self, hero: &EntityState) -> Option<Vec<(EntityId, &'a EntityState)>> {
+    fn members_slice(&self, hero: &EntityState)
+        -> Option<&[(&'a EntityId, &'a EntityState)]>
+    {
         let side = hero.owner?;
         let squad = support::string_ref(hero, "squad");
-        if squad.is_empty() {
-            return None;
-        }
-        let members = self.by_side.get(&side)?.get(squad)?;
-        Some(members.iter().map(|(id, entity)| ((**id).clone(), *entity)).collect())
+        if squad.is_empty() { return None; }
+        self.by_side.get(&side)?.get(squad).map(Vec::as_slice)
+    }
+
+    fn members(&self, hero: &EntityState) -> Option<Vec<(EntityId, &'a EntityState)>> {
+        Some(self.members_slice(hero)?.iter()
+            .map(|(id, entity)| ((**id).clone(), *entity)).collect())
     }
 
     fn cohort_locked(&self, hero: &EntityState, tick: u32) -> Option<bool> {
@@ -861,12 +865,7 @@ fn should_hold_for_attack_indexed(
     spatial: Option<&crate::execution::strategies::planned::PlannedCombatCandidates<'_>>,
     cohort_index: Option<&NavigationCohorts<'_>>,
 ) -> bool {
-    let actors = if entity.entity_type.as_str() == "hero" {
-        hero_cohort_indexed(actor_id, entity, snapshot, cohort_index)
-    } else {
-        vec![(actor_id.clone(), entity)]
-    };
-    actors.iter().any(|(source_id, source)| {
+    let can_hold = |source_id: &EntityId, source: &EntityState| {
         let is_hostile_reachable = |target_id: &EntityId, target: &EntityState| {
             target.owner.is_some()
                 && target.owner != source.owner
@@ -881,7 +880,23 @@ fn should_hold_for_attack_indexed(
             None => snapshot.entities.iter()
                 .any(|(id, target)| is_hostile_reachable(id, target)),
         }
-    })
+    };
+    if entity.entity_type.as_str() == "hero" {
+        if let Some(members) = cohort_index.and_then(|index|
+            index.members_slice(entity)
+        ) {
+            // The frozen index owns stable borrowed BTreeMap IDs. Avoid
+            // cloning each squad member's EntityId into a temporary Vec
+            // for every moving Hero's attack-hold probe.
+            return members.iter().any(|(id, source)| can_hold(id, source));
+        }
+    }
+    let actors = if entity.entity_type.as_str() == "hero" {
+        hero_cohort_indexed(actor_id, entity, snapshot, cohort_index)
+    } else {
+        vec![(actor_id.clone(), entity)]
+    };
+    actors.iter().any(|(source_id, source)| can_hold(source_id, source))
 }
 
 /// Whether a unit is committed to transit and must not be stranded by an
