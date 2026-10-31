@@ -100,6 +100,22 @@ pub(crate) struct PassiveLifecyclePlan {
     by_catalog: BTreeMap<String, Vec<(String, SkillEffect, i64)>>,
     skills_field: FieldId,
     permanent_until: i64,
+    // Versioned by exact catalog and complete learned-skill DomainValue.
+    // A source can be resurrected, renamed or learn new skills on any Tick;
+    // no profile may survive a changed read-set. Only immutable RulePlan
+    // definitions are compiled once per match.
+    cached_profiles: BTreeMap<EntityId, PassiveSkillProfile>,
+    pub(crate) cache_hits: u64,
+    pub(crate) cache_misses: u64,
+}
+
+#[cfg(feature = "lab-opt-passive-lifecycle")]
+struct PassiveSkillProfile {
+    catalog: String,
+    learned: Option<DomainValue>,
+    haste: i64,
+    slow: i64,
+    shield: i64,
 }
 
 #[cfg(feature = "lab-opt-passive-lifecycle")]
@@ -124,6 +140,9 @@ impl PassiveLifecyclePlan {
             skills_field: FieldId::from("skills"),
             permanent_until: support::param(rules, "max_match_ticks", i64::from(u32::MAX))
                 .max(0).saturating_add(1),
+            cached_profiles: BTreeMap::new(),
+            cache_hits: 0,
+            cache_misses: 0,
         }
     }
 
@@ -133,12 +152,32 @@ impl PassiveLifecyclePlan {
                 matches!(value, DomainValue::String(id) if id == skill_id)))
     }
 
-    /// One stable-order, in-place traversal replaces two complete Hero-ID
-    /// allocations, per-Hero learned-skill set construction and repeated
-    /// linear scans of the verified skill definitions. Non-passive actors
-    /// still receive the original life/passive generation transition.
-    fn apply(&self, world: &mut WorldState, tick: u32) -> Vec<PresentationEvent> {
+    fn profile_values(&self, hero: &EntityState, catalog: &str) -> (i64, i64, i64) {
+        let mut haste = 0_i64;
+        let mut slow = 0_i64;
+        let mut shield = 0_i64;
+        if let Some(skills) = self.by_catalog.get(catalog) {
+            for (id, effect, power) in skills {
+                if !self.learned(hero, id) { continue; }
+                match effect {
+                    SkillEffect::Haste => haste = haste.max(*power),
+                    SkillEffect::Slow => slow = slow.max(*power),
+                    SkillEffect::Shield => shield = shield.saturating_add(*power),
+                    _ => {}
+                }
+            }
+        }
+        (haste, slow, shield)
+    }
+
+    /// One stable-order, in-place traversal replaces two Hero-ID collections.
+    /// In large worlds a learned-passive signature is reused on subsequent
+    /// Ticks only when catalog and the *entire* serialized skills field are
+    /// exactly unchanged. Death, resurrection and life generations are still
+    /// read from the live World at their original canonical Tick.
+    fn apply(&mut self, world: &mut WorldState, tick: u32) -> Vec<PresentationEvent> {
         let mut events = Vec::new();
+        let use_profile_cache = world.entities.len() >= 24;
         for (id, hero) in &mut world.entities {
             if hero.entity_type.as_str() == "monster" {
                 let respawn_at = support::int(hero, "respawn_at");
@@ -164,33 +203,34 @@ impl PassiveLifecyclePlan {
             // Never rebuild the learned skill set or inspect rule definitions
             // while all relevant timers and life generations remain valid.
             if !needs_haste && !needs_slow && !needs_shield { continue; }
-            let mut haste = 0_i64;
-            let mut slow = 0_i64;
-            let mut shield = 0_i64;
-            if let Some(skills) = self.by_catalog.get(catalog) {
-                for (id, effect, power) in skills {
-                    // Do not even read learned-skill membership when this
-                    // passive family has no due time or generation change.
-                    let due = match effect {
-                        SkillEffect::Haste => needs_haste,
-                        SkillEffect::Slow => needs_slow,
-                        SkillEffect::Shield => needs_shield,
-                        _ => false,
-                    };
-                    if !due || !self.learned(hero, id) { continue; }
-                    match effect {
-                        SkillEffect::Haste => haste = haste.max(*power),
-                        SkillEffect::Slow => slow = slow.max(*power),
-                        SkillEffect::Shield => shield = shield.saturating_add(*power),
-                        _ => {}
-                    }
+            let (haste, slow, shield) = if use_profile_cache {
+                if let Some(profile) = self.cached_profiles.get(id).filter(|profile| {
+                    profile.catalog == catalog
+                        && profile.learned.as_ref() == hero.fields.get(&self.skills_field)
+                }) {
+                    self.cache_hits = self.cache_hits.saturating_add(1);
+                    (profile.haste, profile.slow, profile.shield)
+                } else {
+                    // Unlike an identity-only or version-counter cache, the
+                    // exact skills field comparison cannot miss a Skill
+                    // learned through W3, Jinrei or an authored transition.
+                    let (haste, slow, shield) = self.profile_values(hero, catalog);
+                    self.cached_profiles.insert(id.clone(), PassiveSkillProfile {
+                        catalog: catalog.to_owned(),
+                        learned: hero.fields.get(&self.skills_field).cloned(),
+                        haste, slow, shield,
+                    });
+                    self.cache_misses = self.cache_misses.saturating_add(1);
+                    (haste, slow, shield)
                 }
-            }
-            if haste > 0 {
+            } else {
+                self.profile_values(hero, catalog)
+            };
+            if needs_haste && haste > 0 {
                 support::set_int(hero, "haste", haste);
                 support::set_int(hero, "haste_until", self.permanent_until);
             }
-            if slow > 0 {
+            if needs_slow && slow > 0 {
                 support::set_int(hero, "slow", slow);
                 support::set_int(hero, "slow_until", self.permanent_until);
             }
@@ -207,7 +247,7 @@ impl PassiveLifecyclePlan {
 #[cfg(feature = "lab-opt-passive-lifecycle")]
 pub(crate) fn objective_lifecycle_planned(
     world: &mut WorldState, rules: &NextRules, tick: u32,
-    passive: &PassiveLifecyclePlan,
+    passive: &mut PassiveLifecyclePlan,
 ) -> Vec<PresentationEvent> {
     // No field written here is read by another actor's passive or
     // resurrection. Folding these scans into one stable BTreeMap pass
@@ -3245,8 +3285,12 @@ mod tests {
         support::set_int(&mut monster, "max_hp", 140);
         support::set_int(&mut monster, "respawn_at", 14);
         reference.entities.insert("monster.camp".into(), monster);
+        for index in 0..32 {
+            reference.entities.insert(format!("padding-{index:02}").into(),
+                entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 0));
+        }
         let mut optimized = reference.clone();
-        let passive = PassiveLifecyclePlan::compile(&config);
+        let mut passive = PassiveLifecyclePlan::compile(&config);
         for tick in 1..=40 {
             for state in [&mut reference, &mut optimized] {
                 let hero = state.entities.get_mut(&EntityId::from("hero-03")).unwrap();
@@ -3276,10 +3320,12 @@ mod tests {
             if tick == 14 {
                 assert_eq!(reference_events.len(), 1, "fixture must exercise real respawn");
             }
-            let planned_events = objective_lifecycle_planned(&mut optimized, &config, tick, &passive);
+            let planned_events = objective_lifecycle_planned(&mut optimized, &config, tick, &mut passive);
             assert_eq!(planned_events, reference_events, "lifecycle event mismatch at Tick {tick}");
             assert_eq!(optimized, reference, "lifecycle World mismatch at Tick {tick}");
         }
+        assert!(passive.cache_hits > 0, "stable learned-passive profiles must be reused");
+        assert!(passive.cache_misses >= 2, "initial and changed learned-skill fields recompile");
     }
 
     #[test]
