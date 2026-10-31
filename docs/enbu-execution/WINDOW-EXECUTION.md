@@ -167,9 +167,9 @@ only depends on whether it is alive; a crossing of the alive/dead boundary
 revokes the certificate. The simpler `BasicAttackFrontier` readiness
 certificate uses the same liveness proof, avoiding unnecessary replanning
 when an otherwise idle living actor loses HP. Damage to a permanently nonattacking target does
-not invalidate source readiness. A match with no pair of hostile living
-combatants uses the cheaper exact no-hostile-target frontier rather than
-staging periodic hits that cannot commit.
+not invalidate source readiness. When all living combatants belong to the same non-neutral side, the
+cheaper exact no-hostile-target frontier is used instead of staging hits
+that cannot commit. Neutral combatants remain on the conservative path.
 Neither `target`, `distance`, `visibility`, `damage` nor a predicted
 lethal Tick is taken as authoritative; all such behavior is adjudicated
 on its original canonical Tick.
