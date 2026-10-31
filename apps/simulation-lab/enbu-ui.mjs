@@ -128,6 +128,42 @@ function run(event) {
     samples: Number(byId('enbu-samples').value),
   });
 }
+// Only offer binaries that are actually present in the immutable published manifest.
+// Ordinary releases contain the verified reference/incumbent/production triad.
+// The complete 36-way portfolio is available in explicitly requested research runs.
+async function loadPublishedVariants() {
+  const runButton = byId('enbu-run');
+  runButton.disabled = true;
+  try {
+    const [manifestResponse, buildResponse] = await Promise.all([
+      fetch(new URL('./enbu-variants.json', import.meta.url), {cache:'no-store'}),
+      fetch(new URL('./build.json', import.meta.url), {cache:'no-store'}),
+    ]);
+    if (!manifestResponse.ok || !buildResponse.ok) throw Error('配布マニフェストを取得できません');
+    const [manifest, build] = await Promise.all([
+      manifestResponse.json(), buildResponse.json(),
+    ]);
+    if (manifest.revision !== build.revision ||
+        ![3, 36].includes(manifest.variants?.length)) {
+      throw Error('WASMと公開revisionが一致しません');
+    }
+    const available = new Set(manifest.variants.map(variant => variant.id));
+    for (const option of [...byId('enbu-variant').options]) {
+      if (option.value !== 'all' && !available.has(option.value)) option.remove();
+    }
+    const all = byId('enbu-variant').querySelector('option[value="all"]');
+    all.textContent = '全公開構成（' + available.size + '種類）';
+    if (!available.has(byId('enbu-variant').value)) {
+      byId('enbu-variant').value = 'TCSRVGY';
+    }
+    status('公開revision ' + build.revision.slice(0, 8) +
+      ' · ' + available.size + '構成（Native Rust全文一致で検証）');
+    runButton.disabled = false;
+  } catch (error) {
+    status('公開WASMの取得に失敗: ' + error.message);
+  }
+}
+void loadPublishedVariants();
 byId('enbu-form').addEventListener('submit', run);
 byId('enbu-cancel').addEventListener('click', () => {
   if (!worker) return;
