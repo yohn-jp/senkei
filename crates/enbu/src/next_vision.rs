@@ -92,10 +92,64 @@ const OWNER_ONLY_FIELDS: &[&str] = &[
     "attack_ready",
 ];
 
+/// Match-scoped indexed lane succession compiled from the verified BattleMap.
+/// No entity state or dynamic World membership is cached. The first occurrence
+/// of each node wins, matching the Reference lane search even when the map
+/// contains duplicate lane node names.
+pub(crate) struct LaneWaypointIndex {
+    lanes: BTreeMap<String, (
+        BTreeMap<String, Option<String>>,
+        BTreeMap<String, Option<String>>,
+    )>,
+    attacker_base: String,
+    defender_base: String,
+}
+
+impl LaneWaypointIndex {
+    pub(crate) fn compile(rules: &NextRules) -> Self {
+        let mut lanes = BTreeMap::new();
+        for (name, nodes) in &rules.map.lanes {
+            let mut attacker = BTreeMap::new();
+            let mut defender = BTreeMap::new();
+            for (i, node) in nodes.iter().enumerate() {
+                attacker.entry(node.clone())
+                    .or_insert_with(|| nodes.get(i + 1).cloned());
+                defender.entry(node.clone())
+                    .or_insert_with(|| i.checked_sub(1)
+                        .and_then(|before| nodes.get(before)).cloned());
+            }
+            lanes.insert(name.clone(), (attacker, defender));
+        }
+        Self {
+            lanes,
+            attacker_base: rules.map.attacker_base.clone(),
+            defender_base: rules.map.defender_base.clone(),
+        }
+    }
+
+    pub(crate) fn waypoint(
+        &self, side: CombatantSide, lane: &str, node: &str,
+    ) -> Option<String> {
+        let (attacker, defender) = self.lanes.get(lane)?;
+        let next = match side {
+            CombatantSide::Attacker => attacker.get(node),
+            CombatantSide::Defender => defender.get(node),
+        };
+        if let Some(next) = next.and_then(Option::as_ref) {
+            return Some(next.clone());
+        }
+        let enemy_base = match side {
+            CombatantSide::Attacker => &self.defender_base,
+            CombatantSide::Defender => &self.attacker_base,
+        };
+        (node != enemy_base).then(|| enemy_base.clone())
+    }
+}
+
 /// Advances minion waves and prepares their lane waypoint goals before the
 /// same-tick observation snapshot.
 pub fn lifecycle(world: &mut WorldState, rules: &NextRules, tick: u32) {
-    lifecycle_inner(world, rules, tick, None);
+    lifecycle_inner(world, rules, tick, None, None);
 }
 
 /// Same canonical lifecycle; only the expensive reveal-expiration scan can
@@ -104,12 +158,25 @@ pub(crate) fn lifecycle_scheduled(
     world: &mut WorldState, rules: &NextRules, tick: u32,
     frontier: &mut crate::execution::scheduler::RevealExpiryFrontier,
 ) {
-    lifecycle_inner(world, rules, tick, Some(frontier));
+    lifecycle_inner(world, rules, tick, Some(frontier), None);
+}
+
+/// Full Hybrid P1 entrypoint. Only its immutable lane transition source
+/// differs physically from the Reference lifecycle; Reveal writes, minion
+/// wave spawning and all observations retain canonical Tick order.
+#[cfg(feature = "lab-opt-hybrid")]
+pub(crate) fn lifecycle_hybrid(
+    world: &mut WorldState, rules: &NextRules, tick: u32,
+    frontier: &mut crate::execution::scheduler::RevealExpiryFrontier,
+    lane_index: &LaneWaypointIndex,
+) {
+    lifecycle_inner(world, rules, tick, Some(frontier), Some(lane_index));
 }
 
 fn lifecycle_inner(
     world: &mut WorldState, rules: &NextRules, tick: u32,
     frontier: Option<&mut crate::execution::scheduler::RevealExpiryFrontier>,
+    lane_index: Option<&LaneWaypointIndex>,
 ) {
     if !frontier.is_some_and(|frontier| frontier.certify_no_expiration(world, tick)) {
         expire_reveals(world, tick);
@@ -121,7 +188,7 @@ fn lifecycle_inner(
         spawn_wave(world, rules, tick);
     }
 
-    refresh_minion_goals(world, rules, cfg!(feature = "lab-opt-hybrid"));
+    refresh_minion_goals(world, rules, cfg!(feature = "lab-opt-hybrid"), lane_index);
 }
 
 /// Independent physical execution modes for the same immutable lane map.
@@ -129,7 +196,10 @@ fn lifecycle_inner(
 /// immutable rules. No Minion reads another Minion's freshly written goal,
 /// so in-place traversal is identical to the legacy ID-collect-and-relookup
 /// implementation and preserves stable BTreeMap iteration order.
-fn refresh_minion_goals(world: &mut WorldState, rules: &NextRules, in_place: bool) {
+fn refresh_minion_goals(
+    world: &mut WorldState, rules: &NextRules, in_place: bool,
+    lane_index: Option<&LaneWaypointIndex>,
+) {
     if in_place {
         for entity in world.entities.values_mut() {
             if entity.entity_type.as_str() != MINION || !support::alive(entity) {
@@ -143,9 +213,11 @@ fn refresh_minion_goals(world: &mut WorldState, rules: &NextRules, in_place: boo
             let node = if edge_to.is_empty() {
                 support::string_ref(entity, "node")
             } else { edge_to };
-            let Some(goal) = lane_waypoint(&rules.map, side, lane, node) else {
-                continue;
+            let goal = match lane_index {
+                Some(index) => index.waypoint(side, lane, node),
+                None => lane_waypoint(&rules.map, side, lane, node),
             };
+            let Some(goal) = goal else { continue };
             support::set_string(entity, "goal", goal);
         }
     } else {
@@ -1364,10 +1436,29 @@ mod tests {
                     world.entities.insert("new-minion".into(), new_minion);
                 }
             }
-            refresh_minion_goals(&mut reference, &rules, false);
-            refresh_minion_goals(&mut current, &rules, true);
+            refresh_minion_goals(&mut reference, &rules, false, None);
+            let lane_index = LaneWaypointIndex::compile(&rules);
+            refresh_minion_goals(&mut current, &rules, true, Some(&lane_index));
             assert_eq!(current, reference,
                 "in-place minion goals differ from canonical at Tick {tick}");
+        }
+    }
+
+    #[test]
+    fn compiled_lane_waypoints_preserve_duplicate_and_unknown_node_semantics() {
+        let mut rules = test_rules();
+        rules.map.lanes.insert("repeated".into(),
+            vec!["a0".into(), "a1".into(), "a1".into(), "d0".into()]);
+        rules.map.lanes.insert("empty".into(), Vec::new());
+        let index = LaneWaypointIndex::compile(&rules);
+        for lane in ["top", "repeated", "empty", "unknown"] {
+            for node in ["a0", "a1", "d0", "ghost", ""] {
+                for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+                    assert_eq!(index.waypoint(side, lane, node),
+                        lane_waypoint(&rules.map, side, lane, node),
+                        "compiled map differs for side={side:?}, lane={lane}, node={node}");
+                }
+            }
         }
     }
 
