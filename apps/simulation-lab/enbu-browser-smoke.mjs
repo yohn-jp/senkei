@@ -155,11 +155,16 @@ try {
   assert.equal(hybridReport.source_revision, build.revision);
   assert.equal(hybridReport.cases[0].id, 'next-behavior-16');
   assert.deepEqual(hybridReport.rows.map(row => row.variant),
-    ['000', 'TCSRVG', 'TCSRVGH']);
+    ['000', 'TCSRVG', 'TCSRVGY', 'TCSRVGH']);
   assert.equal(await page.locator('#enbu-results tr').count(), 3);
   assert.ok(hybridReport.rows.every(row => row.verified && row.samples === 3));
   assert.ok(hybridReport.rows.every(row => row.incumbent_speedup &&
     Number.isFinite(row.incumbent_speedup.median_ratio)));
+  assert.equal(hybridReport.production_baseline, 'TCSRVGY');
+  assert.ok(hybridReport.rows.every(row =>
+    row.production_speedup && Number.isFinite(row.production_speedup.median_ratio)));
+  assert.ok(hybridReport.production_ranking,
+    'comparison must rank against actual current production rather than old TCSRVG');
   assert.deepEqual(errors, [], 'Unified Hybrid UI must not raise page errors');
   await page.screenshot({
     path: resolve(output, 'hybrid-production-comparison-1440.png'), fullPage: true,
