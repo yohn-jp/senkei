@@ -815,8 +815,23 @@ fn simulate_inner<P: TacticalExecutionPort>(
             .iter()
             .filter_map(|event| world::public_event(event, plan, &world))
             .collect();
+        // The owner projections are needed for every canonical Tick. When
+        // replay fusion is selected, derive the public view *after* them from
+        // their exact visibility membership rather than redo both geodesic
+        // sight tests for every entity a third time.
+        #[cfg(not(feature = "lab-opt-replay-fusion"))]
         let mut replay_view = presentation_view(&world, plan);
+        #[cfg(feature = "lab-opt-replay-fusion")]
+        let mut replay_view = if plan.next.is_some() {
+            senkei_model::WorldStateView {
+                entities: BTreeMap::new(),
+                global_fields: BTreeMap::new(),
+            }
+        } else {
+            presentation_view(&world, plan)
+        };
         if plan.next.is_some() {
+            #[cfg(not(feature = "lab-opt-replay-fusion"))]
             if sides.into_iter().all(|side| contest_observers.contains(&side)) {
                 add_contest_fact(&mut replay_view, plan, capture_contest.as_ref());
             }
@@ -870,6 +885,22 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     visible_state: Some(owner_after),
                 };
                 owner_frames.get_mut(&side).unwrap().push(frame);
+            }
+            #[cfg(feature = "lab-opt-replay-fusion")]
+            {
+                let attacker_view = owner_frames[&CombatantSide::Attacker]
+                    .last().and_then(|frame| frame.visible_state.as_ref())
+                    .expect("current attacker owner frame");
+                let defender_view = owner_frames[&CombatantSide::Defender]
+                    .last().and_then(|frame| frame.visible_state.as_ref())
+                    .expect("current defender owner frame");
+                replay_view = next_vision::public_view_with_policy_from_owners(
+                    &world, plan.next.as_ref().unwrap(), &plan.presentation,
+                    attacker_view, defender_view,
+                );
+                if sides.into_iter().all(|side| contest_observers.contains(&side)) {
+                    add_contest_fact(&mut replay_view, plan, capture_contest.as_ref());
+                }
             }
             public_events.extend(next_events.into_iter().filter_map(|event| {
                 project_next_public_event(event, &plan.presentation, &before_next, &replay_view)
