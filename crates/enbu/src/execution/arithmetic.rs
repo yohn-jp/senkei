@@ -451,6 +451,35 @@ mod tests {
     }
 
     #[test]
+    fn staged_candidate_batches_cover_each_due_tick_and_expire_at_horizon() {
+        let mut world = WorldState::default();
+        world.entities.insert("early".into(), timeline_actor(2, 3, 15));
+        world.entities.insert("late".into(), timeline_actor(5, 7, 12));
+        let mut window = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+        assert_eq!(window.horizon_end, 128);
+        assert!(window.candidate_batches.iter().all(|batch| {
+            batch.tick >= 1 && batch.tick <= 128
+                && batch.actor_indices.windows(2).all(|pair| pair[0] < pair[1])
+        }));
+        for tick in 1_u32..=128 {
+            let actual = window.due(&world, tick).unwrap();
+            let mut expected = Vec::new();
+            for (name, first, interval) in [("early", 2_u32, 3_u32),
+                ("late", 5_u32, 7_u32)]
+            {
+                if tick >= first && (tick - first) % interval == 0 {
+                    expected.push(EntityId::from(name));
+                    set_ready(&mut world, name, i64::from(tick + interval));
+                }
+            }
+            expected.sort();
+            assert_eq!(actual, expected, "staged arithmetic batch mismatch at Tick {tick}");
+        }
+        assert!(window.due(&world, 129).is_none(),
+            "bounded candidate horizon must never be extended without a new proof");
+    }
+
+    #[test]
     fn periodic_timeline_clamps_existing_ready_clock_and_requires_sequential_ticks() {
         let mut world = WorldState::default();
         world.entities.insert("source".into(), timeline_actor(-50, 3, 20));
