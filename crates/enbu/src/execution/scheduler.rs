@@ -263,6 +263,11 @@ impl BasicAttackFrontier {
         self.initialized && self.classified && self.last_tick == Some(tick)
     }
 
+    #[cfg(feature = "lab-opt-arithmetic")]
+    pub(crate) fn certified_periodic_domains(&self) -> usize {
+        self.periodic.as_ref().map_or(0, |plan| plan.certified_clock_count())
+    }
+
     fn keys(world: &WorldState) -> impl Iterator<Item = AttackKey> + '_ {
         world.entities.iter().filter(|(_, actor)| combatant(actor.entity_type.as_str()))
             .map(|(id, actor)| AttackKey {
