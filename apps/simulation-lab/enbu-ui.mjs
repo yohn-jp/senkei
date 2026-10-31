@@ -2,7 +2,7 @@
 const byId = id => document.getElementById(id);
 const labels = { '000':'参照', '100':'T', '010':'C', '001':'S',
   '110':'T+C', '101':'T+S', '011':'C+S', '111':'T+C+S',
-  R:'Route', V:'Visibility', RV:'Route+Visibility', TCSRV:'T+C+S+Route+Visibility', P:'Planned candidate index', A:'Arithmetic phase dispatcher', F:'Frozen snapshot reuse', FPA:'Frozen+Planned+Arithmetic', G:'Certified fog probes', TCSRVG:'T+C+S+Route+Visibility+Fog', O:'Indexed observations', TCSRVGO:'T+C+S+Route+Visibility+Fog+Observations', I:'In-place movement', B:'Combat visibility frontier', TCSRVIB:'TCSRV+In-place+Frontier', H:'Hybrid: P/A/Spatial/Frozen/Observation/Scheduler/Movement/Passive', TCSRVH:'TCSRV+Hybrid execution', S:'Temporal frontier and event scheduler', TCSRVS:'TCSRV+Temporal frontiers', TCSRVHS:'TCSRV+Hybrid (historical redundant S mask)', W:'Certified Movement Active Set', TCSRVGW:'Current production TCSRVG + MovementWindow', X:'Graph-local combat candidate index', TCSRVGX:'Current production TCSRVG + spatial combat index', TCSRVGAS:'Current production TCSRVG + Arithmetic periodic candidate windows + Scheduler' };
+  R:'Route', V:'Visibility', RV:'Route+Visibility', TCSRV:'T+C+S+Route+Visibility', P:'Planned candidate index', A:'Arithmetic phase dispatcher', F:'Frozen snapshot reuse', FPA:'Frozen+Planned+Arithmetic', G:'Certified fog probes', TCSRVG:'Old production T+C+S+Route+Visibility+Fog', Y:'Replay visibility fusion', TCSRVGY:'Production TCSRVG+Replay fusion', O:'Indexed observations', TCSRVGO:'T+C+S+Route+Visibility+Fog+Observations', I:'In-place movement', B:'Combat visibility frontier', TCSRVIB:'TCSRV+In-place+Frontier', H:'Hybrid: P/A/Spatial/Frozen/Observation/Scheduler/Movement/Passive', TCSRVH:'TCSRV+Hybrid execution', S:'Temporal frontier and event scheduler', TCSRVS:'TCSRV+Temporal frontiers', TCSRVHS:'TCSRV+Hybrid (historical redundant S mask)', W:'Certified Movement Active Set', TCSRVGW:'Current production TCSRVG + MovementWindow', X:'Graph-local combat candidate index', TCSRVGX:'Current production TCSRVG + spatial combat index', TCSRVGAS:'Current production TCSRVG + Arithmetic periodic candidate windows + Scheduler' };
 let worker = null;
 let report = null;
 
@@ -52,14 +52,14 @@ function showRanking(ranking, cases, incumbentRanking = []) {
       (ranked.bytes / 1024).toFixed(0) + ' KiB';
     list.append(li);
   }
-  const experiments = ['TCSRVGW', 'TCSRVGX', 'TCSRVGAS'].map(id =>
+  const experiments = ['TCSRVGY', 'TCSRVGW', 'TCSRVGX', 'TCSRVGAS'].map(id =>
     incumbentRanking.find(candidate => candidate.id === id)).filter(Boolean);
   const compared = experiments.map(candidate =>
-    candidate.id + ': 現行本番比 ' + candidate.aggregate_ratio.toFixed(3) +
+    candidate.id + ': 旧本番比 ' + candidate.aggregate_ratio.toFixed(3) +
     '× / 最悪 ' + candidate.worst_ratio.toFixed(3) + '×').join(' · ');
   byId('enbu-ranking-note').textContent =
     cases.length + '条件の同重み幾何平均。順位はReference 000比。' +
-    (compared ? '現行本番TCSRVGとの比較：' + compared + '。' : '') +
+    (compared ? '旧本番TCSRVGとの比較：' + compared + '。' : '') +
     '数%差は測定ノイズを含むため別端末で再測定が必要です。';
 }
 function showEffects(effects) {
