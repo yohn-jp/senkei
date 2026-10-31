@@ -60,10 +60,13 @@ all Tick values while these inputs are unchanged.
 
 **Proof:** The first call scans `WorldState.entities` once and retains
 the exact read set, including nonmobile actors that might later become mobile.
-Later Ticks compare entity membership and ID order, type, owner, HP, Squad,
+Later Ticks compare entity membership and ID order, type, owner, **HP liveness**, Squad,
 personal goal, incumbent edge and both explicit markers. A changed field,
 spawn, removal, owner conversion or death triggers a domain-local rebuild.
-The proof does not rely on hashing alone, a preselected TTL or scenario names.
+Nonlethal HP magnitude changes leave movement source eligibility unchanged;
+death or resurrection invalidates it, and admitted actors continue to read
+the live World on their original canonical Tick. The proof does not rely
+on hashing alone, a preselected TTL or scenario names.
 
 **Exclusions:** A configured `next_route::Runtime` can supply a waypoint
 without changing the entity goal. Such a match uses the original complete

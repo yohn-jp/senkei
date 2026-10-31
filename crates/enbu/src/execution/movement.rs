@@ -52,7 +52,7 @@ struct MovementKey {
     id: EntityId,
     kind: String,
     owner: Option<CombatantSide>,
-    hp: i64,
+    alive: bool,
     squad: String,
     goal: String,
     edge_to: String,
@@ -66,7 +66,7 @@ impl MovementKey {
             id: id.clone(),
             kind: actor.entity_type.as_str().to_owned(),
             owner: actor.owner,
-            hp: support::int(actor, "hp"),
+            alive: support::alive(actor),
             squad: support::string(actor, "squad"),
             goal: support::string(actor, "goal"),
             edge_to: support::string(actor, "edge_to"),
@@ -79,7 +79,14 @@ impl MovementKey {
         self.id == *id
             && self.kind == actor.entity_type.as_str()
             && self.owner == actor.owner
-            && equals_int(actor, &fields.hp, self.hp)
+            // Movement admission depends on liveness, not HP magnitude.
+            // A nonlethal hit must not reclassify every inactive actor;
+            // live movement still evaluates current HP-dependent state in
+            // the unchanged canonical advance_entity resolver.
+            && self.alive == (match actor.fields.get(&fields.hp) {
+                Some(DomainValue::Integer(value)) => *value > 0,
+                _ => false,
+            })
             && field_equals(actor, &fields.squad, &self.squad)
             && field_equals(actor, &fields.goal, &self.goal)
             && field_equals(actor, &fields.edge_to, &self.edge_to)
@@ -200,6 +207,28 @@ mod tests {
     }
     fn ids(window: &mut MovementWindow, world: &WorldState) -> Vec<String> {
         window.eligible(world).iter().map(|id| id.as_str().to_owned()).collect()
+    }
+
+    #[test]
+    fn nonlethal_hp_changes_retain_movement_source_proof_but_death_revokes() {
+        let mut state = WorldState::default();
+        state.entities.insert("hero".into(),
+            entity("hero", Some(CombatantSide::Attacker), 100, "", ""));
+        let mut window = MovementWindow::default();
+        assert!(ids(&mut window, &state).is_empty());
+        assert_eq!(window.stats(), (0, 1));
+        state.entities.get_mut(&EntityId::from("hero")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(50));
+        assert!(ids(&mut window, &state).is_empty());
+        assert_eq!(window.stats(), (1, 1));
+        state.entities.get_mut(&EntityId::from("hero")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(0));
+        assert!(ids(&mut window, &state).is_empty());
+        assert_eq!(window.stats(), (1, 2));
+        state.entities.get_mut(&EntityId::from("hero")).unwrap()
+            .fields.insert("hp".into(), DomainValue::Integer(70));
+        assert!(ids(&mut window, &state).is_empty());
+        assert_eq!(window.stats(), (1, 3));
     }
 
     #[test]
