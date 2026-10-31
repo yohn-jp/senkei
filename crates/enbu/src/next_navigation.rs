@@ -56,7 +56,7 @@ impl<'a> NavigationCohorts<'a> {
             return None;
         }
         let members = self.by_side.get(&side)?.get(squad)?;
-        Some(members.iter().map(|(id, entity)| ((*id).clone(), *entity)).collect())
+        Some(members.iter().map(|(id, entity)| ((**id).clone(), *entity)).collect())
     }
 }
 
