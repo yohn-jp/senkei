@@ -2028,14 +2028,22 @@ fn skill_ids(hero: &EntityState) -> BTreeSet<String> {
 }
 
 fn push_skill(hero: &mut EntityState, skill_id: &str) {
-    let mut skills = match hero.fields.get(&FieldId::from("skills")) {
-        Some(DomainValue::List(values)) => values.clone(),
-        _ => Vec::new(),
-    };
-    if !skills.iter().any(|value| matches!(value, DomainValue::String(value) if value == skill_id)) {
-        skills.push(DomainValue::String(skill_id.to_string()));
+    // In-place append preserves original list order and malformed-field
+    // replacement semantics without cloning the entire learned skill list
+    // on each chained path unlock. The event is emitted by the caller in
+    // canonical path/EntityId order after this mutation.
+    let values = hero.fields
+        .entry(FieldId::from("skills"))
+        .or_insert_with(|| DomainValue::List(Vec::new()));
+    if !matches!(values, DomainValue::List(_)) {
+        *values = DomainValue::List(Vec::new());
     }
-    hero.fields.insert("skills".into(), DomainValue::List(skills));
+    let DomainValue::List(values) = values else { unreachable!() };
+    if !values.iter().any(|value| matches!(
+        value, DomainValue::String(existing) if existing == skill_id
+    )) {
+        values.push(DomainValue::String(skill_id.to_owned()));
+    }
 }
 
 fn cooldown_ready(hero: &EntityState, skill_id: &str) -> i64 {
@@ -3330,6 +3338,42 @@ mod tests {
             .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
             .sum();
         assert_eq!(total, XP_SCALE);
+    }
+
+    #[test]
+    fn in_place_skill_append_preserves_list_order_and_malformed_field_contract() {
+        for initial in [
+            None,
+            Some(DomainValue::Integer(5)),
+            Some(DomainValue::List(Vec::new())),
+            Some(DomainValue::List(vec![
+                DomainValue::String("first".into()),
+                DomainValue::Integer(7),
+                DomainValue::String("second".into()),
+            ])),
+            Some(DomainValue::List(vec![DomainValue::String("second".into())])),
+        ] {
+            let mut original = entity("hero", Some(CombatantSide::Attacker),
+                0, 100, 1, 3);
+            if let Some(value) = initial { original.fields.insert("skills".into(), value); }
+            let mut actual = original.clone();
+            let mut expected = original;
+            for skill in ["second", "third", "second", "fourth"] {
+                let mut previous = match expected.fields.get(&FieldId::from("skills")) {
+                    Some(DomainValue::List(values)) => values.clone(),
+                    _ => Vec::new(),
+                };
+                if !previous.iter().any(|item|
+                    matches!(item, DomainValue::String(id) if id == skill))
+                {
+                    previous.push(DomainValue::String(skill.into()));
+                }
+                expected.fields.insert("skills".into(), DomainValue::List(previous));
+                push_skill(&mut actual, skill);
+                assert_eq!(actual, expected,
+                    "in-place push must preserve the original skill-list ABI");
+            }
+        }
     }
 
     #[cfg(feature = "lab-opt-hybrid")]
