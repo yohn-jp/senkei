@@ -222,9 +222,13 @@ fn is_combat_source(kind: &str) -> bool {
 pub(crate) struct CertifiedAttackTimeline {
     initial_tick: u32,
     last_tick: Option<u32>,
+    horizon_end: u32,
     sources: Vec<PeriodicSource>,
-    clocks: Vec<AttackClock>,
     clock_ids: Vec<senkei_model::EntityId>,
+    // Stage the *candidate* due batches, not hits, HP or Replay. All
+    // consequences still run in canonical order at their actual Tick.
+    candidate_batches: Vec<DueBatch>,
+    next_batch: usize,
 }
 
 impl CertifiedAttackTimeline {
@@ -262,7 +266,19 @@ impl CertifiedAttackTimeline {
                 clock,
             });
         }
-        Some(Self { initial_tick: tick, last_tick: None, sources, clocks, clock_ids })
+        // Derive the next bounded arithmetic interval in one heap merge.
+        // High-density schedules (or overflow) decline the candidate and
+        // leave the live canonical combat resolver unchanged. This is a
+        // physical work budget, not an engine ResourceLimit.
+        let horizon_end = tick.saturating_add(127);
+        let staged = execute_certified_window(
+            &clocks, tick, horizon_end, u128::MAX, true, 8192,
+        )?;
+        let candidate_batches = staged.batches?;
+        Some(Self {
+            initial_tick: tick, last_tick: None, horizon_end,
+            sources, clock_ids, candidate_batches, next_batch: 0,
+        })
     }
 
     fn expected_ready(source: &PeriodicSource, tick: u32) -> Option<i64> {
@@ -287,7 +303,7 @@ impl CertifiedAttackTimeline {
         -> Option<Vec<senkei_model::EntityId>>
     {
         use crate::next_support as support;
-        if self.last_tick.map_or(tick != self.initial_tick,
+        if tick > self.horizon_end || self.last_tick.map_or(tick != self.initial_tick,
             |last| last.checked_add(1) != Some(tick))
         {
             return None;
@@ -315,8 +331,22 @@ impl CertifiedAttackTimeline {
             }
         }
         if current.next().is_some() { return None; }
-        let ids = due_actor_indices(&self.clocks, tick)?.into_iter()
-            .map(|index| self.clock_ids[index].clone()).collect();
+        let ids = if let Some(batch) = self.candidate_batches.get(self.next_batch) {
+            if batch.tick == tick {
+                let ids = batch.actor_indices.iter().map(|&index|
+                    self.clock_ids[index].clone()).collect();
+                self.next_batch += 1;
+                ids
+            } else if batch.tick > tick {
+                Vec::new()
+            } else {
+                // The scheduler has not consumed a previously staged due
+                // batch, so no later plan can be considered certified.
+                return None;
+            }
+        } else {
+            Vec::new()
+        };
         self.last_tick = Some(tick);
         Some(ids)
     }
