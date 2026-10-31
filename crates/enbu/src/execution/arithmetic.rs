@@ -107,6 +107,112 @@ pub(crate) struct ArithmeticWindow {
     pub batches: Option<Vec<DueBatch>>,
 }
 
+/// Three exact physical queue kernels for already-certified periodic source
+/// clocks. This is a physical scheduling choice only: every staged batch
+/// must still pass through the canonical Next combat resolver at its Tick.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CandidateQueueKernel { Scan, Heap, Bucket }
+
+impl CandidateQueueKernel {
+    fn select(clocks: usize, span: u64, hits: u128) -> Self {
+        // Complexity gates rather than unsupported wall-clock speed claims.
+        // Scan: O(clocks * due-Ticks), Heap: O(hits log clocks),
+        // Bucket: O(span + hits + clocks). No semantic change on selection.
+        if span <= 128 && clocks <= 4 { Self::Scan }
+        else if span <= 128 && hits >= u128::from(span).saturating_mul(2) {
+            Self::Bucket
+        } else { Self::Heap }
+    }
+}
+
+fn first_due(clock: AttackClock, start: u32) -> Option<u32> {
+    if clock.interval == 0 { return None; }
+    if clock.first_tick >= start { return Some(clock.first_tick); }
+    let elapsed = start - clock.first_tick;
+    let remainder = elapsed % clock.interval;
+    if remainder == 0 { Some(start) }
+    else { start.checked_add(clock.interval - remainder) }
+}
+
+/// All kernels emit the same stable ordered batch with no speculative World
+/// writes. A bounded caller must validate the total hit budget beforehand.
+fn materialize_candidate_batches(
+    clocks: &[AttackClock], start: u32, end: u32, kernel: CandidateQueueKernel,
+) -> Option<Vec<DueBatch>> {
+    if start > end || clocks.iter().any(|clock| clock.interval == 0) { return None; }
+    match kernel {
+        CandidateQueueKernel::Scan => {
+            // For tiny cohorts, a fixed array is cheaper than a heap.
+            let mut next = clocks.iter().map(|&clock|
+                first_due(clock, start).filter(|tick| *tick <= end)
+            ).collect::<Vec<_>>();
+            let mut batches = Vec::new();
+            while let Some(tick) = next.iter().flatten().min().copied() {
+                let mut indices = Vec::new();
+                for (index, due) in next.iter_mut().enumerate() {
+                    if *due == Some(tick) {
+                        indices.push(index);
+                        *due = tick.checked_add(clocks[index].interval)
+                            .filter(|next| *next <= end);
+                    }
+                }
+                batches.push(DueBatch { tick, actor_indices: indices });
+            }
+            Some(batches)
+        }
+        CandidateQueueKernel::Bucket => {
+            // Explicitly bounded horizon. Dense bursts amortize the indexed
+            // slot allocation and preserve canonical actor order by inserting
+            // clocks in original ID order, not insertion/event arrival order.
+            let span = u64::from(end) - u64::from(start) + 1;
+            if span > 128 { return None; }
+            let mut slots = vec![Vec::<usize>::new(); usize::try_from(span).ok()?];
+            for (index, &clock) in clocks.iter().enumerate() {
+                let Some(mut at) = first_due(clock, start) else { continue };
+                while at <= end {
+                    slots[usize::try_from(at - start).ok()?].push(index);
+                    let Some(next) = at.checked_add(clock.interval) else { break };
+                    at = next;
+                }
+            }
+            Some(slots.into_iter().enumerate()
+                .filter(|(_, indices)| !indices.is_empty())
+                .map(|(offset, actor_indices)| DueBatch {
+                    tick: start + u32::try_from(offset).expect("bounded horizon"),
+                    actor_indices,
+                }).collect())
+        }
+        CandidateQueueKernel::Heap => {
+            use std::cmp::Reverse;
+            use std::collections::BinaryHeap;
+            let mut heap = BinaryHeap::<Reverse<(u32, usize)>>::new();
+            for (index, &clock) in clocks.iter().enumerate() {
+                if let Some(tick) = first_due(clock, start).filter(|tick| *tick <= end) {
+                    heap.push(Reverse((tick, index)));
+                }
+            }
+            let mut batches = Vec::new();
+            while let Some(Reverse((tick, index))) = heap.pop() {
+                let mut indices = vec![index];
+                while heap.peek().is_some_and(|entry| (entry.0).0 == tick) {
+                    let Reverse((_, other)) = heap.pop().expect("peeked due actor");
+                    indices.push(other);
+                }
+                indices.sort_unstable();
+                for &actor in &indices {
+                    if let Some(next) = tick.checked_add(clocks[actor].interval)
+                        .filter(|next| *next <= end)
+                    {
+                        heap.push(Reverse((next, actor)));
+                    }
+                }
+                batches.push(DueBatch { tick, actor_indices: indices });
+            }
+            Some(batches)
+        }
+    }
+}
+
 /// Compute a *complete* closed-domain answer, optionally materializing the
 /// exact ordered event obligations. The caller supplies HP as of start-1.
 /// A stage exceeding `max_materialized_hits` is rejected before allocation;
@@ -120,9 +226,6 @@ pub(crate) fn execute_certified_window(
     materialize: bool,
     max_materialized_hits: usize,
 ) -> Option<ArithmeticWindow> {
-    use std::cmp::Reverse;
-    use std::collections::BinaryHeap;
-
     let first_lethal_tick = first_lethal_tick(clocks, start, end, initial_hp)?;
     let last_tick = if initial_hp == 0 { start } else { first_lethal_tick.unwrap_or(end) };
     let mut hit_counts = Vec::with_capacity(clocks.len());
@@ -144,44 +247,12 @@ pub(crate) fn execute_certified_window(
         return None;
     }
     let batches = if materialize {
-        let mut heap = BinaryHeap::<Reverse<(u32, usize)>>::new();
-        for (index, clock) in clocks.iter().enumerate() {
-            if initial_hp == 0 { continue; }
-            let first = if clock.first_tick >= start {
-                Some(clock.first_tick)
-            } else {
-                let elapsed = start - clock.first_tick;
-                let remainder = elapsed % clock.interval;
-                if remainder == 0 { Some(start) }
-                else { start.checked_add(clock.interval - remainder) }
-            };
-            if let Some(tick) = first.filter(|&tick| tick <= last_tick) {
-                heap.push(Reverse((tick, index)));
-            }
+        if initial_hp == 0 { Some(Vec::new()) } else {
+            let span = u64::from(last_tick) - u64::from(start) + 1;
+            let kernel = CandidateQueueKernel::select(clocks.len(), span, total_hits);
+            Some(materialize_candidate_batches(clocks, start, last_tick, kernel)?)
         }
-        let mut materialized = Vec::new();
-        while let Some(Reverse((tick, index))) = heap.pop() {
-            let mut actor_indices = vec![index];
-            while heap.peek().is_some_and(|entry| (entry.0).0 == tick) {
-                let Reverse((_, other)) = heap.pop().expect("peeked element exists");
-                actor_indices.push(other);
-            }
-            // Collect the entire equal-Tick batch before scheduling successor
-            // clocks. ID order is stable, as in the reference frozen snapshot.
-            actor_indices.sort_unstable();
-            for &actor in &actor_indices {
-                if let Some(next) = tick.checked_add(clocks[actor].interval)
-                    .filter(|&next| next <= last_tick)
-                {
-                    heap.push(Reverse((next, actor)));
-                }
-            }
-            materialized.push(DueBatch { tick, actor_indices });
-        }
-        Some(materialized)
-    } else {
-        None
-    };
+    } else { None };
     Some(ArithmeticWindow {
         first_lethal_tick, last_tick, hit_counts, hit_tick_sums,
         total_hits, batches,
@@ -571,6 +642,40 @@ mod tests {
         assert!(CertifiedAttackTimeline::from_snapshot(&invalid, 1).is_none());
     }
 
+
+    #[test]
+    fn three_queue_kernels_emit_identical_ordered_due_batches() {
+        for seed in 0_u32..192 {
+            let clocks = (0..(seed % 17)).map(|index| AttackClock {
+                first_tick: (seed.wrapping_mul(19) + index * 11) % 40,
+                interval: (index % 9) + 1,
+                damage: 1,
+            }).collect::<Vec<_>>();
+            let start = seed % 15;
+            let end = start + 64;
+            let scan = materialize_candidate_batches(
+                &clocks, start, end, CandidateQueueKernel::Scan,
+            ).unwrap();
+            let heap = materialize_candidate_batches(
+                &clocks, start, end, CandidateQueueKernel::Heap,
+            ).unwrap();
+            let bucket = materialize_candidate_batches(
+                &clocks, start, end, CandidateQueueKernel::Bucket,
+            ).unwrap();
+            assert_eq!(heap, scan, "Heap/Scan mismatch at seed {seed}");
+            assert_eq!(bucket, scan, "Bucket/Scan mismatch at seed {seed}");
+            assert!(heap.iter().all(|batch| batch.actor_indices.windows(2)
+                .all(|pair| pair[0] < pair[1])),
+                "same-Tick actor order must be stable");
+        }
+        assert_eq!(CandidateQueueKernel::select(2, 64, 5), CandidateQueueKernel::Scan);
+        assert_eq!(CandidateQueueKernel::select(40, 64, 300), CandidateQueueKernel::Bucket);
+        assert_eq!(CandidateQueueKernel::select(40, 64, 10), CandidateQueueKernel::Heap);
+        assert!(materialize_candidate_batches(
+            &[AttackClock { first_tick: 1, interval: 0, damage: 1 }],
+            1, 5, CandidateQueueKernel::Bucket,
+        ).is_none(), "invalid intervals must never produce event schedules");
+    }
 
     #[test]
     fn arithmetic_matches_reference_tick_enumeration_across_seeded_clocks() {
