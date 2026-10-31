@@ -295,7 +295,12 @@ pub(crate) struct CertifiedAttackTimeline {
     last_tick: Option<u32>,
     horizon_end: u32,
     sources: Vec<PeriodicSource>,
-    clock_ids: Vec<senkei_model::EntityId>,
+    // Each arithmetic clock refers to one source in the complete ordered
+    // combatant read set. Changed clocks can be revoked independently:
+    // their current readiness is checked by Reference while other sources'
+    // bounded recurrences remain certified and physically scheduled.
+    clock_source_indices: Vec<usize>,
+    uncertified: Vec<bool>,
     // Stage the *candidate* due batches, not hits, HP or Replay. All
     // consequences still run in canonical order at their actual Tick.
     candidate_batches: Vec<DueBatch>,
@@ -307,7 +312,7 @@ impl CertifiedAttackTimeline {
         use crate::next_support as support;
         let mut sources = Vec::new();
         let mut clocks = Vec::new();
-        let mut clock_ids = Vec::new();
+        let mut clock_source_indices = Vec::new();
         // A single living owner cannot emit a hostile basic attack. Defer
         // that case to BasicAttackFrontier rather than speculating recurring
         // hits that would be rejected by the canonical target resolver.
@@ -338,7 +343,7 @@ impl CertifiedAttackTimeline {
                 let interval = u32::try_from(interval).ok()?;
                 let clock = AttackClock { first_tick: first, interval, damage: 1 };
                 clocks.push(clock);
-                clock_ids.push(id.clone());
+                clock_source_indices.push(sources.len());
                 Some(clock)
             } else {
                 None
@@ -361,7 +366,8 @@ impl CertifiedAttackTimeline {
         let candidate_batches = staged.batches?;
         Some(Self {
             initial_tick: tick, last_tick: None, horizon_end,
-            sources, clock_ids, candidate_batches, next_batch: 0,
+            uncertified: vec![false; sources.len()],
+            sources, clock_source_indices, candidate_batches, next_batch: 0,
         })
     }
 
@@ -394,42 +400,72 @@ impl CertifiedAttackTimeline {
         }
         let mut current = world.entities.iter()
             .filter(|(_, entity)| is_combat_source(entity.entity_type.as_str()));
-        for prior in &self.sources {
+        for (source_index, prior) in self.sources.iter().enumerate() {
             let (id, entity) = current.next()?;
-            if *id != prior.id
-                || entity.entity_type.as_str() != prior.kind
-                || entity.owner != prior.owner
-                // Source HP affects attack-readiness eligibility at the
-                // alive/dead boundary, not on every nonlethal hit. Target
-                // selection, damage and owner output remain canonical on
-                // every due Tick; HP-independent passive targets stay valid.
-                || (prior.attack > 0 && prior.range >= 0
-                    && ((support::int(entity, "hp") > 0) != (prior.hp > 0)))
-                || support::int(entity, "attack") != prior.attack
-                || support::int(entity, "range") != prior.range
-                || support::int(entity, "attack_interval").max(1) != prior.interval
-                || support::int(entity, "attack_ready") != Self::expected_ready(prior, tick)?
-            {
+            // Structural inserts/removals or a changed combatant kind
+            // invalidate the *whole* index. This is not a proven local write.
+            if *id != prior.id || entity.entity_type.as_str() != prior.kind {
                 return None;
+            }
+            if self.uncertified[source_index] { continue; }
+            let matches = entity.owner == prior.owner
+                // Only source liveness, not HP magnitude, determines whether
+                // this clock can generate a basic-attack candidate.
+                && (prior.attack <= 0 || prior.range < 0
+                    || ((support::int(entity, "hp") > 0) == (prior.hp > 0)))
+                && support::int(entity, "attack") == prior.attack
+                && support::int(entity, "range") == prior.range
+                && support::int(entity, "attack_interval").max(1) == prior.interval
+                && Self::expected_ready(prior, tick)
+                    .is_some_and(|expected|
+                        support::int(entity, "attack_ready") == expected);
+            if !matches {
+                // Local fail-closed domain: include this source whenever
+                // current authoritative readiness allows a hit. Never reuse
+                // a guessed periodic clock after its causal read set changes.
+                self.uncertified[source_index] = true;
             }
         }
         if current.next().is_some() { return None; }
-        let ids = if let Some(batch) = self.candidate_batches.get(self.next_batch) {
+        // If every staged attack clock has been revoked, no independent
+        // periodic domain remains. Reference must own the entire phase.
+        if self.clock_source_indices.iter()
+            .all(|&index| self.uncertified[index])
+        {
+            return None;
+        }
+        let mut ids = Vec::new();
+        if let Some(batch) = self.candidate_batches.get(self.next_batch) {
             if batch.tick == tick {
-                let ids = batch.actor_indices.iter().map(|&index|
-                    self.clock_ids[index].clone()).collect();
+                for &clock_index in &batch.actor_indices {
+                    let source_index = self.clock_source_indices[clock_index];
+                    if !self.uncertified[source_index] {
+                        ids.push(self.sources[source_index].id.clone());
+                    }
+                }
                 self.next_batch += 1;
-                ids
-            } else if batch.tick > tick {
-                Vec::new()
-            } else {
-                // The scheduler has not consumed a previously staged due
-                // batch, so no later plan can be considered certified.
+            } else if batch.tick < tick {
+                // A due event from another Tick cannot be silently omitted.
                 return None;
             }
-        } else {
-            Vec::new()
-        };
+        }
+        // Independent untrusted sources fall back to live readiness checks;
+        // only those source candidates enter the original combat resolver.
+        // Other sources continue to use the exact staged Scan/Heap/Bucket
+        // schedule and do not pay for a global replan.
+        for (index, prior) in self.sources.iter().enumerate() {
+            if !self.uncertified[index] { continue; }
+            let entity = world.entities.get(&prior.id)?;
+            if support::int(entity, "hp") > 0
+                && support::int(entity, "attack") > 0
+                && support::int(entity, "range") >= 0
+                && support::int(entity, "attack_ready") <= i64::from(tick)
+            {
+                ids.push(prior.id.clone());
+            }
+        }
+        ids.sort();
+        ids.dedup();
         self.last_tick = Some(tick);
         Some(ids)
     }
@@ -584,6 +620,40 @@ mod tests {
             }
             assert_eq!(plan.due(&world, 2), None, "change={change}");
         }
+    }
+
+    #[test]
+    fn one_invalid_clock_uses_live_readiness_while_independent_clocks_remain_staged() {
+        let mut world = WorldState::default();
+        world.entities.insert("first".into(), timeline_actor(3, 4, 15));
+        world.entities.insert("second".into(), timeline_actor(5, 7, 12));
+        let mut target = timeline_actor(0, 1, 0);
+        target.owner = Some(CombatantSide::Defender);
+        world.entities.insert("victim".into(), target);
+        let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+        for tick in 1..=2 { assert!(plan.due(&world, tick).unwrap().is_empty()); }
+        assert_eq!(plan.due(&world, 3).unwrap(), vec![EntityId::from("first")]);
+        set_ready(&mut world, "first", 7);
+        assert!(plan.due(&world, 4).unwrap().is_empty());
+        assert_eq!(plan.due(&world, 5).unwrap(), vec![EntityId::from("second")]);
+        set_ready(&mut world, "second", 12);
+        // A skill changes only the first source's cooldown. It becomes a
+        // live candidate immediately; the second source still has a valid
+        // independent 128-Tick arithmetic schedule.
+        set_ready(&mut world, "first", 6);
+        assert_eq!(plan.due(&world, 6).unwrap(), vec![EntityId::from("first")]);
+        assert!(plan.uncertified[0], "first clock proof must be revoked");
+        assert!(!plan.uncertified[1], "independent clock must remain certified");
+        set_ready(&mut world, "first", 10);
+        for tick in 7..10 {
+            assert!(plan.due(&world, tick).unwrap().is_empty());
+        }
+        assert_eq!(plan.due(&world, 10).unwrap(), vec![EntityId::from("first")]);
+        set_ready(&mut world, "first", 14);
+        assert!(plan.due(&world, 11).unwrap().is_empty());
+        assert_eq!(plan.due(&world, 12).unwrap(), vec![EntityId::from("second")],
+            "stable second clock must not be globally replanned");
+        assert!(plan.due(&world, 13).unwrap().is_empty());
     }
 
     #[test]
