@@ -493,6 +493,8 @@ pub(crate) struct RevealExpiryFrontier {
     last_tick: Option<u32>,
     scheduled: EventScheduler,
     pub(crate) hits: u64,
+    pub(crate) rebuilds: u64,
+    pub(crate) local_updates: u64,
 }
 
 impl RevealExpiryFrontier {
@@ -531,6 +533,7 @@ impl RevealExpiryFrontier {
                 continue;
             }
             changed = true;
+            self.local_updates = self.local_updates.saturating_add(1);
             if let Some(old) = prior.earliest() {
                 self.deadlines.remove(&(old, prior.id.clone()));
             }
@@ -547,6 +550,7 @@ impl RevealExpiryFrontier {
     }
 
     fn rebuild(&mut self, world: &WorldState) {
+        self.rebuilds = self.rebuilds.saturating_add(1);
         self.previous = Self::keys(world).collect();
         self.deadlines.clear();
         for key in &self.previous {
@@ -922,6 +926,47 @@ mod tests {
         support::set_int(&mut newcomer, "reveal_until", 12);
         world.entities.insert("b".into(), newcomer);
         assert!(!q.certify_no_expiration(&world, 12));
+    }
+
+    #[test]
+    fn reveal_timer_writes_reindex_only_changed_entities_and_keep_stable_deadlines() {
+        let mut world = WorldState::default();
+        for (id, deadline) in [("alpha", 9_i64), ("beta", 11), ("gamma", 15)] {
+            let mut unit = actor(100);
+            support::set_int(&mut unit, "reveal_attacker_until", deadline);
+            world.entities.insert(id.into(), unit);
+        }
+        let mut frontier = RevealExpiryFrontier::default();
+        assert!(frontier.certify_no_expiration(&world, 1));
+        assert_eq!((frontier.rebuilds, frontier.local_updates), (1, 0));
+        assert_eq!(frontier.deadlines.len(), 3);
+        assert_eq!(frontier.earliest_possible, 9);
+        support::set_int(world.entities.get_mut(&EntityId::from("alpha")).unwrap(),
+            "reveal_attacker_until", 12);
+        assert!(frontier.certify_no_expiration(&world, 2));
+        assert_eq!((frontier.rebuilds, frontier.local_updates), (1, 1));
+        assert_eq!(frontier.earliest_possible, 11,
+            "a later deadline cannot retain the old first event");
+        support::set_int(world.entities.get_mut(&EntityId::from("gamma")).unwrap(),
+            "reveal_until", 4);
+        assert!(frontier.certify_no_expiration(&world, 3));
+        assert_eq!(frontier.rebuilds, 1);
+        assert_eq!(frontier.earliest_possible, 4);
+        assert_eq!(frontier.deadlines.len(), 3,
+            "three reveal fields on one actor still need only one indexed deadline");
+        assert!(!frontier.certify_no_expiration(&world, 4),
+            "new earliest deadline must trigger canonical expiration");
+        support::set_int(world.entities.get_mut(&EntityId::from("gamma")).unwrap(),
+            "reveal_until", 0);
+        assert!(frontier.certify_no_expiration(&world, 5));
+        assert_eq!(frontier.earliest_possible, 11);
+        assert_eq!(frontier.rebuilds, 1, "timer-local writes do not rebuild every ID");
+        let mut new_actor = actor(100);
+        support::set_int(&mut new_actor, "reveal_until", 6);
+        world.entities.insert("new".into(), new_actor);
+        assert!(!frontier.certify_no_expiration(&world, 6));
+        assert_eq!(frontier.rebuilds, 2,
+            "structural membership invalidates the sorted read-set certificate");
     }
 
     #[test]
