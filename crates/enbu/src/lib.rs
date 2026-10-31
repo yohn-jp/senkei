@@ -373,7 +373,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
     // matches or authority boundaries. Every external Tick remains canonical.
     let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
     #[cfg(feature = "lab-opt-passive-lifecycle")]
-    let passive_lifecycle = plan.next.as_ref()
+    let mut passive_lifecycle = plan.next.as_ref()
         .map(next_combat::PassiveLifecyclePlan::compile);
     let mut reveal_frontier = execution::scheduler::RevealExpiryFrontier::default();
     #[cfg(feature = "lab-opt-movement-window")]
@@ -395,7 +395,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
         if let Some(next) = &plan.next {
             #[cfg(feature = "lab-opt-passive-lifecycle")]
             { objective_events = next_combat::objective_lifecycle_planned(
-                &mut world, next, tick, passive_lifecycle.as_ref().expect("Next passive plan"),
+                &mut world, next, tick, passive_lifecycle.as_mut().expect("Next passive plan"),
             ); }
             #[cfg(not(feature = "lab-opt-passive-lifecycle"))]
             { objective_events = next_combat::objective_lifecycle(&mut world, next, tick); }
