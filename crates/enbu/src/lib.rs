@@ -669,22 +669,26 @@ fn simulate_inner<P: TacticalExecutionPort>(
             &context.match_id,
             &projection_index,
         )?;
+        #[cfg(not(feature = "lab-opt-replay-fusion"))]
         let before_next = presentation_view(&world, plan);
         #[cfg(not(feature = "lab-opt-replay-fusion"))]
         let before_owner: BTreeMap<CombatantSide, senkei_model::WorldStateView> = plan.next.as_ref().map(|next| {
             sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
         }).unwrap_or_default();
         #[cfg(feature = "lab-opt-replay-fusion")]
-        let eager_before_owner = recent_next_events || world.entities.len() < 32;
-        // An exact frozen World is cheaper than two graph-aware projections
-        // on most quiet, nontrivial Ticks. If events unexpectedly appear,
-        // reconstruct both original owner views from this snapshot, before
-        // considering the event's visibility or owner-only details.
+        let eager_before_projection = recent_next_events || world.entities.len() < 32;
+        // Keep *one* exact precombat World only when both public and owner
+        // projections can be deferred. If this Tick emits events, reconstruct
+        // every precombat view from that original World, never the mutated one.
         #[cfg(feature = "lab-opt-replay-fusion")]
-        let before_owner_world = (!eager_before_owner && plan.next.is_some())
+        let before_projections_world = (!eager_before_projection && plan.next.is_some())
             .then(|| world.clone());
         #[cfg(feature = "lab-opt-replay-fusion")]
-        let before_owner = if eager_before_owner {
+        let before_next = if eager_before_projection && plan.next.is_some() {
+            Some(presentation_view(&world, plan))
+        } else { None };
+        #[cfg(feature = "lab-opt-replay-fusion")]
+        let before_owner = if eager_before_projection {
             plan.next.as_ref().map(|next| {
                 sides.into_iter().map(|side| (
                     side, next_vision::team_view(&world, next, side),
@@ -858,7 +862,7 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 None
             } else {
                 Some(before_owner.unwrap_or_else(|| {
-                    let original = before_owner_world.as_ref()
+                    let original = before_projections_world.as_ref()
                         .expect("deferred owner visibility requires exact frozen World");
                     let next = plan.next.as_ref().unwrap();
                     sides.into_iter().map(|side| (
@@ -943,9 +947,27 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 }
             }
             #[cfg(feature = "lab-opt-replay-fusion")]
+            let before_next = if next_events.is_empty() {
+                None
+            } else {
+                Some(before_next.unwrap_or_else(|| {
+                    let original = before_projections_world.as_ref()
+                        .expect("deferred public visibility requires exact frozen World");
+                    presentation_view(original, plan)
+                }))
+            };
+            #[cfg(feature = "lab-opt-replay-fusion")]
             { recent_next_events = !next_events.is_empty(); }
+            #[cfg(feature = "lab-opt-replay-fusion")]
+            let public_before = before_next.as_ref();
+            #[cfg(not(feature = "lab-opt-replay-fusion"))]
+            let public_before = Some(&before_next);
             public_events.extend(next_events.into_iter().filter_map(|event| {
-                project_next_public_event(event, &plan.presentation, &before_next, &replay_view)
+                project_next_public_event(
+                    event, &plan.presentation,
+                    public_before.expect("public Next event requires precombat projection"),
+                    &replay_view,
+                )
             }));
         }
         replay_frames.push(ReplayFrame {
