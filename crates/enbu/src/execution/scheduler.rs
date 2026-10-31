@@ -314,6 +314,25 @@ impl BasicAttackFrontier {
             { self.periodic = None; }
             return false;
         }
+        // Reuse the exact idle read-set before constructing a periodic plan.
+        // Never bypass a live periodic timeline: its due batch must be
+        // consumed and checked for a missed attack first.
+        if self.initialized
+            && self.last_tick.and_then(|at| at.checked_add(1)) == Some(tick)
+            && due.is_empty()
+            && (self.no_hostile_target || i64::from(tick) < self.earliest_possible)
+            && {
+                #[cfg(feature = "lab-opt-arithmetic")]
+                { self.periodic.is_none() }
+                #[cfg(not(feature = "lab-opt-arithmetic"))]
+                { true }
+            }
+            && self.still_valid(world)
+        {
+            self.hits += 1;
+            self.last_tick = Some(tick);
+            return true;
+        }
         // A mathematical periodic source plan is admitted only for this
         // specific calculation domain. A missed scheduled attack changes
         // attack_ready relative to the recurrence, revoking the plan on the
@@ -346,16 +365,6 @@ impl BasicAttackFrontier {
                     }
                 }
             }
-        }
-        if self.initialized
-            && self.last_tick.and_then(|at| at.checked_add(1)) == Some(tick)
-            && due.is_empty()
-            && (self.no_hostile_target || i64::from(tick) < self.earliest_possible)
-            && self.still_valid(world)
-        {
-            self.hits += 1;
-            self.last_tick = Some(tick);
-            return true;
         }
         self.misses += 1;
         // Replacing a certificate revokes all previously scheduled attacks
@@ -667,6 +676,29 @@ mod tests {
         // timeline stale; Tick 8 must fall back to normal attack selection.
         assert!(!frontier.certify_idle(&world, 8, false));
         assert!(frontier.periodic.is_none());
+    }
+
+    #[cfg(feature = "lab-opt-arithmetic")]
+    #[test]
+    fn cached_no_hostile_frontier_precedes_periodic_plan_construction() {
+        let mut world = WorldState::default();
+        for index in 0..40 {
+            world.entities.insert(format!("ally-{index:02}").into(), actor(1));
+        }
+        let mut frontier = BasicAttackFrontier::default();
+        assert!(frontier.certify_idle(&world, 1, false));
+        assert!(frontier.periodic.is_none());
+        let misses = frontier.misses;
+        for tick in 2..=32 {
+            assert!(frontier.certify_idle(&world, tick, false));
+            assert!(frontier.periodic.is_none());
+            assert_eq!(frontier.misses, misses);
+        }
+        let mut enemy = actor(100);
+        enemy.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut enemy, "attack", 0);
+        world.entities.insert("enemy".into(), enemy);
+        assert!(!frontier.certify_idle(&world, 33, false));
     }
 
     #[test]
