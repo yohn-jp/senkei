@@ -27,8 +27,91 @@ jobs:
       # A failed Enbu target must not prevent the independent Jinrei and ABI tests.
       - run: cargo test --workspace --release --locked --no-fail-fast
 
+  enbu-native-features:
+    name: Enbu Native regression / ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [core, arithmetic, world, hybrid]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Real Jinrei Enbu optimized behavioral regression
+        if: matrix.group == 'core'
+        run: |
+          cargo test --locked --release -p enbu --features lab-optimizations --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+      - name: Verify indexed route and batched visibility against real Jinrei gameplay
+        if: matrix.group == 'core'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-route,lab-opt-visibility --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-route,lab-opt-visibility --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+      - name: Verify Planned candidate kernel against real Jinrei gameplay
+        if: matrix.group == 'arithmetic'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-planned planned_candidates_are_reference_equivalent_for_combat_and_actor_traces -- --nocapture
+          cargo test --locked --release -p enbu --features lab-opt-planned --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-planned --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+      - name: Verify graph-local attack partition against real Next and owner traces
+        if: matrix.group == 'world'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-spatial --lib next_combat::tests::spatial_graph_partition_matches_reference_hits_and_owner_candidate_traces -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-spatial --lib next_navigation::tests::spatial_attack_hold_matches_reference_across_owners_nodes_and_reversed_edges -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-spatial --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-spatial --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+      - name: Arithmetic dispatcher differential and real Jinrei gameplay
+        if: matrix.group == 'arithmetic'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-arithmetic --lib
+          cargo test --locked --release -p enbu --features lab-opt-arithmetic --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-arithmetic --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-arithmetic,lab-opt-planned --lib
+      - name: Verify frozen snapshot reuse and combined Hybrid selectors
+        if: matrix.group == 'arithmetic'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-frozen --lib
+          cargo test --locked --release -p enbu --features lab-opt-frozen --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-frozen,lab-opt-arithmetic,lab-opt-planned --lib
+      - name: Verify exact fog-probe cache and state-dependent invalidation
+        if: matrix.group == 'world'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-fog-cache --lib
+          cargo test --locked --release -p enbu --features lab-opt-fog-cache --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache --lib
+      - name: Verify indexed current-Tick observations and dynamic visibility
+        if: matrix.group == 'world'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-observation --lib
+          cargo test --locked --release -p enbu --features lab-opt-observation --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-observation --lib
+      - name: Verify in-place movement and combat visibility frontier
+        if: matrix.group == 'world'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-frontier --lib
+          cargo test --locked --release -p enbu --features lab-opt-inplace --lib
+          cargo test --locked --release -p enbu --features lab-opt-inplace,lab-opt-frontier --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-inplace,lab-opt-frontier --lib
+      - name: Verify hybrid phase portfolio with independent Jinrei/canonical Replay
+        if: matrix.group == 'hybrid'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-replay-fusion --lib
+          cargo test --locked --release -p enbu --features lab-opt-replay-fusion --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-hybrid --lib
+          cargo test --locked --release -p enbu --features lab-opt-hybrid --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-hybrid --lib
+      - name: Verify exact temporal domain frontiers and canonical Tick obligations
+        if: matrix.group == 'hybrid'
+        run: |
+          cargo test --locked --release -p enbu --features lab-opt-scheduler --lib
+          cargo test --locked --release -p enbu --features lab-opt-scheduler --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
+          cargo test --locked --release -p enbu --features lab-opt-scheduler,lab-opt-hybrid --lib
+          cargo test --locked --release -p enbu --features lab-opt-scheduler,lab-opt-hybrid --test next_scenarios trial_targeting_is_individual_and_drives_normal_attacks -- --exact
+
   conformance:
     name: Native and real WebAssembly conformance
+    needs: browser-build
     runs-on: ubuntu-latest
     env:
       SENKEI_NATIVE_DISPATCHER: target/release/senkei-wasm-dispatch
@@ -36,17 +119,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install --yes lld
       - run: npm ci
-      - run: cargo build --locked --release --bin senkei-wasm-dispatch
-      - run: bash scripts/wasm/build.sh
+      # Use the exact tested production browser WASM and native dispatcher.
+      # Rebuilding here produced redundant WASM work and ambiguous provenance.
+      - uses: actions/download-artifact@v4
+        with:
+          name: integration-runtime-diagnostics
+          path: .
+      - name: Verify exact same-revision native/WASM inputs
+        run: |
+          test "$(cat target/integration-runtime/source-revision.txt)" = "$(git rev-parse HEAD)"
+          sha256sum --check target/integration-runtime/sha256.txt
+          test -s apps/web/public/wasm/senkei_wasm.wasm
+          chmod +x target/release/senkei-wasm-dispatch
       - name: Contract — generated scenario inputs are current
         run: node tests/conformance/generate-scenario-inputs.mjs --check
       - name: Determinism — native and real WebAssembly adapters
