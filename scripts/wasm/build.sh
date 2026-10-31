@@ -44,7 +44,23 @@ export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER="$(command -v wasm-ld)"
 # Explicit 'reference' remains the unoptimized control for certification.
 # Measured on the same revision: the G addition raised equal-case geometric\n# mean speedup from 1.012x (TCSRV) to 1.144x (TCSRVG), 7/7 exact\n# native full-response matches; Hybrid H/HS were slower and are not promoted.\n# Future promotions must come from full Native/WASM parity and total-time
 # measurements on the same immutable source revision.
-features="${SENKEI_WASM_FEATURES:-lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-replay-fusion}"
+# Exact production candidate selection from the one Enbu Rust source.
+# Explicit feature lists retain highest priority for CI matrix and diagnosis.
+# "hybrid" wires the complete currently implemented Rust Hybrid portfolio
+# together with the production feature baseline. It is opt-in until the
+# current-revision full-output Native/WASM promotion gates pass.
+base_features="lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-replay-fusion"
+case "${SENKEI_WASM_MODE:-production}" in
+  production) selected_features="$base_features" ;;
+  hybrid) selected_features="$base_features,lab-opt-hybrid" ;;
+  reference) selected_features="reference" ;;
+  *)
+    echo "Unknown SENKEI_WASM_MODE (expected production, hybrid, reference)" >&2
+    exit 1
+    ;;
+esac
+features="${SENKEI_WASM_FEATURES:-$selected_features}"
+echo "Enbu WASM mode: ${SENKEI_WASM_MODE:-production}; features: $features"
 if [[ "$features" == reference ]]; then
   cargo build --locked --release --target "$target" -p "$crate" --lib
 else
