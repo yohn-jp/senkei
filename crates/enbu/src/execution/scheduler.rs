@@ -357,6 +357,8 @@ impl BasicAttackFrontier {
         #[cfg(feature = "lab-opt-arithmetic")]
         {
             let had_periodic = self.periodic.is_some();
+            let reached_horizon = self.periodic.as_ref()
+                .is_some_and(|timeline| timeline.expired_at(tick));
             let cached = self.periodic.as_mut()
                 .and_then(|timeline| timeline.due(world, tick).map(|ids|
                     (ids, timeline.combatant_count())));
@@ -365,9 +367,24 @@ impl BasicAttackFrontier {
             }
             self.periodic = None;
             if had_periodic {
-                // A source clock no longer follows its certified recurrence.
-                // Do not re-admit a guessed schedule on this Tick: execute
-                // the canonical fallback and rebuild at a later boundary.
+                if reached_horizon && world.entities.len() >= 24 {
+                    // The previous window covered *every* Tick up to its
+                    // inclusive horizon. Compile a fresh exact current-World
+                    // certificate at the next boundary; no unproven Tick
+                    // or guessed source clock needs to be carried forward.
+                    if let Some(mut next) =
+                        crate::execution::arithmetic::CertifiedAttackTimeline::from_snapshot(world, tick)
+                    {
+                        if let Some(ids) = next.due(world, tick) {
+                            let count = next.combatant_count();
+                            self.periodic = Some(next);
+                            return self.periodic_decision(tick, ids, count);
+                        }
+                    }
+                }
+                // Structural or causal invalidation cannot be re-admitted
+                // speculatively. Execute Reference on this Tick; a later
+                // canonical boundary may rebuild the physical plan.
                 let _ = self.scheduled.invalidate_all();
                 self.initialized = false;
             } else if world.entities.len() >= 24 {
@@ -716,6 +733,37 @@ mod tests {
         support::set_int(&mut enemy, "attack", 0);
         world.entities.insert("enemy".into(), enemy);
         assert!(!frontier.certify_idle(&world, 33, false));
+    }
+
+    #[cfg(feature = "lab-opt-arithmetic")]
+    #[test]
+    fn periodic_128_tick_horizon_rolls_over_on_exact_next_boundary() {
+        let mut world = WorldState::default();
+        let mut source = actor(3);
+        support::set_int(&mut source, "attack_interval", 4);
+        world.entities.insert("source".into(), source);
+        for i in 0..32 {
+            let mut idle = actor(0);
+            support::set_int(&mut idle, "attack", 0);
+            world.entities.insert(format!("idle-{i:02}").into(), idle);
+        }
+        let mut victim = actor(0);
+        victim.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut victim, "attack", 0);
+        world.entities.insert("victim".into(), victim);
+        let mut f = BasicAttackFrontier::default();
+        for tick in 1_u32..=257 {
+            let idle = f.certify_idle(&world, tick, false);
+            let hit_due = tick >= 3 && (tick - 3) % 4 == 0;
+            assert_eq!(idle, !hit_due,
+                "periodic clock incorrectly skipped readiness at Tick {tick}");
+            if hit_due {
+                support::set_int(world.entities.get_mut(&EntityId::from("source")).unwrap(),
+                    "attack_ready", i64::from(tick) + 4);
+            }
+            assert!(f.certified_periodic_domains() > 0,
+                "certified window must recompile across Tick 129 and 257");
+        }
     }
 
     #[test]
