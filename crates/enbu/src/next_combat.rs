@@ -3301,14 +3301,14 @@ mod tests {
                 entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 0));
         }
         let no_unlock = skill_projection_snapshot(&world, &config);
-        assert!(matches!(no_unlock, std::borrow::Cow::Borrowed(_)),
+        assert!(matches!(&no_unlock, std::borrow::Cow::Borrowed(_)),
             "the path is already learned; no full World clone is necessary");
         drop(no_unlock);
         world.entities.get_mut(&EntityId::from("hero")).unwrap().fields.insert(
             "skills".into(), DomainValue::List(Vec::new()),
         );
         let projected = skill_projection_snapshot(&world, &config);
-        assert!(matches!(projected, std::borrow::Cow::Owned(_)),
+        assert!(matches!(&projected, std::borrow::Cow::Owned(_)),
             "level-eligible unlearned skill requires an exact projected World");
         let mut reference = world.clone();
         learn_path_skills(&mut reference, &config, &mut Vec::new());
