@@ -301,6 +301,10 @@ pub(crate) struct CertifiedAttackTimeline {
     // bounded recurrences remain certified and physically scheduled.
     clock_source_indices: Vec<usize>,
     uncertified: Vec<bool>,
+    // Only revoked source indices need live readiness checks. Retaining a
+    // separate dirty list avoids a second full O(N) combatant scan after
+    // the mandatory exact certificate revalidation on each Tick.
+    fallback_sources: Vec<usize>,
     // Stage the *candidate* due batches, not hits, HP or Replay. All
     // consequences still run in canonical order at their actual Tick.
     candidate_batches: Vec<DueBatch>,
@@ -367,6 +371,7 @@ impl CertifiedAttackTimeline {
         Some(Self {
             initial_tick: tick, last_tick: None, horizon_end,
             uncertified: vec![false; sources.len()],
+            fallback_sources: Vec::new(),
             sources, clock_source_indices, candidate_batches, next_batch: 0,
         })
     }
@@ -424,6 +429,7 @@ impl CertifiedAttackTimeline {
                 // current authoritative readiness allows a hit. Never reuse
                 // a guessed periodic clock after its causal read set changes.
                 self.uncertified[source_index] = true;
+                self.fallback_sources.push(source_index);
             }
         }
         if current.next().is_some() { return None; }
@@ -453,8 +459,8 @@ impl CertifiedAttackTimeline {
         // only those source candidates enter the original combat resolver.
         // Other sources continue to use the exact staged Scan/Heap/Bucket
         // schedule and do not pay for a global replan.
-        for (index, prior) in self.sources.iter().enumerate() {
-            if !self.uncertified[index] { continue; }
+        for &index in &self.fallback_sources {
+            let prior = &self.sources[index];
             let entity = world.entities.get(&prior.id)?;
             if support::int(entity, "hp") > 0
                 && support::int(entity, "attack") > 0
@@ -464,8 +470,13 @@ impl CertifiedAttackTimeline {
                 ids.push(prior.id.clone());
             }
         }
-        ids.sort();
-        ids.dedup();
+        if !self.fallback_sources.is_empty() {
+            // Heap/Scan/Bucket batches are already stable-sorted. A local
+            // Reference source may precede an indexed source in EntityId
+            // order, so merge-sort only when mixed strategies coexist.
+            ids.sort();
+            ids.dedup();
+        }
         self.last_tick = Some(tick);
         Some(ids)
     }
@@ -652,6 +663,8 @@ mod tests {
         set_ready(&mut world, "first", 6);
         assert_eq!(plan.due(&world, 6).unwrap(), vec![EntityId::from("first")]);
         assert!(plan.uncertified[0], "first clock proof must be revoked");
+        assert_eq!(plan.fallback_sources, vec![0],
+            "only the causally invalid source must be rechecked");
         assert!(!plan.uncertified[1], "independent clock must remain certified");
         set_ready(&mut world, "first", 10);
         for tick in 7..10 {
