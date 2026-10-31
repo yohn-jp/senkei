@@ -321,6 +321,93 @@ impl CertifiedAttackTimeline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use senkei_model::{CombatantSide, DomainValue, EntityState, EntityId, FieldId, WorldState};
+
+    fn timeline_actor(ready: i64, interval: i64, attack: i64) -> EntityState {
+        EntityState {
+            entity_type: "hero".into(),
+            owner: Some(CombatantSide::Attacker),
+            fields: [
+                (FieldId::from("hp"), DomainValue::Integer(100)),
+                (FieldId::from("attack_ready"), DomainValue::Integer(ready)),
+                (FieldId::from("attack_interval"), DomainValue::Integer(interval)),
+                (FieldId::from("attack"), DomainValue::Integer(attack)),
+                (FieldId::from("range"), DomainValue::Integer(40)),
+            ].into_iter().collect(),
+        }
+    }
+
+    fn set_ready(world: &mut WorldState, id: &str, value: i64) {
+        world.entities.get_mut(&EntityId::from(id)).unwrap()
+            .fields.insert("attack_ready".into(), DomainValue::Integer(value));
+    }
+
+    #[test]
+    fn periodic_timeline_reconstructs_due_boundaries_and_rejects_missed_hit() {
+        let mut world = WorldState::default();
+        world.entities.insert("source".into(), timeline_actor(3, 4, 11));
+        for n in 0..24 {
+            world.entities.insert(format!("idle-{n:02}").into(),
+                timeline_actor(0, 5, 0));
+        }
+        let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+        assert!(plan.due(&world, 1).unwrap().is_empty());
+        assert!(plan.due(&world, 2).unwrap().is_empty());
+        assert_eq!(plan.due(&world, 3).unwrap(),
+            vec![EntityId::from("source")]);
+        set_ready(&mut world, "source", 7);
+        for tick in 4..7 {
+            assert!(plan.due(&world, tick).unwrap().is_empty());
+        }
+        assert_eq!(plan.due(&world, 7).unwrap(),
+            vec![EntityId::from("source")]);
+        // A blocked attack at Tick 7 leaves attack_ready at 7. The
+        // speculative periodic interval is invalid on Tick 8, so the
+        // canonical resolver must inspect that ready actor again.
+        assert_eq!(plan.due(&world, 8), None);
+    }
+
+    #[test]
+    fn periodic_timeline_fails_closed_for_spawn_owner_and_interval_changes() {
+        for change in 0..5 {
+            let mut world = WorldState::default();
+            world.entities.insert("source".into(), timeline_actor(6, 4, 12));
+            let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 1).unwrap();
+            assert!(plan.due(&world, 1).unwrap().is_empty());
+            match change {
+                0 => { world.entities.insert("spawn".into(),
+                    timeline_actor(2, 1, 15)); }
+                1 => { world.entities.get_mut(&EntityId::from("source")).unwrap()
+                    .owner = Some(CombatantSide::Defender); }
+                2 => { world.entities.get_mut(&EntityId::from("source")).unwrap()
+                    .fields.insert("attack_interval".into(), DomainValue::Integer(2)); }
+                3 => { world.entities.get_mut(&EntityId::from("source")).unwrap()
+                    .fields.insert("attack_ready".into(), DomainValue::Integer(2)); }
+                _ => { world.entities.get_mut(&EntityId::from("source")).unwrap()
+                    .fields.insert("hp".into(), DomainValue::Integer(0)); }
+            }
+            assert_eq!(plan.due(&world, 2), None, "change={change}");
+        }
+    }
+
+    #[test]
+    fn periodic_timeline_clamps_existing_ready_clock_and_requires_sequential_ticks() {
+        let mut world = WorldState::default();
+        world.entities.insert("source".into(), timeline_actor(-50, 3, 20));
+        let mut plan = CertifiedAttackTimeline::from_snapshot(&world, 10).unwrap();
+        assert_eq!(plan.due(&world, 10).unwrap(), vec![EntityId::from("source")]);
+        set_ready(&mut world, "source", 13);
+        assert_eq!(plan.due(&world, 12), None, "jumping over Tick 11 is not eligible");
+        assert!(plan.due(&world, 11).unwrap().is_empty());
+        assert!(plan.due(&world, 12).unwrap().is_empty());
+        assert_eq!(plan.due(&world, 13).unwrap(), vec![EntityId::from("source")]);
+        // A valid but too-long interval is not coerced into a shorter one.
+        let mut invalid = WorldState::default();
+        invalid.entities.insert("source".into(),
+            timeline_actor(0, i64::from(u32::MAX) + 1, 20));
+        assert!(CertifiedAttackTimeline::from_snapshot(&invalid, 1).is_none());
+    }
+
 
     #[test]
     fn arithmetic_matches_reference_tick_enumeration_across_seeded_clocks() {
