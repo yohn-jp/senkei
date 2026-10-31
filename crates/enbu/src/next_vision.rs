@@ -1411,6 +1411,7 @@ mod tests {
         reference.entities.insert("hero".into(),
             hero(CombatantSide::Attacker, 0, 10));
         let mut current = reference.clone();
+        let lane_index = LaneWaypointIndex::compile(&rules);
         for tick in 1_u32..=48 {
             if tick == 11 || tick == 23 {
                 for world in [&mut reference, &mut current] {
@@ -1437,7 +1438,6 @@ mod tests {
                 }
             }
             refresh_minion_goals(&mut reference, &rules, false, None);
-            let lane_index = LaneWaypointIndex::compile(&rules);
             refresh_minion_goals(&mut current, &rules, true, Some(&lane_index));
             assert_eq!(current, reference,
                 "in-place minion goals differ from canonical at Tick {tick}");
