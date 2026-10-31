@@ -471,6 +471,13 @@ impl CertifiedAttackTimeline {
     }
 
     pub(crate) fn combatant_count(&self) -> usize { self.sources.len() }
+
+    /// Count still-certified periodic source clocks, excluding local
+    /// Reference-only domains. A zero count must decline this window.
+    pub(crate) fn certified_clock_count(&self) -> usize {
+        self.clock_source_indices.iter()
+            .filter(|&&index| !self.uncertified[index]).count()
+    }
 }
 
 #[cfg(test)]
