@@ -115,6 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SENKEI_NATIVE_DISPATCHER: target/release/senkei-wasm-dispatch
+      SENKEI_WASM_PATH: ${{ github.workspace }}/apps/web/public/wasm/senkei_wasm.wasm
       NEXT_STRATEGIC_REPORT: target/next-balance/strategic-measurements.json
     steps:
       - uses: actions/checkout@v4
