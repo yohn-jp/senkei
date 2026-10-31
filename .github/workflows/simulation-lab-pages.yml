@@ -89,9 +89,7 @@ jobs:
           # Production build.sh is deliberately optimized; keep its immutable
           # provenance separately. 000 must remain the actual Reference binary,
           # not the newly promoted production feature set.
-          cp apps/web/public/wasm/senkei_wasm.wasm target/simulation-lab/senkei_wasm_production.wasm
-          cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib
-          cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm target/simulation-lab/senkei_wasm_000.wasm
+          # Reference and both production baselines were built by the preceding step.
           for mask in 001 010 011 100 101 110 111; do
             value=$((2#$mask))
             features=()
@@ -106,7 +104,7 @@ jobs:
           done
           # Real production Enbu algorithm candidates adapted from TS Lab:
           # indexed route planning and batched visibility, individually and together.
-          for choice in R V RV TCSRV P A F FPA G TCSRVG Y TCSRVGY O TCSRVGO I B TCSRVIB H TCSRVH S TCSRVS TCSRVHS W TCSRVGW X TCSRVGX TCSRVGAS TCSRVGH; do
+          for choice in R V RV TCSRV P A F FPA G Y O TCSRVGO I B TCSRVIB H TCSRVH S TCSRVS TCSRVHS W TCSRVGW X TCSRVGX TCSRVGAS TCSRVGH; do
             case "$choice" in
               R) flags=lab-opt-route ;;
               V) flags=lab-opt-visibility ;;
@@ -150,7 +148,7 @@ jobs:
       - name: Verify production WASM is exactly the tested TCSRVGY replay-fusion build
         run: |
           cmp target/simulation-lab/senkei_wasm_production.wasm target/simulation-lab/senkei_wasm_TCSRVGY.wasm
-          # This verification-only binary must not enter the 35-variant
+          # This verification-only binary must not enter the published
           # senkei_wasm_*.wasm publishing glob.
           rm target/simulation-lab/senkei_wasm_production.wasm
       - name: Stamp immutable fixture provenance
@@ -172,7 +170,7 @@ jobs:
           data['revision'] = os.environ['REVISION']
           path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False))
           PY
-      - name: Stamp all thirty-six immutable WASM hashes and sizes
+      - name: Stamp hashes and sizes for exactly the published WASM portfolio
         env:
           REVISION: ${{ github.sha }}
         run: |
