@@ -41,7 +41,7 @@ lab-opt-inplace = []
 # PR #71: lazy frozen target visibility for movement and combat selection.
 lab-opt-frontier = []
 # Adaptive phase-scoped portfolio: no global Tick skipping, cost-gated P/A.
-lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier", "lab-opt-scheduler", "lab-opt-movement-window", "lab-opt-passive-lifecycle", "lab-opt-frozen", "lab-opt-spatial", "lab-opt-observation"]
+lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier", "lab-opt-scheduler", "lab-opt-movement-window", "lab-opt-passive-lifecycle", "lab-opt-frozen", "lab-opt-spatial", "lab-opt-observation", "lab-opt-replay-fusion"]
 # Revalidate an exact combat-domain clock certificate across canonical Ticks.
 lab-opt-scheduler = []
 # Cross-Tick dependency-certified movement Active Set, preserves every Tick.
@@ -49,5 +49,7 @@ lab-opt-movement-window = []
 # Compile immutable passive definitions once; retain current-World skill and
 # generation reads, canonical respawns and identical public/owner outputs.
 lab-opt-passive-lifecycle = []
+# Reuse exact owner visibility membership for public Replay without leaking private fields.
+lab-opt-replay-fusion = ["lab-opt-visibility"]
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]
