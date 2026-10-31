@@ -144,6 +144,30 @@ try {
   await writeFile(resolve(output, 'arithmetic-candidate-production-comparison.json'),
     JSON.stringify(arithmeticReport, null, 2));
   console.log('PASS: real Chromium UI verified periodic Arithmetic candidate WASM variant');
+  // A real user-visible unified-Hybrid comparison. The published Worker
+  // checks every exact Native golden response before returning a measured row.
+  await page.locator('#enbu-case').selectOption('next-behavior-16');
+  await page.locator('#enbu-variant').selectOption('TCSRVGH');
+  await page.locator('#enbu-run').click();
+  await expect(page.locator('#enbu-status'))
+    .toContainText('検証成功', { timeout: 120_000 });
+  const hybridReport = JSON.parse(await page.locator('#enbu-report').inputValue());
+  assert.equal(hybridReport.source_revision, build.revision);
+  assert.equal(hybridReport.cases[0].id, 'next-behavior-16');
+  assert.deepEqual(hybridReport.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGH']);
+  assert.equal(await page.locator('#enbu-results tr').count(), 3);
+  assert.ok(hybridReport.rows.every(row => row.verified && row.samples === 3));
+  assert.ok(hybridReport.rows.every(row => row.incumbent_speedup &&
+    Number.isFinite(row.incumbent_speedup.median_ratio)));
+  assert.deepEqual(errors, [], 'Unified Hybrid UI must not raise page errors');
+  await page.screenshot({
+    path: resolve(output, 'hybrid-production-comparison-1440.png'), fullPage: true,
+  });
+  await writeFile(resolve(output, 'hybrid-production-comparison.json'),
+    JSON.stringify(hybridReport, null, 2));
+  console.log('PASS: real Chromium UI verifies current full-Hybrid production candidate');
+
 
 
 } finally {
