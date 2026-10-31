@@ -2254,6 +2254,15 @@ mod tests {
                 world.entities.insert(id(&format!("actor-{n:02}")), hero);
             }
             let index = NavigationCohorts::new(&world);
+            for side in [CombatantSide::Attacker, CombatantSide::Defender] {
+                for actor in world.entities.values() {
+                    assert_eq!(
+                        crate::next_vision::minion_vision(&world, &config, side, actor),
+                        index.minion_vision(side, actor, &config),
+                        "preclassified minion vision changed owner/Fog rules for seed={seed}",
+                    );
+                }
+            }
             for (actor_id, actor) in &world.entities {
                 if actor.entity_type.as_str() != "hero" { continue; }
                 assert_eq!(hero_cohort(actor_id, actor, &world),
