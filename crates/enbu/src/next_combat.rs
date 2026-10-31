@@ -815,31 +815,6 @@ fn collect_basic_attacks_with_execution(
     let mut visibility_index: Option<CombatVisibilityIndex> = None;
     #[cfg(feature = "lab-opt-cohort")]
     let cohort_states = std::cell::OnceCell::new();
-    #[cfg(feature = "lab-opt-cohort")]
-    let grouped_cohorts = || {
-        // Build only when the first living grouped Hero actually enters
-        // attack selection. Dormant windows and tower-only phases pay zero
-        // cohort classification. Squad keys borrow this immutable P7 World;
-        // no per-Hero String allocation or cross-Tick ownership escapes.
-        let mut grouped = BTreeMap::<(Option<CombatantSide>, &str), (bool, i64)>::new();
-        for (member_id, member) in &start.entities {
-            if member.entity_type.as_str() != "hero" || !support::alive(member) {
-                continue;
-            }
-            let squad = support::string_ref(member, "squad");
-            if squad.is_empty() { continue; }
-            let state = grouped.entry((member.owner, squad)).or_insert((false, i64::MIN));
-            let current = world.entities.get(member_id);
-            state.0 |= current.is_some_and(|entity| {
-                support::int(entity, "moved_tick") == i64::from(tick).saturating_add(1)
-            });
-            let current_lock = current.map(|entity|
-                support::int(entity, "action_lock_until")).unwrap_or_default();
-            state.1 = state.1.max(current_lock.max(
-                support::int(member, "action_lock_until")));
-        }
-        grouped
-    };
     for (source_id, source) in sources {
         if !support::alive(source) || !is_combatant(source) {
             continue;
@@ -863,7 +838,30 @@ fn collect_basic_attacks_with_execution(
                 // World locks are not written until all basic attacks are
                 // selected. The lazy index is therefore one exact snapshot
                 // even if its first consumer comes late in source-ID order.
-                *cohort_states.get_or_init(&grouped_cohorts)
+                *cohort_states.get_or_init(|| {
+        // Build only when the first living grouped Hero actually enters
+        // attack selection. Dormant windows and tower-only phases pay zero
+        // cohort classification. Squad keys borrow this immutable P7 World;
+        // no per-Hero String allocation or cross-Tick ownership escapes.
+        let mut grouped = BTreeMap::<(Option<CombatantSide>, &str), (bool, i64)>::new();
+        for (member_id, member) in &start.entities {
+            if member.entity_type.as_str() != "hero" || !support::alive(member) {
+                continue;
+            }
+            let squad = support::string_ref(member, "squad");
+            if squad.is_empty() { continue; }
+            let state = grouped.entry((member.owner, squad)).or_insert((false, i64::MIN));
+            let current = world.entities.get(member_id);
+            state.0 |= current.is_some_and(|entity| {
+                support::int(entity, "moved_tick") == i64::from(tick).saturating_add(1)
+            });
+            let current_lock = current.map(|entity|
+                support::int(entity, "action_lock_until")).unwrap_or_default();
+            state.1 = state.1.max(current_lock.max(
+                support::int(member, "action_lock_until")));
+        }
+        grouped
+})
                     .get(&(source.owner, squad))
                     .expect("live hero belongs to its own indexed squad")
             } else {
