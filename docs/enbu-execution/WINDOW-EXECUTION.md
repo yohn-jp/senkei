@@ -164,7 +164,9 @@ the certificate. P1/P5/Skill rewrites, new combatants, death and interval
 changes likewise revoke it before reuse. Nonlethal HP changes to an attack
 source preserve a certified recurrence because the attack-readiness predicate
 only depends on whether it is alive; a crossing of the alive/dead boundary
-revokes the certificate. Damage to a permanently nonattacking target does
+revokes the certificate. The simpler `BasicAttackFrontier` readiness
+certificate uses the same liveness proof, avoiding unnecessary replanning
+when an otherwise idle living actor loses HP. Damage to a permanently nonattacking target does
 not invalidate source readiness. A match with no pair of hostile living
 combatants uses the cheaper exact no-hostile-target frontier rather than
 staging periodic hits that cannot commit.

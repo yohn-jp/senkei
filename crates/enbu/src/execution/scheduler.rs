@@ -275,7 +275,11 @@ impl BasicAttackFrontier {
         self.read_set.iter().all(|prior| current.next().is_some_and(|(id, actor)| {
             &prior.id == id
                 && prior.owner == actor.owner
-                && prior.hp == support::int(actor, "hp")
+                // Basic attack readiness reads only whether HP is positive.
+                // Retain idle/sparse certificates across nonlethal damage;
+                // death, resurrection, attack clocks and membership still
+                // trigger an exact fallback before any skipped selection.
+                && (prior.hp > 0) == (support::int(actor, "hp") > 0)
                 && prior.ready == support::int(actor, "attack_ready")
                 && prior.attack == support::int(actor, "attack")
                 && prior.range == support::int(actor, "range")
@@ -663,6 +667,36 @@ mod tests {
         // timeline stale; Tick 8 must fall back to normal attack selection.
         assert!(!frontier.certify_idle(&world, 8, false));
         assert!(frontier.periodic.is_none());
+    }
+
+    #[test]
+    fn attack_readset_reuses_nonlethal_hp_changes_but_rechecks_liveness() {
+        let mut world = WorldState::default();
+        world.entities.insert("hero".into(), actor(30));
+        let mut enemy = actor(30);
+        enemy.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut enemy, "attack", 0);
+        world.entities.insert("enemy".into(), enemy);
+        let mut frontier = BasicAttackFrontier::default();
+        assert!(frontier.certify_idle(&world, 1, false));
+        let misses = frontier.misses;
+        for (tick, hp) in [(2, 75), (3, 10)] {
+            support::set_int(world.entities.get_mut(&EntityId::from("hero")).unwrap(),
+                "hp", hp);
+            assert!(frontier.certify_idle(&world, tick, false));
+            assert_eq!(frontier.misses, misses,
+                "nonlethal damage should retain the original deadline");
+        }
+        support::set_int(world.entities.get_mut(&EntityId::from("hero")).unwrap(),
+            "hp", 0);
+        assert!(frontier.certify_idle(&world, 4, false));
+        assert_eq!(frontier.misses, misses + 1,
+            "death must invalidate the certified source eligibility");
+        support::set_int(world.entities.get_mut(&EntityId::from("hero")).unwrap(),
+            "hp", 10);
+        assert!(frontier.certify_idle(&world, 5, false));
+        assert_eq!(frontier.misses, misses + 2,
+            "resurrection must also invalidate the read set");
     }
 
     #[test]
