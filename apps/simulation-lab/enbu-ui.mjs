@@ -28,6 +28,7 @@ function addRow(row) {
     row.stats.median_ms.toFixed(2), row.wasm_dispatch_ms.toFixed(2),
     row.stats.p95_ms.toFixed(2), row.speedup.median_ratio.toFixed(3) + '×',
     row.incumbent_speedup ? row.incumbent_speedup.median_ratio.toFixed(3) + '×' : '—',
+    row.production_speedup ? row.production_speedup.median_ratio.toFixed(3) + '×' : '—',
     (row.wasm_bytes / 1024).toFixed(0), (row.memory_bytes / 1048576).toFixed(1),
     row.verified ? 'PASS' : 'FAIL',
   ];
@@ -39,7 +40,7 @@ function addRow(row) {
   }
   byId('enbu-results').append(tr);
 }
-function showRanking(ranking, cases, incumbentRanking = []) {
+function showRanking(ranking, cases, incumbentRanking = [], productionRanking = []) {
   const list = byId('enbu-ranking');
   list.replaceChildren();
   for (const ranked of ranking) {
@@ -57,10 +58,15 @@ function showRanking(ranking, cases, incumbentRanking = []) {
   const compared = experiments.map(candidate =>
     candidate.id + ': 旧本番比 ' + candidate.aggregate_ratio.toFixed(3) +
     '× / 最悪 ' + candidate.worst_ratio.toFixed(3) + '×').join(' · ');
+  const current = productionRanking?.find(candidate => candidate.id === 'TCSRVGH');
+  const productionComparison = current
+    ? '現行本番TCSRVGY比：Hybrid ' + current.aggregate_ratio.toFixed(3) +
+      '× / 最悪 ' + current.worst_ratio.toFixed(3) + '×。'
+    : '';
   byId('enbu-ranking-note').textContent =
     cases.length + '条件の同重み幾何平均。順位はReference 000比。' +
     (compared ? '旧本番TCSRVGとの比較：' + compared + '。' : '') +
-    '数%差は測定ノイズを含むため別端末で再測定が必要です。';
+    productionComparison + '数%差は測定ノイズを含むため別端末で再測定が必要です。';
 }
 function showEffects(effects) {
   const list = byId('enbu-effects');
@@ -104,7 +110,8 @@ function run(event) {
     if (data.type === 'complete') {
       report = data.report;
       byId('enbu-report').value = JSON.stringify(report, null, 2);
-      showRanking(report.ranking, report.cases, report.incumbent_ranking);
+      showRanking(report.ranking, report.cases, report.incumbent_ranking,
+        report.production_ranking);
       showEffects(report.effects);
       finish('検証成功: ' + report.cases.length +
         '条件・' + Object.keys(report.loads).length +
