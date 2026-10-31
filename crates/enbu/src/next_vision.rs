@@ -1160,7 +1160,7 @@ mod tests {
             visible_events: BTreeMap::new(),
             visible_entity_fields: BTreeMap::from([(
                 TypeId::from("hero"),
-                ["hp", "max_hp", "node", "vision", "xp"]
+                ["hp", "max_hp", "node", "vision", "xp", "capture_contested"]
                     .into_iter().map(FieldId::from).collect::<BTreeSet<_>>(),
             )]),
             visible_global_fields: BTreeSet::new(),
@@ -1183,8 +1183,17 @@ mod tests {
                 5 => { world.entities.remove(&EntityId::from("d")); },
                 _ => {},
             }
-            let view_a = team_view_with_fog(&world, &rules, CombatantSide::Attacker, tick, &mut fog_a);
-            let view_d = team_view_with_fog(&world, &rules, CombatantSide::Defender, tick, &mut fog_d);
+            let mut view_a = team_view_with_fog(&world, &rules, CombatantSide::Attacker, tick, &mut fog_a);
+            let mut view_d = team_view_with_fog(&world, &rules, CombatantSide::Defender, tick, &mut fog_d);
+            // Contest-only facts can appear in authorized owner frames.
+            // They must not enter the public projection merely because a
+            // presentation policy knows that field name: the match runner
+            // adds them only when *both* sides observed the contest.
+            for view in [&mut view_a, &mut view_d] {
+                for entity in view.entities.values_mut() {
+                    entity.fields.insert("capture_contested".into(), DomainValue::Bool(true));
+                }
+            }
             let expected = public_view_with_policy(&world, &rules, &policy);
             let actual = public_view_with_policy_from_owners(
                 &world, &rules, &policy, &view_a, &view_d,
