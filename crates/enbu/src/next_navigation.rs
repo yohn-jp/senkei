@@ -2155,6 +2155,58 @@ mod tests {
     }
 
     #[test]
+    fn shared_squad_intent_matches_uncached_authoritative_navigation_each_tick() {
+        let config = rules(test_map(vec![
+            edge("a", "b", 200, "lane", false),
+            edge("b", "c", 160, "jungle", false),
+            edge("a", "d", 190, "forest", false),
+            edge("d", "c", 110, "lane", false),
+        ]));
+        let mut optimized = WorldState::default();
+        for n in 0_u32..36 {
+            let side = if n % 2 == 0 {
+                Some(CombatantSide::Attacker)
+            } else {
+                Some(CombatantSide::Defender)
+            };
+            let mut hero = entity("hero", side, 30 + i64::from(n % 7),
+                if n % 5 == 0 { "b" } else { "a" }, "c");
+            set_string(&mut hero, "squad", if n % 3 == 0 { "alpha" }
+                else if n % 3 == 1 { "beta" } else { "gamma" });
+            set_string(&mut hero, "track", "LEFT");
+            if n % 11 == 0 { set_int(&mut hero, "hp", 0); }
+            if n % 10 == 0 { set_int(&mut hero, "action_lock_until", 5); }
+            optimized.entities.insert(id(&format!("hero-{n:02}")), hero);
+        }
+        let mut reference = optimized.clone();
+        for tick in 1_u32..=15 {
+            // Invalidate the cached cohort grouping and its leader on
+            // subsequent Ticks, never by mutating the frozen same-Tick input.
+            for world in [&mut reference, &mut optimized] {
+                if tick == 5 {
+                    set_int(world.entities.get_mut(&id("hero-03")).unwrap(), "hp", 0);
+                    set_string(world.entities.get_mut(&id("hero-06")).unwrap(),
+                        "squad", "gamma");
+                }
+                if tick == 9 {
+                    set_string(world.entities.get_mut(&id("hero-00")).unwrap(),
+                        "goal", "d");
+                    world.entities.insert(id("hero-new"), entity(
+                        "hero", Some(CombatantSide::Attacker), 17, "a", "c"));
+                }
+            }
+            let authoritative = reference.clone();
+            let candidate = optimized.clone();
+            advance_inner_with_window(&mut reference, &authoritative,
+                &config, tick, None, true, None, false);
+            advance_inner_with_window(&mut optimized, &candidate,
+                &config, tick, None, true, None, true);
+            assert_eq!(optimized, reference,
+                "same-Tick squad-intent sharing diverged on Tick {tick}");
+        }
+    }
+
+    #[test]
     fn indexed_navigation_cohorts_preserve_full_source_selection_and_mobility() {
         // Differential proof over the actual P7 algorithms, not a separately
         // reimplemented squad-movement model. Side, Squad, alive status and
