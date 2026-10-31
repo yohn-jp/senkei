@@ -2485,7 +2485,7 @@ mod tests {
             advance_inner_with_mode(&mut reference, &ref_snapshot, &config, tick, None, false);
             advance_inner_with_window(
                 &mut accelerated, &fast_snapshot, &config, tick,
-                None, false, Some(&mut window),
+                None, false, Some(&mut window), true,
             );
             assert_eq!(accelerated, reference, "MovementWindow diverged at Tick {tick}");
         }
