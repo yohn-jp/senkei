@@ -156,28 +156,41 @@ impl PassiveLifecyclePlan {
             if hero.entity_type.as_str() != "hero" || !support::alive(hero) { continue; }
             // Exact borrowed catalog lookup; no per-Hero/Tick string clone.
             let catalog = support::string_ref(hero, "catalog_id");
-            let mut haste = 0_i64;
-            let mut slow = 0_i64;
+            let needs_haste = support::int(hero, "haste_until") <= i64::from(tick);
+            let needs_slow = support::int(hero, "slow_until") <= i64::from(tick);
             let needs_shield = support::int(hero, "life_generation")
                 != support::int(hero, "passive_generation");
+            // Persistent passive clocks are mathematical no-work guards.
+            // Never rebuild the learned skill set or inspect rule definitions
+            // while all relevant timers and life generations remain valid.
+            if !needs_haste && !needs_slow && !needs_shield { continue; }
+            let mut haste = 0_i64;
+            let mut slow = 0_i64;
             let mut shield = 0_i64;
             if let Some(skills) = self.by_catalog.get(catalog) {
                 for (id, effect, power) in skills {
-                    if !self.learned(hero, id) { continue; }
+                    // Do not even read learned-skill membership when this
+                    // passive family has no due time or generation change.
+                    let due = match effect {
+                        SkillEffect::Haste => needs_haste,
+                        SkillEffect::Slow => needs_slow,
+                        SkillEffect::Shield => needs_shield,
+                        _ => false,
+                    };
+                    if !due || !self.learned(hero, id) { continue; }
                     match effect {
                         SkillEffect::Haste => haste = haste.max(*power),
                         SkillEffect::Slow => slow = slow.max(*power),
-                        SkillEffect::Shield if needs_shield =>
-                            shield = shield.saturating_add(*power),
+                        SkillEffect::Shield => shield = shield.saturating_add(*power),
                         _ => {}
                     }
                 }
             }
-            if haste > 0 && support::int(hero, "haste_until") <= i64::from(tick) {
+            if haste > 0 {
                 support::set_int(hero, "haste", haste);
                 support::set_int(hero, "haste_until", self.permanent_until);
             }
-            if slow > 0 && support::int(hero, "slow_until") <= i64::from(tick) {
+            if slow > 0 {
                 support::set_int(hero, "slow", slow);
                 support::set_int(hero, "slow_until", self.permanent_until);
             }
