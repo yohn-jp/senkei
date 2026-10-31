@@ -363,7 +363,7 @@ pub(crate) fn resolve_from_snapshot_scheduled(
 /// the original World is an exact proof of the projected snapshot and can be
 /// borrowed throughout Skill reservation/legality checks. The full cloned
 /// Reference projection remains available whenever a mutation is possible.
-fn skill_projection_snapshot<'a>(
+pub(crate) fn skill_projection_snapshot<'a>(
     snapshot: &'a WorldState, rules: &NextRules,
 ) -> std::borrow::Cow<'a, WorldState> {
     #[cfg(feature = "lab-opt-frozen")]
@@ -444,7 +444,22 @@ pub(crate) fn eligible_explicit_skill(
     }
     let Some(actor_id) = intent.actor.as_ref() else { return false };
     let eligible_snapshot = skill_projection_snapshot(snapshot, rules);
-    active_skill_target(intent, side, &eligible_snapshot, rules, tick).is_some()
+    eligible_explicit_skill_preprojected(
+        intent, side, snapshot, &eligible_snapshot, rules, tick,
+    )
+}
+
+/// Reuse a single exact Skill projection across all explicit activation
+/// candidates in the same immutable P5 World. The unprojected source state
+/// remains authoritative for forced transit, cohort locks and movement.
+pub(crate) fn eligible_explicit_skill_preprojected(
+    intent: &Intent, side: CombatantSide, snapshot: &WorldState,
+    eligible_snapshot: &WorldState, rules: &NextRules, tick: u32,
+) -> bool {
+    let capability = intent.capability.as_str();
+    if capability != "activate" && !capability.ends_with(".activate") { return false; }
+    let Some(actor_id) = intent.actor.as_ref() else { return false };
+    active_skill_target(intent, side, eligible_snapshot, rules, tick).is_some()
         && !cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
             .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot)))
         && cohort_action_lock_until(snapshot, snapshot, actor_id) <= i64::from(tick)
