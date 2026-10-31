@@ -1989,6 +1989,49 @@ mod tests {
         assert!(saw_attack, "test must execute actual basic attacks");
     }
 
+    #[cfg(all(feature = "lab-opt-arithmetic", feature = "lab-opt-scheduler"))]
+    #[test]
+    fn heap_and_bucket_periodic_kernels_match_actual_next_combat_artifacts() {
+        let config = rules();
+        for interval in [2_i64, 200_i64] {
+            let mut reference = WorldState::default();
+            for n in 0..36 {
+                let mut attacker = entity(
+                    "hero", Some(CombatantSide::Attacker), 0, 100, 9, 100,
+                );
+                support::set_int(&mut attacker, "attack_interval", interval);
+                support::set_int(&mut attacker, "attack_ready", 2);
+                reference.entities.insert(format!("attacker-{n:02}").into(), attacker);
+            }
+            reference.entities.insert("target".into(), entity(
+                "tower", Some(CombatantSide::Defender), 0, 1_000_000, 0, 100,
+            ));
+            let mut planned = reference.clone();
+            let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+            let mut hits = 0_usize;
+            for tick in 1_u32..=16 {
+                let frozen_reference = reference.clone();
+                let frozen_planned = planned.clone();
+                let expected = resolve_from_snapshot(
+                    &mut reference, &frozen_reference, &config, &[], tick,
+                );
+                let actual = resolve_from_snapshot_scheduled(
+                    &mut planned, &frozen_planned, &config, &[], tick,
+                    &mut frontier, None,
+                );
+                hits += expected.iter().filter(|event|
+                    event.event.as_str() == "next.attack").count();
+                assert_eq!(actual, expected,
+                    "queued attack events differ at interval {interval}, Tick {tick}");
+                assert_eq!(planned, reference,
+                    "queued attack World differs at interval {interval}, Tick {tick}");
+            }
+            assert!(hits > 0, "fixture must commit real attacks");
+            assert!(frontier.hits > 0,
+                "fixture must reach an actual certified no-due Tick");
+        }
+    }
+
     fn stats(hp: i64, attack: i64, defense: i64, range: i64) -> UnitStats {
         UnitStats {
             hp,
