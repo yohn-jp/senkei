@@ -1801,6 +1801,59 @@ fn event(name: &str, entity: Option<EntityId>, payload: BTreeMap<FieldId, Domain
 mod tests {
     use super::*;
 
+    #[cfg(all(feature = "lab-opt-arithmetic", feature = "lab-opt-scheduler"))]
+    #[test]
+    fn periodic_arithmetic_matches_real_next_combat_world_and_events_across_fallbacks() {
+        let config = rules();
+        let mut reference = WorldState::default();
+        let mut source = entity("hero", Some(CombatantSide::Attacker), 0, 100, 12, 100);
+        support::set_int(&mut source, "attack_interval", 4);
+        support::set_int(&mut source, "attack_ready", 3);
+        reference.entities.insert("source".into(), source);
+        reference.entities.insert("victim".into(),
+            entity("hero", Some(CombatantSide::Defender), 0, 1_000, 0, 100));
+        // A large dormant allied source set makes only the actual periodic
+        // actor eligible for the sparse path; no invalid target is introduced.
+        for n in 0..40 {
+            reference.entities.insert(format!("inactive-{n:02}").into(),
+                entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 100));
+        }
+        let mut planned = reference.clone();
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+        let mut saw_attack = false;
+        for tick in 1_u32..=24 {
+            for world in [&mut reference, &mut planned] {
+                if tick == 11 {
+                    support::set_int(world.entities.get_mut(&EntityId::from("source")).unwrap(),
+                        "attack_interval", 2);
+                }
+                if tick == 15 {
+                    world.entities.insert("new-target".into(),
+                        entity("hero", Some(CombatantSide::Defender), 0, 100, 0, 100));
+                }
+                if tick == 19 {
+                    let source = world.entities.get_mut(&EntityId::from("source")).unwrap();
+                    support::set_int(source, "action_lock_until", 21);
+                }
+            }
+            let reference_snapshot = reference.clone();
+            let planned_snapshot = planned.clone();
+            let events_ref = resolve_from_snapshot(
+                &mut reference, &reference_snapshot, &config, &[], tick,
+            );
+            let events_planned = resolve_from_snapshot_scheduled(
+                &mut planned, &planned_snapshot, &config, &[], tick,
+                &mut frontier, None,
+            );
+            saw_attack |= events_ref.iter().any(|event| event.event_type == "next.attack");
+            assert_eq!(events_planned, events_ref,
+                "periodic candidate batch changed an event at Tick {tick}");
+            assert_eq!(planned, reference,
+                "periodic candidate batch changed committed World at Tick {tick}");
+        }
+        assert!(saw_attack, "test must execute actual basic attacks");
+    }
+
     fn stats(hp: i64, attack: i64, defense: i64, range: i64) -> UnitStats {
         UnitStats {
             hp,
