@@ -474,9 +474,20 @@ struct RevealKey {
     general_until: i64,
 }
 
+impl RevealKey {
+    /// The earliest possible canonical reveal-expiration write for this
+    /// entity. One deadline per ID is sufficient even when multiple reveal
+    /// fields share the same time: no field is suppressed by this index.
+    fn earliest(&self) -> Option<i64> {
+        [self.attacker_until, self.defender_until, self.general_until]
+            .into_iter().filter(|deadline| *deadline > 0).min()
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct RevealExpiryFrontier {
     previous: Vec<RevealKey>,
+    deadlines: BTreeSet<(i64, EntityId)>,
     earliest_possible: i64,
     initialized: bool,
     last_tick: Option<u32>,
@@ -490,6 +501,7 @@ impl RevealExpiryFrontier {
         self.initialized = false;
         self.last_tick = Some(tick);
         self.previous.clear();
+        self.deadlines.clear();
     }
 
     fn keys(world: &WorldState) -> impl Iterator<Item = RevealKey> + '_ {
@@ -501,17 +513,49 @@ impl RevealExpiryFrontier {
         })
     }
 
-    fn valid(&self, world: &WorldState) -> bool {
-        // Reveal certificates include every entity, including noncombatants.
-        // Compare borrowed fields in the canonical BTreeMap order; avoid
-        // cloning every EntityId simply to revalidate an unchanged Tick.
-        let mut current = world.entities.iter();
-        self.previous.iter().all(|prior| current.next().is_some_and(|(id, entity)| {
-            &prior.id == id
-                && prior.attacker_until == support::int(entity, "reveal_attacker_until")
-                && prior.defender_until == support::int(entity, "reveal_defender_until")
-                && prior.general_until == support::int(entity, "reveal_until")
-        })) && current.next().is_none()
+    /// Incrementally reconcile an exact sorted current-World read set.
+    /// A changed deadline updates only that entity's indexed boundary,
+    /// instead of rebuilding every EntityId and timer record. Structural
+    /// edits decline this local path and request a full, safe rebuild.
+    fn reconcile(&mut self, world: &WorldState) -> Option<bool> {
+        if self.previous.len() != world.entities.len() { return None; }
+        let mut changed = false;
+        for (prior, (id, entity)) in self.previous.iter_mut().zip(&world.entities) {
+            if &prior.id != id { return None; }
+            let attacker_until = support::int(entity, "reveal_attacker_until");
+            let defender_until = support::int(entity, "reveal_defender_until");
+            let general_until = support::int(entity, "reveal_until");
+            if (prior.attacker_until, prior.defender_until, prior.general_until)
+                == (attacker_until, defender_until, general_until)
+            {
+                continue;
+            }
+            changed = true;
+            if let Some(old) = prior.earliest() {
+                self.deadlines.remove(&(old, prior.id.clone()));
+            }
+            prior.attacker_until = attacker_until;
+            prior.defender_until = defender_until;
+            prior.general_until = general_until;
+            if let Some(new) = prior.earliest() {
+                self.deadlines.insert((new, prior.id.clone()));
+            }
+        }
+        self.earliest_possible = self.deadlines.first()
+            .map(|(deadline, _)| *deadline).unwrap_or(i64::MAX);
+        Some(changed)
+    }
+
+    fn rebuild(&mut self, world: &WorldState) {
+        self.previous = Self::keys(world).collect();
+        self.deadlines.clear();
+        for key in &self.previous {
+            if let Some(deadline) = key.earliest() {
+                self.deadlines.insert((deadline, key.id.clone()));
+            }
+        }
+        self.earliest_possible = self.deadlines.first()
+            .map(|(deadline, _)| *deadline).unwrap_or(i64::MAX);
     }
 
     pub fn certify_no_expiration(&mut self, world: &WorldState, tick: u32) -> bool {
@@ -519,31 +563,35 @@ impl RevealExpiryFrontier {
             Ok(due) => due,
             Err(_) => { self.initialized = false; return false; }
         };
-        if self.initialized
-            && self.last_tick.and_then(|t| t.checked_add(1)) == Some(tick)
-            && due.is_empty()
+        let continuous = self.initialized
+            && self.last_tick.and_then(|t| t.checked_add(1)) == Some(tick);
+        let changes = if continuous { self.reconcile(world) } else { None };
+        if changes == Some(false) && due.is_empty()
             && i64::from(tick) < self.earliest_possible
-            && self.valid(world)
         {
             self.hits += 1;
             self.last_tick = Some(tick);
             return true;
         }
-        if self.initialized && self.scheduled.invalidate(&BTreeSet::from([Dependency::EntitySet])).is_err() {
+        // Any structural edit or changed earliest deadline revokes the old
+        // physical reservation before a new one can be admitted. All field
+        // equality remains exact; the canonical lifecycle still performs
+        // every due write at the original Tick.
+        if self.initialized && self.scheduled.invalidate(
+            &BTreeSet::from([Dependency::EntitySet])
+        ).is_err() {
             self.initialized = false;
             return false;
         }
+        if changes.is_none() { self.rebuild(world); }
         self.scheduled.subscribe("reveal", BTreeSet::from([Dependency::EntitySet]));
-        self.previous = Self::keys(world).collect();
-        self.earliest_possible = self.previous.iter()
-            .flat_map(|key| [key.attacker_until, key.defender_until, key.general_until])
-            .filter(|deadline| *deadline > 0)
-            .min().unwrap_or(i64::MAX);
         self.last_tick = Some(tick);
         self.initialized = true;
         if i64::from(tick) < self.earliest_possible {
             if let Ok(due_tick) = u32::try_from(self.earliest_possible) {
-                if self.scheduled.schedule("reveal", due_tick, 1, 0, "", "expiration").is_err() {
+                if self.scheduled.schedule(
+                    "reveal", due_tick, 1, 0, "", "expiration"
+                ).is_err() {
                     self.initialized = false;
                     return false;
                 }
