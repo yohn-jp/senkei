@@ -188,6 +188,136 @@ pub(crate) fn execute_certified_window(
     })
 }
 
+/// An exact, match-owned candidate-readiness recurrence, distinct from a
+/// fixed-target damage proof. Only source readiness is predicted; target
+/// visibility, locks, movement, damage, event ordering and rewards are *never*
+/// inferred. The canonical resolver still handles every Tick that could hit.
+///
+/// The recurrence assumes each due source successfully attacks, which writes
+/// attack_ready = tick + max(1, interval). The very next canonical Tick checks
+/// the actual complete source read set. A miss, skill, spawn, death, cooldown
+/// rewrite, owner change or newly eligible actor invalidates the plan *before*
+/// any source is skipped. This also bounds speculation: no staged World writes.
+#[derive(Clone, Debug)]
+struct PeriodicSource {
+    id: senkei_model::EntityId,
+    kind: String,
+    owner: Option<senkei_model::CombatantSide>,
+    hp: i64,
+    ready: i64,
+    attack: i64,
+    range: i64,
+    interval: i64,
+    clock: Option<AttackClock>,
+}
+
+fn is_combat_source(kind: &str) -> bool {
+    matches!(kind, "hero" | "minion" | "monster" | "tower" | "base")
+}
+
+/// The engine still advances every canonical Tick. This persistent solver
+/// avoids full basic-attack selection on a mathematically certified no-due
+/// Tick and supplies exact candidate IDs on a due Tick. If the recurrence is
+/// stale the caller must run the Reference attack-selection kernel.
+pub(crate) struct CertifiedAttackTimeline {
+    initial_tick: u32,
+    last_tick: Option<u32>,
+    sources: Vec<PeriodicSource>,
+    clocks: Vec<AttackClock>,
+    clock_ids: Vec<senkei_model::EntityId>,
+}
+
+impl CertifiedAttackTimeline {
+    pub(crate) fn from_snapshot(world: &senkei_model::WorldState, tick: u32) -> Option<Self> {
+        use crate::next_support as support;
+        let mut sources = Vec::new();
+        let mut clocks = Vec::new();
+        let mut clock_ids = Vec::new();
+        for (id, entity) in &world.entities {
+            if !is_combat_source(entity.entity_type.as_str()) { continue; }
+            let hp = support::int(entity, "hp");
+            let ready = support::int(entity, "attack_ready");
+            let attack = support::int(entity, "attack");
+            let range = support::int(entity, "range");
+            let interval = support::int(entity, "attack_interval").max(1);
+            let clock = if hp > 0 && attack > 0 && range >= 0 {
+                let first = if ready <= i64::from(tick) {
+                    tick
+                } else {
+                    // Unrepresentable future deadlines are not a proof of
+                    // periodicity and are left to the canonical executor.
+                    u32::try_from(ready).ok()?
+                };
+                let interval = u32::try_from(interval).ok()?;
+                let clock = AttackClock { first_tick: first, interval, damage: 1 };
+                clocks.push(clock);
+                clock_ids.push(id.clone());
+                Some(clock)
+            } else {
+                None
+            };
+            sources.push(PeriodicSource {
+                id: id.clone(), kind: entity.entity_type.as_str().to_owned(),
+                owner: entity.owner, hp, ready, attack, range, interval,
+                clock,
+            });
+        }
+        Some(Self { initial_tick: tick, last_tick: None, sources, clocks, clock_ids })
+    }
+
+    fn expected_ready(source: &PeriodicSource, tick: u32) -> Option<i64> {
+        let Some(clock) = source.clock else { return Some(source.ready) };
+        if tick <= clock.first_tick { return Some(source.ready); }
+        let prior_hits = hit_count(clock, tick - 1)?;
+        if prior_hits == 0 { return Some(source.ready); }
+        // The timestamp of the most recent guaranteed hit is well-defined;
+        // the canonical attack-ready write uses saturating i64 addition.
+        let prior_due = u128::from(clock.first_tick)
+            .checked_add(u128::from(prior_hits - 1)
+                .checked_mul(u128::from(clock.interval))?)?;
+        let prior_due = i64::try_from(prior_due).ok()?;
+        Some(prior_due.saturating_add(source.interval))
+    }
+
+    /// None denotes an invalid certificate and requires Reference on this
+    /// very Tick. Some(empty) certifies no basic attack is ready anywhere.
+    /// Some(ids) is a stable-ordered *candidate* set only; canonical combat
+    /// predicates, same-Tick simultaneous damage and all Replay remain active.
+    pub(crate) fn due(&mut self, world: &senkei_model::WorldState, tick: u32)
+        -> Option<Vec<senkei_model::EntityId>>
+    {
+        use crate::next_support as support;
+        if self.last_tick.map_or(tick != self.initial_tick,
+            |last| last.checked_add(1) != Some(tick))
+        {
+            return None;
+        }
+        let mut current = world.entities.iter()
+            .filter(|(_, entity)| is_combat_source(entity.entity_type.as_str()));
+        for prior in &self.sources {
+            let (id, entity) = current.next()?;
+            if *id != prior.id
+                || entity.entity_type.as_str() != prior.kind
+                || entity.owner != prior.owner
+                || support::int(entity, "hp") != prior.hp
+                || support::int(entity, "attack") != prior.attack
+                || support::int(entity, "range") != prior.range
+                || support::int(entity, "attack_interval").max(1) != prior.interval
+                || support::int(entity, "attack_ready") != Self::expected_ready(prior, tick)?
+            {
+                return None;
+            }
+        }
+        if current.next().is_some() { return None; }
+        let ids = due_actor_indices(&self.clocks, tick)?.into_iter()
+            .map(|index| self.clock_ids[index].clone()).collect();
+        self.last_tick = Some(tick);
+        Some(ids)
+    }
+
+    pub(crate) fn combatant_count(&self) -> usize { self.sources.len() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
