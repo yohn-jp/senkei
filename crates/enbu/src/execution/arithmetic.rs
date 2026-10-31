@@ -675,6 +675,9 @@ mod tests {
         assert!(plan.due(&world, 11).unwrap().is_empty());
         assert_eq!(plan.due(&world, 12).unwrap(), vec![EntityId::from("second")],
             "stable second clock must not be globally replanned");
+        // The canonical resolver writes attack_ready after the due attack.
+        // Without this write the snapshot certificate must fail closed at 13.
+        set_ready(&mut world, "second", 19);
         assert!(plan.due(&world, 13).unwrap().is_empty());
     }
 
