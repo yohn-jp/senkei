@@ -257,7 +257,7 @@ fn advance_inner_with_window(
             && cohort_index.as_ref()
                 .and_then(|index| index.cohort_locked(start, tick))
                 .unwrap_or_else(|| hero_cohort_indexed(
-                    &id, start, snapshot, cohort_index.as_ref(),
+                    id, start, snapshot, cohort_index.as_ref(),
                 ).iter().any(|(_, member)|
                     int(member, "action_lock_until") > i64::from(tick)))
         {
