@@ -594,6 +594,51 @@ mod tests {
             position("c", "b", 7),
             position("c", "unknown", 1),
         ];
+        // Independent pre-optimization reference: validate graph positions
+        // first, even for structurally impossible combat pairs.
+        let original_combat_distance2 = |a: &EntityState, b: &EntityState| -> Option<i128> {
+            if !valid_graph_position(a, &rules) || !valid_graph_position(b, &rules) {
+                return None;
+            }
+            let a_node = string_ref(a, "node");
+            let a_to = string_ref(a, "edge_to");
+            let b_node = string_ref(b, "node");
+            let b_to = string_ref(b, "edge_to");
+            if a_to.is_empty() && b_to.is_empty() {
+                return (a_node == b_node).then_some(0);
+            }
+            if a_to.is_empty() || b_to.is_empty() { return None; }
+            let edge = canonical_edge(&rules.map, a_node, a_to)?;
+            if !((b_node == edge.from && b_to == edge.to)
+                || (b_node == edge.to && b_to == edge.from)) {
+                return None;
+            }
+            if edge.length <= 0 { return None; }
+            let a_progress = int(a, "edge_progress");
+            let b_progress = int(b, "edge_progress");
+            let pa = if a_node == edge.from { a_progress } else { edge.length - a_progress };
+            let pb = if b_node == edge.from { b_progress } else { edge.length - b_progress };
+            let dx = i128::from(pa) - i128::from(pb);
+            let mut distance2 = dx * dx;
+            if edge.region == "lane" && edge.bridge_site.is_empty() && !edge.ford {
+                let offset = |entity: &EntityState| match if int(entity, "cross_remaining") > 0 {
+                    "CENTER"
+                } else { string_ref(entity, "track") } {
+                    "LEFT" => -param(&rules, "lane_track_offset_wu", 20),
+                    "RIGHT" => param(&rules, "lane_track_offset_wu", 20),
+                    _ => 0,
+                };
+                let dy = i128::from(offset(a)) - i128::from(offset(b));
+                distance2 = distance2.saturating_add(dy * dy);
+            }
+            Some(distance2)
+        };
+        for a in &positions {
+            for b in &positions {
+                assert_eq!(combat_distance2(a, b, &rules), original_combat_distance2(a, b),
+                    "cross-location early reject cannot change any canonical distance");
+            }
+        }
         let pairs = || {
             let mut result = Vec::new();
             for source in &positions {
