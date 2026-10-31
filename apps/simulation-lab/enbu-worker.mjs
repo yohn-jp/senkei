@@ -39,6 +39,11 @@ function permute(variants, iteration) {
   const rotated = [...variants.slice(shift), ...variants.slice(0, shift)];
   return iteration % 2 ? rotated.reverse() : rotated;
 }
+function recordsForProduction(rows) {
+  // The new production baseline is measured only when selected. Preserve
+  // old historical baseline comparisons for all other opt-in masks.
+  return rows.some(row => row.variant === 'TCSRVGY');
+}
 let busy = false;
 self.onmessage = async ({data}) => {
   if (busy || data?.type !== 'run') return;
@@ -59,7 +64,8 @@ self.onmessage = async ({data}) => {
     if (!selectedCases?.length) throw new Error('Unknown production Enbu case');
     const descriptors = data.variantId === 'all' ? manifest.variants :
       manifest.variants.filter(variant => variant.id === '000' || variant.id === data.variantId ||
-        (['TCSRVGY', 'TCSRVGW', 'TCSRVGX', 'TCSRVGAS', 'TCSRVGH'].includes(data.variantId) && variant.id === 'TCSRVG'));
+        (['TCSRVGY', 'TCSRVGW', 'TCSRVGX', 'TCSRVGAS', 'TCSRVGH'].includes(data.variantId) && variant.id === 'TCSRVG') ||
+        (data.variantId === 'TCSRVGH' && variant.id === 'TCSRVGY'));
     if (descriptors.length < 2 && data.variantId !== '000') throw new Error('Unknown optimizer mask');
     const variants = [];
     for (const descriptor of descriptors) {
@@ -101,6 +107,8 @@ self.onmessage = async ({data}) => {
           speedup: pairedSpeedups(records['000'], records[variant.id]),
           incumbent_speedup: records['TCSRVG']?.length
             ? pairedSpeedups(records['TCSRVG'], records[variant.id]) : null,
+          production_speedup: records['TCSRVGY']?.length
+            ? pairedSpeedups(records['TCSRVGY'], records[variant.id]) : null,
           host_input_ms: summarizeSamples(hostInput[variant.id]).median_ms,
           wasm_dispatch_ms: summarizeSamples(dispatch[variant.id]).median_ms,
           host_output_ms: summarizeSamples(hostOutput[variant.id]).median_ms,
@@ -114,6 +122,8 @@ self.onmessage = async ({data}) => {
     }
     const ranking = rankVariants(rows, manifest);
     const incumbent_ranking = rankVariants(rows, manifest, 'TCSRVG');
+    const production_ranking = recordsForProduction(rows)
+      ? rankVariants(rows, manifest, 'TCSRVGY') : null;
     const effects = factorialEffects(rows);
     self.postMessage({type:'complete', report: {
       schema:'senkei-enbu-matrix-report/v1',engine:'production-enbu-rust-wasm',
@@ -127,7 +137,8 @@ self.onmessage = async ({data}) => {
       },
       variants: manifest.variants, loads: Object.fromEntries(variants.map(v => [v.id, v.load])),
       cases: selectedCases.map(c => ({id:c.id,ticks:c.ticks})),
-      rows,ranking,incumbent_ranking,incumbent_baseline:'TCSRVG',effects,
+      rows,ranking,incumbent_ranking,incumbent_baseline:'TCSRVG',
+      production_ranking,production_baseline:'TCSRVGY',effects,
     }});
   } catch(error) {
     self.postMessage({type:'error',message:error instanceof Error ? error.message : String(error)});
