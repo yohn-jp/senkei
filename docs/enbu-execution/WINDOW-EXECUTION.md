@@ -181,9 +181,16 @@ is suppressed; on due Ticks, ordered candidate EntityIds are passed to the
 existing canonical attack resolver.
 
 An attack that was predicted but did not commit leaves `attack_ready`
-different from its required recurrence on the following Tick, invalidating
-the certificate. P1/P5/Skill rewrites, new combatants, death and interval
-changes likewise revoke it before reuse. Nonlethal HP changes to an attack
+different from its required recurrence on the following Tick. The current
+`CertifiedAttackTimeline` revokes that **source's** staged clock and uses
+its authoritative live readiness at each subsequent Tick; independently
+unchanged clocks retain their certified periodic batches. P1/P5/Skill
+rewrites, death, owner or attack-interval changes are checked against the
+complete exact source read set before this *domain-local* fallback. A newly
+inserted/removed combatant, changed combatant type, missing due Tick, expired
+128-Tick horizon or loss of all certified clocks still forces full Reference
+replanning. Source-local invalidation cannot authorize guessed damage or
+skip canonical target selection, Jinrei, CU, Fog, owner diagnostics or Replay. Nonlethal HP changes to an attack
 source preserve a certified recurrence because the attack-readiness predicate
 only depends on whether it is alive; a crossing of the alive/dead boundary
 revokes the certificate. The simpler `BasicAttackFrontier` readiness
