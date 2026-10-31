@@ -29,6 +29,21 @@ observation and output obligations.
   verified integer attack-count and first-lethal solvers, but the
   full output reconstruction and multi-phase admission proof remain work.
 
+## Compiled passive lifecycle (real Enbu pre-observation phase)
+
+The opt-in `lab-opt-passive-lifecycle` compiles immutable per-Hero
+Haste, Slow and Shield passive definitions once from the verified `NextRules`
+and executes them with one current-Tick mutable World traversal. Each living
+Hero's current learned-skill IDs, catalog, HP, life/passive generation,
+expiry timers and shield value remain authoritative. No passive effect,
+respawn or observation is speculatively skipped. The original two-scan
+lifecycle remains the independent reference path; a real Enbu 40-Tick
+fixture checks full World and neutral-lifecycle events across death,
+resurrection, learned-skill changes and unknown catalogs. This avoids
+rebuilding learned-skill sets, repeated linear rule searches, and two
+Hero-ID lists on each Tick. It is compiled into `lab-opt-hybrid` alongside
+phase-local Scheduler and MovementWindow, but is not a global Tick jump.
+
 ## MovementWindow: real Next P7 execution
 
 The `lab-opt-movement-window` feature adds a one-match, route-free,

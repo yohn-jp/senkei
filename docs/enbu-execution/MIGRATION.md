@@ -1,6 +1,6 @@
 # Hybrid Engine移行計画 — 文書から本番へ
 
-> 状態: **部分実装／残工事あり**。PR #71はmainへマージ済み。F/G/O/I/B、P/AとPhase-local Hは既存Tickで物理演算を削減する候補だが、有限窓の攻撃/Reveal処理スキップと正本Frame連続性ゲートは実装済み。全Tick短絡と、集約区間の状態・Jinrei/CU/診断を完全再構築する一般機構は未達。機能を停止して数字だけ速くすることは許さない。
+> 状態: **部分実装／残工事あり**。PR #71はmainへマージ済み。2026-10-31 のHybrid構成はP/A/I/Bに加えS（Attack/Reveal Scheduler）、W（MovementWindow）、パッシブ規則の試合単位コンパイルを実際のRust Next実行経路で組み合わせる。これは未検証の実装構成であり、Production Promotionの認証・性能ゲートを通過したという意味ではない。F/G/O/I/B、P/AとPhase-local Hは既存Tickで物理演算を削減する候補だが、有限窓の攻撃/Reveal処理スキップと正本Frame連続性ゲートは実装済み。全Tick短絡と、集約区間の状態・Jinrei/CU/診断を完全再構築する一般機構は未達。機能を停止して数字だけ速くすることは許さない。
 
 ## 1. ゴール
 
