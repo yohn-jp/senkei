@@ -1,6 +1,6 @@
 # Event Scheduler — 時刻・活性集合・Dirty Frontier
 
-> 状態: **局所実装済み／汎用実行は未完成**。`crates/enbu/src/execution/scheduler.rs` の `EventScheduler` は安定順序、世代つき失効、依存逆引き、最大予約数4096、古い予約の圧縮、正規Tick逐次進行を実装する。`BasicAttackFrontier` と `RevealExpiryFrontier` が実際に使用する。これらは全Tickを飛ばす機構ではなく、入力の厳密な読取集合を各Tick再検査して、証明済みの局所処理だけを省略する。
+> 状態: **局所実装済み／汎用実行は未完成**。128-Tick周期攻撃候補のScan/Heap/Bucket選択は`execution/arithmetic.rs`から実Enbu戦闘に接続済み（Native実行・WASM比較はこの変更では未検証）。`crates/enbu/src/execution/scheduler.rs` の `EventScheduler` は安定順序、世代つき失効、依存逆引き、最大予約数4096、古い予約の圧縮、正規Tick逐次進行を実装する。`BasicAttackFrontier` と `RevealExpiryFrontier` が実際に使用する。これらは全Tickを飛ばす機構ではなく、入力の厳密な読取集合を各Tick再検査して、証明済みの局所処理だけを省略する。
 
 ## 1. データモデル（概念）
 

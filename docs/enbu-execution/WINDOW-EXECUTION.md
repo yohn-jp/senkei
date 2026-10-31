@@ -163,9 +163,13 @@ following Tick.
 ## Periodic Arithmetic candidate windows (implemented, strict fallback)
 
 `execution::arithmetic::CertifiedAttackTimeline` compiles attack-ready
-recurrences from an actual frozen P7 snapshot. The existing checked
-`execute_certified_window` heap-merges the next 128 Ticks into exact
-ordered **candidate** batches, bounded at 8,192 potential hits. An
+recurrences from an actual frozen P7 snapshot. The checked
+`execute_certified_window` produces exact ordered **candidate** batches
+for the next 128 Ticks, bounded at 8,192 potential hits. The physical due
+batch generator now selects among small-cohort Scan, sparse Heap and dense
+bounded Bucket according to operation-count guards. All three are wired
+into the real Enbu `CertifiedAttackTimeline`; they do not approximate
+attacks, suppress output, or replace the canonical combat resolver. An
 unsupported/over-budget schedule declines the optimization and leaves
 Reference intact; the horizon is never silently extended. The live
 `BasicAttackFrontier` consumes these batches at every original Tick
