@@ -33,7 +33,14 @@ observation and output obligations.
 
 The opt-in `lab-opt-passive-lifecycle` compiles immutable per-Hero
 Haste, Slow and Shield passive definitions once from the verified `NextRules`
-and executes them with one current-Tick mutable World traversal. Each living
+and executes them with one current-Tick mutable World traversal. In
+nontrivial worlds, an exact (Catalog, entire learned-Skill DomainValue)
+read-set memo reuses compiled per-Hero passive magnitudes across Ticks.
+A changed Catalog, skill list or malformed skill value invalidates only
+that Hero's cached profile. Life/death, respawn generations, expiry clocks,
+shield accumulation and Monster respawns still read the live World at the
+canonical original Tick. The match-owned memo is pruned by current World
+membership to prevent unbounded growth when scripted actors are removed. Each living
 Hero's current learned-skill IDs, catalog, HP, life/passive generation,
 expiry timers and shield value remain authoritative. No passive effect,
 respawn or observation is speculatively skipped. The original two-scan
