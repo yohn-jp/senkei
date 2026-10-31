@@ -979,26 +979,21 @@ fn nearest_in_candidates<'a>(
     vision: Option<&[&EntityState]>,
     visibility_index: Option<&CombatVisibilityIndex>,
 ) -> Option<(EntityId, &'a EntityState)> {
+    // The exact target predicate already needs graph distance for range
+    // admission. Return that same distance with its eligible candidate,
+    // avoiding a second full graph lookup in nearest-target comparison.
     candidates
-        .filter(|(target_id, target)| {
-            let eligible = can_basic_attack_with_sources(
+        .filter_map(|(target_id, target)| {
+            let distance = basic_attack_distance_with_sources(
                 source_id, source, target_id, target, start, rules, tick, vision, visibility_index,
-            );
-            if eligible {
-                if let Some(collector) = collector.as_deref_mut() {
-                    collector.candidate(decision_index, target_id);
-                }
+            )?;
+            if let Some(collector) = collector.as_deref_mut() {
+                collector.candidate(decision_index, target_id);
             }
-            eligible
+            Some((distance, target_id, target))
         })
-        // Evaluate each eligible candidate's graph distance once. The
-        // former comparator recalculated the incumbent distance for every
-        // contender; the tuple key preserves the exact EntityId tie break.
-        .min_by_key(|(id, target)| (
-            support::combat_distance2(source, target, rules).unwrap_or(i128::MAX),
-            *id,
-        ))
-        .map(|(id, entity)| (id.clone(), entity))
+        .min_by_key(|(distance, id, _)| (*distance, *id))
+        .map(|(_, id, entity)| (id.clone(), entity))
 }
 
 /// Shared target predicate used by navigation's stop-and-attack decision and
@@ -1028,6 +1023,26 @@ fn can_basic_attack_with_sources(
     vision_sources: Option<&[&EntityState]>,
     visibility_index: Option<&CombatVisibilityIndex>,
 ) -> bool {
+    basic_attack_distance_with_sources(
+        source_id, source, target_id, target, snapshot, rules, tick,
+        vision_sources, visibility_index,
+    ).is_some()
+}
+
+/// Canonical eligibility and exact graph distance, evaluated together.
+/// The public boolean predicate and nearest-target selector share this
+/// implementation, keeping range, visibility and tie-break rules identical.
+fn basic_attack_distance_with_sources(
+    source_id: &EntityId,
+    source: &EntityState,
+    target_id: &EntityId,
+    target: &EntityState,
+    snapshot: &WorldState,
+    rules: &NextRules,
+    tick: u32,
+    vision_sources: Option<&[&EntityState]>,
+    visibility_index: Option<&CombatVisibilityIndex>,
+) -> Option<i128> {
     if source_id == target_id
         || !support::alive(source)
         || !support::alive(target)
@@ -1035,27 +1050,29 @@ fn can_basic_attack_with_sources(
         || support::int(source, "attack") <= 0
         || support::int(source, "range") < 0
     {
-        return false;
+        return None;
     }
     let _ = tick; // readiness/recovery affect action selection, not target range.
     let source_side = source.owner;
     if source_side.is_some_and(|side| target.owner == Some(side)) {
-        return false;
+        return None;
     }
     if source.entity_type.as_str() == "monster" {
-        if !matches!(target.entity_type.as_str(), "hero" | "minion") || target.owner.is_none()
-            || !support::in_combat_range(source, target, support::int(source, "vision").max(0), rules)
-        {
-            return false;
+        if !matches!(target.entity_type.as_str(), "hero" | "minion") || target.owner.is_none() {
+            return None;
         }
     } else if matches!(source.entity_type.as_str(), "tower" | "base") {
         if !matches!(target.entity_type.as_str(), "hero" | "minion") || target.owner.is_none() {
-            return false;
+            return None;
         }
     }
-    if !support::in_combat_range(source, target, support::int(source, "range").max(0), rules) {
-        return false;
+    let distance = support::combat_distance2(source, target, rules)?;
+    if source.entity_type.as_str() == "monster" {
+        let vision = i128::from(support::int(source, "vision").max(0));
+        if distance > vision * vision { return None; }
     }
+    let range = i128::from(support::int(source, "range").max(0));
+    if distance > range * range { return None; }
     if let Some(source_side) = source_side {
         let observed = match visibility_index {
             Some(index) => index.contains(source_side, target_id),
@@ -1065,10 +1082,10 @@ fn can_basic_attack_with_sources(
             },
         };
         if !observed {
-            return false;
+            return None;
         }
     }
-    true
+    Some(distance)
 }
 
 fn collect_skill_activations(
