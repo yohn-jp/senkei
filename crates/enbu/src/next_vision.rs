@@ -391,6 +391,40 @@ pub(crate) fn public_view_with_policy(
     view
 }
 
+/// Reuse exact same-snapshot, side-authorized owner visibility to build the
+/// public replay. The normal public projection evaluates both vision frontiers
+/// again, despite both owner frames already having performed those checks.
+/// Neither owner's private fields nor Fog history are copied: the canonical
+/// public field projector and verified presentation allowlist remain in charge.
+#[cfg(feature = "lab-opt-replay-fusion")]
+pub(crate) fn public_view_with_policy_from_owners(
+    world: &WorldState,
+    rules: &NextRules,
+    policy: &PresentationPolicy,
+    attacker: &WorldStateView,
+    defender: &WorldStateView,
+) -> WorldStateView {
+    let mut entities = BTreeMap::new();
+    for (id, entity) in &world.entities {
+        if !attacker.entities.contains_key(id) || !defender.entities.contains_key(id) {
+            continue;
+        }
+        let Some(allowed) = policy.visible_entity_fields.get(&entity.entity_type) else {
+            continue;
+        };
+        let mut fields = projected_fields(entity, false, rules);
+        fields.retain(|field, _| allowed.contains(field));
+        entities.insert(id.clone(), EntityStateView {
+            entity_type: entity.entity_type.clone(),
+            owner: entity.owner,
+            fields,
+        });
+    }
+    // Next's ordinary public_view initializes global_fields empty. Owner
+    // Fog globals are private and must never leak into the public replay.
+    WorldStateView { entities, global_fields: BTreeMap::new() }
+}
+
 /// Projects the current battlefield from one player's perspective. Owner-only
 /// fields are added only for that side's own entities; hidden enemies remain
 /// absent from the view.
