@@ -625,6 +625,46 @@ mod tests {
             "neutral ownership must not be mistaken for friendly");
     }
 
+    #[cfg(feature = "lab-opt-arithmetic")]
+    #[test]
+    fn periodic_arithmetic_frontier_drives_real_canonical_attack_phase_selection() {
+        let mut world = WorldState::default();
+        for n in 0..38 {
+            let mut dormant = actor(0);
+            support::set_int(&mut dormant, "attack", 0);
+            world.entities.insert(format!("idle-{n:02}").into(), dormant);
+        }
+        let mut attacker = actor(3);
+        support::set_int(&mut attacker, "attack_interval", 4);
+        world.entities.insert("due-attacker".into(), attacker);
+        let mut target = actor(100);
+        target.owner = Some(CombatantSide::Defender);
+        support::set_int(&mut target, "attack", 0);
+        world.entities.insert("target".into(), target);
+        let mut frontier = BasicAttackFrontier::default();
+        for tick in 1..=2 {
+            assert!(frontier.certify_idle(&world, tick, false));
+            assert!(frontier.active_ids(tick).is_none());
+        }
+        assert!(!frontier.certify_idle(&world, 3, false));
+        assert_eq!(frontier.active_ids(3).unwrap(),
+            &[EntityId::from("due-attacker")]);
+        // The normal resolver commits the hit and its authoritative
+        // attack_ready update, not the certificate or its prediction.
+        support::set_int(world.entities.get_mut(&EntityId::from("due-attacker")).unwrap(),
+            "attack_ready", 7);
+        for tick in 4..=6 {
+            assert!(frontier.certify_idle(&world, tick, false));
+        }
+        assert!(!frontier.certify_idle(&world, 7, false));
+        assert_eq!(frontier.active_ids(7).unwrap(),
+            &[EntityId::from("due-attacker")]);
+        // No canonical hit was committed at Tick 7. This makes the old
+        // timeline stale; Tick 8 must fall back to normal attack selection.
+        assert!(!frontier.certify_idle(&world, 8, false));
+        assert!(frontier.periodic.is_none());
+    }
+
     #[test]
     fn attack_frontier_respects_future_clock_and_all_invalidation_barriers() {
         let mut state = WorldState::default();
