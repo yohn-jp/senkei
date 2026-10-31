@@ -8,6 +8,29 @@ Jinrei, Enbu's canonical Tick semantics, logical CU, public/owner Replay,
 or result serialization. The independent Reference (`000`) remains the
 Native/WASM conformance oracle and explicit rollback option.
 
+## Current production candidate: TCSRVGY (2026-10-31, not yet measured)
+
+`scripts/wasm/build.sh` now selects TCSRVGY by default: the previously
+measured TCSRVG features plus `lab-opt-replay-fusion`. The new kernel uses
+the **actual current-Tick owner views** to prove public visibility membership,
+then re-runs the original public field projection/allowlist. Neither owner's
+private fields nor Fog globals are copied into the public replay. On quiet
+nontrivial Ticks, it can defer the *precombat* owner projections until a real
+combat/lifecycle event needs them; any unexpected event reconstructs those
+views from a complete frozen World snapshot. Canonical state transitions,
+Tick count, CU, observations and public/owner event ordering are unchanged.
+
+This revision **does not have a completed Native/WASM result-equivalence or
+wall-clock measurement** at the time of this edit. The Pages matrix builds
+`Y` and `TCSRVGY` as independent real-WASM candidates, validates every
+full JSON golden response, and verifies that the production binary equals
+the TCSRVGY artifact byte-for-byte. The original `TCSRVG` portfolio is
+retained on the **same revision** for a fair performance comparison and
+rollback via `SENKEI_WASM_FEATURES`. A performance regression requires
+reverting the default feature, regardless of isolated microbenchmark gains.
+The earlier TCSRVG measured results below remain historical, not evidence
+that TCSRVGY is faster.
+
 ## Measured promotion decision
 
 The immutable reference measurement is [Simulation Lab Pages run 41057373991](https://github.com/yohn-jp/senkei/actions/runs/41057373991),
