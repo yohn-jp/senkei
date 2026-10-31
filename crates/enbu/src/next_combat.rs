@@ -178,6 +178,14 @@ impl PassiveLifecyclePlan {
     fn apply(&mut self, world: &mut WorldState, tick: u32) -> Vec<PresentationEvent> {
         let mut events = Vec::new();
         let use_profile_cache = world.entities.len() >= 24;
+        // Actor IDs can be retired and later reused by authored rules.
+        // Bound the match-owned memo by live World membership instead of
+        // retaining one entry for every historic spawn for the whole match.
+        // Pruning occurs only on a size threshold, never in a hot idle Tick.
+        if self.cached_profiles.len() > world.entities.len() {
+            self.cached_profiles.retain(|id, _| world.entities.get(id)
+                .is_some_and(|actor| actor.entity_type.as_str() == "hero"));
+        }
         for (id, hero) in &mut world.entities {
             if hero.entity_type.as_str() == "monster" {
                 let respawn_at = support::int(hero, "respawn_at");
@@ -3245,6 +3253,36 @@ mod tests {
             .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
             .sum();
         assert_eq!(total, XP_SCALE);
+    }
+
+    #[cfg(feature = "lab-opt-passive-lifecycle")]
+    #[test]
+    fn passive_profile_cache_is_bounded_by_living_world_membership() {
+        let config = rules();
+        let mut reference = WorldState::default();
+        for index in 0..32 {
+            reference.entities.insert(format!("padding-{index:02}").into(),
+                entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 0));
+        }
+        let mut actual = reference.clone();
+        let mut planned = PassiveLifecyclePlan::compile(&config);
+        for tick in 1..=96 {
+            for world in [&mut reference, &mut actual] {
+                if tick > 1 {
+                    world.entities.remove(&EntityId::from(format!("spawn-{:03}", tick - 1)));
+                }
+                let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 100, 1, 5);
+                support::set_string(&mut hero, "catalog_id", "test_hero");
+                support::set_int(&mut hero, "life_generation", i64::from(tick));
+                world.entities.insert(format!("spawn-{tick:03}").into(), hero);
+            }
+            let expected = objective_lifecycle(&mut reference, &config, tick);
+            let observed = objective_lifecycle_planned(&mut actual, &config, tick, &mut planned);
+            assert_eq!(observed, expected, "cache cleanup changed events at Tick {tick}");
+            assert_eq!(actual, reference, "cache cleanup changed World at Tick {tick}");
+            assert!(planned.cached_profiles.len() <= actual.entities.len(),
+                "removed Hero signatures must be evicted before reuse");
+        }
     }
 
     #[cfg(feature = "lab-opt-passive-lifecycle")]
