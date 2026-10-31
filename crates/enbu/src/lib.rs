@@ -755,9 +755,20 @@ fn simulate_inner<P: TacticalExecutionPort>(
                 next_navigation::advance_with_routes_from_snapshot(&mut world, &adjudication_start, next, tick, runtime);
             } else {
                 #[cfg(feature = "lab-opt-movement-window")]
-                next_navigation::advance_from_snapshot_window(
-                    &mut world, &adjudication_start, next, tick, &mut movement_window,
-                );
+                {
+                    // The active-source certificate costs an O(N) read-set
+                    // validation on every Tick. On small worlds the exact
+                    // canonical scan is cheaper; no cached state is consumed.
+                    if execution::planner::movement_phase(adjudication_start.entities.len(), false) {
+                        next_navigation::advance_from_snapshot_window(
+                            &mut world, &adjudication_start, next, tick, &mut movement_window,
+                        );
+                    } else {
+                        next_navigation::advance_from_snapshot(
+                            &mut world, &adjudication_start, next, tick,
+                        );
+                    }
+                }
                 #[cfg(not(feature = "lab-opt-movement-window"))]
                 next_navigation::advance_from_snapshot(
                     &mut world, &adjudication_start, next, tick,
