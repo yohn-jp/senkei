@@ -60,6 +60,25 @@ try {
   assert.equal(completed.report.source_revision, build.revision);
   console.log('PASS: published Lab worker executed real 000/TCSRVG Rust/WASM, ' +
     'verified Native full-response SHA-256 on every sample and returned UI rows');
+  // Exercise an active combat scenario with the actual published production build.
+  // This remains mandatory even when the full research portfolio is not published.
+  messages.length = 0;
+  await globalThis.self.onmessage({
+    data: { type: 'run', caseId: 'next-behavior-16', variantId: 'TCSRVGY', samples: 3 },
+  });
+  const productionFailure = messages.find(message => message.type === 'error');
+  assert.equal(productionFailure, undefined,
+    `Production Lab worker failed: ${productionFailure?.message}`);
+  const productionCompletion = messages.find(message => message.type === 'complete');
+  assert.ok(productionCompletion, 'Production Native/WASM acceptance must complete');
+  assert.deepEqual(productionCompletion.report.rows.map(row => row.variant),
+    ['000', 'TCSRVG', 'TCSRVGY']);
+  assert.ok(productionCompletion.report.rows.every(row => row.verified));
+  assert.equal(productionCompletion.report.source_revision, build.revision);
+  console.log('PASS: published production Enbu WASM matches native Behavior-driven golden');
+
+  const manifest = JSON.parse(await readFile(resolve(site, 'enbu-variants.json'), 'utf8'));
+  if (manifest.variants.some(variant => variant.id === 'TCSRVGW')) {
   // The independent production+window A/B must run through this *same*
   // Worker and Native full-response digest. Test a Behavior-driven case,
   // not merely the quiet one-Tick reference used above.
@@ -129,6 +148,7 @@ try {
     'comparison must rank against actual current production rather than old TCSRVG');
   console.log('PASS: full-Hybrid WASM matches real Behavior-driven Native golden');
 
+  } // Full research-only candidate portfolio
 
 } finally {
   globalThis.fetch = originalFetch;
