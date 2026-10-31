@@ -412,8 +412,29 @@ pub(crate) fn public_view_with_policy_from_owners(
         let Some(allowed) = policy.visible_entity_fields.get(&entity.entity_type) else {
             continue;
         };
-        let mut fields = projected_fields(entity, false, rules);
-        fields.retain(|field, _| allowed.contains(field));
+        // Both owner projections already contain the canonical public
+        // fields. Borrow the *opposing* side's view for owned entities so
+        // owner-only Hero fields cannot enter the public replay. The same
+        // canonical per-type allowlist also removes synthetic owner-only
+        // contest facts, which are explicitly added only after both sides
+        // are certified observers by the enclosing replay materializer.
+        let opposite_view = if entity.owner == Some(CombatantSide::Attacker) {
+            &defender.entities[id]
+        } else {
+            &attacker.entities[id]
+        };
+        let public_fields = match entity.entity_type.as_str() {
+            MINION => MINION_PUBLIC_FIELDS,
+            "bridge" => BRIDGE_PUBLIC_FIELDS,
+            "observation" => OBSERVATION_PUBLIC_FIELDS,
+            _ => PUBLIC_FIELDS,
+        };
+        let fields = opposite_view.fields.iter()
+            .filter(|(field, _)| {
+                allowed.contains(*field) && public_fields.contains(&field.as_str())
+            })
+            .map(|(field, value)| (field.clone(), value.clone()))
+            .collect();
         entities.insert(id.clone(), EntityStateView {
             entity_type: entity.entity_type.clone(),
             owner: entity.owner,
