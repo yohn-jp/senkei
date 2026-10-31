@@ -171,8 +171,14 @@ jobs:
               TCSRVGX) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-spatial ;;
               TCSRVGAS) flags=lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-arithmetic,lab-opt-scheduler ;;
             esac
-            cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "$flags"
-            cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
+            # H now already includes S. Avoid rebuilding an identical
+            # effective feature set under the historical TCSRVHS label.
+            if [[ "$choice" == TCSRVHS ]]; then
+              cp target/simulation-lab/senkei_wasm_TCSRVH.wasm "target/simulation-lab/senkei_wasm_TCSRVHS.wasm"
+            else
+              cargo build --locked --release --target wasm32-unknown-unknown -p senkei-wasm --lib --features "$flags"
+              cp target/wasm32-unknown-unknown/release/senkei_wasm.wasm "target/simulation-lab/senkei_wasm_${choice}.wasm"
+            fi
             test -s "target/simulation-lab/senkei_wasm_${choice}.wasm"
           done
       - name: Verify promoted production WASM is exactly the tested TCSRVG build
