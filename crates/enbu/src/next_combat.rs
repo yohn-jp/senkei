@@ -91,6 +91,94 @@ pub fn initialize_objectives(world: &mut WorldState, rules: &NextRules) {
     }
 }
 
+
+/// Precompiled immutable passive rules for the lifetime of one verified match.
+/// Active learned skills, lives and catalog identity are always read from the
+/// current authoritative World: no actor result is cached across Ticks.
+#[cfg(feature = "lab-opt-passive-lifecycle")]
+pub(crate) struct PassiveLifecyclePlan {
+    by_catalog: BTreeMap<String, Vec<(String, SkillEffect, i64)>>,
+    skills_field: FieldId,
+    permanent_until: i64,
+}
+
+#[cfg(feature = "lab-opt-passive-lifecycle")]
+impl PassiveLifecyclePlan {
+    pub(crate) fn compile(rules: &NextRules) -> Self {
+        let by_catalog = rules.heroes.iter().map(|definition| {
+            let relevant = definition.skills.iter()
+                .filter(|skill| skill.passive && matches!(
+                    skill.effect, SkillEffect::Haste | SkillEffect::Slow | SkillEffect::Shield
+                ))
+                .map(|skill| (skill.id.clone(), skill.effect.clone(), skill.power.max(0)))
+                .collect();
+            (definition.id.clone(), relevant)
+        }).collect();
+        Self {
+            by_catalog,
+            skills_field: FieldId::from("skills"),
+            permanent_until: support::param(rules, "max_match_ticks", i64::from(u32::MAX))
+                .max(0).saturating_add(1),
+        }
+    }
+
+    fn learned(&self, hero: &EntityState, skill_id: &str) -> bool {
+        matches!(hero.fields.get(&self.skills_field), Some(DomainValue::List(values))
+            if values.iter().any(|value|
+                matches!(value, DomainValue::String(id) if id == skill_id)))
+    }
+
+    /// One stable-order, in-place traversal replaces two complete Hero-ID
+    /// allocations, per-Hero learned-skill set construction and repeated
+    /// linear scans of the verified skill definitions. Non-passive actors
+    /// still receive the original life/passive generation transition.
+    fn apply(&self, world: &mut WorldState, tick: u32) {
+        for hero in world.entities.values_mut() {
+            if hero.entity_type.as_str() != "hero" || !support::alive(hero) { continue; }
+            let catalog = support::string(hero, "catalog_id");
+            let mut haste = 0_i64;
+            let mut slow = 0_i64;
+            let needs_shield = support::int(hero, "life_generation")
+                != support::int(hero, "passive_generation");
+            let mut shield = 0_i64;
+            if let Some(skills) = self.by_catalog.get(&catalog) {
+                for (id, effect, power) in skills {
+                    if !self.learned(hero, id) { continue; }
+                    match effect {
+                        SkillEffect::Haste => haste = haste.max(*power),
+                        SkillEffect::Slow => slow = slow.max(*power),
+                        SkillEffect::Shield if needs_shield =>
+                            shield = shield.saturating_add(*power),
+                        _ => {}
+                    }
+                }
+            }
+            if haste > 0 && support::int(hero, "haste_until") <= i64::from(tick) {
+                support::set_int(hero, "haste", haste);
+                support::set_int(hero, "haste_until", self.permanent_until);
+            }
+            if slow > 0 && support::int(hero, "slow_until") <= i64::from(tick) {
+                support::set_int(hero, "slow", slow);
+                support::set_int(hero, "slow_until", self.permanent_until);
+            }
+            if needs_shield {
+                if shield > 0 { add_int(hero, "shield", shield); }
+                let generation = support::int(hero, "life_generation");
+                support::set_int(hero, "passive_generation", generation);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "lab-opt-passive-lifecycle")]
+pub(crate) fn objective_lifecycle_planned(
+    world: &mut WorldState, rules: &NextRules, tick: u32,
+    passive: &PassiveLifecyclePlan,
+) -> Vec<PresentationEvent> {
+    passive.apply(world, tick);
+    respawn_due_monsters(world, rules, tick)
+}
+
 /// Respawn due camp monsters. Sol should call this before generating the
 /// current tick's frozen observations; `resolve` also calls it defensively.
 pub fn objective_lifecycle(
@@ -100,6 +188,12 @@ pub fn objective_lifecycle(
 ) -> Vec<PresentationEvent> {
     reapply_movement_passives(world, rules, tick);
     regrant_passive_shields(world, rules);
+    respawn_due_monsters(world, rules, tick)
+}
+
+fn respawn_due_monsters(
+    world: &mut WorldState, _rules: &NextRules, tick: u32,
+) -> Vec<PresentationEvent> {
     let due: Vec<_> = world.entities.iter()
         .filter(|(_, entity)| entity.entity_type.as_str() == "monster")
         .filter(|(_, entity)| support::int(entity, "hp") <= 0)
@@ -2871,6 +2965,74 @@ mod tests {
             .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
             .sum();
         assert_eq!(total, XP_SCALE);
+    }
+
+    #[cfg(feature = "lab-opt-passive-lifecycle")]
+    #[test]
+    fn lifecycle_passive_planner_matches_reference_across_dynamic_skills_lives_and_respawns() {
+        let mut config = rules();
+        config.heroes[0].skills = vec![
+            SkillDefinition { id: "p_haste".into(), name: "Haste".into(), passive: true,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 0, cost: 0,
+                range: 0, target: "self".into(), effect: SkillEffect::Haste,
+                power: 25, duration: 0 },
+            SkillDefinition { id: "p_slow".into(), name: "Slow".into(), passive: true,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 0, cost: 0,
+                range: 0, target: "self".into(), effect: SkillEffect::Slow,
+                power: 30, duration: 0 },
+            SkillDefinition { id: "p_shield".into(), name: "Shield".into(), passive: true,
+                unlock_level: 1, prerequisites: Vec::new(), cooldown: 0, cost: 0,
+                range: 0, target: "self".into(), effect: SkillEffect::Shield,
+                power: 17, duration: 0 },
+        ];
+        let mut reference = WorldState::default();
+        for index in 0..16 {
+            let mut hero = entity("hero", Some(CombatantSide::Attacker), 0, 100, 10, 30);
+            support::set_string(&mut hero, "catalog_id", "test_hero");
+            hero.fields.insert("skills".into(), DomainValue::List(
+                ["p_haste", "p_slow", "p_shield"].iter()
+                    .take(index % 4).map(|name| DomainValue::String((*name).into())).collect()
+            ));
+            support::set_int(&mut hero, "life_generation", 1);
+            support::set_int(&mut hero, "passive_generation", 0);
+            reference.entities.insert(format!("hero-{index:02}").into(), hero);
+        }
+        let mut unknown = entity("hero", Some(CombatantSide::Defender), 0, 100, 5, 5);
+        support::set_string(&mut unknown, "catalog_id", "unknown");
+        support::set_int(&mut unknown, "life_generation", 2);
+        reference.entities.insert("unknown".into(), unknown);
+        let mut optimized = reference.clone();
+        let passive = PassiveLifecyclePlan::compile(&config);
+        for tick in 1..=40 {
+            for state in [&mut reference, &mut optimized] {
+                let hero = state.entities.get_mut(&EntityId::from("hero-03")).unwrap();
+                if tick == 7 {
+                    support::set_int(hero, "life_generation", 2);
+                    support::set_int(hero, "passive_generation", 1);
+                    support::set_int(hero, "haste_until", 0);
+                    support::set_int(hero, "slow_until", 0);
+                    support::set_int(hero, "shield", 0);
+                }
+                if tick == 13 {
+                    hero.fields.insert("skills".into(), DomainValue::List(
+                        [DomainValue::String("p_shield".into()),
+                         DomainValue::String("p_haste".into())].into_iter().collect()
+                    ));
+                    support::set_int(hero, "life_generation", 3);
+                }
+                if tick == 25 {
+                    support::set_int(hero, "hp", 0);
+                }
+                if tick == 27 {
+                    support::set_int(hero, "hp", 50);
+                    support::set_int(hero, "life_generation", 4);
+                }
+            }
+            let reference_events = objective_lifecycle(&mut reference, &config, tick);
+            let planned_events = objective_lifecycle_planned(&mut optimized, &config, tick, &passive);
+            assert_eq!(planned_events, reference_events, "lifecycle event mismatch at Tick {tick}");
+            assert_eq!(optimized, reference, "lifecycle World mismatch at Tick {tick}");
+        }
     }
 
     #[test]

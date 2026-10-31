@@ -46,5 +46,8 @@ lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "l
 lab-opt-scheduler = []
 # Cross-Tick dependency-certified movement Active Set, preserves every Tick.
 lab-opt-movement-window = []
+# Compile immutable passive definitions once; retain current-World skill and
+# generation reads, canonical respawns and identical public/owner outputs.
+lab-opt-passive-lifecycle = []
 # Historical all-on feature remains an explicit alias, not a separate implementation.
 lab-optimizations = ["lab-opt-termination", "lab-opt-cohort", "lab-opt-shields"]
