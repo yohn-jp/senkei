@@ -1131,6 +1131,48 @@ mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
 
+    #[cfg(feature = "lab-opt-replay-fusion")]
+    #[test]
+    fn fused_public_replay_matches_canonical_after_owner_fog_updates() {
+        let rules = test_rules();
+        let policy = PresentationPolicy {
+            visible_events: BTreeMap::new(),
+            visible_entity_fields: BTreeMap::from([(
+                TypeId::from("hero"),
+                ["hp", "max_hp", "node", "vision", "xp"]
+                    .into_iter().map(FieldId::from).collect::<BTreeSet<_>>(),
+            )]),
+            visible_global_fields: BTreeSet::new(),
+        };
+        let mut world = WorldState::default();
+        let mut attacker = hero(CombatantSide::Attacker, 0, 10);
+        support::set_string(&mut attacker, "node", "a0");
+        let mut defender = hero(CombatantSide::Defender, 20, 10);
+        support::set_string(&mut defender, "node", "d0");
+        world.entities.insert("a".into(), attacker);
+        world.entities.insert("d".into(), defender);
+        let mut fog_a = FogHistory::default();
+        let mut fog_d = FogHistory::default();
+        for tick in 0..6_u32 {
+            match tick {
+                1 => support::set_int(world.entities.get_mut(&"a".into()).unwrap(), "vision", 25),
+                2 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "reveal_attacker_until", 7),
+                3 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "hp", 0),
+                4 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "hp", 10),
+                5 => { world.entities.remove(&EntityId::from("d")); },
+                _ => {},
+            }
+            let view_a = team_view_with_fog(&world, &rules, CombatantSide::Attacker, tick, &mut fog_a);
+            let view_d = team_view_with_fog(&world, &rules, CombatantSide::Defender, tick, &mut fog_d);
+            let expected = public_view_with_policy(&world, &rules, &policy);
+            let actual = public_view_with_policy_from_owners(
+                &world, &rules, &policy, &view_a, &view_d,
+            );
+            assert_eq!(actual, expected, "public projection drifted at tick={tick}");
+            assert!(!actual.global_fields.contains_key(&crate::next_fog::FOG_GLOBAL_FIELD.into()));
+        }
+    }
+
     #[cfg(feature = "lab-opt-visibility")]
     #[test]
     fn deduplicated_vision_sources_match_original_predicate() {
