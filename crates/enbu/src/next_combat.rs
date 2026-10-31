@@ -456,7 +456,7 @@ fn explicit_movement_action_for(
     snapshot: &WorldState,
 ) -> bool {
     let Some(actor) = snapshot.entities.get(actor_id) else { return false };
-    let actor_squad = support::string(actor, "squad");
+    let actor_squad = support::string_ref(actor, "squad");
     accepted.iter().any(|(_, intent)| {
         let Some(other_id) = intent.actor.as_ref() else { return false };
         let same_subject = if other_id == actor_id {
@@ -468,7 +468,7 @@ fn explicit_movement_action_for(
                 other.entity_type.as_str() == "hero"
                     && actor.entity_type.as_str() == "hero"
                     && other.owner == actor.owner
-                    && support::string(other, "squad") == actor_squad
+                    && support::string_ref(other, "squad") == actor_squad
             })
         };
         same_subject
@@ -481,14 +481,14 @@ fn cohort_member_ids(world: &WorldState, actor_id: &EntityId) -> Vec<EntityId> {
     if actor.entity_type.as_str() != "hero" {
         return vec![actor_id.clone()];
     }
-    let squad = support::string(actor, "squad");
+    let squad = support::string_ref(actor, "squad");
     if squad.is_empty() {
         return vec![actor_id.clone()];
     }
     world.entities.iter()
         .filter(|(_, member)| member.entity_type.as_str() == "hero"
             && member.owner == actor.owner
-            && support::string(member, "squad") == squad
+            && support::string_ref(member, "squad") == squad
             && support::alive(member))
         .map(|(id, _)| id.clone())
         .collect()
