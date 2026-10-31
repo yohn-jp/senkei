@@ -201,6 +201,25 @@ selection**, not closed-form state mutation or a whole-Tick jump. The
 general fixed-target first-lethal kernel is implemented but is not allowed
 to commit world damage without a full effect/read-write proof.
 
+## Current-Tick replay projection fusion (production candidate, unverified)
+
+`lab-opt-replay-fusion` preserves the canonical per-Tick ledger while avoiding
+a *second public visibility traversal* after both owner views have already
+classified the same frozen post-transition World. The new public projector
+takes only the intersection of owner-visible EntityIds as its visibility
+certificate, then applies the exact original public field projector and
+presentation allowlist; it does not copy private/Fog fields. The owner frames
+are still materialized through the original FogHistory path at their canonical
+Tick and under their original side authority.
+
+For precombat owner-only event filtering, a quiet Tick may retain a frozen
+World instead of eagerly projecting both owner views. When an event actually
+appears, the original views are produced from that saved state, never from
+post-event World. All events and diagnostics retain their original ordering.
+The decision is a physical cost hint, **not** an authorization to skip a Tick.
+The complete canonical fallback remains available, and Native/WASM full JSON
+equivalence plus actual speed must be checked before accepting the candidate.
+
 ## Requirements before a closed-domain whole-Tick jump
 
 A full `FastStep(S_a,[a+1,b])` is only valid when the engine can prove the
