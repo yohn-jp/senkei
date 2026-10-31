@@ -24,8 +24,8 @@ enum CombatLocation<'a> {
 }
 
 #[cfg(feature = "lab-opt-spatial")]
-impl CombatLocation<'_> {
-    fn of(entity: &EntityState) -> Option<CombatLocation<'_>> {
+impl<'a> CombatLocation<'a> {
+    fn of(entity: &'a EntityState) -> Option<Self> {
         let node = next_support::string_ref(entity, "node");
         if node.is_empty() { return None; }
         let other = next_support::string_ref(entity, "edge_to");
