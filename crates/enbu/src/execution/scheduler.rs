@@ -197,6 +197,8 @@ pub(crate) struct BasicAttackFrontier {
     last_tick: Option<u32>,
     scheduled: EventScheduler,
     active: Vec<EntityId>,
+    #[cfg(feature = "lab-opt-arithmetic")]
+    periodic: Option<crate::execution::arithmetic::CertifiedAttackTimeline>,
     pub(crate) hits: u64,
     pub(crate) misses: u64,
 }
@@ -206,6 +208,29 @@ fn combatant(kind: &str) -> bool {
 }
 
 impl BasicAttackFrontier {
+    #[cfg(feature = "lab-opt-arithmetic")]
+    fn periodic_decision(
+        &mut self, tick: u32, due: Vec<EntityId>, combatants: usize,
+    ) -> bool {
+        self.initialized = true;
+        self.last_tick = Some(tick);
+        self.active.clear();
+        if due.is_empty() {
+            // Exact source-readiness proof, not an inference about targets.
+            self.hits = self.hits.saturating_add(1);
+            return true;
+        }
+        self.misses = self.misses.saturating_add(1);
+        if combatants >= 32 && due.len() <= 8
+            && due.len().saturating_mul(4) <= combatants
+        {
+            // Caller still runs the unmodified target/lock/visibility
+            // resolver for every due actor in canonical EntityId order.
+            self.active = due;
+        }
+        false
+    }
+
     pub(crate) fn decline_tick(&mut self, tick: u32) {
         // The work is intentionally executed by Reference this Tick. Even a
         // declined window must not make the scheduler's logical clock jump.
@@ -214,6 +239,8 @@ impl BasicAttackFrontier {
         self.last_tick = Some(tick);
         self.read_set.clear();
         self.active.clear();
+        #[cfg(feature = "lab-opt-arithmetic")]
+        { self.periodic = None; }
     }
 
     /// An exact, ordered active set derived from the same current-Tick source
@@ -270,6 +297,8 @@ impl BasicAttackFrontier {
                 // Calls out of canonical order are not certification. In
                 // particular, never restore an older window after an error.
                 self.initialized = false;
+                #[cfg(feature = "lab-opt-arithmetic")]
+                { self.periodic = None; }
                 return false;
             }
         };
@@ -277,7 +306,42 @@ impl BasicAttackFrontier {
             self.initialized = false;
             self.active.clear();
             self.last_tick = Some(tick);
+            #[cfg(feature = "lab-opt-arithmetic")]
+            { self.periodic = None; }
             return false;
+        }
+        // A mathematical periodic source plan is admitted only for this
+        // specific calculation domain. A missed scheduled attack changes
+        // attack_ready relative to the recurrence, revoking the plan on the
+        // next frozen Tick before *any* candidate is omitted. Never skip
+        // canonical observation/Jinrei/Skill/Replay or logical CU.
+        #[cfg(feature = "lab-opt-arithmetic")]
+        {
+            let had_periodic = self.periodic.is_some();
+            let cached = self.periodic.as_mut()
+                .and_then(|timeline| timeline.due(world, tick).map(|ids|
+                    (ids, timeline.combatant_count())));
+            if let Some((ids, count)) = cached {
+                return self.periodic_decision(tick, ids, count);
+            }
+            self.periodic = None;
+            if had_periodic {
+                // A source clock no longer follows its certified recurrence.
+                // Do not re-admit a guessed schedule on this Tick: execute
+                // the canonical fallback and rebuild at a later boundary.
+                let _ = self.scheduled.invalidate_all();
+                self.initialized = false;
+            } else if world.entities.len() >= 24 {
+                if let Some(mut candidate) =
+                    crate::execution::arithmetic::CertifiedAttackTimeline::from_snapshot(world, tick)
+                {
+                    if let Some(ids) = candidate.due(world, tick) {
+                        let count = candidate.combatant_count();
+                        self.periodic = Some(candidate);
+                        return self.periodic_decision(tick, ids, count);
+                    }
+                }
+            }
         }
         if self.initialized
             && self.last_tick.and_then(|at| at.checked_add(1)) == Some(tick)
