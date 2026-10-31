@@ -18,26 +18,20 @@ use senkei_model::{CombatantSide, EntityId, EntityState, NextRules, WorldState};
 /// valid position, range, track offset, ownership and visibility.
 #[cfg(feature = "lab-opt-spatial")]
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-enum CombatLocation {
-    Node(String),
-    Edge(String, String),
+enum CombatLocation<'a> {
+    Node(&'a str),
+    Edge(&'a str, &'a str),
 }
 
 #[cfg(feature = "lab-opt-spatial")]
-impl CombatLocation {
-    fn of(entity: &EntityState) -> Option<Self> {
-        let node = next_support::string(entity, "node");
-        if node.is_empty() {
-            return None;
-        }
-        let other = next_support::string(entity, "edge_to");
-        if other.is_empty() {
-            Some(Self::Node(node))
-        } else if node <= other {
-            Some(Self::Edge(node, other))
-        } else {
-            Some(Self::Edge(other, node))
-        }
+impl CombatLocation<'_> {
+    fn of(entity: &EntityState) -> Option<CombatLocation<'_>> {
+        let node = next_support::string_ref(entity, "node");
+        if node.is_empty() { return None; }
+        let other = next_support::string_ref(entity, "edge_to");
+        if other.is_empty() { Some(CombatLocation::Node(node)) }
+        else if node <= other { Some(CombatLocation::Edge(node, other)) }
+        else { Some(CombatLocation::Edge(other, node)) }
     }
 }
 
@@ -54,7 +48,13 @@ pub(crate) struct PlannedCombatCandidates<'a> {
     attacker_vision: Vec<&'a EntityState>,
     defender_vision: Vec<&'a EntityState>,
     #[cfg(feature = "lab-opt-spatial")]
-    by_location: BTreeMap<CombatLocation, Vec<(&'a EntityId, &'a EntityState)>>,
+    // Borrow map-node and canonical undirected-edge names from the frozen
+    // World. BTreeMap<&str> accepts borrowed lookups from arbitrary current
+    // source states; unlike allocating a CombatLocation<String> per actor,
+    // there is no per-Tick string clone or hash/ordering approximation.
+    by_node: BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>,
+    #[cfg(feature = "lab-opt-spatial")]
+    by_edge: BTreeMap<&'a str, BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>>,
     #[cfg(feature = "lab-opt-spatial")]
     spatial_admitted: bool,
 }
@@ -85,7 +85,9 @@ impl<'a> PlannedCombatCandidates<'a> {
                 next_vision::vision_sources(snapshot, rules, CombatantSide::Defender)
             } else { Vec::new() },
             #[cfg(feature = "lab-opt-spatial")]
-            by_location: BTreeMap::new(),
+            by_node: BTreeMap::new(),
+            #[cfg(feature = "lab-opt-spatial")]
+            by_edge: BTreeMap::new(),
             #[cfg(feature = "lab-opt-spatial")]
             spatial_admitted: snapshot.entities.len() >= 24,
         };
@@ -100,7 +102,13 @@ impl<'a> PlannedCombatCandidates<'a> {
             #[cfg(feature = "lab-opt-spatial")]
             if result.spatial_admitted {
                 if let Some(location) = CombatLocation::of(target) {
-                    result.by_location.entry(location).or_default().push((id, target));
+                    match location {
+                        CombatLocation::Node(node) =>
+                            result.by_node.entry(node).or_default().push((id, target)),
+                        CombatLocation::Edge(from, to) =>
+                            result.by_edge.entry(from).or_default().entry(to)
+                                .or_default().push((id, target)),
+                    }
                 }
             }
             if target.owner != Some(CombatantSide::Attacker) {
@@ -152,8 +160,13 @@ impl<'a> PlannedCombatCandidates<'a> {
             // retain the cheaper, equally authoritative list per source.
             let baseline = self.candidates(source);
             if let Some(location) = CombatLocation::of(source) {
-                let bucket = self.by_location.get(&location)
-                    .map(Vec::as_slice).unwrap_or(&[]);
+                let bucket = match location {
+                    CombatLocation::Node(node) =>
+                        self.by_node.get(node).map(Vec::as_slice).unwrap_or(&[]),
+                    CombatLocation::Edge(from, to) =>
+                        self.by_edge.get(from).and_then(|edges| edges.get(to))
+                            .map(Vec::as_slice).unwrap_or(&[]),
+                };
                 return if bucket.len() < baseline.len() { bucket } else { baseline };
             }
             return &[];
