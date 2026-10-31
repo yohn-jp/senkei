@@ -358,6 +358,23 @@ pub(crate) fn resolve_from_snapshot_scheduled(
     )
 }
 
+/// Project next-Tick path skills only when the immutable verified plan
+/// and the current World contain an unlearned level-eligible skill. Otherwise
+/// the original World is an exact proof of the projected snapshot and can be
+/// borrowed throughout Skill reservation/legality checks. The full cloned
+/// Reference projection remains available whenever a mutation is possible.
+fn skill_projection_snapshot<'a>(
+    snapshot: &'a WorldState, rules: &NextRules,
+) -> std::borrow::Cow<'a, WorldState> {
+    #[cfg(feature = "lab-opt-frozen")]
+    if !path_skill_may_unlock(snapshot, rules) {
+        return std::borrow::Cow::Borrowed(snapshot);
+    }
+    let mut projected = snapshot.clone();
+    learn_path_skills(&mut projected, rules, &mut Vec::new());
+    std::borrow::Cow::Owned(projected)
+}
+
 /// Reserve a legal active skill as this Hero's action before movement runs.
 /// Explicit movement/track/bridge actions take precedence when both intent
 /// kinds target the same actor in one arbitration batch; the skill remains
@@ -384,8 +401,7 @@ pub fn prepare_actions(
     // The combat phase learns eligible path skills before resolving activations.
     // Project that same-tick unlock for pre-navigation reservations, without mutating
     // the live world or consuming the one-and-only skill-acquired replay event.
-    let mut eligible_snapshot = snapshot.clone();
-    learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
+    let eligible_snapshot = skill_projection_snapshot(snapshot, rules);
     let mut actions = accepted.iter().collect::<Vec<_>>();
     actions.sort_by(|(side_a, a), (side_b, b)| {
         (side_a, &a.actor, &a.action_id).cmp(&(side_b, &b.actor, &b.action_id))
@@ -427,8 +443,7 @@ pub(crate) fn eligible_explicit_skill(
         return false;
     }
     let Some(actor_id) = intent.actor.as_ref() else { return false };
-    let mut eligible_snapshot = snapshot.clone();
-    learn_path_skills(&mut eligible_snapshot, rules, &mut Vec::new());
+    let eligible_snapshot = skill_projection_snapshot(snapshot, rules);
     active_skill_target(intent, side, &eligible_snapshot, rules, tick).is_some()
         && !cohort_member_ids(snapshot, actor_id).iter().any(|id| snapshot.entities.get(id)
             .is_some_and(|member| crate::next_navigation::forced_transit_in(member, rules, snapshot)))
@@ -3258,6 +3273,47 @@ mod tests {
             .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
             .sum();
         assert_eq!(total, XP_SCALE);
+    }
+
+    #[cfg(feature = "lab-opt-frozen")]
+    #[test]
+    fn immutable_skill_projection_borrows_no_unlock_and_clones_required_unlocks() {
+        let mut config = rules();
+        config.heroes[0].skills = vec![SkillDefinition {
+            id: "learnable".into(), name: "Learnable".into(), passive: true,
+            unlock_level: 1, prerequisites: Vec::new(), cooldown: 0,
+            cost: 0, range: 0, target: "self".into(),
+            effect: SkillEffect::Shield, power: 15, duration: 0,
+        }];
+        config.heroes[0].skill_paths.insert("chosen".into(),
+            vec!["learnable".into()]);
+        let mut world = WorldState::default();
+        let mut actor = entity("hero", Some(CombatantSide::Attacker), 0, 100, 10, 10);
+        support::set_string(&mut actor, "catalog_id", "test_hero");
+        support::set_string(&mut actor, "skill_path", "chosen");
+        support::set_int(&mut actor, "level", 1);
+        actor.fields.insert("skills".into(), DomainValue::List(vec![
+            DomainValue::String("learnable".into()),
+        ]));
+        world.entities.insert("hero".into(), actor);
+        for index in 0..40 {
+            world.entities.insert(format!("padding-{index:02}").into(),
+                entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 0));
+        }
+        let no_unlock = skill_projection_snapshot(&world, &config);
+        assert!(matches!(no_unlock, std::borrow::Cow::Borrowed(_)),
+            "the path is already learned; no full World clone is necessary");
+        drop(no_unlock);
+        world.entities.get_mut(&EntityId::from("hero")).unwrap().fields.insert(
+            "skills".into(), DomainValue::List(Vec::new()),
+        );
+        let projected = skill_projection_snapshot(&world, &config);
+        assert!(matches!(projected, std::borrow::Cow::Owned(_)),
+            "level-eligible unlearned skill requires an exact projected World");
+        let mut reference = world.clone();
+        learn_path_skills(&mut reference, &config, &mut Vec::new());
+        assert_eq!(projected.as_ref(), &reference);
+        assert_eq!(support::int(&projected.entities[&EntityId::from("hero")], "shield"), 15);
     }
 
     #[cfg(feature = "lab-opt-passive-lifecycle")]
