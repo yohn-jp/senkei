@@ -209,25 +209,17 @@ fn advance_inner_with_window(
     // separate route-free entry point may provide a certified Active Set.
     debug_assert!(window.is_none() || routes.is_none());
     let window_is_disabled = window.is_none();
-    let mut ids = if let Some(window) = window {
-        window.eligible(snapshot).iter().cloned()
-            .map(|id| (0_u8, id)).collect::<Vec<_>>()
+    // The immutable pre-movement World (or the certified MovementWindow)
+    // already owns all canonical IDs. Borrow them throughout the stable
+    // minion-first worklist instead of cloning every EntityId each Tick.
+    let mut ids: Vec<(u8, &EntityId)> = if let Some(window) = window {
+        window.eligible(snapshot).iter().map(|id| (0_u8, id)).collect()
     } else {
-        snapshot
-        .entities
-        .iter()
-        .filter(|(_, entity)| is_mobile(entity.entity_type.as_str()) && alive(entity))
-        .map(|(id, entity)| {
-            (
-                if entity.entity_type.as_str() == "minion" {
-                    0
-                } else {
-                    1
-                },
-                id.clone(),
-            )
-        })
-        .collect::<Vec<_>>()
+        snapshot.entities.iter()
+            .filter(|(_, entity)| is_mobile(entity.entity_type.as_str()) && alive(entity))
+            .map(|(id, entity)| (
+                if entity.entity_type.as_str() == "minion" { 0 } else { 1 }, id
+            )).collect()
     };
     // The window already emits minion-first canonical order.
     if window_is_disabled { ids.sort(); }
@@ -258,7 +250,7 @@ fn advance_inner_with_window(
     // waypoints for each actor: it must never share these intent calculations.
     let mut grouped_intents = BTreeMap::<(CombatantSide, &str), MovementIntent>::new();
     for (_, id) in ids {
-        let Some(start) = snapshot.entities.get(&id) else {
+        let Some(start) = snapshot.entities.get(id) else {
             continue;
         };
         if start.entity_type.as_str() == "hero"
@@ -294,10 +286,10 @@ fn advance_inner_with_window(
                 continue;
             }
         }
-        let Some(entity) = world.entities.get_mut(&id) else {
+        let Some(entity) = world.entities.get_mut(id) else {
             continue;
         };
-        let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
+        let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(id, start));
         let movement = if cache_grouped_intents && routes.is_none()
             && cohort_index.is_some() && start.entity_type.as_str() == "hero"
         {
@@ -305,22 +297,22 @@ fn advance_inner_with_window(
             if let Some(side) = start.owner.filter(|_| !squad.is_empty()) {
                 grouped_intents.entry((side, squad))
                     .or_insert_with(|| movement_intent_for(
-                        &id, start, snapshot, rules, tick, None, cohort_index.as_ref(),
+                        id, start, snapshot, rules, tick, None, cohort_index.as_ref(),
                     ))
                     .clone()
             } else {
-                movement_intent_for(&id, start, snapshot, rules, tick,
+                movement_intent_for(id, start, snapshot, rules, tick,
                     waypoint.as_deref(), cohort_index.as_ref())
             }
         } else {
-            movement_intent_for(&id, start, snapshot, rules, tick,
+            movement_intent_for(id, start, snapshot, rules, tick,
                 waypoint.as_deref(), cohort_index.as_ref())
         };
         if inplace {
             // This ID is visited exactly once: no earlier movement can
             // modify this actor. Its live state equals the frozen start.
             advance_entity(
-                &id, entity, rules, &movement, snapshot, frontier, spatial,
+                id, entity, rules, &movement, snapshot, frontier, spatial,
                 cohort_index.as_ref(),
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
@@ -328,7 +320,7 @@ fn advance_inner_with_window(
             // Reference allocates a per-actor clone before replacing it.
             let mut next = start.clone();
             advance_entity(
-                &id, &mut next, rules, &movement, snapshot, frontier, spatial,
+                id, &mut next, rules, &movement, snapshot, frontier, spatial,
                 cohort_index.as_ref(),
                 &mut bridge_reservations, &mut cross_reservations, tick,
             );
