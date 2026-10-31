@@ -29,6 +29,7 @@ struct MovementIntent {
 /// immutable phase snapshot, and the index never survives the Tick.
 struct NavigationCohorts<'a> {
     by_side: BTreeMap<CombatantSide, BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>>,
+    minions_by_side: BTreeMap<CombatantSide, Vec<&'a EntityState>>,
 }
 
 impl<'a> NavigationCohorts<'a> {
@@ -37,17 +38,22 @@ impl<'a> NavigationCohorts<'a> {
             CombatantSide,
             BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>,
         >::new();
-        for (id, hero) in &snapshot.entities {
-            if hero.entity_type.as_str() != "hero" || !alive(hero) {
-                continue;
+        let mut minions_by_side = BTreeMap::<CombatantSide, Vec<&'a EntityState>>::new();
+        for (id, entity) in &snapshot.entities {
+            if !alive(entity) { continue; }
+            if entity.entity_type.as_str() == "minion" {
+                if let Some(side) = entity.owner {
+                    minions_by_side.entry(side).or_default().push(entity);
+                }
             }
-            let squad = support::string_ref(hero, "squad");
-            if let Some(side) = hero.owner.filter(|_| !squad.is_empty()) {
+            if entity.entity_type.as_str() != "hero" { continue; }
+            let squad = support::string_ref(entity, "squad");
+            if let Some(side) = entity.owner.filter(|_| !squad.is_empty()) {
                 by_side.entry(side).or_default()
-                    .entry(squad).or_default().push((id, hero));
+                    .entry(squad).or_default().push((id, entity));
             }
         }
-        Self { by_side }
+        Self { by_side, minions_by_side }
     }
 
     fn members(&self, hero: &EntityState) -> Option<Vec<(EntityId, &'a EntityState)>> {
@@ -58,6 +64,13 @@ impl<'a> NavigationCohorts<'a> {
         }
         let members = self.by_side.get(&side)?.get(squad)?;
         Some(members.iter().map(|(id, entity)| ((**id).clone(), *entity)).collect())
+    }
+
+    fn minion_vision(&self, side: CombatantSide, hero: &EntityState, rules: &NextRules) -> bool {
+        crate::next_vision::minion_vision_from_sources(
+            self.minions_by_side.get(&side).map(Vec::as_slice).unwrap_or(&[]),
+            rules, side, hero,
+        )
     }
 }
 
@@ -1182,7 +1195,10 @@ fn movement_intent_for(
         .unwrap_or(0);
     let vision_milli = leader
         .owner
-        .filter(|side| crate::next_vision::minion_vision(world, rules, *side, leader))
+        .filter(|side| match cohort_index {
+            Some(index) => index.minion_vision(*side, leader, rules),
+            None => crate::next_vision::minion_vision(world, rules, *side, leader),
+        })
         .map(|_| param(rules, "minion_vision_speed_milli", 1_200))
         .unwrap_or(1_000);
     let squad_milli = squad_speed_milli(size, rules);
