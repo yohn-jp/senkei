@@ -1155,10 +1155,10 @@ mod tests {
         let mut fog_d = FogHistory::default();
         for tick in 0..6_u32 {
             match tick {
-                1 => support::set_int(world.entities.get_mut(&"a".into()).unwrap(), "vision", 25),
-                2 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "reveal_attacker_until", 7),
-                3 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "hp", 0),
-                4 => support::set_int(world.entities.get_mut(&"d".into()).unwrap(), "hp", 10),
+                1 => support::set_int(world.entities.get_mut(&EntityId::from("a")).unwrap(), "vision", 25),
+                2 => support::set_int(world.entities.get_mut(&EntityId::from("d")).unwrap(), "reveal_attacker_until", 7),
+                3 => support::set_int(world.entities.get_mut(&EntityId::from("d")).unwrap(), "hp", 0),
+                4 => support::set_int(world.entities.get_mut(&EntityId::from("d")).unwrap(), "hp", 10),
                 5 => { world.entities.remove(&EntityId::from("d")); },
                 _ => {},
             }
@@ -1169,7 +1169,7 @@ mod tests {
                 &world, &rules, &policy, &view_a, &view_d,
             );
             assert_eq!(actual, expected, "public projection drifted at tick={tick}");
-            assert!(!actual.global_fields.contains_key(&crate::next_fog::FOG_GLOBAL_FIELD.into()));
+            assert!(!actual.global_fields.contains_key(&FieldId::from(crate::next_fog::FOG_GLOBAL_FIELD)));
         }
     }
 
