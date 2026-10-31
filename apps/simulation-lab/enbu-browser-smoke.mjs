@@ -76,6 +76,11 @@ try {
     pageErrors: errors,
   }, null, 2));
   console.log('PASS: real Chromium Simulation Lab performed verified reference, previous TCSRVG and production TCSRVGY WASM comparison');
+  // Experimental portfolios exist only in explicitly requested research runs.
+  // Standard publication must still prove the real production UI, above.
+  const publishedManifest = JSON.parse(await readFile(
+    resolve(root, 'simulation-lab/enbu-variants.json'), 'utf8'));
+  if (publishedManifest.variants.some(variant => variant.id === 'TCSRVGW')) {
   // Exercise the *actual UI* with the new certified window, not only the
   // standalone worker shim. Include the current production binary in the
   // paired comparison and preserve the rendered evidence separately.
@@ -173,7 +178,7 @@ try {
     JSON.stringify(hybridReport, null, 2));
   console.log('PASS: real Chromium UI verifies current full-Hybrid production candidate');
 
-
+  } // Research-only extended UI experiments
 
 } finally {
   await browser?.close();
