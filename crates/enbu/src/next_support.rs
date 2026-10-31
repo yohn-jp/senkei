@@ -288,19 +288,33 @@ pub fn distance2(a: &EntityState, b: &EntityState) -> i128 {
 /// Logical combat distance. Presentation coordinates are intentionally ignored:
 /// only actors in the same Node or on the same graph edge can engage.
 pub fn combat_distance2(a: &EntityState, b: &EntityState, rules: &NextRules) -> Option<i128> {
-    if !valid_graph_position(a, rules) || !valid_graph_position(b, rules) {
-        return None;
-    }
     let a_node = string_ref(a, "node");
     let a_to = string_ref(a, "edge_to");
     let b_node = string_ref(b, "node");
     let b_to = string_ref(b, "edge_to");
-    if a_to.is_empty() && b_to.is_empty() {
-        return (a_node == b_node).then_some(0);
-    }
-    if a_to.is_empty() || b_to.is_empty() {
+    // Reject structurally impossible combat pairs before validating graph
+    // positions. In a dense battlefield most candidate pairs occupy distinct
+    // nodes or edges; validating both positions can otherwise scan the map
+    // for each pair even though the reference predicate would return None.
+    //
+    // Only two co-located nodes or the same undirected edge can have a
+    // distance. Same-location pairs still receive *both* complete canonical
+    // validity checks, including unknown nodes, invalid edge progress and
+    // graph-map edge validation. World/vision distance continues to fall
+    // back to its independent geodesic path on a None result.
+    let nodes = a_to.is_empty() && b_to.is_empty();
+    if nodes {
+        if a_node != b_node { return None; }
+    } else if a_to.is_empty() || b_to.is_empty()
+        || !((a_node == b_node && a_to == b_to)
+            || (a_node == b_to && a_to == b_node))
+    {
         return None;
     }
+    if !valid_graph_position(a, rules) || !valid_graph_position(b, rules) {
+        return None;
+    }
+    if nodes { return Some(0); }
     let edge = canonical_edge(&rules.map, a_node, a_to)?;
     if !((b_node == edge.from && b_to == edge.to) || (b_node == edge.to && b_to == edge.from)) {
         return None;
