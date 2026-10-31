@@ -197,6 +197,10 @@ pub(crate) struct BasicAttackFrontier {
     last_tick: Option<u32>,
     scheduled: EventScheduler,
     active: Vec<EntityId>,
+    // The full ordered source-readiness set was checked against this Tick's
+    // frozen combat World. The downstream dispatcher must not classify all
+    // combatants again when a dense due batch needs canonical resolution.
+    classified: bool,
     #[cfg(feature = "lab-opt-arithmetic")]
     periodic: Option<crate::execution::arithmetic::CertifiedAttackTimeline>,
     pub(crate) hits: u64,
@@ -214,6 +218,7 @@ impl BasicAttackFrontier {
     ) -> bool {
         self.initialized = true;
         self.last_tick = Some(tick);
+        self.classified = true;
         self.active.clear();
         if due.is_empty() {
             // Exact source-readiness proof, not an inference about targets.
@@ -239,6 +244,7 @@ impl BasicAttackFrontier {
         self.last_tick = Some(tick);
         self.read_set.clear();
         self.active.clear();
+        self.classified = false;
         #[cfg(feature = "lab-opt-arithmetic")]
         { self.periodic = None; }
     }
@@ -251,6 +257,10 @@ impl BasicAttackFrontier {
     pub(crate) fn active_ids(&self, tick: u32) -> Option<&[EntityId]> {
         (self.initialized && self.last_tick == Some(tick) && !self.active.is_empty())
             .then_some(self.active.as_slice())
+    }
+
+    pub(crate) fn ready_preclassified(&self, tick: u32) -> bool {
+        self.initialized && self.classified && self.last_tick == Some(tick)
     }
 
     fn keys(world: &WorldState) -> impl Iterator<Item = AttackKey> + '_ {
@@ -292,6 +302,7 @@ impl BasicAttackFrontier {
     /// Owner actor traces always call the canonical collector to preserve all
     /// NoAttack reason precedence and event-index accounting.
     pub fn certify_idle(&mut self, world: &WorldState, tick: u32, owner_trace: bool) -> bool {
+        self.classified = false;
         // Even when the combat domain is idle, the external Tick cannot be
         // skipped. The scheduler advances once, and a due clock obliges
         // canonical target/visibility evaluation at that very Tick.
@@ -378,6 +389,7 @@ impl BasicAttackFrontier {
         self.scheduled.subscribe("basic_attack", BTreeSet::from([Dependency::EntitySet]));
         self.active.clear();
         self.read_set = Self::keys(world).collect();
+        self.classified = true;
         // All targetable living entities are in this combatant read set.
         // A singleton, an empty set, or one non-neutral owner cannot contain
         // an eligible hostile pair. Unlike a distance-based guess, this proof

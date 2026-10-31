@@ -543,8 +543,13 @@ fn resolve_snapshot_with_events(
     };
     let active_ids = attack_frontier.as_deref()
         .and_then(|frontier| frontier.active_ids(tick));
+    let ready_preclassified = attack_frontier.as_deref()
+        .is_some_and(|frontier| frontier.ready_preclassified(tick));
     let mut hits = if idle { Vec::new() }
-        else { collect_basic_attacks(world, &combat_start, rules, tick, collector.as_deref_mut(), active_ids) };
+        else { collect_basic_attacks(
+            world, &combat_start, rules, tick, collector.as_deref_mut(),
+            active_ids, ready_preclassified,
+        ) };
     hits.append(&mut skill_damage);
 
     // Timed support effects are prepared together, independent of accepted
@@ -724,6 +729,7 @@ fn hybrid_combat_selectors(entity_count: usize, owner_trace: bool, hybrid: bool)
 fn collect_basic_attacks(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>, active_ids: Option<&[EntityId]>,
+    ready_preclassified: bool,
 ) -> Vec<Hit> {
     let (planned, arithmetic) = hybrid_combat_selectors(
         start.entities.len(), collector.is_some(), cfg!(feature = "lab-opt-hybrid"),
@@ -734,6 +740,7 @@ fn collect_basic_attacks(
     let planned = planned && active_ids.map_or(true, |ids| ids.len() > 1);
     collect_basic_attacks_with_execution(
         world, start, rules, tick, collector, planned, arithmetic, active_ids,
+        ready_preclassified,
     )
 }
 
@@ -741,7 +748,7 @@ fn collect_basic_attacks_with_planner(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>, use_planned: bool,
 ) -> Vec<Hit> {
-    collect_basic_attacks_with_execution(world, start, rules, tick, collector, use_planned, cfg!(feature = "lab-opt-arithmetic"), None)
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, use_planned, cfg!(feature = "lab-opt-arithmetic"), None, false)
 }
 
 #[cfg(feature = "lab-opt-arithmetic")]
@@ -749,7 +756,7 @@ fn collect_basic_attacks_with_dispatch(
     world: &mut WorldState, start: &WorldState, rules: &NextRules, tick: u32,
     collector: Option<&mut ActorDecisionCollector>, use_dispatch: bool,
 ) -> Vec<Hit> {
-    collect_basic_attacks_with_execution(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"), use_dispatch, None)
+    collect_basic_attacks_with_execution(world, start, rules, tick, collector, cfg!(feature = "lab-opt-planned"), use_dispatch, None, false)
 }
 
 #[cfg_attr(not(feature = "lab-opt-arithmetic"), allow(unused_variables))]
@@ -762,9 +769,10 @@ fn collect_basic_attacks_with_execution(
     use_planned: bool,
     use_dispatch: bool,
     active_ids: Option<&[EntityId]>,
+    ready_preclassified: bool,
 ) -> Vec<Hit> {
     #[cfg(feature = "lab-opt-arithmetic")]
-    let dispatch = if use_dispatch && active_ids.is_none() {
+    let dispatch = if use_dispatch && active_ids.is_none() && !ready_preclassified {
         crate::execution::dispatcher::plan_basic_attacks(start, tick, collector.is_some())
     } else {
         crate::execution::dispatcher::BasicAttackPlan::Reference(
@@ -1969,6 +1977,10 @@ mod tests {
                 &mut frontier, None,
             );
             saw_attack |= events_ref.iter().any(|event| event.event.as_str() == "next.attack");
+            if frontier.active_ids(tick).is_some() {
+                assert!(frontier.ready_preclassified(tick),
+                    "active scheduler candidates must carry their classifier proof");
+            }
             assert_eq!(events_planned, events_ref,
                 "periodic candidate batch changed an event at Tick {tick}");
             assert_eq!(planned, reference,
