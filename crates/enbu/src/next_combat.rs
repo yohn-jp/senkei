@@ -105,15 +105,20 @@ pub(crate) struct PassiveLifecyclePlan {
 #[cfg(feature = "lab-opt-passive-lifecycle")]
 impl PassiveLifecyclePlan {
     pub(crate) fn compile(rules: &NextRules) -> Self {
-        let by_catalog = rules.heroes.iter().map(|definition| {
+        let mut by_catalog = BTreeMap::new();
+        for definition in &rules.heroes {
+            // Reference selects the first catalog definition. Preserve that
+            // tie contract even for an unexpected duplicate in unverified
+            // direct callers; production plans are verified already.
+            if by_catalog.contains_key(&definition.id) { continue; }
             let relevant = definition.skills.iter()
                 .filter(|skill| skill.passive && matches!(
-                    skill.effect, SkillEffect::Haste | SkillEffect::Slow | SkillEffect::Shield
+                    &skill.effect, SkillEffect::Haste | SkillEffect::Slow | SkillEffect::Shield
                 ))
                 .map(|skill| (skill.id.clone(), skill.effect.clone(), skill.power.max(0)))
                 .collect();
-            (definition.id.clone(), relevant)
-        }).collect();
+            by_catalog.insert(definition.id.clone(), relevant);
+        }
         Self {
             by_catalog,
             skills_field: FieldId::from("skills"),
@@ -132,8 +137,22 @@ impl PassiveLifecyclePlan {
     /// allocations, per-Hero learned-skill set construction and repeated
     /// linear scans of the verified skill definitions. Non-passive actors
     /// still receive the original life/passive generation transition.
-    fn apply(&self, world: &mut WorldState, tick: u32) {
-        for hero in world.entities.values_mut() {
+    fn apply(&self, world: &mut WorldState, tick: u32) -> Vec<PresentationEvent> {
+        let mut events = Vec::new();
+        for (id, hero) in &mut world.entities {
+            if hero.entity_type.as_str() == "monster" {
+                let respawn_at = support::int(hero, "respawn_at");
+                if support::int(hero, "hp") <= 0 && respawn_at > 0
+                    && i64::from(tick) >= respawn_at
+                {
+                    let max_hp = support::int(hero, "max_hp").max(1);
+                    support::set_int(hero, "hp", max_hp);
+                    support::set_int(hero, "attack_ready", i64::from(tick));
+                    support::set_int(hero, "respawn_at", 0);
+                    events.push(event("next.neutral_respawn", Some(id.clone()), BTreeMap::new()));
+                }
+                continue;
+            }
             if hero.entity_type.as_str() != "hero" || !support::alive(hero) { continue; }
             let catalog = support::string(hero, "catalog_id");
             let mut haste = 0_i64;
@@ -167,6 +186,7 @@ impl PassiveLifecyclePlan {
                 support::set_int(hero, "passive_generation", generation);
             }
         }
+        events
     }
 }
 
@@ -175,8 +195,11 @@ pub(crate) fn objective_lifecycle_planned(
     world: &mut WorldState, rules: &NextRules, tick: u32,
     passive: &PassiveLifecyclePlan,
 ) -> Vec<PresentationEvent> {
-    passive.apply(world, tick);
-    respawn_due_monsters(world, rules, tick)
+    // No field written here is read by another actor's passive or
+    // resurrection. Folding these scans into one stable BTreeMap pass
+    // preserves the reference whole-phase commit and event order.
+    let _ = rules; // Rule-dependent passive definitions were compiled once.
+    passive.apply(world, tick)
 }
 
 /// Respawn due camp monsters. Sol should call this before generating the
@@ -3001,6 +3024,10 @@ mod tests {
         support::set_string(&mut unknown, "catalog_id", "unknown");
         support::set_int(&mut unknown, "life_generation", 2);
         reference.entities.insert("unknown".into(), unknown);
+        let mut monster = entity("monster", None, 0, 0, 15, 30);
+        support::set_int(&mut monster, "max_hp", 140);
+        support::set_int(&mut monster, "respawn_at", 14);
+        reference.entities.insert("monster.camp".into(), monster);
         let mut optimized = reference.clone();
         let passive = PassiveLifecyclePlan::compile(&config);
         for tick in 1..=40 {
@@ -3029,6 +3056,9 @@ mod tests {
                 }
             }
             let reference_events = objective_lifecycle(&mut reference, &config, tick);
+            if tick == 14 {
+                assert_eq!(reference_events.len(), 1, "fixture must exercise real respawn");
+            }
             let planned_events = objective_lifecycle_planned(&mut optimized, &config, tick, &passive);
             assert_eq!(planned_events, reference_events, "lifecycle event mismatch at Tick {tick}");
             assert_eq!(optimized, reference, "lifecycle World mismatch at Tick {tick}");
