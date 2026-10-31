@@ -118,10 +118,15 @@ try {
   assert.equal(hybridCompletion.report.source_revision, build.revision);
   assert.equal(hybridCompletion.report.cases[0].id, 'next-behavior-16');
   assert.deepEqual(hybridCompletion.report.rows.map(row => row.variant),
-    ['000', 'TCSRVG', 'TCSRVGH']);
+    ['000', 'TCSRVG', 'TCSRVGY', 'TCSRVGH']);
   assert.ok(hybridCompletion.report.rows.every(row => row.verified && row.samples === 3));
   assert.ok(hybridCompletion.report.rows.every(row => row.incumbent_speedup &&
     Number.isFinite(row.incumbent_speedup.median_ratio)));
+  assert.equal(hybridCompletion.report.production_baseline, 'TCSRVGY');
+  assert.ok(hybridCompletion.report.rows.every(row =>
+    row.production_speedup && Number.isFinite(row.production_speedup.median_ratio)));
+  assert.ok(hybridCompletion.report.production_ranking,
+    'comparison must rank against actual current production rather than old TCSRVG');
   console.log('PASS: full-Hybrid WASM matches real Behavior-driven Native golden');
 
 
