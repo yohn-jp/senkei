@@ -379,6 +379,10 @@ fn simulate_inner<P: TacticalExecutionPort>(
     #[cfg(feature = "lab-opt-movement-window")]
     let mut movement_window = execution::movement::MovementWindow::default();
     let mut materialization = execution::materialize::FullCaptureLedger::default();
+    // Physical-only predictor: an unexpected event always reprojects the
+    // saved exact snapshot. This flag never certifies or suppresses an event.
+    #[cfg(feature = "lab-opt-replay-fusion")]
+    let mut recent_next_events = false;
     for tick in 1..=max_ticks {
         if final_outcome.is_some() {
             break;
@@ -666,9 +670,27 @@ fn simulate_inner<P: TacticalExecutionPort>(
             &projection_index,
         )?;
         let before_next = presentation_view(&world, plan);
+        #[cfg(not(feature = "lab-opt-replay-fusion"))]
         let before_owner: BTreeMap<CombatantSide, senkei_model::WorldStateView> = plan.next.as_ref().map(|next| {
             sides.into_iter().map(|side| (side, next_vision::team_view(&world, next, side))).collect()
         }).unwrap_or_default();
+        #[cfg(feature = "lab-opt-replay-fusion")]
+        let eager_before_owner = recent_next_events || world.entities.len() < 32;
+        // An exact frozen World is cheaper than two graph-aware projections
+        // on most quiet, nontrivial Ticks. If events unexpectedly appear,
+        // reconstruct both original owner views from this snapshot, before
+        // considering the event's visibility or owner-only details.
+        #[cfg(feature = "lab-opt-replay-fusion")]
+        let before_owner_world = (!eager_before_owner && plan.next.is_some())
+            .then(|| world.clone());
+        #[cfg(feature = "lab-opt-replay-fusion")]
+        let before_owner = if eager_before_owner {
+            plan.next.as_ref().map(|next| {
+                sides.into_iter().map(|side| (
+                    side, next_vision::team_view(&world, next, side),
+                )).collect::<BTreeMap<_, _>>()
+            })
+        } else { None };
         let mut next_events = Vec::new();
         let mut committed_orders = Vec::new();
         let mut capture_contest = None;
@@ -831,6 +853,19 @@ fn simulate_inner<P: TacticalExecutionPort>(
             presentation_view(&world, plan)
         };
         if plan.next.is_some() {
+            #[cfg(feature = "lab-opt-replay-fusion")]
+            let before_owner = if next_events.is_empty() {
+                None
+            } else {
+                Some(before_owner.unwrap_or_else(|| {
+                    let original = before_owner_world.as_ref()
+                        .expect("deferred owner visibility requires exact frozen World");
+                    let next = plan.next.as_ref().unwrap();
+                    sides.into_iter().map(|side| (
+                        side, next_vision::team_view(original, next, side),
+                    )).collect::<BTreeMap<_, _>>()
+                }))
+            };
             #[cfg(not(feature = "lab-opt-replay-fusion"))]
             if sides.into_iter().all(|side| contest_observers.contains(&side)) {
                 add_contest_fact(&mut replay_view, plan, capture_contest.as_ref());
@@ -844,7 +879,12 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     fog_histories.get_mut(&side).unwrap(),
                 );
                 if contest_observers.contains(&side) { add_contest_fact(&mut owner_after, plan, capture_contest.as_ref()); }
+                #[cfg(not(feature = "lab-opt-replay-fusion"))]
                 let owner_before = &before_owner[&side];
+                #[cfg(feature = "lab-opt-replay-fusion")]
+                let owner_before = before_owner.as_ref()
+                    .map(|views| &views[&side])
+                    .unwrap_or(&owner_after);
                 let mut events = Vec::new();
                 let mut combat_to_owner = BTreeMap::new();
                 for (index, event) in next_events.iter().enumerate() {
@@ -902,6 +942,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     add_contest_fact(&mut replay_view, plan, capture_contest.as_ref());
                 }
             }
+            #[cfg(feature = "lab-opt-replay-fusion")]
+            { recent_next_events = !next_events.is_empty(); }
             public_events.extend(next_events.into_iter().filter_map(|event| {
                 project_next_public_event(event, &plan.presentation, &before_next, &replay_view)
             }));
