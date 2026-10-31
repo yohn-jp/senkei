@@ -154,13 +154,14 @@ impl PassiveLifecyclePlan {
                 continue;
             }
             if hero.entity_type.as_str() != "hero" || !support::alive(hero) { continue; }
-            let catalog = support::string(hero, "catalog_id");
+            // Exact borrowed catalog lookup; no per-Hero/Tick string clone.
+            let catalog = support::string_ref(hero, "catalog_id");
             let mut haste = 0_i64;
             let mut slow = 0_i64;
             let needs_shield = support::int(hero, "life_generation")
                 != support::int(hero, "passive_generation");
             let mut shield = 0_i64;
-            if let Some(skills) = self.by_catalog.get(&catalog) {
+            if let Some(skills) = self.by_catalog.get(catalog) {
                 for (id, effect, power) in skills {
                     if !self.learned(hero, id) { continue; }
                     match effect {

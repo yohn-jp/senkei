@@ -668,6 +668,21 @@ mod tests {
                 .all(|pair| pair[0] < pair[1])),
                 "same-Tick actor order must be stable");
         }
+        // A window adjacent to u32::MAX cannot schedule a wrapped Tick.
+        // All three kernels must preserve the same final inclusive event.
+        let edge = [AttackClock {
+            first_tick: u32::MAX - 1, interval: 5, damage: 1,
+        }];
+        for kernel in [
+            CandidateQueueKernel::Scan, CandidateQueueKernel::Heap,
+            CandidateQueueKernel::Bucket,
+        ] {
+            assert_eq!(materialize_candidate_batches(
+                &edge, u32::MAX - 2, u32::MAX, kernel,
+            ).unwrap(), vec![DueBatch {
+                tick: u32::MAX - 1, actor_indices: vec![0],
+            }]);
+        }
         assert_eq!(CandidateQueueKernel::select(2, 64, 5), CandidateQueueKernel::Scan);
         assert_eq!(CandidateQueueKernel::select(40, 64, 300), CandidateQueueKernel::Bucket);
         assert_eq!(CandidateQueueKernel::select(40, 64, 10), CandidateQueueKernel::Heap);
