@@ -991,11 +991,13 @@ fn nearest_in_candidates<'a>(
             }
             eligible
         })
-        .min_by(|(a_id, a), (b_id, b)| {
-            support::combat_distance2(source, a, rules).unwrap_or(i128::MAX)
-                .cmp(&support::combat_distance2(source, b, rules).unwrap_or(i128::MAX))
-                .then_with(|| a_id.cmp(b_id))
-        })
+        // Evaluate each eligible candidate's graph distance once. The
+        // former comparator recalculated the incumbent distance for every
+        // contender; the tuple key preserves the exact EntityId tie break.
+        .min_by_key(|(id, target)| (
+            support::combat_distance2(source, target, rules).unwrap_or(i128::MAX),
+            *id,
+        ))
         .map(|(id, entity)| (id.clone(), entity))
 }
 
