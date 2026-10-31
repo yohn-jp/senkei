@@ -1845,7 +1845,7 @@ mod tests {
                 &mut planned, &planned_snapshot, &config, &[], tick,
                 &mut frontier, None,
             );
-            saw_attack |= events_ref.iter().any(|event| event.event_type == "next.attack");
+            saw_attack |= events_ref.iter().any(|event| event.event.as_str() == "next.attack");
             assert_eq!(events_planned, events_ref,
                 "periodic candidate batch changed an event at Tick {tick}");
             assert_eq!(planned, reference,
