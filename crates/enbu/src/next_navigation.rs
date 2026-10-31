@@ -29,6 +29,10 @@ struct MovementIntent {
 /// immutable phase snapshot, and the index never survives the Tick.
 struct NavigationCohorts<'a> {
     by_side: BTreeMap<CombatantSide, BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>>,
+    // Same frozen snapshot, same living grouped membership as by_side.
+    // Precompute maximum lock once instead of materializing cloned cohort
+    // Vecs and scanning all members for each Hero visited in P7.
+    max_lock_by_side: BTreeMap<CombatantSide, BTreeMap<&'a str, i64>>,
     minions_by_side: BTreeMap<CombatantSide, Vec<&'a EntityState>>,
 }
 
@@ -39,6 +43,7 @@ impl<'a> NavigationCohorts<'a> {
             BTreeMap<&'a str, Vec<(&'a EntityId, &'a EntityState)>>,
         >::new();
         let mut minions_by_side = BTreeMap::<CombatantSide, Vec<&'a EntityState>>::new();
+        let mut max_lock_by_side = BTreeMap::<CombatantSide, BTreeMap<&'a str, i64>>::new();
         for (id, entity) in &snapshot.entities {
             if !alive(entity) { continue; }
             if entity.entity_type.as_str() == "minion" {
@@ -51,9 +56,13 @@ impl<'a> NavigationCohorts<'a> {
             if let Some(side) = entity.owner.filter(|_| !squad.is_empty()) {
                 by_side.entry(side).or_default()
                     .entry(squad).or_default().push((id, entity));
+                let lock = support::int(entity, "action_lock_until");
+                let entry = max_lock_by_side.entry(side).or_default()
+                    .entry(squad).or_insert(i64::MIN);
+                *entry = (*entry).max(lock);
             }
         }
-        Self { by_side, minions_by_side }
+        Self { by_side, max_lock_by_side, minions_by_side }
     }
 
     fn members(&self, hero: &EntityState) -> Option<Vec<(EntityId, &'a EntityState)>> {
@@ -64,6 +73,13 @@ impl<'a> NavigationCohorts<'a> {
         }
         let members = self.by_side.get(&side)?.get(squad)?;
         Some(members.iter().map(|(id, entity)| ((**id).clone(), *entity)).collect())
+    }
+
+    fn cohort_locked(&self, hero: &EntityState, tick: u32) -> Option<bool> {
+        let side = hero.owner?;
+        let squad = support::string_ref(hero, "squad");
+        let deadline = self.max_lock_by_side.get(&side)?.get(squad)?;
+        Some(*deadline > i64::from(tick))
     }
 
     fn minion_vision(&self, side: CombatantSide, hero: &EntityState, rules: &NextRules) -> bool {
@@ -242,9 +258,12 @@ fn advance_inner_with_window(
             continue;
         };
         if start.entity_type.as_str() == "hero"
-            && hero_cohort_indexed(&id, start, snapshot, cohort_index.as_ref())
-                .iter()
-                .any(|(_, member)| int(member, "action_lock_until") > i64::from(tick))
+            && cohort_index.as_ref()
+                .and_then(|index| index.cohort_locked(start, tick))
+                .unwrap_or_else(|| hero_cohort_indexed(
+                    &id, start, snapshot, cohort_index.as_ref(),
+                ).iter().any(|(_, member)|
+                    int(member, "action_lock_until") > i64::from(tick)))
         {
             continue;
         }
@@ -2269,6 +2288,16 @@ mod tests {
                     hero_cohort_indexed(actor_id, actor, &world, Some(&index)),
                     "indexed cohort mismatch for {actor_id} seed={seed}");
                 for tick in [1_u32, 8, 19] {
+                    let reference_locked = hero_cohort(actor_id, actor, &world).iter()
+                        .any(|(_, member)|
+                            int(member, "action_lock_until") > i64::from(tick));
+                    let indexed_locked = index.cohort_locked(actor, tick)
+                        .unwrap_or_else(|| hero_cohort_indexed(
+                            actor_id, actor, &world, Some(&index),
+                        ).iter().any(|(_, member)|
+                            int(member, "action_lock_until") > i64::from(tick)));
+                    assert_eq!(indexed_locked, reference_locked,
+                        "frozen same-squad lock frontier changed for actor={actor_id} tick={tick} seed={seed}");
                     let ordinary = movement_intent_for(actor_id, actor,
                         &world, &config, tick, None, None);
                     let indexed = movement_intent_for(actor_id, actor,
