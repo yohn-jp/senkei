@@ -1079,7 +1079,14 @@ fn collect_skill_activations(
     tick: u32,
     events: &mut Vec<PresentationEvent>,
 ) -> (Vec<Hit>, Vec<PendingEffect>) {
-    let mut intents: Vec<_> = accepted.iter().collect();
+    // The canonical ordering applies only to Skill activation intents.
+    // Filtering before sorting avoids cloning/sorting arbitrary Move,
+    // Squad and bridge orders that would all be ignored by this collector.
+    // Each admitted activation retains the same global stable sort key.
+    let mut intents: Vec<_> = accepted.iter().filter(|(_, intent)| {
+        let capability = intent.capability.as_str();
+        capability == "activate" || capability.ends_with(".activate")
+    }).collect();
     intents.sort_by(|(a_side, a), (b_side, b)| {
         (a_side, &a.actor, &a.action_id, &a.target, &a.arguments)
             .cmp(&(b_side, &b.actor, &b.action_id, &b.target, &b.arguments))
