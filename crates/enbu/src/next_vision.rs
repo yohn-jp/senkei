@@ -270,6 +270,25 @@ pub fn minion_vision(world: &WorldState, rules: &NextRules, side: CombatantSide,
     })
 }
 
+/// A P7-only immutable source classification. The caller has already
+/// selected living friendly Minions in stable WorldState order; this keeps
+/// the exact geodesic visibility predicate and nonstacking boolean semantics
+/// without re-classifying every other World entity for every Hero.
+pub(crate) fn minion_vision_from_sources(
+    sources: &[&EntityState], rules: &NextRules,
+    side: CombatantSide, entity: &EntityState,
+) -> bool {
+    if entity.entity_type.as_str() != HERO {
+        return false;
+    }
+    sources.iter().any(|source| {
+        source.entity_type.as_str() == MINION
+            && source.owner == Some(side)
+            && support::alive(source)
+            && within_radius(source, entity, support::int(source, "vision"), rules)
+    })
+}
+
 /// Builds one side's same-tick observation strictly from the plan schema.
 /// Hidden current enemy entities never enter an EnemyVisible collection, and
 /// direct reads of hidden enemy entities return Unknown.
