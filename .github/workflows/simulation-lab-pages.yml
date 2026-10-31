@@ -99,7 +99,7 @@ jobs:
           cargo test --locked --release -p enbu --features lab-opt-observation --lib
           cargo test --locked --release -p enbu --features lab-opt-observation --test next_scenarios canonical_battlefield_real_jinrei_match_covers_tracks_fords_bridges_and_node_combat -- --exact
           cargo test --locked --release -p enbu --features lab-optimizations,lab-opt-route,lab-opt-visibility,lab-opt-fog-cache,lab-opt-observation --lib
-      - name: Validate PR 71 in-place movement and combat visibility frontier
+      - name: Verify in-place movement and combat visibility frontier
         run: |
           cargo test --locked --release -p enbu --features lab-opt-frontier --lib
           cargo test --locked --release -p enbu --features lab-opt-inplace --lib
