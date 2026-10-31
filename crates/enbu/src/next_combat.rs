@@ -2093,6 +2093,60 @@ mod tests {
 
     #[cfg(all(feature = "lab-opt-arithmetic", feature = "lab-opt-scheduler"))]
     #[test]
+    fn live_combat_keeps_independent_arithmetic_domains_after_local_clock_reset() {
+        let config = rules();
+        let mut reference = WorldState::default();
+        for (id, ready, interval) in [
+            ("first", 3_i64, 4_i64), ("second", 5_i64, 7_i64),
+        ] {
+            let mut source = entity("hero", Some(CombatantSide::Attacker),
+                0, 100, 12, 100);
+            support::set_int(&mut source, "attack_ready", ready);
+            support::set_int(&mut source, "attack_interval", interval);
+            reference.entities.insert(id.into(), source);
+        }
+        for index in 0..32 {
+            reference.entities.insert(format!("dormant-{index:02}").into(),
+                entity("tower", Some(CombatantSide::Attacker), 0, 100, 0, 100));
+        }
+        reference.entities.insert("victim".into(),
+            entity("tower", Some(CombatantSide::Defender), 0, 1_000_000, 0, 100));
+        let mut actual = reference.clone();
+        let mut frontier = crate::execution::scheduler::BasicAttackFrontier::default();
+        let mut attacks = 0;
+        for tick in 1_u32..=32 {
+            if tick == 6 {
+                for world in [&mut reference, &mut actual] {
+                    // This actor alone is interrupted by a Skill/cooldown
+                    // rewrite. It must return to live readiness inspection
+                    // without revoking the independent second attack clock.
+                    support::set_int(world.entities.get_mut(&EntityId::from("first")).unwrap(),
+                        "attack_ready", 6);
+                }
+            }
+            let frozen_reference = reference.clone();
+            let frozen_actual = actual.clone();
+            let expected = resolve_from_snapshot(
+                &mut reference, &frozen_reference, &config, &[], tick,
+            );
+            let observed = resolve_from_snapshot_scheduled(
+                &mut actual, &frozen_actual, &config, &[], tick,
+                &mut frontier, None,
+            );
+            attacks += expected.iter()
+                .filter(|event| event.event.as_str() == "next.attack").count();
+            assert_eq!(observed, expected, "source-local fallback changed events at Tick {tick}");
+            assert_eq!(actual, reference, "source-local fallback changed World at Tick {tick}");
+            if tick == 6 {
+                assert_eq!(frontier.certified_periodic_domains(), 1,
+                    "the unrelated clock must keep its certified schedule");
+            }
+        }
+        assert!(attacks > 4, "fixture must commit attacks on both original clocks");
+    }
+
+    #[cfg(all(feature = "lab-opt-arithmetic", feature = "lab-opt-scheduler"))]
+    #[test]
     fn heap_and_bucket_periodic_kernels_match_actual_next_combat_artifacts() {
         let config = rules();
         for interval in [2_i64, 200_i64] {
