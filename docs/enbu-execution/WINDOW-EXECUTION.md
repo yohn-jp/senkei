@@ -92,6 +92,22 @@ A differential regression test compares the two physical Next navigation
 paths over 30 actual Ticks with a new wave actor, changing leader goals,
 death, explicit movement, and a changed minion goal.
 
+## Match-compiled Minion lane transition planner (real Enbu P1)
+
+The `lab-opt-hybrid` path now compiles `LaneWaypointIndex` once from the
+verified immutable `NextRules.map.lanes`, before Tick 1. For each lane it
+retains the first node occurrence and exact next-node mapping in either
+direction. Live Minion goals, owner and current node/edge still come from the
+original current-Tick World; no movement result is predicted across Ticks.
+A missing lane returns None; an unknown, terminal or repeated node uses the
+same opposing-base fallback as `lane_waypoint`. Compilation includes no
+scenario-name lookup. The complete 48-Tick in-place Minion World is compared
+against the unindexed Reference, including goal/edge changes, owner removal
+and a newly spawned Minion; duplicate/unknown lane nodes have an exhaustive
+two-side indexed-vs-linear equivalence test. Without H, the original code is
+retained. The compiled map removes repeated linear scans of each lane's
+nodes from the heavy every-Tick Minion lifecycle.
+
 ## Frozen graph-local combat partition (real Enbu P7)
 
 The experimental `lab-opt-spatial` feature builds an ordered
