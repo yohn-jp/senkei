@@ -1509,6 +1509,19 @@ fn learn_path_skills(world: &mut WorldState, rules: &NextRules, events: &mut Vec
         // Conservative proof that no Hero can learn a new path skill.
         return;
     }
+    #[cfg(feature = "lab-opt-hybrid")]
+    {
+        learn_path_skills_inplace(world, rules, events);
+        return;
+    }
+    #[cfg(not(feature = "lab-opt-hybrid"))]
+    learn_path_skills_reference(world, rules, events);
+}
+
+#[cfg(any(test, not(feature = "lab-opt-hybrid")))]
+fn learn_path_skills_reference(
+    world: &mut WorldState, rules: &NextRules, events: &mut Vec<PresentationEvent>,
+) {
     let hero_ids: Vec<_> = world.entities.iter()
         .filter(|(_, entity)| entity.entity_type.as_str() == "hero")
         .map(|(id, _)| id.clone())
@@ -1552,7 +1565,51 @@ fn learn_path_skills(world: &mut WorldState, rules: &NextRules, events: &mut Vec
                 break;
             }
         }
+    }}
+
+#[cfg(feature = "lab-opt-hybrid")]
+fn learn_path_skills_inplace(
+    world: &mut WorldState, rules: &NextRules, events: &mut Vec<PresentationEvent>,
+) {
+    // No other entity's snapshot is read or mutated by path unlocks:
+    // hero catalog, path, level and original skill IDs are frozen before
+    // processing that Hero. Stable BTreeMap iteration preserves original
+    // global acquired-skill event order without cloning all Hero IDs or
+    // whole EntityState values on each planning call.
+    for (hero_id, hero) in &mut world.entities {
+        if hero.entity_type.as_str() != "hero" { continue; }
+        let Some(definition) = rules.heroes.iter().find(|definition|
+            definition.id == support::string_ref(hero, "catalog_id")
+        ) else { continue; };
+        let Some(path) = definition.skill_paths.get(
+            support::string_ref(hero, "skill_path")
+        ) else { continue; };
+        let level = support::int(hero, "level").max(1);
+        let mut learned = skill_ids(hero);
+        for _ in 0..=path.len() {
+            let mut changed = false;
+            for skill_id in path {
+                if learned.contains(skill_id) { continue; }
+                let Some(skill) = definition.skills.iter().find(|skill|
+                    &skill.id == skill_id
+                ) else { continue; };
+                if skill.unlock_level > level
+                    || !skill.prerequisites.iter().all(|id| learned.contains(id))
+                {
+                    continue;
+                }
+                learned.insert(skill.id.clone());
+                push_skill(hero, &skill.id);
+                if skill.passive { apply_passive(hero, skill, rules); }
+                let mut payload = BTreeMap::new();
+                payload.insert("skill".into(), DomainValue::String(skill.id.clone()));
+                events.push(event("next.skill_acquired", Some(hero_id.clone()), payload));
+                changed = true;
+            }
+            if !changed { break; }
+        }
     }
+
 }
 
 fn apply_passive(hero: &mut EntityState, skill: &SkillDefinition, rules: &NextRules) {
@@ -3273,6 +3330,63 @@ mod tests {
             .map(|id| support::int(&world.entities[&EntityId::from(*id)], "xp"))
             .sum();
         assert_eq!(total, XP_SCALE);
+    }
+
+    #[cfg(feature = "lab-opt-hybrid")]
+    #[test]
+    fn inplace_skill_path_compiler_preserves_reference_prerequisites_and_events() {
+        let mut rules = rules();
+        rules.heroes[0].skills = vec![
+            SkillDefinition { id: "guard".into(), name: "Guard".into(),
+                passive: true, unlock_level: 1, prerequisites: vec![],
+                cooldown: 0, cost: 0, range: 0, target: "self".into(),
+                effect: SkillEffect::Defense, power: 3, duration: 0 },
+            SkillDefinition { id: "shield".into(), name: "Shield".into(),
+                passive: true, unlock_level: 2, prerequisites: vec!["guard".into()],
+                cooldown: 0, cost: 0, range: 0, target: "self".into(),
+                effect: SkillEffect::Shield, power: 15, duration: 0 },
+            SkillDefinition { id: "haste".into(), name: "Haste".into(),
+                passive: true, unlock_level: 3, prerequisites: vec!["shield".into()],
+                cooldown: 0, cost: 0, range: 0, target: "self".into(),
+                effect: SkillEffect::Haste, power: 30, duration: 0 },
+        ];
+        rules.heroes[0].skill_paths.insert("chain".into(),
+            vec!["haste".into(), "shield".into(), "guard".into()]);
+        let mut had_unlock = false;
+        for seed in 0..80_u32 {
+            let mut world = WorldState::default();
+            for i in 0..18_u32 {
+                let mut hero = entity("hero", Some(CombatantSide::Attacker),
+                    i64::from(i), 100, 8, 8);
+                support::set_string(&mut hero, "catalog_id",
+                    if (i+seed) % 11 == 0 { "unknown" } else { "test_hero" });
+                support::set_string(&mut hero, "skill_path",
+                    if (i+seed) % 9 == 0 { "unknown" } else { "chain" });
+                support::set_int(&mut hero, "level", i64::from(1 + (i+seed) % 4));
+                if (i+seed) % 3 == 0 {
+                    hero.fields.insert("skills".into(), DomainValue::List(vec![
+                        DomainValue::String("guard".into()),
+                    ]));
+                }
+                world.entities.insert(format!("hero-{i:02}").into(), hero);
+            }
+            for i in 0..24 {
+                world.entities.insert(format!("padding-{i:02}").into(),
+                    entity("tower", Some(CombatantSide::Defender), 0, 100, 0, 0));
+            }
+            let mut reference = world.clone();
+            let mut hybrid = world;
+            let mut reference_events = Vec::new();
+            let mut hybrid_events = Vec::new();
+            learn_path_skills_reference(&mut reference, &rules, &mut reference_events);
+            learn_path_skills_inplace(&mut hybrid, &rules, &mut hybrid_events);
+            had_unlock |= !reference_events.is_empty();
+            assert_eq!(hybrid, reference,
+                "in-place path skill World divergence seed={seed}");
+            assert_eq!(hybrid_events, reference_events,
+                "in-place path skill event ordering divergence seed={seed}");
+        }
+        assert!(had_unlock, "the fixture must exercise prereq chain unlocks");
     }
 
     #[cfg(feature = "lab-opt-frozen")]
