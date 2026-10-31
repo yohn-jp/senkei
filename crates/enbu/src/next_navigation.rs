@@ -14,6 +14,7 @@ const RATE_SCALE: i128 = 1_000;
 // minion vision, squad size, haste, and slow.
 const CAPACITY_SCALE: i128 = RATE_SCALE * RATE_SCALE * RATE_SCALE * RATE_SCALE;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct MovementIntent {
     goal: String,
     track: String,
@@ -137,7 +138,7 @@ fn advance_inner_with_mode(
     routes: Option<&mut crate::next_route::Runtime>,
     inplace: bool,
 ) {
-    advance_inner_with_window(world, snapshot, rules, tick, routes, inplace, None);
+    advance_inner_with_window(world, snapshot, rules, tick, routes, inplace, None, true);
 }
 
 /// Actual Enbu P7 entry point for the certified cross-Tick Active Set. The
@@ -152,7 +153,7 @@ pub(crate) fn advance_from_snapshot_window(
 ) {
     if crate::execution::planner::movement_phase(snapshot.entities.len(), false) {
         advance_inner_with_window(world, snapshot, rules, tick, None,
-            cfg!(feature = "lab-opt-inplace"), Some(window));
+            cfg!(feature = "lab-opt-inplace"), Some(window), true);
     } else {
         // A short battle should not pay for an O(N) certificate and a second
         // source classification. Use the canonical physical executor.
@@ -169,6 +170,7 @@ fn advance_inner_with_window(
     mut routes: Option<&mut crate::next_route::Runtime>,
     inplace: bool,
     window: Option<&mut crate::execution::movement::MovementWindow>,
+    cache_grouped_intents: bool,
 ) {
     // Route waypoints can change without changing the source goal; only the
     // separate route-free entry point may provide a certified Active Set.
@@ -216,6 +218,12 @@ fn advance_inner_with_window(
     // construction overhead.
     let cohort_index = (snapshot.entities.len() >= 12)
         .then(|| NavigationCohorts::new(snapshot));
+    // Members of a living same-side named Squad have the same leader,
+    // corrected slowest speed, shared movement goal and preferred track.
+    // Those are functions of this single immutable snapshot and Tick, not
+    // of the visited Hero. A configured route runtime can return *different*
+    // waypoints for each actor: it must never share these intent calculations.
+    let mut grouped_intents = BTreeMap::<(CombatantSide, &str), MovementIntent>::new();
     for (_, id) in ids {
         let Some(start) = snapshot.entities.get(&id) else {
             continue;
@@ -254,7 +262,24 @@ fn advance_inner_with_window(
             continue;
         };
         let waypoint = routes.as_deref_mut().and_then(|routes| routes.waypoint_for(&id, start));
-        let movement = movement_intent_for(&id, start, snapshot, rules, tick, waypoint.as_deref(), cohort_index.as_ref());
+        let movement = if cache_grouped_intents && routes.is_none()
+            && cohort_index.is_some() && start.entity_type.as_str() == "hero"
+        {
+            let squad = support::string_ref(start, "squad");
+            if let Some(side) = start.owner.filter(|_| !squad.is_empty()) {
+                grouped_intents.entry((side, squad))
+                    .or_insert_with(|| movement_intent_for(
+                        &id, start, snapshot, rules, tick, None, cohort_index.as_ref(),
+                    ))
+                    .clone()
+            } else {
+                movement_intent_for(&id, start, snapshot, rules, tick,
+                    waypoint.as_deref(), cohort_index.as_ref())
+            }
+        } else {
+            movement_intent_for(&id, start, snapshot, rules, tick,
+                waypoint.as_deref(), cohort_index.as_ref())
+        };
         if inplace {
             // This ID is visited exactly once: no earlier movement can
             // modify this actor. Its live state equals the frozen start.
