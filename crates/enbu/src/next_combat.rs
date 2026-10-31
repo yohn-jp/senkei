@@ -1951,6 +1951,70 @@ fn event(name: &str, entity: Option<EntityId>, payload: BTreeMap<FieldId, Domain
 mod tests {
     use super::*;
 
+    #[test]
+    fn fused_attack_distance_preserves_original_range_and_eligibility() {
+        let rules = rules();
+        for source_kind in ["hero", "minion", "monster", "tower", "base"] {
+            for target_kind in ["hero", "minion", "monster", "tower", "base"] {
+                for hp in [0_i64, 1, 100] {
+                    for range in [-1_i64, 0, 20, 100] {
+                        for target_owner in [
+                            None, Some(CombatantSide::Attacker),
+                            Some(CombatantSide::Defender),
+                        ] {
+                            let mut world = WorldState::default();
+                            let mut source = entity(
+                                source_kind, Some(CombatantSide::Attacker),
+                                0, 100, 5, range,
+                            );
+                            support::set_int(&mut source, "vision", 40);
+                            let target = entity(target_kind, target_owner, 20, hp, 0, 20);
+                            world.entities.insert("source".into(), source);
+                            world.entities.insert("target".into(), target);
+                            let source = &world.entities[&EntityId::from("source")];
+                            let target = &world.entities[&EntityId::from("target")];
+                            let kind = source.entity_type.as_str();
+                            let prior = if !support::alive(source)
+                                || !support::alive(target)
+                                || !is_targetable(target)
+                                || support::int(source, "attack") <= 0
+                                || support::int(source, "range") < 0
+                                || source.owner.is_some_and(|side| target.owner == Some(side))
+                            {
+                                false
+                            } else if kind == "monster" &&
+                                (!matches!(target.entity_type.as_str(), "hero" | "minion")
+                                || target.owner.is_none()
+                                || !support::in_combat_range(
+                                    source, target, support::int(source, "vision").max(0), &rules,
+                                ))
+                            {
+                                false
+                            } else if matches!(kind, "tower" | "base") &&
+                                (!matches!(target.entity_type.as_str(), "hero" | "minion")
+                                || target.owner.is_none())
+                            {
+                                false
+                            } else {
+                                support::in_combat_range(
+                                    source, target, support::int(source, "range").max(0), &rules,
+                                ) && crate::next_vision::visible(
+                                    &world, &rules, CombatantSide::Attacker, target,
+                                )
+                            };
+                            let actual = can_basic_attack(
+                                &EntityId::from("source"), source,
+                                &EntityId::from("target"), target, &world, &rules, 3,
+                            );
+                            assert_eq!(actual, prior,
+                                "{source_kind} -> {target_kind}, hp={hp}, range={range}, owner={target_owner:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(all(feature = "lab-opt-arithmetic", feature = "lab-opt-scheduler"))]
     #[test]
     fn periodic_arithmetic_matches_real_next_combat_world_and_events_across_fallbacks() {
