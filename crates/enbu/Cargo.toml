@@ -41,7 +41,7 @@ lab-opt-inplace = []
 # PR #71: lazy frozen target visibility for movement and combat selection.
 lab-opt-frontier = []
 # Adaptive phase-scoped portfolio: no global Tick skipping, cost-gated P/A.
-lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier", "lab-opt-scheduler", "lab-opt-movement-window", "lab-opt-passive-lifecycle"]
+lab-opt-hybrid = ["lab-opt-planned", "lab-opt-arithmetic", "lab-opt-inplace", "lab-opt-frontier", "lab-opt-scheduler", "lab-opt-movement-window", "lab-opt-passive-lifecycle", "lab-opt-frozen", "lab-opt-spatial", "lab-opt-observation"]
 # Revalidate an exact combat-domain clock certificate across canonical Ticks.
 lab-opt-scheduler = []
 # Cross-Tick dependency-certified movement Active Set, preserves every Tick.
