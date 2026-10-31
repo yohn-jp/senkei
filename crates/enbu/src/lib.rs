@@ -371,6 +371,8 @@ fn simulate_inner<P: TacticalExecutionPort>(
     let max_ticks = context.max_ticks.min(plan.termination.max_ticks);
     // Owned by exactly one match. Never reuse a certificate across plans,
     // matches or authority boundaries. Every external Tick remains canonical.
+    #[cfg(feature = "lab-opt-hybrid")]
+    let lane_waypoints = plan.next.as_ref().map(next_vision::LaneWaypointIndex::compile);
     let mut attack_frontier = execution::scheduler::BasicAttackFrontier::default();
     #[cfg(feature = "lab-opt-passive-lifecycle")]
     let mut passive_lifecycle = plan.next.as_ref()
@@ -404,7 +406,19 @@ fn simulate_inner<P: TacticalExecutionPort>(
                     world.entities.len(), false, cfg!(feature = "lab-opt-hybrid"), true,
                 );
                 if plan.reveal_frontier {
-                    next_vision::lifecycle_scheduled(&mut world, next, tick, &mut reveal_frontier);
+                    #[cfg(feature = "lab-opt-hybrid")]
+                    {
+                        next_vision::lifecycle_hybrid(
+                            &mut world, next, tick, &mut reveal_frontier,
+                            lane_waypoints.as_ref().expect("Next lane index"),
+                        );
+                    }
+                    #[cfg(not(feature = "lab-opt-hybrid"))]
+                    {
+                        next_vision::lifecycle_scheduled(
+                            &mut world, next, tick, &mut reveal_frontier,
+                        );
+                    }
                 } else {
                     reveal_frontier.decline_tick(tick);
                     next_vision::lifecycle(&mut world, next, tick);
